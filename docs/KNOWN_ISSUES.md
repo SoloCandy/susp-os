@@ -261,6 +261,58 @@ two fraction-scaled deltas before assigning them to `lo`/`hi`, in both the
 RANGE block and its mirrored GRIP GAP sub-widget. The direction was never
 wrong — only the band's width in this one edge case.
 
+## Considered and rejected — putting bump damping into the RESPONSE bar
+
+Left here so the next audit doesn't "fix" the omission again. It was built,
+measured, and reverted in the same session.
+
+**The gap is real.** `responseFactors` normalises its two damping terms from
+`tune.zetaF`/`tune.zetaR` — rebound only — so the Bump Ratio slider moves the
+PLANTED↔REACTIVE bar by exactly zero. Demonstrated with two runs identical but
+for Bump Ratio (15% → 60%, rebound ζ held at 30%): the DYNAMICS chart's rear
+settle moved 0.74s → 0.58s while RESPONSE sat at −7 BALANCED in both, and the
+US/OS bar at +11.4 in both. A quarter-second of real behaviour that neither
+character readout noticed.
+
+**The implementation worked.** Effective ζ = `reb + 0.5·(bmp − ref·reb)` with
+`ref = DEF_FE.bumpRatio/100`, so the term collapsed to rebound ζ at the default
+ratio and shifted no existing tune's score. Measured at ζreb=70%: +2 at Bump
+Ratio 15%, −1 at 56%, −4 at 100%.
+
+**Why it was reverted.** The sign is not determinable from the inputs the app
+has. Bump damping pulls transient feel two opposite ways:
+
+- **Low shaft speed** — resists roll initiation on turn-in (the outside wheel
+  compresses, the inside extends, both strokes resist). Firmer bump → planted.
+  This is what the implementation assumed.
+- **High shaft speed** — stops the wheel absorbing an impact, so the car gets
+  deflected instead of the suspension moving. Firmer bump → skittish, less
+  contact, the opposite of planted. This is the rally/baja case, raised by a
+  user against exactly this change.
+
+`bumpZetaF`/`bumpZetaR` are single low-speed damping ratios; they cannot
+separate the two regimes, and the app has no surface or shaft-speed axis in
+RESPONSE to arbitrate. So the term is right on smooth tarmac and backwards on
+rough ground, with no way to tell which the user is on. A feel bar that is
+confidently wrong for a whole class of builds is worse than one that stays
+silent, and the gap that prompted the audit is already closed by the DYNAMICS
+chart, which measures the trace rather than asserting a feel direction.
+
+Two things worth carrying forward. First, the same criticism applies to the
+**rebound** terms that remain: heavy rebound packs the suspension down over
+rough ground for the same reason, so RESPONSE has always been a smooth-surface
+model. Second, a build-type-aware version (flip or damp the term for
+`rally`/`offroad`) is the physically honest fix, and was rejected only because
+it needs both a coefficient and a sign flip with no telemetry behind either.
+That is the same trap as `DIFF_BIAS_SCALE`: the direction is arguable, the
+magnitude is unknown, and only the magnitude matters once it is wired into
+something anyone reads.
+
+Bump is likewise absent from `bDampBias`, the damping contributor to the US/OS
+balance bar — there for a stronger reason still. That number is what every
+other recommendation in the app is calibrated against, so an invented bump
+coefficient would move the balance figure on every tune anyone has saved.
+
 ## Fixed — UI copy sold Butterworth as a settling-time claim (resolved)
 
 Found in the copy audit that followed the settle-marker work below, after a

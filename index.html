@@ -3262,7 +3262,7 @@ const GLOSSARY=[
     {term:'Grip Bias',def:"The car's physical at-the-limit handling tendency — derived from tyre load sensitivity and lateral load transfer, not just roll stiffness split. Distinct from Mech Balance: two cars with identical mech balance can have different grip bias if their tyre widths or load transfer differ."},
     {term:'Load Transfer',def:'Weight shifting onto the outside tyres as a car corners. More transfer on an axle reduces that axle\'s total available grip (since tyres lose grip faster than they gain load). Wider track and lower CG height both reduce it.'},
     {term:'Grip-Neutral',def:"The mech balance target that exactly opposes the car's natural grip tendency, shown as a row in the Balance Guide. Targeting it cancels the chassis's built-in push or looseness rather than reinforcing it — GRIP target mode aims here automatically."},
-    {term:'Response (Planted / Reactive)',def:'A separate bar from US/OS, rating transient character — how quickly the car reacts to steering rather than which end lets go. PLANTED is settled and damped: predictable, slower to change direction. REACTIVE is quick to turn in but can feel nervous. A car can be perfectly neutral and still sit at either extreme. Weighted from front Hz (35%), rear Hz (20%), front toe (15%), caster (10%), front damping (12%), and rear damping (8%).'},
+    {term:'Response (Planted / Reactive)',def:'A separate bar from US/OS, rating transient character — how quickly the car reacts to steering rather than which end lets go. PLANTED is settled and damped: predictable, slower to change direction. REACTIVE is quick to turn in but can feel nervous. A car can be perfectly neutral and still sit at either extreme. Weighted from front Hz (35%), rear Hz (20%), front toe (15%), caster (10%), front rebound damping (12%), and rear rebound damping (8%). Bump damping is deliberately absent — its effect on transient feel reverses between smooth and rough surfaces, which a single damping ratio cannot express.'},
   ]},
   {group:'Differential',terms:[
     {term:'Accel Lock',def:"How much the differential locks the driven wheels together under throttle. More lock forces both wheels to spin at closer to the same speed — more traction putting power down, but can add understeer (RWD/AWD) or resist rotation (FWD)."},
@@ -3997,6 +3997,13 @@ function App(){
     // not response speed. Research (Milliken, OptimumG) confirms ARBs are a balance tool, not agility.
     const fHzNorm=Math.min(1,Math.max(0,(tune.fHz-HZ_MIN)/(HZ_MAX-HZ_MIN)));
     const rHzNorm=Math.min(1,Math.max(0,(tune.rHz-HZ_MIN)/(HZ_MAX-HZ_MIN)));
+    // Rebound ζ only, and that is deliberate — a bump term was built here and reverted.
+    // Bump damping pulls this bar two OPPOSITE ways depending on surface: at low shaft speed it
+    // resists roll initiation (planted), at high shaft speed it deflects the car off bumps
+    // instead of absorbing them (skittish). tune.bumpZetaF is a single low-speed ratio and
+    // cannot separate the two, so any sign here is right on smooth tarmac and wrong on rough
+    // ground. The DYNAMICS chart represents bump honestly instead, by measuring the trace
+    // rather than taking a position on feel. See KNOWN_ISSUES.md before adding one back.
     const dampFNorm=Math.min(1,Math.max(0,(tune.zetaF-10)/105));
     const dampRNorm=Math.min(1,Math.max(0,(tune.zetaR-10)/105));
     // Toe range is -0.20° (toe-out, reactive) to +0.20° (toe-in, planted).
@@ -7138,7 +7145,7 @@ function App(){
                 return(<>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,marginBottom:3}}>
                     <span style={{fontSize:10,color:'#475569',letterSpacing:2}}>RESPONSE</span>
-                    <Hint text="Transient response character — how quickly and freely the car reacts to steering inputs. PLANTED (left) means settled and damped: the car resists sudden direction changes but feels stable and predictable. REACTIVE (right) means quick to respond: the car turns in immediately but can feel nervous. Driven by front Hz (35%), front damping (12%), rear Hz (20%), rear damping (8%), toe (15%), and caster (10%). Independent of handling balance — a car can be neutral and still feel very planted or very reactive."/>
+                    <Hint text="Transient response character — how quickly and freely the car reacts to steering inputs. PLANTED (left) means settled and damped: the car resists sudden direction changes but feels stable and predictable. REACTIVE (right) means quick to respond: the car turns in immediately but can feel nervous. Driven by front Hz (35%), front rebound damping (12%), rear Hz (20%), rear rebound damping (8%), toe (15%), and caster (10%). Bump damping is deliberately left out — its effect on transient feel reverses between smooth and rough surfaces. Independent of handling balance — a car can be neutral and still feel very planted or very reactive."/>
                     <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>·</span>
                     <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,color:aCol}}>
                       {`${p>=0?'+':''}${Math.round(p)}`}
@@ -7198,9 +7205,9 @@ function App(){
                   const{score,fHzNorm,rHzNorm,dampFNorm,dampRNorm,toeNorm,casterNorm}=responseFactors;
                   const segs=[
                     {label:'Hz F',    norm:fHzNorm,        weight:0.35,hint:'Front ride frequency — higher Hz = faster initial turn-in response. Primary driver of transient character.'},
-                    {label:'DAMP F',  norm:1-dampFNorm,    weight:0.12,hint:'Front rebound damping — lower = less resistance to roll initiation = sharper turn-in. Higher = more planted entry.'},
+                    {label:'DAMP F',  norm:1-dampFNorm,    weight:0.12,hint:'Front rebound damping — lower = less resistance to roll initiation = sharper turn-in. Higher = more planted entry. Rebound only: bump damping affects turn-in too, but its sign flips with surface roughness, so this bar leaves it out rather than guess — the DYNAMICS chart shows what bump actually does.'},
                     {label:'Hz R',    norm:rHzNorm,        weight:0.20,hint:'Rear ride frequency — higher Hz = quicker rear body control and rotation feel.'},
-                    {label:'DAMP R',  norm:1-dampRNorm,    weight:0.08,hint:'Rear rebound damping — lower = more rotation freedom and rear agility. Higher = more planted rear.'},
+                    {label:'DAMP R',  norm:1-dampRNorm,    weight:0.08,hint:'Rear rebound damping — lower = more rotation freedom and rear agility. Higher = more planted rear. Rebound only, same as DAMP F.'},
                     {label:'TOE F',   norm:toeNorm,        weight:0.15,hint:'Front toe-out sharpens turn-in response (agile). Toe-in adds straight-line stability.'},
                     {label:'CASTER',  norm:casterNorm,     weight:0.10,hint:'Lower caster reduces self-centering force, allowing quicker steering response.'},
                   ].map(s=>({...s,

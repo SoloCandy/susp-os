@@ -604,6 +604,43 @@ frequency (dispatch lives in `feelToPhysics`):
   the fix also shifts PLANTED↔REACTIVE character as a side effect, not just
   which numbers move.
 
+## RESPONSE / transient character (`responseFactors`)
+
+A feel score, not a physical output — nothing downstream consumes it, and it
+is deliberately kept separate from the US/OS balance bar. Weights sum to 1:
+
+| term | weight | source |
+|---|---|---|
+| Hz F | 0.35 | front ride frequency, normalised over `HZ_MIN`–`HZ_MAX` |
+| Hz R | 0.20 | rear ride frequency, same normalisation |
+| TOE F | 0.15 | front toe, −0.20° (reactive) to +0.20° (planted) |
+| DAMP F | 0.12 | front damping, inverted — less damping reads more agile |
+| CASTER | 0.10 | recommended caster over a 3.5° span |
+| DAMP R | 0.08 | rear damping, inverted |
+
+Both damping terms read **rebound ζ only**. That is a deliberate omission, not
+an oversight — a bump term was built here and reverted; see the entry in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full reasoning. The short version:
+
+Bump damping pulls transient feel in two opposite directions depending on
+surface. At low shaft speed it resists roll initiation, which reads **planted**.
+At high shaft speed it stops the wheel absorbing an impact and deflects the car
+instead, which reads **skittish** — the rally/baja case. `bumpZetaF`/`bumpZetaR`
+are single low-speed ratios and cannot separate the two, so any sign chosen here
+is right on smooth tarmac and wrong on rough ground.
+
+Worth noting the same criticism lands on the rebound terms that *are* here:
+heavy rebound packs the suspension down over rough ground for the same reason.
+RESPONSE has always been a smooth-surface model. That is an argument for reading
+the bar with that in mind, not for compounding it with a second term whose sign
+is even less determinable.
+
+Bump *is* fully represented in the VISUALS DYNAMICS chart, which measures the
+drawn trace and so takes no position on feel at all. It is likewise absent from
+`bDampBias` (the DAMP contributor to the US/OS bar), there because that number
+is what the rest of the app is calibrated against — an invented coefficient
+would move every saved tune's balance figure.
+
 ## Mech balance grip model (`mechBalanceLLT`/`balanceFromRsBal`)
 
 ```js
