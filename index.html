@@ -1928,7 +1928,7 @@ const DampingDial=({rebound,bump})=>{
             fontSize={8} fontFamily="sans-serif" letterSpacing={2}>DAMPERS</text>
         </svg>
         <span style={{position:'absolute',top:2,right:2,lineHeight:1}}>
-          <Hint text="Red dot = rebound damping %, blue dot = bump damping %, both on a 10–200 range. Hover or tap a dot to read its value. Center shows the bump-to-rebound ratio. The fill between them turns amber if bump exceeds rebound — bump should generally be softer (lower %) than rebound for a compliant, predictable ride. The background ring is tinted by zone: blue = under-damped (bouncy), green = approaching Butterworth, amber = at/past the Butterworth sweet spot, red = overdamped (sluggish) — same thresholds as the Rebound ζ/Bump ζ sliders."/>
+          <Hint text="Red dot = rebound damping %, blue dot = bump damping %, both on a 10–200 range. Hover or tap a dot to read its value. Center shows the bump-to-rebound ratio. The fill between them turns amber if bump exceeds rebound — bump should generally be softer (lower %) than rebound for a compliant, predictable ride. The background ring is tinted by zone: blue = under-damped (bouncy), green = approaching Butterworth, amber = at or past Butterworth (≈70% ζ), red = overdamped (sluggish) — same thresholds as the Rebound ζ/Bump ζ sliders."/>
         </span>
       </div>
     </div>
@@ -3101,8 +3101,8 @@ const TUTORIALS={
      // distinct concepts together and reads better broken into scannable entries.
      terms:[
        {term:'Hz (Hertz)',def:'Natural ride frequency — how many times per second a corner would bounce if pushed down and released. Higher Hz = stiffer spring, faster response. Street: 1.0–1.8 Hz. Track: 1.8–2.6 Hz.'},
-       {term:'ζ (Zeta)',def:'Damping ratio — how quickly the bounce dies out. 70% (Butterworth) is the sweet spot, settling cleanly in one or two cycles. Below 40% feels bouncy; above 100% feels sluggish.'},
-       {term:'Settle Time',def:'Seconds for the suspension to stop moving after a hit. Short = planted; long = compliant but can cause mid-corner instability.'},
+       {term:'ζ (Zeta)',def:'Damping ratio — how quickly the bounce dies out. The 70% default (Butterworth) overshoots about 4% once and is then done. Below 40% feels bouncy; above 100% feels sluggish.'},
+       {term:'Settle Time',def:'Seconds until the suspension is back within 10% of ride height after a hit and stays there. Short = planted; long = compliant but can cause mid-corner instability.'},
      ]},
     {title:'Key Terms — ARB & Roll Stiffness',
      focus:null,
@@ -3137,7 +3137,7 @@ const TUTORIALS={
      body:'RIDE REF. sets which axle the stiffness slider anchors — FRONT, SHARED, or REAR. The secondary axle frequency is derived by the Hz mode: MULTIPLIER (a fixed ratio of the anchored axle, the default), FLAT RIDE (the mathematically ideal pitch-cancelling ratio for a target speed), or INDEPENDENT (set manually, free of the other axle).'},
     {title:'Dampers',
      focus:['damping'],
-     body:'REBOUND MODE and BUMP MODE toggles sit above their sliders. Rebound ζ at 70% (Butterworth) is the sweet spot — settles cleanly without oscillating; below 40% is bouncy, above 100% is sluggish. Bump Ratio sets compression as a fraction of rebound (40–65% typical). Damping Bias splits front/rear: FRONT keeps the front firm while the rear softens (planted entry); REAR softens the front (easier direction changes) — shown in the DAMP row of Handling Balance.'},
+     body:'REBOUND MODE and BUMP MODE toggles sit above their sliders. Rebound ζ defaults to 70% — Butterworth, the ratio with no resonant peak (see TERMS): about 4% overshoot and no wallow. Below 40% is bouncy, above 100% is sluggish. Bump Ratio sets compression as a fraction of rebound (40–65% typical). Damping Bias splits front/rear: FRONT keeps the front firm while the rear softens (planted entry); REAR softens the front (easier direction changes) — shown in the DAMP row of Handling Balance.'},
     {title:'VISUALS Card',
      focus:['visuals'],
      body:'VISUALS is pinned to the bottom of the sidebar so it never scrolls away, and holds four collapsible readouts: ARB (front/rear dial, roll seesaw, SPRINGS/ARBs split bar), RIDE/DAMPERS (your frequencies and damping ratios), DYNAMICS (step response — settle speed, overshoot, ride/damping interaction, with the ±10% settle band drawn), and SAG (suspension travel vs. load). Tap any header to collapse it and give the others more room.'},
@@ -3232,12 +3232,12 @@ const GLOSSARY=[
     {term:'Bottoming',def:'Running out of suspension travel — the wheel compresses as far as it can go and the chassis takes the hit directly, which spikes grip loss mid-corner. Raising ride height or stiffening springs both buy travel back.'},
   ]},
   {group:'Damping',terms:[
-    {term:'ζ (Zeta / Damping Ratio)',def:"How quickly a bounce dies out, expressed as a percentage of critical damping. 100% = critically damped (returns to rest in one smooth motion, no overshoot). SUSP.OS defaults to 70% (Butterworth) — settles cleanly in one or two cycles without feeling harsh. Below ~40% feels bouncy and underdamped; above ~100% feels sluggish and overdamped."},
+    {term:'ζ (Zeta / Damping Ratio)',def:"How quickly a bounce dies out, expressed as a percentage of critical damping. 100% = critically damped (returns to rest in one smooth motion, no overshoot). SUSP.OS defaults to 70% (Butterworth) — one small overshoot of about 4%, then done, without feeling harsh. Below ~40% feels bouncy and underdamped; above ~100% feels sluggish and overdamped. No single ζ is best at everything: ≈59% gives the quickest settle after one bump, ≈70% the flattest response to a continuous road surface, 100% the quickest with no overshoot at all."},
     {term:'Critical Damping',def:"The exact amount of damping that stops a spring's oscillation as fast as possible without overshooting past rest. It's the reference point damping ratio (ζ) is measured against — ζ is always a percentage of this value, not an absolute number."},
-    {term:'Butterworth (≈70% ζ)',def:"The damping ratio (≈0.707, rounded to 70% here) that gives the flattest, smoothest response with no resonant peak — borrowed from Butterworth filter design. It's the reason SUSP.OS defaults Rebound ζ to 70%: firm enough to control the car, soft enough not to feel harsh over bumps."},
+    {term:'Butterworth (≈70% ζ)',def:"The damping ratio (≈0.707, rounded to 70% here) that gives the flattest, smoothest response with no resonant peak — borrowed from Butterworth filter design. That is a frequency-domain property — no road frequency the suspension amplifies more than the rest, which is what keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% ζ overshoots about 4%, and the quickest ±10% settle actually sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why SUSP.OS defaults Rebound ζ to 70%: firm enough to control the car, soft enough not to feel harsh over bumps."},
     {term:'Rebound',def:'Damping resistance as the suspension extends — the wheel dropping back down after being compressed. Controls how fast the wheel returns to full extension after a bump or during weight transfer.'},
     {term:'Bump (Compression)',def:'Damping resistance as the suspension compresses — the wheel moving up into a bump or under load transfer. Usually softer than rebound; Bump Ratio expresses it as a percentage of the rebound value.'},
-    {term:'Settle Time',def:'Seconds for the suspension to stop moving after a disturbance. Short settle time feels planted and controlled; long settle time is more compliant over rough surfaces but can leave the car still moving mid-corner.'},
+    {term:'Settle Time',def:'Seconds until the suspension is back inside ±10% of ride height after a disturbance and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. Two readouts use the name: the DAMPERS rows show a quick estimate from rebound ζ and spring frequency alone, while the DYNAMICS chart measures its drawn curve, so it also sees your bump damping. They can differ — the chart is the one describing the trace beside it.'},
     {term:'Damping Balance Mode',def:'Sets how the Damping Bias slider splits rebound/bump ζ front to rear — independent of REBOUND MODE, which only decides how the anchor ζ is obtained (typed under CHARACTER, back-solved from a target time under SETTLE TIME). STANDARD biases the anchor directly by percentage. SYNC solves so both axles finish settling at the same time. NEUTRAL solves so both axles push the same actual damping force (accounts for corner mass as well as Hz) — mirrors ARB Balance Mode’s WEIGHT/NEUTRAL pattern. The slider itself never resets when you switch modes.'},
   ]},
   {group:'Roll & Anti-Roll Bars',terms:[
@@ -5655,7 +5655,7 @@ function App(){
               ? <FeelSlider label="Settle Target" value={fe.settleTarget??0.80}
                   onChange={pFe('settleTarget')} min={0.10} max={1.50} step={0.01}
                   leftLabel="0.10s" rightLabel="1.50s"
-                  hint="Target settle time — how quickly oscillations die out after a bump. The app back-calculates rebound ζ for each axle from its spring frequency. Lower = tighter, more controlled. Higher = softer, more comfortable. Damping Bias skews the F/R timing ratio."
+                  hint="Target settle time — how quickly oscillations die out after a bump. The app back-calculates rebound ζ for each axle from its spring frequency, against the same ζ-only estimate the DAMPERS rows show — bump damping doesn't move it, and the DYNAMICS chart, which measures the real curve, can read differently. The back-solve stops at 100% ζ: past critical damping more damping settles slower, not faster. Lower = tighter, more controlled. Higher = softer, more comfortable. Damping Bias skews the F/R timing ratio."
                   markers={[
                     {value:0.35,color:'#ef4444',label:'PLANTED'},
                     {value:0.60,color:'#f59e0b',label:'RACE'},
@@ -5669,7 +5669,7 @@ function App(){
               : <FeelSlider label="Rebound ζ" value={fe.reboundZeta??70}
                   onChange={pFe('reboundZeta')} min={10} max={200} step={1}
                   leftLabel="10%" rightLabel="200%"
-                  hint="Damping ratio for the rebound (extension) stroke — how quickly the suspension returns after compression. 55–70% is typical. Above 70% (Butterworth) the car feels planted but stiff. Above 100% (overdamped) the suspension moves sluggishly."
+                  hint="Damping ratio for the rebound (extension) stroke — how quickly the suspension returns after compression. 55–70% is typical. 70% is Butterworth: the flattest response to a rough surface, which is not the same as the quickest settle after a single bump (that sits nearer 59%). Above 70% the car feels planted but stiff. Above 100% (overdamped) the suspension moves sluggishly."
                   markers={[
                     {value:40, color:'#60a5fa',label:'UNDER',lessThan:true},
                     {value:70, color:'#f59e0b',label:'BWORTH'},
@@ -5678,7 +5678,10 @@ function App(){
                   readout={(()=>{
                     const z=fe.reboundZeta??70;
                     if(z>100)return`${z}% ⚠ OVERDAMPED`;
-                    if(z>70) return`${z}% · BUTTERWORTH`;
+                    // Butterworth is a point (ζ≈70.7%), not a region — label its neighbourhood
+                    // only, and call everything above it what it actually is: firm.
+                    if(z>72) return`${z}% · FIRM`;
+                    if(z>=68) return`${z}% · BUTTERWORTH`;
                     return`${z}%`;
                   })()}/> }
             {/* bump ratio / independent toggle */}
@@ -5705,9 +5708,11 @@ function App(){
                     const ratio=Math.min(100,fe.bumpRatio??56);
                     const effReb=physics.zetaF;
                     const bz=Math.max(10,Math.min(effReb,effReb*ratio/100));
-                    const zLabel=bz>100?`${Math.round(bz)}% ⚠ OVERDAMPED`:
-                                 bz>70 ?`${Math.round(bz)}% · BUTTERWORTH`:
-                                         `${Math.round(bz)}%`;
+                    const bzR=Math.round(bz);
+                    const zLabel=bz>100?`${bzR}% ⚠ OVERDAMPED`:
+                                 bz>72 ?`${bzR}% · FIRM`:
+                                 bz>=68?`${bzR}% · BUTTERWORTH`:
+                                         `${bzR}%`;
                     return`${ratio}% / ${zLabel}`;
                   })()}/>
               : <FeelSlider label="Bump ζ" value={fe.bumpZeta??39}
@@ -5724,7 +5729,8 @@ function App(){
                     const r=fe.reboundZeta??70;
                     const cross=z>r?' ⚠ CROSSED':'';
                     if(z>100)return`${z}% ⚠ OVERDAMPED${cross}`;
-                    if(z>70) return`${z}% · BUTTERWORTH${cross}`;
+                    if(z>72) return`${z}% · FIRM${cross}`;
+                    if(z>=68) return`${z}% · BUTTERWORTH${cross}`;
                     return`${z}%${cross}`;
                   })()}/>}
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
@@ -6562,7 +6568,7 @@ function App(){
 
             const springPctF=Math.round(tune.rsSpF/(tune.rsSpF+tune.rsAbF)*100);
             const springPctR=Math.round(tune.rsSpR/(tune.rsSpR+tune.rsAbR)*100);
-            const suspHint="Anti-Roll Spring Rate, Spring Rate, and Rebound/Bump Damping in N/m / N/m/s, matching BeamNG's sliders — divided by motion ratio squared if you set one. Spring badge shows frequency category (SOFT/ROAD/FIRM/RACE); damping notes flag over/underdamped. Anti-Roll reads soft — see the note under that row.";
+            const suspHint="Anti-Roll Spring Rate, Spring Rate, and Rebound/Bump Damping in N/m / N/m/s, matching BeamNG's sliders — divided by motion ratio squared if you set one. Spring badge shows frequency category (SOFT/ROAD/FIRM/RACE); damping notes flag over/underdamped. The settle figure beside each damper is the quick ζ-only estimate — it cannot see bump damping, so the DYNAMICS chart, which measures its drawn curve, may read differently. Anti-Roll reads soft — see the note under that row.";
             const arbCaveat="Reads ~4–6× soft: this assumes the bar acts at the wheels, but BeamNG sets the rate at the bar's own lever. Scale up by (track/arm)² if you know it.";
 
             const frontSuspension=<SuspensionCard side="FRONT" hint={suspHint} arbCaveat={arbCaveat}

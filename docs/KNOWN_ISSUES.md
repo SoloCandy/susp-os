@@ -261,6 +261,37 @@ two fraction-scaled deltas before assigning them to `lo`/`hi`, in both the
 RANGE block and its mirrored GRIP GAP sub-widget. The direction was never
 wrong — only the band's width in this one edge case.
 
+## Fixed — UI copy sold Butterworth as a settling-time claim (resolved)
+
+Found in the copy audit that followed the settle-marker work below, after a
+user asked what Butterworth still means once the settle readout stopped
+agreeing with it. Three places described ζ≈70% in *settling* terms — "the
+sweet spot, settling cleanly in one or two cycles" (quick glossary and the
+DAMPERS tips card), and the same phrasing in the ζ glossary entry.
+
+Butterworth (ζ = 1/√2 ≈ 0.707) is a **frequency-domain** property: the
+damping ratio at which the response has no resonant peak, so no road
+frequency is amplified more than the rest. It says nothing about how long a
+single bump takes to settle, and the numbers do not line up with the
+settling story it was being used to tell — at ζ=0.707 a single bump
+overshoots ≈4.3% (`e^-πζ/√(1-ζ²)`), which is one small overshoot, not "one
+or two cycles", and the quickest ±10% settle sits nearer ζ≈59%.
+
+The glossary's own **Butterworth** entry was already correct ("the flattest,
+smoothest response with no resonant peak"); the other entries have been
+brought in line with it, and the three optimums are now stated where they
+are likely to be compared: ≈59% quickest settle after one bump, ≈70%
+flattest response to a continuous surface, 100% quickest with no overshoot.
+The default is unchanged and the sweep defends it — at 1.75 Hz, ζ=70%
+settles in 0.23s against 0.21s at the ζ=60% optimum, so the flat response
+costs about two hundredths of a second.
+
+Also corrected while in there: the Rebound ζ / Bump ζ / Bump Ratio readouts
+labelled **everything** above 70% as "BUTTERWORTH", so ζ=95% announced
+itself as Butterworth. Butterworth is a point, not a region — the label now
+covers 68–72% only, and above that the readout says FIRM. Zone colours and
+slider markers are unchanged.
+
 ## Fixed — the DYNAMICS chart's settle markers described a different curve than the one drawn (resolved)
 
 Third in the settle-time family below, and the one that was purely a
