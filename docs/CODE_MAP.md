@@ -85,7 +85,9 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 `rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `resolveArbBalTarget`, `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
-takes Hz + rebound/bump ζ + a duration), `resolveCoSolveSpringShare`
+takes Hz + rebound/bump ζ + a duration; the chart's own `curveSettle` and
+`firstCrossing` read the settle time and neutral crossing back off those
+points rather than from `tune.settleF`/`settleR`), `resolveCoSolveSpringShare`
 (CO-SOLVE's Auto Spring Share search — shared by `feelToPhysics`'s Kcs
 pre-inversion and `computeTune`'s `effectiveRHz` solve so both agree on the
 same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.
@@ -109,7 +111,7 @@ each in its own `useMemo`.
 | `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a generic per-axle differential card. The BeamNG layout itself (summary strip, CENTER SPLIT card, the fixed 2-column `.beamng-grid`) is inline JSX in `App`, not a separate component — see the `physMode` branch in the output panel |
 | `Readout`, `Stat` | Tune Check and sidebar readouts — **not** the output panel any more (it moved to `OutRow` so each value is one scannable line to transcribe into a tuning menu) |
 | `BiasSeg` | balance-bar segments |
-| `SpringDial`, `ArbDial`, `DampingDial` | the pinned VISUALS card — its ARB and RIDE/DAMPERS groups. The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys |
+| `SpringDial`, `ArbDial`, `DampingDial` | the pinned VISUALS card — its ARB and RIDE/DAMPERS groups. The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
 | `HandlingVerdict` | expanded handling-balance panel only |
 | `EntryCard` | one garage entry inside the GARAGE drawer |
 | `CheckerModal` | TUNE CHECK (DECODE / MEASURE) |

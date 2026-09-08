@@ -391,9 +391,13 @@ const settleZetas=(rideRef,fHz,rHz,refZeta,biasMult)=>{
 };
 // Settle time (10%-envelope) from ζ (%) and Hz. Underdamped (ζ≤100%): envelope decays exactly
 // as e^-ζωn·t, so rate=ζ. Overdamped (ζ>100%): response is governed by the SLOWER of two real
-// poles, rate=ζ-√(ζ²-1), which *falls* as ζ climbs past 100% — critical damping (ζ=100%) is the
-// fastest possible settle, and pushing zeta higher makes it slower (sluggish), not faster. Using
-// rate=ζ unconditionally (the old single-branch formula) got this backwards above 100%.
+// poles, rate=ζ-√(ζ²-1), which *falls* as ζ climbs past 100% — so WITHIN THIS ENVELOPE MODEL
+// ζ=100% is the fastest, and pushing zeta past it settles slower (sluggish), not faster. Using
+// rate=ζ unconditionally (the old single-branch formula) got that backwards above 100%.
+// "Within this model" is load-bearing: the envelope drops the response's own 1/√(1-ζ²) and
+// (1+ωn·t) factors, so against the real trace this runs long below ζ≈79% and short above it, and
+// the quickest ±10% settle is nearer ζ≈59%. See docs/PHYSICS.md, and the DYNAMICS chart, which
+// measures the drawn curve rather than using this.
 const settleTimeFromZeta=(zetaPct,hz)=>{
   if(zetaPct<=0||hz<=0) return 99;
   return 2.302/(dampRate(zetaPct)*hz*2*Math.PI); // ln(10)/(rate·ωn)
@@ -708,9 +712,12 @@ const feelToPhysics=(ch,fe)=>{
   const baseZeta=dampCharMode==='settle'
     ? (()=>{
         const refHz=uiRideRef==='rear'?rearHz:uiRideRef==='shared'?(frontHz+rearHz)/2:frontHz;
-        // Clamp at 100% (critical damping), not 200% — critical damping is the fastest possible
-        // settle (see settleTimeFromZeta above), so an unreachable target should stop there, not
-        // overshoot into overdamped territory where zeta climbing higher makes it settle SLOWER.
+        // Clamp at 100% (critical damping), not 200% — in the envelope model this back-solve
+        // inverts, ζ=100% is the fastest settle (see settleTimeFromZeta above), so an unreachable
+        // target should stop there rather than overshoot into overdamped territory where zeta
+        // climbing higher makes it settle SLOWER. Against the real trace the quickest ±10% settle
+        // sits nearer ζ≈59%, so this clamp is self-consistent with what it inverts rather than
+        // physically optimal — deliberate, and recorded in docs/KNOWN_ISSUES.md.
         return Math.max(10,Math.min(100,refHz>0?2.302/(settleTarget*refHz*2*Math.PI)*100:70));
       })()
     : reboundZeta;
@@ -3133,7 +3140,7 @@ const TUTORIALS={
      body:'REBOUND MODE and BUMP MODE toggles sit above their sliders. Rebound ζ at 70% (Butterworth) is the sweet spot — settles cleanly without oscillating; below 40% is bouncy, above 100% is sluggish. Bump Ratio sets compression as a fraction of rebound (40–65% typical). Damping Bias splits front/rear: FRONT keeps the front firm while the rear softens (planted entry); REAR softens the front (easier direction changes) — shown in the DAMP row of Handling Balance.'},
     {title:'VISUALS Card',
      focus:['visuals'],
-     body:'VISUALS is pinned to the bottom of the sidebar so it never scrolls away, and holds four collapsible readouts: ARB (front/rear dial, roll seesaw, SPRINGS/ARBs split bar), RIDE/DAMPERS (your frequencies and damping ratios), DYNAMICS (step response — settle speed, overshoot, ride/damping interaction), and SAG (suspension travel vs. load). Tap any header to collapse it and give the others more room.'},
+     body:'VISUALS is pinned to the bottom of the sidebar so it never scrolls away, and holds four collapsible readouts: ARB (front/rear dial, roll seesaw, SPRINGS/ARBs split bar), RIDE/DAMPERS (your frequencies and damping ratios), DYNAMICS (step response — settle speed, overshoot, ride/damping interaction, with the ±10% settle band drawn), and SAG (suspension travel vs. load). Tap any header to collapse it and give the others more room.'},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],sidebar:'close',
      body:'The Handling Balance bar is pinned at the bottom of the results panel. It shows your total oversteer or understeer tendency as a number and a bar, colour-zoned neutral / mild / aggressive. Tap it to expand a full per-contributor breakdown — every input you\'ve touched in the sidebar shows up here as a row, including the DIFF rows from the drivetrain sliders and the DAMP row from Damping Bias, so you can see which change actually moved the balance.'},
@@ -5948,21 +5955,64 @@ function App(){
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDynamics:!p.visDynamics}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DYNAMICS</span>
-                <Hint text="Damped spring step response — shows how fast the car settles, whether it overshoots, and how ride stiffness and damping interact. Dashed lines mark each axle's settle time. The ring marks the first time the curve crosses neutral (ride height) — a rise-speed indicator, separate from settle time. Both are read out numerically below the chart."/>
+                <Hint text="Damped spring step response: one bump, one corner, coming back to rest — how fast each axle settles, whether it overshoots, and how ride stiffness and damping interact. The shaded strip is ±10% of ride height. DASHED LINE = settle time, the last moment that axle's trace leaves the strip (the standard settling-time definition), measured off the curve as drawn, so it reflects your bump/rebound split and not just rebound ζ. RING = the first time the curve crosses neutral (ride height), a rise-speed indicator rather than a settling one. Two results surprise people, both correct: past roughly 60% ζ the dashed line lands BEFORE the ring, because the trace enters the strip on the way down and never leaves — settled, while still creeping the last 10% home; and the number falls in steps rather than smoothly as you add rebound ζ, each step being one overshoot peak dropping inside the strip, with little gained in between. The DAMPERS rows quote a different settle figure — a quick estimate from rebound ζ and Hz alone, blind to bump damping, running long below ζ≈79% and short above it, by about 40% at ζ=100%. Both markers are read out numerically below the chart."/>
                 <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visDynamics?'▲':'▼'}</span>
               </div>
               {open.visDynamics&&(()=>{
-                const durSec=Math.min(4,Math.max(1.5,Math.max(tune.settleF??2,tune.settleR??2)*1.8));
                 const fReb=tune.zetaF??physics.reboundZeta??70;
                 const fBmp=tune.bumpZetaF??physics.bumpZeta??39;
                 const rReb=tune.zetaR??physics.reboundZeta??70;
                 const rBmp=tune.bumpZetaR??physics.bumpZeta??39;
-                const frontPts=computeOscillation(tune.fHz,fReb,fBmp,durSec);
-                const rearPts=computeOscillation(tune.rHz,rReb,rBmp,durSec);
+                // Settle time measured off the plotted trace rather than read from tune.settleF/R,
+                // because this dashed line annotates THIS curve. Verified against the closed-form
+                // free decay (x(0)=1, v(0)=0 — algebraically the step-response error signal, so
+                // textbook settling-time results apply): the Euler measurement lands within ~1-2%
+                // of exact across the ζ range. The analytic value differs for two reasons:
+                //   (1) settleTimeFromZeta is a simplified decay envelope, and NOT a bound in
+                //       either direction — it drops the 1/√(1-ζ²) amplitude factor that would make
+                //       it one, and ignores the (1+ωn·t) factor at critical damping. It runs long
+                //       below ζ≈79% and short above it; at ζ=100%, 1.4 Hz it reads 0.26s against a
+                //       true 0.44s.
+                //   (2) It sees the REBOUND zeta only, while computeOscillation alternates
+                //       rebound/bump by velocity sign — which moves the answer whenever overshoot
+                //       clears the band (ζ below ~59%).
+                // DAMPERS keeps reporting the analytic figure: it's the one SETTLE TIME mode
+                // back-solves against, and changing it would break the target→readout round-trip.
+                // Two properties of "last band exit" worth knowing before reading this marker:
+                // it STEPS at ζ≈59.1% (where the first overshoot peak stops clearing ±10%:
+                // e^-πζ/√(1-ζ²)=0.1), 1.4 Hz going 0.456s → 0.267s between ζ=59% and 60%; and the
+                // real minimum settle sits AT that step, not at critical damping — ζ≈59% settles
+                // in 0.267s where ζ=100% takes 0.442s. Both are properties of the definition, not
+                // of the integration (the same algebra gives the textbook ζ≈0.78 optimum for a 2%
+                // band). Right at the step the marker is knife-edge sensitive — a peak grazing the
+                // band edge — so expect it to jump between ζ=58% and 60%.
+                const SETTLE_ENV=0.1;
+                const curveSettle=pts=>{
+                  let i=pts.length-1;                          // trace starts at x=1, so i lands >=0
+                  while(i>0&&Math.abs(pts[i].x)<SETTLE_ENV)i--;
+                  if(i>=pts.length-1)return null;              // still ringing at the window edge
+                  const a=pts[i],b=pts[i+1];
+                  return a.t+(b.t-a.t)*((Math.abs(a.x)-SETTLE_ENV)/(Math.abs(a.x)-Math.abs(b.x)));
+                };
+                // Two-pass window fit: size it from the analytic estimate, measure the curve,
+                // then re-size and re-integrate. nPts is fixed, so dt — and with it the Euler
+                // trace — depends on window length; taking the final measurement from the final
+                // points keeps the dashed line consistent with the polyline actually drawn.
+                const fitDur=s=>Math.min(4,Math.max(1.5,s*1.8));
+                const probeDur=fitDur(Math.max(tune.settleF??2,tune.settleR??2));
+                const probeF=computeOscillation(tune.fHz,fReb,fBmp,probeDur);
+                const probeR=computeOscillation(tune.rHz,rReb,rBmp,probeDur);
+                const durSec=fitDur(Math.max(curveSettle(probeF)??probeDur,curveSettle(probeR)??probeDur));
+                const frontPts=durSec===probeDur?probeF:computeOscillation(tune.fHz,fReb,fBmp,durSec);
+                const rearPts =durSec===probeDur?probeR:computeOscillation(tune.rHz,rReb,rBmp,durSec);
+                const fSettle=curveSettle(frontPts),rSettle=curveSettle(rearPts);
                 const W=280,H=80,midY=40,yScale=32,xScale=W/durSec;
                 const toPolyPts=pts=>pts.map(p=>`${(p.t*xScale).toFixed(1)},${(midY-p.x*yScale).toFixed(1)}`).join(' ');
-                const fSetX=Math.min(W-1,(tune.settleF??2)*xScale);
-                const rSetX=Math.min(W-1,(tune.settleR??2)*xScale);
+                // null = still outside the band at the window edge; pin the line there so it
+                // agrees with the readout's ">" label. A guard, not a common path: the slowest
+                // reachable tune (HZ_MIN 0.8, ζ floor 10%) measures ~3.9s inside the 4s cap.
+                const fSetX=Math.min(W-1,(fSettle??durSec)*xScale);
+                const rSetX=Math.min(W-1,(rSettle??durSec)*xScale);
                 // First neutral (ride-height) crossing: linearly interpolate the sample pair
                 // that straddles x=0. One ring per axle — a rise-speed indicator, distinct from
                 // the settle-time dashed line — same "mark the meaningful point" pattern as the
@@ -5981,6 +6031,18 @@ function App(){
                 return(
                   <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:6,display:'flex',flexDirection:'column',gap:4}}>
                     <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+                      {/* The ±10% band the settle markers are measured against. Without it the
+                          dashed line reads as arbitrary — worse, past ζ≈60% it lands BEFORE the
+                          neutral ring, which looks impossible until you can see that the trace
+                          enters the band on the way down and never leaves again. */}
+                      <rect x={0} y={midY-SETTLE_ENV*yScale} width={W} height={2*SETTLE_ENV*yScale}
+                            fill="#64748b" opacity={0.10}/>
+                      <line x1={0} y1={midY-SETTLE_ENV*yScale} x2={W} y2={midY-SETTLE_ENV*yScale}
+                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
+                      <line x1={0} y1={midY+SETTLE_ENV*yScale} x2={W} y2={midY+SETTLE_ENV*yScale}
+                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
+                      <text x={2} y={midY-SETTLE_ENV*yScale-2} fontSize={6} fill="#64748b"
+                            fontFamily="JetBrains Mono, monospace">±10%</text>
                       <line x1={0} y1={midY} x2={W} y2={midY} stroke="#1e293b" strokeWidth={1}/>
                       <line x1={fSetX} y1={0} x2={fSetX} y2={H} stroke="#38bdf855" strokeWidth={1} strokeDasharray="3 3"/>
                       <line x1={rSetX} y1={0} x2={rSetX} y2={H} stroke="#fb923c55" strokeWidth={1} strokeDasharray="3 3"/>
@@ -5993,8 +6055,8 @@ function App(){
                     </svg>
                     <div style={{display:'flex',flexDirection:'column',gap:2,fontFamily:'var(--font-mono)'}}>
                       <div style={{display:'flex',gap:12}}>
-                        <span style={{fontSize:9,color:'#38bdf8'}}>settle {(tune.settleF??2).toFixed(2)}s</span>
-                        <span style={{fontSize:9,color:'#fb923c'}}>settle {(tune.settleR??2).toFixed(2)}s</span>
+                        <span style={{fontSize:9,color:'#38bdf8'}}>settle {fSettle!=null?`${fSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
+                        <span style={{fontSize:9,color:'#fb923c'}}>settle {rSettle!=null?`${rSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
                       </div>
                       <div style={{display:'flex',gap:12}}>
                         <span style={{fontSize:9,color:'#38bdf8',opacity:0.75}}>{fCross!=null?`neutral ≈${fCross.toFixed(2)}s`:'no neutral cross'}</span>

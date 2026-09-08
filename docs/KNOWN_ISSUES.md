@@ -261,6 +261,88 @@ two fraction-scaled deltas before assigning them to `lo`/`hi`, in both the
 RANGE block and its mirrored GRIP GAP sub-widget. The direction was never
 wrong — only the band's width in this one edge case.
 
+## Fixed — the DYNAMICS chart's settle markers described a different curve than the one drawn (resolved)
+
+Third in the settle-time family below, and the one that was purely a
+*presentation* mismatch: the dashed vertical markers in the VISUALS
+DYNAMICS chart were drawn at `tune.settleF`/`settleR`, straight from
+`settleTimeFromZeta`, while the trace beside them came from
+`computeOscillation`. Those are two different models of the same axle:
+
+- `settleTimeFromZeta` is a **simplified decay envelope**, and not a bound
+  in either direction: it drops the `1/√(1-ζ²)` amplitude factor that the
+  standard envelope formula `-ln(0.1·√(1-ζ²))/(ζωn)` keeps (that one *is* a
+  true upper bound), and it has no equivalent of the `(1+ωn·t)` factor at
+  critical damping. Measured against the closed-form trace at 1.4 Hz it ran
+  **long** below ζ≈79% (0.582s vs 0.546s at ζ=45%) and **short** above it
+  (0.262s vs 0.442s at ζ=100% — 41% early, in the direction that flatters
+  the tune). So the old marker was not biased one way; it drifted either
+  side of the truth depending where the tune sat.
+- `settleTimeFromZeta` takes **rebound ζ only**. `computeOscillation`
+  alternates rebound and bump ζ by velocity sign, so on a tune with a wide
+  split the two disagree again whenever overshoot clears the band (ζ≲60%):
+  at 1.4 Hz, ζreb=30%, the measured settle moves 0.83s → 0.58s as bump ζ
+  goes 30% → 60%, a change the marker could not see at all.
+
+Fixed by measuring settle off the plotted points — a local `curveSettle`
+finds the last sample pair straddling |x|=0.1 and interpolates, the same
+shape as the neutral-crossing `firstCrossing` beside it — and by fitting
+the chart window in two passes (size from the analytic estimate, measure,
+re-fit, re-integrate), because `computeOscillation`'s `nPts` is fixed and
+its step size therefore depends on the window length; measuring on the
+final points is what keeps the marker consistent with the polyline drawn.
+
+Deliberately **not** propagated to the DAMPERS section, the damper detail
+rows, or `tune.settleF`/`settleR` themselves. Those are the per-axle spec
+figure, and SETTLE TIME Rebound Mode back-solves `baseZeta` by inverting
+`settleTimeFromZeta` — swapping in a trace measurement there would break
+the target→readout round-trip (type 0.55s, get 0.55s back) for no gain,
+since the back-solve only needs to invert *consistently*. The consequence
+is that the chart's readout and the DAMPERS figure legitimately differ —
+chart lower on most tunes, higher past ζ≈85% — which the chart's hint now
+states outright.
+
+Known characteristic, not a bug: "last band exit" steps discontinuously at
+**ζ≈59.1%**, where the first overshoot peak stops clearing ±10%
+(`e^(-πζ/√(1-ζ²)) = 0.1`). At 1.4 Hz the exact settling time goes 0.456s at
+ζ=59% → 0.267s at ζ=60%. The textbook settling-time definition has the same
+discontinuity; the envelope formula hid it by never looking at the peaks.
+Right at the step the marker is knife-edge sensitive — a peak grazing the
+band edge — so it jumps between ζ=58% and 60%. Everywhere else the Euler
+measurement is within ~1–2% of the closed-form answer (verified against an
+RK4 reference at dt=1e-5, including the asymmetric bump/rebound case the
+closed form cannot cover).
+
+**The ±10% band is now drawn on the chart**, added after a ζ sweep made the
+readout look wrong when it was not. Two things are unreadable without it:
+
+- Past ζ≈60% the settle marker lands *before* the neutral-crossing ring —
+  at 1.75 Hz, ζ=95%: settle 0.33s, neutral 1.09s. Correct, and impossible
+  to believe with no band drawn: the trace enters the band on the way down
+  and never leaves, so it counts as settled while still creeping the last
+  10% back to ride height.
+- The number falls in **steps**, not smoothly, as rebound ζ rises. Measured
+  in-app at 1.75 Hz with Bump Ratio 56%: 0.93 (ζ=25%) → 0.69 → 0.68 → 0.66
+  → 0.42 (ζ=45%) → 0.41 → 0.39 → 0.21 (ζ=60%) → 0.22 → 0.23 → … → 0.35
+  (ζ=100%). Each drop is an overshoot peak falling inside the band; between
+  drops, more rebound damping buys almost nothing, and past ζ≈60% it makes
+  things worse. The old envelope readout hid all of this behind a smooth
+  1/ζ curve, which is the "it used to feel right" the change trades away.
+
+**Found while verifying the above, not fixed:** that same step is where the
+real settling-time minimum lives, which makes the UI's *"critical damping is
+the fastest possible settle"* true of the envelope model only. Against the
+actual response, ζ≈59.1% settles in 0.267s where ζ=100% takes 0.442s — 1.65×
+slower. SETTLE TIME Rebound Mode's back-solve clamps at ζ=100% on the
+grounds that it is "the true fastest achievable"; that is self-consistent
+with the envelope model it inverts (and the clamp is still right to stop
+there rather than run into overdamped territory), but an aggressive target
+would be better served near ζ≈59%. Left alone deliberately — changing it
+means changing what SETTLE TIME *means* and would move every tune saved
+under it, which is a bigger call than a chart fix. The same algebra
+reproduces the classic ζ≈0.78 optimum for a 2% band, which is the standard
+check that this is the real curve and not an artefact.
+
 ## Fixed — settle-time formula treated overdamped ζ as faster, not slower (resolved)
 
 Both the displayed settle time (`tune.settleF`/`settleR`) and the SETTLE

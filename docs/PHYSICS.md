@@ -361,9 +361,11 @@ a claim of equality).
 It's piecewise on ζ because the 10%-envelope decay rate isn't `ζ` once ζ
 passes 100%:
 
-- **Underdamped (ζ≤100%)**: the envelope decays exactly as `e^-ζωn·t`, so
-  `rate=ζ` and `t=2.302/(ζ·ωn)` (`2.302=ln10`) is exact, not an
-  approximation.
+- **Underdamped (ζ≤100%)**: the envelope's *exponent* is exactly `-ζωn·t`,
+  so `rate=ζ` and `t=2.302/(ζ·ωn)` (`2.302=ln10`). Note this drops the
+  envelope's `1/√(1-ζ²)` amplitude factor, so it is a simplification of the
+  standard envelope formula rather than an exact settling time — see
+  *What this formula is, and is not* below.
 - **Overdamped (ζ>100%, reachable up to the 200% slider max)**: response is
   governed by the *slower* of two real poles, `rate=ζ-√(ζ²-1)`, which falls
   as ζ climbs past 100%. Critical damping (ζ=100%) is the fastest possible
@@ -373,6 +375,63 @@ passes 100%:
   rose past 100%, and the SETTLE TIME back-solve would chase a fast target
   by pushing ζ past 100% (up to the old 200% clamp), which actually made
   the real settle time *worse*. Both are now piecewise-correct.
+
+### What this formula is, and is not
+
+It is a **simplified decay envelope**, and the gap between it and settling
+time proper — "the last time the response leaves a ±10% band" — is worth
+being precise about, because the two are not close everywhere.
+
+The free decay modelled here (x(0)=1, v(0)=0) is algebraically the step-
+response **error** signal of a prototype second-order system, so textbook
+settling-time results transfer directly. The true underdamped response is
+
+    x(t) = e^(-ζωn·t)/√(1-ζ²) · sin(ωd·t + acos ζ)
+
+whose envelope carries a **1/√(1-ζ²)** amplitude factor. The standard
+envelope-based settling time keeps it — `t = -ln(0.1·√(1-ζ²))/(ζωn)` for a
+10% band — and that version *is* a genuine upper bound on the real settling
+time. `settleTimeFromZeta` drops the factor (`t = -ln(0.1)/(ζωn)`), which
+leaves it neither an upper nor a lower bound: against the exact trace at
+1.4 Hz it runs **long** below ζ≈79% (0.582s vs 0.546s at ζ=45%) and
+**short** above it (0.262s vs 0.442s at ζ=100%, a 41% underestimate — the
+critically damped response carries a `(1+ωn·t)` factor the plain
+exponential ignores). The overdamped branch is short for a similar reason:
+the slow pole's residue exceeds 1, so `rate=ζ-√(ζ²-1)` gets the exponent
+right but not the amplitude (0.977s vs 1.009s at ζ=200%).
+
+That is acceptable for what it feeds — a per-axle spec figure, and the
+SETTLE TIME back-solve, which only has to invert *consistently* — but it is
+why the VISUALS DYNAMICS chart does **not** use it for its dashed settle
+markers. That chart measures its own `curveSettle` off the plotted
+`computeOscillation` points (last sample pair straddling |x|=0.1,
+interpolated), which lands within ~1-2% of the closed-form answer and also
+picks up the rebound/bump ζ alternation `settleTimeFromZeta` cannot see —
+it takes rebound ζ only. So the chart's readout sits **above** the DAMPERS
+figure past ζ≈79% and below it under that; both are correct for what they
+measure, and the chart's hint says so.
+
+### "Critical damping is the fastest settle" is true of the envelope only
+
+The bullets above are right that within this envelope model the decay rate
+peaks at ζ=100%. The real ±10%-band settling time does **not**: it is
+minimised at **ζ≈59.1%**, where the first overshoot peak stops clearing the
+band (`e^(-πζ/√(1-ζ²)) = 0.1`). At 1.4 Hz the exact settling time steps from
+0.456s at ζ=59% to 0.267s at ζ=60%, then climbs steadily to 0.442s at
+ζ=100% — critical damping is about **1.65× slower** than the true optimum.
+The same algebra reproduces the classic ζ≈0.78 optimum for a 2% band, which
+is the standard check on this result.
+
+Two consequences worth keeping in view, neither of them addressed here:
+
+- The settling-time-vs-ζ curve is genuinely **discontinuous** at ζ≈59.1%,
+  so the DYNAMICS marker jumps between ζ=58% and 60%. That is the metric,
+  not the integration.
+- SETTLE TIME Rebound Mode clamps its back-solve at ζ=100% on the stated
+  grounds that critical damping is "the true fastest achievable". That
+  holds inside the envelope model it inverts, and is self-consistent, but
+  against the real response an aggressive target would be better served
+  near ζ≈59% than at 100%. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 `computeTune` re-runs whichever of SYNC/NEUTRAL is active a second time
 after CO-SOLVE resolves `effectiveRHz`, so the settle-time or force split
