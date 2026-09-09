@@ -356,6 +356,32 @@ other axle's real settle time is whatever that mode's split produces (`
 tune.settleF`/`settleR` report the honest achieved values either way, not
 a claim of equality).
 
+### The bump stroke gets the same split
+
+Everything above describes the *rebound* anchor. The bump stroke is split
+front/rear by the same Damping Balance Mode, and how it gets there depends
+on BUMP MODE:
+
+- **BUMP RATIO** needs no extra work. Bump ζ is one percentage of rebound
+  ζ, so scaling both `zetaF` and `zetaR` by `bumpRatioVal/100` carries
+  whatever split the balance mode already solved straight onto bump.
+- **INDEPENDENT** has no such link — the typed `fe.bumpZeta` is an anchor
+  in its own right, not a function of rebound. So under SYNC/NEUTRAL it is
+  run through the *same solver a second time*, with the typed value as
+  `refZeta` and the same `biasMult`. `balModeZetas(mode, …)` exists for
+  exactly this: it picks `forceZetas` or `settleZetas` by mode, so the two
+  anchors cannot drift apart. Under STANDARD the typed value is biased by
+  percentage the same way `baseZeta` is.
+
+Both splits clamp to 10–200%. Bump is deliberately **not** clamped to the
+axle's own rebound ζ: crossing above rebound is a warned-but-allowed state
+everywhere else (the slider reaches 115% and the readout says `⚠ CROSSED`),
+so clipping it here would contradict the rest of the app.
+
+Before this, INDEPENDENT under SYNC/NEUTRAL did the opposite of both rules —
+it fed the same typed ζ to *both* axles and then clipped each to that axle's
+rebound ζ. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 **`settleTimeFromZeta(zetaPct,hz)`** computes the displayed `settleF`/
 `settleR` (and, inverted, the SETTLE TIME back-solve above) from ζ and Hz.
 It's piecewise on ζ because the 10%-envelope decay rate isn't `ζ` once ζ
@@ -436,10 +462,13 @@ Two consequences worth keeping in view, neither of them addressed here:
 `computeTune` re-runs whichever of SYNC/NEUTRAL is active a second time
 after CO-SOLVE resolves `effectiveRHz`, so the settle-time or force split
 matches the *post*-CO-SOLVE rear Hz rather than the pre-solve value
-`feelToPhysics` saw. This re-run is skipped entirely under SETTLE TIME
-character mode (`baseZeta` itself was already derived from the pre-solve
-Hz there, unaffected by this pass either way — a pre-existing scope limit,
-not something this feature changed).
+`feelToPhysics` saw. It runs under **either** REBOUND MODE, including
+SETTLE TIME, and anchors to `baseZeta` — not the raw `reboundZeta` slider —
+so the settle-time guarantee survives a CO-SOLVE rear-Hz shift. (What is
+still pre-solve under SETTLE TIME is `baseZeta`'s own back-solve, which
+used the pre-CO-SOLVE reference Hz; a scope limit, not a skipped pass.) The
+INDEPENDENT bump anchor is re-split in the same pass, off the same
+`effectiveRHz`, so the sidebar preview and the exported tune agree.
 
 ## Rear/secondary Hz modes
 

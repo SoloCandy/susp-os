@@ -5,6 +5,63 @@ of without a written trail. Not a general bug tracker — just things that
 either can't be trivially fixed, or were fixed here and are worth
 remembering *why* they broke in the first place.
 
+## Fixed — INDEPENDENT bump mode was inert under SYNC and NEUTRAL damping balance
+
+Reported as "bump mode independent is currently unusable in damping balance mode
+sync and neutral modes". It was, and for two compounding reasons in one line of
+code. Under `dampBalMode` SYNC or NEUTRAL, `feelToPhysics` (and its `computeTune`
+re-run) resolved the bump zetas as:
+
+```js
+bumpZetaF = Math.max(10, Math.min(zetaF, bumpZeta));
+bumpZetaR = Math.max(10, Math.min(zetaR, bumpZeta));
+```
+
+**The same typed value went to both axles.** The Damping Bias slider moved
+`zetaF`/`zetaR` and nothing else, so it steered the rebound stroke while bump sat
+flat — and SYNC's and NEUTRAL's entire premise (equal settle time, equal damping
+force) applied to half the damper. On the default chassis in SYNC at bias 0,
+front 2.0 Hz / rear 2.4 Hz, rebound 70%: rebound solved to 70/58 for an exactly
+equal 0.305 s, while bump ran 39/39 and settled 0.305 s front against 0.262 s
+rear. Nothing in the UI said so.
+
+**Then the clamp to rebound ζ made the residue nonsense.** Whichever axle's
+rebound sat below the typed value got clipped to it, so the only front/rear bump
+split that survived was an artifact of that clipping — with a rear-biased slider
+the two axles could land at 60/60 (no split at all), and at a firm anchor a typed
+90% against a 70/58 rebound came out 70/58, meaning the top third of a slider
+that reaches 115% did literally nothing. The clamp also contradicted the rest of
+the app, which treats bump above rebound as warned-but-allowed (`⚠ CROSSED`)
+rather than impossible.
+
+RATIO mode was never affected: one percentage scaling both rebound zetas carries
+their split onto bump for free. That is exactly what INDEPENDENT lacked, so the
+fix gives the typed value its own trip through the same solver as its own
+`refZeta` — `balModeZetas(mode, …)` now picks `forceZetas`/`settleZetas` by mode
+for both anchors, at both call sites, so the two cannot drift apart. Bump then
+clamps to 10–200% like STANDARD's independent branch, not to rebound. Same
+scenario after the fix: bump 39/33 at bias 0 in SYNC, both settling 0.305 s;
+90% typed comes out 90/75 and is flagged `⚠ CROSSED` instead of silently clipped.
+See [PHYSICS.md](PHYSICS.md#the-bump-stroke-gets-the-same-split).
+
+Two display bugs fell out of the same misreading and were fixed with it:
+
+- The Bump ζ readout printed the raw typed number. Since *every* Balance Mode
+  splits that anchor, it was one axle's ζ at best (STANDARD, at the ride-reference
+  axle) and neither axle's under SYNC/NEUTRAL. It now shows `F x% | y% R` when
+  the axles diverge, matching what the RATIO readout already did.
+- `⚠ CROSSED` compared the typed bump against `fe.reboundZeta`. That is the wrong
+  yardstick under SETTLE TIME, where the anchor is back-solved rather than typed,
+  and under any split at all. It now compares each axle against its own rebound ζ.
+
+Also fixed while in there: the RATIO→INDEPENDENT toggle seeded the typed value
+from `physics.bumpZetaF` unconditionally, which is only the anchor axle under a
+FRONT ride reference — under REAR it seeded from the derived axle and the tune
+jumped on a mode switch that is supposed to be continuous. It now seeds from the
+anchor axle (midpoint under SHARED, which anchors neither), clamped to the
+slider's own 10–115 range so a firm rebound can't leave the handle pinned at one
+end while the tune runs something else.
+
 ## Fixed — physical-unit output was snapped for display but the reported physics was not
 
 Found during a documentation review rather than by a test run — there is no CI,

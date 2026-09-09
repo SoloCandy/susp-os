@@ -81,7 +81,10 @@ computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
 
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
-`solveSpring`, `solveDampRaw`, `settleZetas`, `cornerMasses`,
+`solveSpring`, `solveDampRaw`, `settleZetas`/`forceZetas`/`balModeZetas`
+(Damping Balance Mode's front/rear split — `balModeZetas` is the by-mode
+dispatcher, called twice per solve: once for the rebound anchor and once for
+the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `resolveArbBalTarget`, `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,

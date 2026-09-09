@@ -407,6 +407,13 @@ const settleTimeFromZeta=(zetaPct,hz)=>{
 // at a given velocity is linear in ζ regardless of over/underdamped, so the plain linear solve
 // (balancedZetas) is correct here as-is — no rate-space treatment needed.
 const forceZetas=(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>balancedZetas(rideRef,mF*fHz,mR*rHz,refZeta,biasMult);
+// Damping Balance Mode's front/rear solve, picked by mode. Both SYNC and NEUTRAL are just
+// "anchor refZeta at the ride-reference axle, derive the other so <metric> matches" — so the
+// anchor is a parameter, and the same call splits the rebound anchor and (in INDEPENDENT bump
+// mode) the typed bump anchor. Callers still clamp the result; this returns it unclamped.
+const balModeZetas=(mode,rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>mode==='neutral'
+  ? forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)
+  : settleZetas(rideRef,fHz,rHz,refZeta,biasMult);
 
 // ── Mech balance — steady-state US/OS from physics ───────────────────────────
 // Derived from lateral-load-transfer distribution (set by the front/rear roll-
@@ -728,17 +735,25 @@ const feelToPhysics=(ch,fe)=>{
     ? Math.max(10,Math.min(baseZeta,baseZeta*bumpRatioVal/100))
     : Math.max(10,Math.min(115,fe.bumpZeta??39));
   if(dampBalMode==='sync'||dampBalMode==='neutral'){
-    const{zF,zR}=dampBalMode==='neutral'
-      ? forceZetas(uiRideRef,dampMasses.front,frontHz,dampMasses.rear,rearHz,baseZeta,biasMult)
-      : settleZetas(uiRideRef,frontHz,rearHz,baseZeta,biasMult);
+    const{zF,zR}=balModeZetas(dampBalMode,uiRideRef,dampMasses.front,frontHz,dampMasses.rear,rearHz,baseZeta,biasMult);
     zetaF=Math.max(10,Math.min(200,zF));
     zetaR=Math.max(10,Math.min(200,zR));
-    bumpZetaF=dampingMode==='ratio'
-      ? Math.max(10,Math.min(zetaF,zetaF*bumpRatioVal/100))
-      : Math.max(10,Math.min(zetaF,bumpZeta));
-    bumpZetaR=dampingMode==='ratio'
-      ? Math.max(10,Math.min(zetaR,zetaR*bumpRatioVal/100))
-      : Math.max(10,Math.min(zetaR,bumpZeta));
+    // RATIO bump gets its front/rear split for free — scaling both rebound zetas by one
+    // percentage preserves whatever split the balance mode solved. A typed (INDEPENDENT) bump ζ
+    // has no such link to rebound, so it runs through the same solver a second time as its own
+    // anchor: SYNC/NEUTRAL then shapes the bump stroke exactly as it shapes rebound, and the
+    // Damping Bias slider moves both. Clamped to the same 10..200 as STANDARD's independent
+    // branch, deliberately NOT to the axle's rebound ζ — bump above rebound is a warned-but-
+    // allowed state everywhere else (the slider reaches 115 and the readout says CROSSED). The
+    // old `min(zetaF/zetaR, bumpZeta)` did both wrong things at once: it fed the same typed ζ
+    // to both axles (so Damping Bias moved rebound only, and SYNC/NEUTRAL's whole premise
+    // applied to half the damper), then silently clipped whichever axle's rebound sat lower,
+    // making the only surviving bump split an artifact of that clipping.
+    const bumpSplit=dampingMode==='ratio'
+      ? {zF:zetaF*bumpRatioVal/100,zR:zetaR*bumpRatioVal/100}
+      : balModeZetas(dampBalMode,uiRideRef,dampMasses.front,frontHz,dampMasses.rear,rearHz,bumpZeta,biasMult);
+    bumpZetaF=Math.max(10,Math.min(200,bumpSplit.zF));
+    bumpZetaR=Math.max(10,Math.min(200,bumpSplit.zR));
   }else{
     // STANDARD's exact-anchor axle now follows Ride Reference (not the Damping Bias slider's
     // sign): FRONT ref holds zetaF at baseZeta for both bias directions and swings zetaR; REAR
@@ -900,13 +915,18 @@ const computeTune=(ch,phys,gameMode)=>{
   if(phys.dampBalMode==='sync'||phys.dampBalMode==='neutral'){
     const biasMult=Math.pow(2,-(phys.dampingBias??0)/50);
     const bumpRatioVal=phys.bumpRatioVal??56,bumpZ=phys.bumpZeta??39,ratio=phys.dampingMode==='ratio';
-    const{zF,zR}=phys.dampBalMode==='neutral'
-      ? forceZetas(phys.rideRef,m.front,fHz,m.rear,effectiveRHz,phys.baseZeta,biasMult)
-      : settleZetas(phys.rideRef,fHz,effectiveRHz,phys.baseZeta,biasMult);
+    const{zF,zR}=balModeZetas(phys.dampBalMode,phys.rideRef,m.front,fHz,m.rear,effectiveRHz,phys.baseZeta,biasMult);
     zetaF=Math.max(10,Math.min(200,zF));
     zetaR=Math.max(10,Math.min(200,zR));
-    bumpZetaF=ratio?Math.max(10,Math.min(zetaF,zetaF*bumpRatioVal/100)):Math.max(10,Math.min(zetaF,bumpZ));
-    bumpZetaR=ratio?Math.max(10,Math.min(zetaR,zetaR*bumpRatioVal/100)):Math.max(10,Math.min(zetaR,bumpZ));
+    // Same two-anchor split as feelToPhysics — see the comment there for why INDEPENDENT bump
+    // re-solves instead of clipping to rebound. This copy must stay in step with that one:
+    // it re-runs on the post-coSolve/post-snap Hz, so a divergence would show up as the UI
+    // preview and the exported tune disagreeing about bump.
+    const bumpSplit=ratio
+      ? {zF:zetaF*bumpRatioVal/100,zR:zetaR*bumpRatioVal/100}
+      : balModeZetas(phys.dampBalMode,phys.rideRef,m.front,fHz,m.rear,effectiveRHz,bumpZ,biasMult);
+    bumpZetaF=Math.max(10,Math.min(200,bumpSplit.zF));
+    bumpZetaR=Math.max(10,Math.min(200,bumpSplit.zR));
   }
   // Snap to BeamNG's Spring Rate grid, then re-derive Hz from the snapped rate. Forza does
   // the equivalent for dampers and ARBs (clampDamp/impliedZeta, and the rsAb round-trip below)
@@ -5703,7 +5723,18 @@ function App(){
                 onClick={()=>setFe(p=>({...p,dampingMode:'ratio'}))}>BUMP RATIO</button>
               <button className={`tog${(fe.dampingMode??'ratio')==='independent'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampingMode:'independent',
-                  bumpZeta:Math.round(physics.bumpZetaF)}))}>INDEPENDENT</button>
+                  // Seed the typed anchor from whichever axle the active Damping Balance Mode
+                  // anchors, so RATIO→INDEPENDENT lands on the tune already on screen instead
+                  // of jumping. Seeding from the front unconditionally was only right for a
+                  // FRONT ride reference. SHARED anchors neither axle, so its midpoint is the
+                  // nearest equivalent — approximate by design, it only has to not jump.
+                  // Clamped to the slider's own range: a firm rebound ζ can push a resolved
+                  // bump ζ past 115, and an out-of-range value leaves the handle pinned at the
+                  // end while the tune uses something else.
+                  bumpZeta:Math.max(10,Math.min(115,Math.round(
+                    physics.rideRef==='rear'?physics.bumpZetaR
+                    :physics.rideRef==='shared'?(physics.bumpZetaF+physics.bumpZetaR)/2
+                    :physics.bumpZetaF)))}))}>INDEPENDENT</button>
             </div>
             {(fe.dampingMode??'ratio')==='ratio'
               ? <FeelSlider label="Bump Ratio" value={fe.bumpRatio??56}
@@ -5725,20 +5756,28 @@ function App(){
               : <FeelSlider label="Bump ζ" value={fe.bumpZeta??39}
                   onChange={pFe('bumpZeta')} min={10} max={115} step={1}
                   leftLabel="10%" rightLabel="115%"
-                  hint="Bump damping ratio set independently from rebound. Useful when you want precise control — e.g. soft bump for road compliance with firm rebound for body control. Keep below rebound for normal handling."
+                  hint="Bump damping ratio set independently from rebound. Useful when you want precise control — e.g. soft bump for road compliance with firm rebound for body control. Keep below rebound for normal handling. This is the anchor value: Damping Balance Mode splits it front/rear the same way it splits rebound, so the readout shows both axles whenever they diverge."
                   markers={[
                     {value:40, color:'#60a5fa',label:'UNDER',lessThan:true},
                     {value:70, color:'#f59e0b',label:'BWORTH'},
                     {value:100,color:'#ef4444',label:'OVER'},
                   ]}
                   readout={(()=>{
-                    const z=fe.bumpZeta??39;
-                    const r=fe.reboundZeta??70;
-                    const cross=z>r?' ⚠ CROSSED':'';
-                    if(z>100)return`${z}% ⚠ OVERDAMPED${cross}`;
-                    if(z>72) return`${z}% · FIRM${cross}`;
-                    if(z>=68) return`${z}% · BUTTERWORTH${cross}`;
-                    return`${z}%${cross}`;
+                    // Report what the axles actually run, not the raw typed number. Every
+                    // Damping Balance Mode turns this into a front/rear pair, so the typed
+                    // value is one axle's ζ at best (STANDARD, at the ride-reference axle) and
+                    // neither axle's under SYNC/NEUTRAL, which diverge on Hz and mass even at
+                    // bias 0. Mirrors the RATIO readout, which likewise shows resulting ζ.
+                    const bF=physics.bumpZetaF,bR=physics.bumpZetaR;
+                    const split=Math.abs(bF-bR)>0.5;
+                    // CROSSED compares each axle's bump against THAT axle's rebound ζ. The old
+                    // check used fe.reboundZeta, which is the wrong yardstick under SETTLE TIME
+                    // (the anchor is back-solved, not typed) and under any split at all.
+                    const cross=(bF>physics.zetaF+0.5||bR>physics.zetaR+0.5)?' ⚠ CROSSED':'';
+                    const tag=z=>z>100?' ⚠ OVERDAMPED':z>72?' · FIRM':z>=68?' · BUTTERWORTH':'';
+                    return split
+                      ?`F ${Math.round(bF)}% | ${Math.round(bR)}% R${tag(Math.max(bF,bR))}${cross}`
+                      :`${Math.round(bF)}%${tag(bF)}${cross}`;
                   })()}/>}
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE</span>
