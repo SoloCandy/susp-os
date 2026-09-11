@@ -492,8 +492,11 @@ frequency (dispatch lives in `feelToPhysics`):
   `fHz*1.2` near 0mph, where the relationship becomes numerically unstable.
 
   The offset was `2·t` until it was checked against real flat-ride practice.
-  Olley's rule of thumb puts the rear roughly 10–20% stiffer than the front;
-  the doubled offset gave far more, and got worse the harder you tuned:
+  Olley stated the rule as front natural **frequency** ≈ 80% of rear (rear
+  ≈ ×1.25); the commonly published practical band is rear 10–20% above front.
+  Every ratio in this section is a **frequency** ratio, never a spring-rate
+  one — rate goes as Hz², so ×1.20 in frequency is ×1.44 in rate. The doubled
+  offset gave far more, and got worse the harder you tuned:
 
   | | old (`2t`) | now (`t`) |
   |---|---|---|
@@ -522,8 +525,8 @@ frequency (dispatch lives in `feelToPhysics`):
      unusually concentrated away from the axles (heavy overhangs, mid-engine
      packaging), the underlying assumption may not hold and the "ideal"
      ratio is less meaningful than the formula implies.
-  2. **The ratio is only exact at one speed.** Jazar's analysis found that a
-     fixed front/rear frequency ratio cancels pitch fully at exactly one
+  2. **The ratio is only exact at one speed.** Marzbani and Jazar's analysis
+     found that a fixed front/rear frequency ratio cancels pitch fully at one
      vehicle speed — the flat-ride condition is inherently speed-dependent,
      not a constant a passive suspension can satisfy everywhere at once.
      This is the reason Target Speed is a control here rather than a single
@@ -532,10 +535,13 @@ frequency (dispatch lives in `feelToPhysics`):
      you've set. Outside a car's chosen Target Speed the cancellation
      weakens by design, not by a bug in the app.
 
-  Sources: Maurice Olley's original flat-ride criteria; R.N. Jazar,
-  *"Flat Ride; Problems and Solutions in Vehicle Dynamics"* (De Gruyter,
-  *Nonlinear Engineering*, 2013); Sharp & Pilbeam, *"Olley's 'Flat Ride'
-  Revisited"* (Vehicle System Dynamics, 1999); Penske Racing Shocks,
+  Sources: Maurice Olley's original flat-ride criteria; Marzbani et al.,
+  *"Flat Ride; Problems and Solutions in Vehicle"* (*Nonlinear Engineering*
+  1(3–4), 101–108, doi:10.1515/nleng-2013-0002); Crolla & King, *"Olley's
+  'Flat Ride' Revisited"* (Vehicle System Dynamics 33(sup1), 762–774, 1999).
+  That last title was credited here to Sharp & Pilbeam until it was checked —
+  their related paper is *"Achievability and Value of Passive Suspension
+  Designs for Minimum Pitch Response"* (1993). Also: Penske Racing Shocks,
   *"Natural Frequency, Ride Frequency, and CPM in Race Car Suspension"*;
   Race Comp Engineering, *"Spring Rates Part 2: Suspension Frequencies."*
 
@@ -643,9 +649,16 @@ is deliberately kept separate from the US/OS balance bar. Weights sum to 1:
 | Hz F | 0.35 | front ride frequency, normalised over `HZ_MIN`–`HZ_MAX` |
 | Hz R | 0.20 | rear ride frequency, same normalisation |
 | TOE F | 0.15 | front toe, −0.20° (reactive) to +0.20° (planted) |
-| DAMP F | 0.12 | front damping, inverted — less damping reads more agile |
+| DAMP F | 0.12 | front rebound ζ over 10–115%, inverted — less damping reads more agile |
 | CASTER | 0.10 | recommended caster over a 3.5° span |
-| DAMP R | 0.08 | rear damping, inverted |
+| DAMP R | 0.08 | rear rebound ζ over 10–115%, inverted |
+
+Both damping terms normalise over **ζ 10–115%** — the INDEPENDENT bump ζ input's
+clamp, not rebound's own 10–200% range, which is what they actually read. Rebound
+above 115% therefore saturates: 120% and 200% score the same. Kept as-is
+deliberately. Widening the denominator to 190 would re-slope the term across its
+whole range and move the RESPONSE score of every saved build, not just those above
+115%, which costs more than the saturation does.
 
 Both damping terms read **rebound ζ only**. That is a deliberate omission, not
 an oversight — a bump term was built here and reverted; see the entry in

@@ -5,6 +5,53 @@ of without a written trail. Not a general bug tracker — just things that
 either can't be trivially fixed, or were fixed here and are worth
 remembering *why* they broke in the first place.
 
+## Documented — RESPONSE's damping terms saturate above ζ 115%
+
+Found during a physics review, kept as-is, written down so the next audit doesn't
+read the bare constant as a typo.
+
+`responseFactors` normalises both damping terms as `(ζ − 10) / 105`, so they
+reach 1 at **ζ = 115%** and clamp there. 115 is the INDEPENDENT bump ζ input's
+ceiling — but these two terms read `tune.zetaF`/`tune.zetaR`, which are
+**rebound** and run to 200%. Consequence: a rebound ζ of 120% and one of 200%
+produce an identical RESPONSE score. Together the two terms are 20% of the
+weighting, pinned at zero contribution for any tune above 115%.
+
+Every other normalisation in that block uses a named or derived span
+(`HZ_MIN`–`HZ_MAX`, `TOE_MIN`–`TOE_MAX`, the 3.5° caster span). This one is a
+bare literal, which is what made it look accidental.
+
+**Why it stays.** Widening the denominator to 190 would not just unclamp the top
+end — it re-slopes the term across its *whole* range, so every saved build's
+RESPONSE score moves, not only the few sitting above 115%. RESPONSE is a feel
+score with nothing downstream of it, so the saturation is cheaper than silently
+reshuffling every stored build's bar. Revisit only with that trade in view.
+
+## Fixed — flat-ride docs said "stiffer" where they meant frequency, and miscredited a source
+
+Two documentation errors around `flatRideRearHz`, both caught by checking the
+literature rather than the code. No behaviour change.
+
+**"Rear 10–20% stiffer than front"** appeared in the `flatRideRearHz` comment, in
+[PHYSICS.md](PHYSICS.md), and in the FLAT RIDE entry below. Every ratio in that
+material is a **frequency** ratio, and rate goes as Hz², so read as spring rate
+the same band is 21–44%. Olley's own statement of the rule is front natural
+frequency ≈ 80% of rear, i.e. rear ≈ ×1.25 — slightly above the 10–20% band the
+docs quoted, which comes from Penske and Race Comp rather than from Olley.
+
+**"Olley's 'Flat Ride' Revisited"** was credited to Sharp & Pilbeam. It is Crolla
+& King, Vehicle System Dynamics 33(sup1), 762–774, 1999. Sharp & Pilbeam have a
+genuinely related paper, *"Achievability and Value of Passive Suspension Designs
+for Minimum Pitch Response"* (1993), which is not the same work. The companion
+citation was also tightened: the *Nonlinear Engineering* paper is Marzbani et
+al., *"Flat Ride; Problems and Solutions in Vehicle"*, 1(3–4), 101–108,
+doi:10.1515/nleng-2013-0002, rather than Jazar alone.
+
+Worth noting what survived the check: the speed-dependence limitation recorded
+under FLAT RIDE is correct, and it is the main modern criticism of the criterion.
+Crolla & King separately report that Olley tuning still gives a marked pitch
+suppression advantage at higher speeds, so the mode is not obsolete.
+
 ## Fixed — INDEPENDENT bump mode was inert under SYNC and NEUTRAL damping balance
 
 Reported as "bump mode independent is currently unusable in damping balance mode
@@ -1296,7 +1343,8 @@ already reading strongly oversteer before they had touched a control.
 It also degraded as the user tuned, which is the wrong way round for a default —
 the ratio climbed with stiffness (×1.76 at 2.5 Hz front, ×2.07 at 3.0 Hz, where it
 hit the `HZ_MAX` ceiling) and with lower target speeds (×3.39 at 30 mph). Olley's
-flat-ride rule of thumb is rear ≈10–20% stiffer than front; the corrected form
+flat-ride rule of thumb is rear ≈10–20% higher in *frequency* than front (every
+ratio here is a frequency ratio, not a spring-rate one); the corrected form
 gives ×1.18 at the default and stays inside ×1.35 across the practical range.
 
 **This changes output for existing FLAT RIDE tunes**, including saved garage

@@ -275,12 +275,15 @@ const snapPhys=(v,step)=>roundTo(v,step);
 const rsToHz=rs=>rs>6?0.8+(rs/100)*2.7:rs;
 const hzToRs=hz=>Math.round(Math.max(HZ_MIN,Math.min(HZ_MAX,hz))*100)/100;
 // Flat ride (Olley): the rear wheel meets a bump `t = wheelbase/speed` seconds after the
-// front, so the rear is made stiffer by exactly that much period — rearPeriod = frontPeriod − t
+// front, so the rear's period is shortened by exactly that much — rearPeriod = frontPeriod − t
 // — and the two axles come back into phase, cancelling pitch.
 //
 // The offset is ONE traverse time, not two. It was `2*t` until it was checked against real
-// flat-ride practice: Olley's rule of thumb puts the rear roughly 10–20% stiffer than the
-// front, and `2*t` gave ×1.43 on the stock chassis at the default 70 mph, worsening to ×1.76
+// flat-ride practice. Olley stated the rule as front natural FREQUENCY ≈ 80% of rear (rear
+// ≈ ×1.25); the commonly published practical band is rear 10–20% above front. Every ratio in
+// this comment is a FREQUENCY ratio, never a spring-rate one — rate goes as Hz², so ×1.20 in
+// frequency is ×1.44 in rate.
+// `2*t` gave ×1.43 on the stock chassis at the default 70 mph, worsening to ×1.76
 // at 2.5 Hz and ×3.39 at 30 mph. A default that drifts further out the harder you tune is the
 // wrong way round. With a single offset the same points give ×1.18 / ×1.24 / ×1.54.
 // This changes the derived rear Hz for every existing FLAT RIDE tune — a deliberate
@@ -4024,6 +4027,13 @@ function App(){
     // cannot separate the two, so any sign here is right on smooth tarmac and wrong on rough
     // ground. The DYNAMICS chart represents bump honestly instead, by measuring the trace
     // rather than taking a position on feel. See KNOWN_ISSUES.md before adding one back.
+    // Normalised over ζ 10..115 — the INDEPENDENT bump ζ input's clamp, NOT rebound's own
+    // 10..200 range, which is what these two terms actually read. Rebound ζ above 115% therefore
+    // saturates: 120% and 200% score identically here. Left as-is deliberately. Widening the
+    // denominator to 190 would re-slope the term across its whole range, moving the RESPONSE
+    // score of every build ever saved rather than only the few sitting above 115%. RESPONSE is a
+    // feel score with nothing downstream of it (see docs/PHYSICS.md), so the saturation costs
+    // less than silently reshuffling every stored build's bar. Revisit only with that in mind.
     const dampFNorm=Math.min(1,Math.max(0,(tune.zetaF-10)/105));
     const dampRNorm=Math.min(1,Math.max(0,(tune.zetaR-10)/105));
     // Toe range is -0.20° (toe-out, reactive) to +0.20° (toe-in, planted).
