@@ -488,8 +488,13 @@ frequency (dispatch lives in `feelToPhysics`):
   `flatRideSharedHz` inverts the same relationship as a quadratic to solve
   for `fHz` when the slider represents the *average* of both axles rather
   than the front alone — `t·fHz² − fHz·(2 + 2·avg·t) + 2·avg = 0`, smaller
-  root. Disabled above 200mph (returns front Hz unchanged) and falls back to
-  `fHz*1.2` near 0mph, where the relationship becomes numerically unstable.
+  root. Both are disabled at and above 200mph (they return the input frequency
+  unchanged, which is what makes 200 read as flat-ride OFF on the Target Speed
+  slider — see [SLIDERS.md](SLIDERS.md)). Below 1 m/s the relationship goes
+  numerically unstable and each falls back differently: `flatRideRearHz` returns
+  `fHz*1.2`, while `flatRideSharedHz` splits the average as `fHz = avgHz/1.1`
+  with the rear taking the remainder. This section quoted the first figure for
+  both until an audit separated them.
 
   The offset was `2·t` until it was checked against real flat-ride practice.
   Olley stated the rule as front natural **frequency** ≈ 80% of rear (rear

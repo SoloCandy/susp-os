@@ -159,10 +159,25 @@ reinterprets old codes under new rules. Two examples so far:
   entirely rather than choosing a split within it. `'man'` stays in
   `ARB_BAL_MODE_DEC` at its original index purely so old codes still decode
   the string correctly, but `sanitizeTune` immediately rewrites it: any
-  decoded `arbBalMode:'man'` becomes `arbBalMode:'weight'` + `arbMode:'man'`.
+  decoded `arbBalMode:'man'` becomes `arbBalMode:'manual'` + `arbMode:'man'`.
   A matching one-time migration effect in `App()` does the same for plain
   persisted state (pre-move saves loaded without going through a share
   code). `arbManF`/`arbManR` (ids 46/47) are untouched by the move.
+
+  This said `'weight'` until an audit caught it — the destination is the
+  `'manual'` placeholder (index 6, below), not WEIGHT, and the difference is
+  user-visible: landing on WEIGHT would light up a Balance Mode button the
+  user never chose, which is the exact thing the placeholder exists to avoid.
+  [CODE_MAP.md](CODE_MAP.md)'s retained-legacy section had it right.
+- **id 41 (`arbBalMode`) `'manual'`** — index 6, the deliberately invisible
+  placeholder. Behaves exactly like `'weight'` everywhere in `feelToPhysics`
+  and `computeTune`, but is not one of the Balance Mode buttons, so nothing
+  lights up while Stiffness Mode is MAN and switching Stiffness Mode away from
+  MAN doesn't look like a WEIGHT selection the user never made. Live producers:
+  `sanitizeTune`'s `'man'` migration above, the `App()` migration effect, and
+  TUNE CHECK's import. Being set by no visible control is the design, not an
+  oversight — see [CODE_MAP.md](CODE_MAP.md). Its index is as permanent as any
+  other; it was appended after `'chassis'` (index 5) for exactly that reason.
 - **id 41 (`arbBalMode`) `'chassis'`** — new PRO-only mode (index 5), added
   alongside the MAN migration. Same split formula as WEIGHT, but anchored to
   `naturalMechBalanceOf(ch)` (track-width geometry, or the MEASURE NAT BAL
@@ -246,6 +261,29 @@ assuming it's an oversight, but note this list has been wrong twice now:
 verify the field's output is genuinely self-contained — an absolute value
 with exactly one consumer, not a delta or an input feeding some other field
 too — before excluding it.
+
+**The whole `al` (alignment) group is excluded — every field of it.** This is the
+largest omission in the codec and it was undocumented here until an audit went
+looking for it. `encodeTune(ch, fe, dr)` takes three groups and `DEF_GROUPS` maps
+exactly three; there is no `group:'al'` anywhere in `CODEC_FIELDS`. So a share code
+carries **none** of `al.mode`, `al.nudgeStrength`, or the MANUAL
+`camberF`/`camberR`/`toeF`/`toeR`/`caster` values.
+
+The consequence is worth stating plainly, because it is silent: a PRO user who
+sets Alignment Mode to MANUAL and types exact angles, then sends a code, ships a
+tune whose recipient sees BUILD-mode computed alignment instead. Nothing warns
+either party. The same is true of a MECH/GRIP nudge and its Nudge Strength.
+
+For BUILD mode this is harmless and arguably correct — `computeAlignment` is a
+pure function of `ch`/`tune`/`layout`/`buildType`, all of which *do* travel, so
+the receiver recomputes identical angles from the same inputs. That is the
+"computed-locally, shared-as-output" pattern `useRideHeightCG` follows above, and
+it is presumably why the group was never given ids. It stops holding the moment
+`al.mode` is anything but `'build'`, since MANUAL's values and the nudge strength
+are inputs with no other carrier — the same trap ids 60/61 and 65/66 were both
+added to close. Treat this as a known gap rather than a settled exclusion; closing
+it means ids 67+ and a fourth group in `DEF_GROUPS`/`encodeTune`/`decodeTune`/
+`sanitizeTune`. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 Garage entries' `notes` and `tags` are excluded for the same reason, one level up:
 they describe *your* relationship to a tune ("needs work", "Nordschleife"), not the

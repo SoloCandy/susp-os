@@ -1,44 +1,63 @@
 # SUSP.OS — Project Guidance
 
-## After major changes: review the README **and `docs/`**
-Whenever you make a major change (new feature, removed/renamed UI control, changed
-input ranges or limits, calibration constants, balance modes, etc.), review
-`README.md` and verify it still matches the app. If anything is stale or missing,
-update it as part of the same change — don't leave the docs out of sync.
+## After a major change, update the docs in the same commit
 
-Examples of what tends to drift:
-- Input ranges / limits (e.g. frequency band, ARB clicks, brake %)
-- Balance modes and their behaviour tables
-- Calibration constants table
-- Section names and where controls live
-- Tier (BEG/INT/PRO) feature lists
-
-The obligation covers `docs/` too, not just the README — most of the drift lives
-there. Which doc to check, by what you touched:
+New feature, renamed or removed control, changed range or limit, new calibration
+constant, new balance mode: the docs are part of the change, not a follow-up.
+Most of the drift lives in `docs/`, not the README.
 
 | Changed | Update |
 |---|---|
-| localStorage keys, persisted shapes, backup format | `docs/PERSISTENCE.md` |
-| `zone-*` ids, components, file structure, anything that *looks* dead but isn't | `docs/CODE_MAP.md` |
-| Factory presets, `PRESET_DESC`, `BUILD_PRESET_MAP` | `docs/PRESETS.md` |
-| Share-code fields or ids | `docs/CODEC.md` (ids are permanent — retire, never reuse) |
 | Slider range / mechanism / tier gating | `docs/SLIDERS.md` |
-| Hz / spring / damper solve math | `docs/PHYSICS.md` |
+| Hz / spring / damper solve math, calibration constants | `docs/PHYSICS.md` |
 | Balance contributor formulas or signs | `docs/FORMULAS.md` |
 | Camber / toe / caster | `docs/ALIGNMENT.md` |
-| A bug fixed, or a limitation found | `docs/KNOWN_ISSUES.md` |
+| Share-code fields or ids | `docs/CODEC.md` — ids are permanent, retire, never reuse |
+| localStorage keys, persisted shapes, backup format | `docs/PERSISTENCE.md` |
+| Factory presets, `PRESET_DESC`, `BUILD_PRESET_MAP` | `docs/PRESETS.md` |
+| `zone-*` ids, components, file structure, anything that *looks* dead but isn't | `docs/CODE_MAP.md` |
+| A limitation found, or a design deliberately rejected | `docs/KNOWN_ISSUES.md` — only what is still true |
+| A bug fixed, or a behaviour deliberately changed | `docs/HISTORY.md` |
+| Tier feature lists, game limits, architecture summary | `README.md` |
 
-Two habits worth keeping: record *why* something non-obvious stays (CODE_MAP's
-"intentionally-retained legacy" section exists so the next audit doesn't delete
-load-bearing code), and don't put line numbers in docs — they go stale within a
-commit or two. Reference identifiers instead.
+## Verify before you finish
+
+```
+node tests-docs.js
+```
+
+Reads `index.html` and `docs/` and fails when a stated fact no longer matches the
+code. Run it after any docs change, and after touching the codec, `sanitizeTune`,
+storage keys, the `open` state, or a slider range. It guards names, ids, keys,
+enum indices and numeric bounds — **not prose**, which still needs a reader.
+
+Adding a slider with a `sanitizeTune` clamp? Mark its SLIDERS.md row with
+`<!--@range fe.yourField-->` so its range gets checked. Markdown renders the
+marker as nothing.
+
+`docs/CODE_MAP.md`'s "Testing reality" section carries the full routine — the
+other two suites, what each one can and cannot prove, and why the browser is
+still the only real verification.
+
+## Habits worth keeping
+
+- **Record *why* something non-obvious stays.** CODE_MAP's
+  "intentionally-retained legacy" section exists so the next audit doesn't delete
+  load-bearing code.
+- **Don't put line numbers in docs, or any count that will drift.** Reference
+  identifiers instead. This file described `index.html` as a ~6,600-line file
+  until it was nearly a thousand lines past that, which is the whole argument in
+  one example.
+- **When you correct a fact in one doc, grep the phrase across all of them.**
+  Every multi-file error found so far was one claim living in two or three places
+  where the fix reached only one. `tests-docs.js` catches the structured cases;
+  this habit catches the rest.
 
 ## Navigating `index.html`
 
-It's a single ~6,600-line file (all JS/JSX/styles inline, no build step —
-deliberate, for zero-friction static hosting). Prefer `Grep` for a specific
-symbol, constant, or string over reading large line ranges — the file already
-has unique function names and banner comments (`── section name ──`) meant to
-be grepped. `docs/CODE_MAP.md`'s "Region order" and "Pure physics entry
-points" sections are the anchor list; check there first for where something
-lives before searching blind.
+One file, several thousand lines, with all JS/JSX/styles inline and no build
+step — deliberate, for zero-friction static hosting. Prefer `Grep` for a symbol,
+constant or string over reading large ranges: function names are unique and the
+banner comments (`── section name ──`) exist to be grepped. Start from
+`docs/CODE_MAP.md`'s "Region order" and "Pure physics entry points" rather than
+searching blind.

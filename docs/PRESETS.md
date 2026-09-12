@@ -27,6 +27,10 @@ toggles, and its Balance slider's own mechanism assumes NEUTRAL ARB mode —
 see the Balance row in [SLIDERS.md](SLIDERS.md)), plus `dampCharMode:'zeta'`,
 `dampBalMode:'standard'`, and zeroed `dampingBias` since Beginner's
 Character slider only understands the simple rebound-ζ/bump-ratio model.
+It also forces `rearHzMode:'multiplier'` — omitted from this list until an
+audit caught it. That one matters for the Rear Hz Mult column below: a preset
+authored under a different Hz mode still lands on MULTIPLIER in Beginner, so
+the ratio shown is the one actually applied there.
 
 | # | Name | Build Type | Diff Type | Ride Stiffness | Rear Hz Mult | Damping Char | Notes |
 |---|---|---|---|---|---|---|---|
