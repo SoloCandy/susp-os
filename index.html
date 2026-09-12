@@ -1349,9 +1349,12 @@ const dampOut=(v,lim,mr=1)=>lim.damping==null
   ? {value:roundTo(v/mrDiv(mr),100),unit:'N/m/s',decimals:0}
   : {value:v,unit:`/ ${lim.damping}`,decimals:1};
 // Roll stiffness (N·m/rad) → the linear anti-roll rate BeamNG asks for, by the same
-// rs = k·track²/2 relationship the spring side uses, inverted. No motion-ratio term:
-// whether BeamNG's anti-roll rate is specified at the wheel or at the bar is not
-// established, so applying one would be a guess stacked on a guess. See KNOWN_ISSUES.
+// rs = k·track²/2 relationship the spring side uses, inverted. No motion-ratio term
+// yet, but not because the question is open: BeamNG specifies the rate at the bar's
+// own lever rather than at the wheel, so a real inboard bar needs a higher number by
+// (track/arm)². BeamNG exposes no arm length and the coefficient convention is still
+// unsettled, so that divisor has to come from the user — see KNOWN_ISSUES' deferred
+// ARB Motion Ratio F/R input, which is where the term belongs when it lands.
 const arbOut=(v,lim,track=1.55)=>lim.arb==null
   ? {value:roundTo(2*v/(track*track),1000),unit:'N/m',decimals:0}
   : {value:v,unit:`/ ${lim.arb}`,decimals:1};

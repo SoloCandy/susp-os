@@ -317,6 +317,8 @@ exactly what the physical-unit approach exists to avoid, and one sampled vehicle
 not a calibration. A second and third vehicle would confirm the arm-ratio range and
 settle the coefficient question.
 
-**Stale as of this research:** the in-app ARB caveats still say *"cause
-unresolved"* (amber banner) and *"the cause isn't established"* (hint). Both are
-superseded by the above and should be corrected alongside the deferred fix.
+**The in-app caveats already name this cause.** The amber banner under the ARB rows
+and the suspension card hint both state the lever-arm assumption and tell the user to
+scale by (track/arm)² if they know the geometry. They read *"cause unresolved"* until
+this research landed; they no longer do, and need no further wording change before the
+deferred fix.
