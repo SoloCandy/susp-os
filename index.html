@@ -56,9 +56,9 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
 }
 /* BeamNG output layout: fixed 2 columns (front/rear), collapsing to 1 below ~580px of the
    OUTPUT PANEL'S OWN width — a container query rather than a viewport media query, since the
-   panel's rendered width depends on sidebar state, not window size (see the headerCompact
-   precedent/comment near sidebarWidth in index.html for why this codebase avoids reusing
-   viewport-width flags for container-shaped decisions). auto-fit was tried first and rejected:
+   panel's rendered width depends on sidebar state, not window size (docs/CODE_MAP.md's
+   headerCompact section covers why this codebase avoids reusing viewport-width flags for
+   container-shaped decisions). auto-fit was tried first and rejected:
    on wide monitors minmax(280px,1fr) grows to 3-4 columns, which breaks the front/rear
    grouping the whole layout exists for — a fixed 2-column template with a container-query
    fallback is the only way to cap it at exactly 2 without an unwanted maxWidth margin cap. */
@@ -279,15 +279,12 @@ const hzToRs=hz=>Math.round(Math.max(HZ_MIN,Math.min(HZ_MAX,hz))*100)/100;
 // — and the two axles come back into phase, cancelling pitch.
 //
 // The offset is ONE traverse time, not two. It was `2*t` until it was checked against real
-// flat-ride practice. Olley stated the rule as front natural FREQUENCY ≈ 80% of rear (rear
-// ≈ ×1.25); the commonly published practical band is rear 10–20% above front. Every ratio in
-// this comment is a FREQUENCY ratio, never a spring-rate one — rate goes as Hz², so ×1.20 in
-// frequency is ×1.44 in rate.
-// `2*t` gave ×1.43 on the stock chassis at the default 70 mph, worsening to ×1.76
-// at 2.5 Hz and ×3.39 at 30 mph. A default that drifts further out the harder you tune is the
-// wrong way round. With a single offset the same points give ×1.18 / ×1.24 / ×1.54.
-// This changes the derived rear Hz for every existing FLAT RIDE tune — a deliberate
-// behaviour change, recorded in docs/KNOWN_ISSUES.md.
+// flat-ride practice, and the doubled version drifted further out of band the harder you
+// tuned. Every ratio in this area is a FREQUENCY ratio, never a spring-rate one — rate goes
+// as Hz², so ×1.20 in frequency is ×1.44 in rate, and reading one as the other is how the
+// original error survived review in the first place.
+// docs/PHYSICS.md carries Olley's rule, the practitioner band, the before/after ratio table
+// and the sources; docs/KNOWN_ISSUES.md has the incident and the behaviour-change note.
 const flatRideRearHz=(fHz,wb,mph)=>{
   if(mph>=200)return{hz:fHz,clamped:false};
   const ms=mph*MPH_TO_MS;
@@ -392,15 +389,13 @@ const settleZetas=(rideRef,fHz,rHz,refZeta,biasMult)=>{
   const target=refRate*fHz; // front (default)
   return {zF:refZeta, zR:rateToZeta(target*biasMult/rHz)};
 };
-// Settle time (10%-envelope) from ζ (%) and Hz. Underdamped (ζ≤100%): envelope decays exactly
-// as e^-ζωn·t, so rate=ζ. Overdamped (ζ>100%): response is governed by the SLOWER of two real
-// poles, rate=ζ-√(ζ²-1), which *falls* as ζ climbs past 100% — so WITHIN THIS ENVELOPE MODEL
-// ζ=100% is the fastest, and pushing zeta past it settles slower (sluggish), not faster. Using
-// rate=ζ unconditionally (the old single-branch formula) got that backwards above 100%.
-// "Within this model" is load-bearing: the envelope drops the response's own 1/√(1-ζ²) and
-// (1+ωn·t) factors, so against the real trace this runs long below ζ≈79% and short above it, and
-// the quickest ±10% settle is nearer ζ≈59%. See docs/PHYSICS.md, and the DYNAMICS chart, which
-// measures the drawn curve rather than using this.
+// Settle time (10%-envelope) from ζ (%) and Hz, via dampRate's piecewise rate. WITHIN THIS
+// ENVELOPE MODEL ζ=100% is the fastest settle and pushing past it is slower, not faster — the
+// old single-branch rate=ζ got that backwards above 100%. "Within this model" is load-bearing:
+// the envelope drops the response's own 1/√(1-ζ²) and (1+ωn·t) factors, so it is NOT a bound in
+// either direction, and the real quickest ±10% settle sits nearer ζ≈59%. Full derivation, the
+// error figures per ζ, and why the DYNAMICS chart measures its drawn curve instead of calling
+// this: docs/PHYSICS.md.
 const settleTimeFromZeta=(zetaPct,hz)=>{
   if(zetaPct<=0||hz<=0) return 99;
   return 2.302/(dampRate(zetaPct)*hz*2*Math.PI); // ln(10)/(rate·ωn)
@@ -3701,7 +3696,13 @@ function App(){
     // that panel isn't obstructed. Focus-less info steps leave it as the user set it.
     else if(tutFocus)setSidebarOpen(!(tutFocus.includes('output')||tutFocus.includes('balance-bar')));
   },[tutMode,tutStep]); // eslint-disable-line
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,balanceExpanded:false,factoryOpen:true,visuals:false,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
+  // Every collapsible section needs its key present from the start, even at `false`: the
+  // SECTIONS −/+ buttons blanket-toggle `Object.keys(p)`, so a section whose key only appears
+  // once something has already written it is silently skipped by expand-all until then.
+  // `alignment` was missing and behaved exactly that way — it collapsed correctly by accident
+  // (undefined is falsy) and `tog` toggled it fine, but + and − ignored it until either the
+  // user opened it by hand or a PRO tutorial step wrote the key via the tutFocus effect.
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,visuals:false,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
   // parse to a full radius, and only when the rounded-mm result actually changed, so this
@@ -3812,21 +3813,13 @@ function App(){
   // sidebar grows with the display: 300px baseline, up to 440px at very wide screens.
   const sidebarWidth=isMobile?300:Math.min(440,Math.max(340,Math.floor(windowWidth*0.25)));
 
-  // The full header row (brand + IMP/MET + the three game modes + BEG/INT/PRO + ↩/?/TERMS/GARAGE)
-  // needs ~975px once the four 8px divider margins and a two-digit GARAGE count are included.
-  // That is well above isMobile's 768px cutoff, so between those two widths the desktop header
-  // used to render and silently push GARAGE and its neighbours off-screen — there is no wrap and
-  // no horizontal scroll on that row. Adding a third game mode (BEAMNG) is what pushed it over;
-  // two modes fitted inside 768px. 1000 leaves headroom for a three-digit count and for font
-  // metrics that differ from the machine this was measured on — measured flush at exactly 960,
-  // so do not lower this without re-measuring the GARAGE button's right edge against the viewport.
-  //
-  // Deliberately NOT folded into isMobile: that flag also drives the sidebar overlay, the
-  // backdrop, sidebarWidth and the brand sizing, and turning every ~900px laptop into the
-  // overlay-sidebar layout would be a far bigger behaviour change than this bug warrants.
-  // headerCompact only decides WHERE the units/game-mode/tier groups live, and the three
-  // gate sites that move them (header row 1, header row 2, sidebar top) must stay in sync —
-  // gating only some of them would make those controls unreachable in the gap.
+  // Below this width the units / game-mode / tier groups move out of header row 1 and into
+  // header row 2 and the top of the sidebar. THREE gate sites read this flag and must stay in
+  // sync — header row 1, header row 2, sidebar top — or those controls become unreachable in
+  // the gap. Deliberately NOT folded into isMobile, which also drives the sidebar overlay, the
+  // backdrop, sidebarWidth and the brand sizing; this flag decides placement only.
+  // Do not lower 1000 without re-measuring the GARAGE button's right edge against the viewport
+  // (it was flush at exactly 960). Full measurement and rationale: docs/CODE_MAP.md.
   const headerCompact=windowWidth<1000;
 
   const pCh=k=>v=>setCh(p=>({...p,[k]:v}));
@@ -3941,17 +3934,13 @@ function App(){
   const _brakeWtMod=ch.wheelbase>0?Math.round((ch.cgHeight/ch.wheelbase)*50):8;
   const _brakeBuildMod={street:0,track:3,drift:-5,rally:0,offroad:-3,drag:-8}[dr.buildType??'track']??3;
   const _brakeGripAdj=uiMode==='pro'?Math.round((natGripBalance-0.5)*15):0;
-  // Floor is 45, not 50. The weight-transfer term above is what makes the typical recommendation
-  // front-biased, and it does that on its own — the floor exists only to stop absurd outputs. At 50
-  // it was doing far more than that: it silently truncated every rear-biased result the formula
-  // produced (a 39%-front rear-engine car on a DRIFT build solves to 43, on DRAG to 40), which is
-  // exactly the trail-braking/drift case the community does recommend rear bias for (~46-47% front
-  // for front-engine, ~46% mid/rear-engine). It also made three downstream things unreachable: the
-  // `brakeBias<50 → REAR` indicator in both BRAKES cards, the "Reduce front brake bias to add entry
-  // rotation" tip in HandlingVerdict, and any positive (oversteer) value of `bBrakeEntry` at all.
-  // 45 keeps the guard against nonsense while letting those express. Build-type mods deliberately
-  // left as-is — they were set with the floor masking them, but re-tuning them is a calibration
-  // question with no telemetry behind it (same trap as DIFF_BIAS_SCALE, see KNOWN_ISSUES.md).
+  // Floor is 45, not 50. The weight-transfer term above is what front-biases the typical
+  // recommendation, and it does that on its own — the floor exists only to stop absurd outputs.
+  // At 50 it was doing far more: it silently truncated every rear-biased result the formula
+  // produced, which also left three downstream behaviours unreachable. Build-type mods are
+  // deliberately left as-is — they were authored while the floor masked them, and re-tuning them
+  // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
+  // See docs/KNOWN_ISSUES.md for the worked cases and docs/FORMULAS.md for the resulting span.
   const recBrakeBias=Math.round(Math.max(45,Math.min(68,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
   const brakeBias=recBrakeBias;
   // positive = oversteer, negative = understeer
@@ -4014,6 +4003,44 @@ function App(){
       return cf===p.arbManF&&cr===p.arbManR?p:{...p,arbManF:cf,arbManR:cr};
     });
   },[fe.gameMode]); // eslint-disable-line
+  // Secondary-axle Hz clamp notice. physics.rearHzClamped fires when the DERIVED axle's solved
+  // frequency lands outside the HZ_MIN..HZ_MAX band and gets clamped to it. The copy this
+  // replaces got three things wrong at once:
+  //   - it announced a "1.6× front" cap, which nothing here has ever applied — every branch in
+  //     feelToPhysics clamps to the band, never to a front/rear ratio;
+  //   - it told the user to INCREASE Ride Stiffness, which under a FRONT reference pushes the
+  //     rear further out, not back in (the RIDE section's own flat-ride warning says "lower",
+  //     and the two contradicted each other on screen);
+  //   - it always said "Rear", but under a REAR reference the clamped axle is the front, and
+  //     under SHARED both axles are solved together.
+  // Defined once because both output layouts render it. They previously carried byte-identical
+  // copies of that wrong sentence, which is exactly how a fix to one would have missed the other.
+  // Reads physics.rearHzMode rather than fe.rearHzMode: that's the mode the solve actually ran,
+  // and it sidesteps the ??-default mismatch between DEF_FE ('multiplier') and the 'flatRide'
+  // fallback the UI and feelToPhysics both use. CO-SOLVE forces rearHzClamped false, so it
+  // needs no branch here.
+  const hzClampNote=(()=>{
+    if(!physics.rearHzClamped)return null;
+    const rRef=physics.rideRef??'front';
+    const band=`${HZ_MIN.toFixed(1)}–${HZ_MAX.toFixed(1)} Hz`;
+    const what=rRef==='shared'
+      ?`The solved front/rear split hit the ${band} limit and was clamped to ${tune.fHz.toFixed(2)} / ${tune.rHz.toFixed(2)} Hz.`
+      :rRef==='rear'
+      ?`Front Hz hit the ${band} limit and was clamped to ${tune.fHz.toFixed(2)} Hz.`
+      :`Rear Hz hit the ${band} limit and was clamped to ${tune.rHz.toFixed(2)} Hz.`;
+    // Raising Target Speed always narrows the front/rear split — the traverse offset t=wb/speed
+    // shrinks toward zero, so the derived axle moves back toward the reference one. That makes
+    // it the single flat-ride lever pointing the right way for EVERY Ride Reference, unlike a
+    // stiffness nudge, whose correct direction flips depending on which axle is anchored.
+    const advice=physics.rearHzMode==='flatRide'
+      ?'Raise Target Speed (move toward OFF) to narrow the front/rear split, or move Ride Stiffness so the derived axle lands inside the band.'
+      :physics.rearHzMode==='mech'
+      ?'Move the Mech Balance Target closer to the chassis natural balance, or adjust Ride Stiffness to give the solve room inside the band.'
+      :physics.rearHzMode==='shared'
+      ?'Adjust the Avg Bottom-Out target, or bring the front and rear ride heights closer together so both axles solve inside the band.'
+      :'Adjust Ride Stiffness so the derived axle solves inside the band.';
+    return `${what} ${advice}`;
+  })();
   const responseFactors=(()=>{
     // Agility = transient response character: how quickly and freely the car responds to steering inputs.
     // ARBs and weight bias are excluded — they govern roll moment distribution (Handling Balance bar),
@@ -4919,13 +4946,11 @@ function App(){
               if(uiMode!=='pro')return null;
               const _layout=ch.layout??'RWD';
               const _build=dr.buildType??'track';
-              // RANGE is expressed as a fraction of the NATURAL→GRIP TARGET gap (not a flat
-              // delta) so it scales with how understeer/oversteer-prone this specific chassis
-              // actually is: a near-neutral car gets a tight band close to NATURAL, a strongly
-              // biased one gets a proportionally wider push toward GRIP TARGET. Fractions >1
-              // (DRIFT) intentionally recommend overshooting past grip-neutral for sustained
-              // rotation. _gap's sign flips for the rare chassis whose natural balance already
-              // sits past its own grip target — the fraction math handles that automatically.
+              // RANGE is a fraction of the NATURAL→GRIP TARGET gap, not a flat delta, so the
+              // band scales with how biased this particular chassis actually is. Fractions >1
+              // (DRIFT) overshoot past grip-neutral on purpose. See docs/PHYSICS.md's "Balance
+              // Guide RANGE" — and keep this table in step with _ggFracMap in the GRIP GAP block
+              // below, which duplicates it so the two widgets agree on what "in range" means.
               const _fracMap={
                 FWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.45,0.80]},
                 RWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.60,1.05]},
@@ -4933,11 +4958,10 @@ function App(){
               };
               const[_fracLo,_fracHi]=((_fracMap[_layout]??_fracMap.RWD)[_build])??[0.55,0.95];
               const _gap=(1-natGripBalance)-natMechBalance;
-              // min/max (not a fixed lo/hi assignment) because a negative _gap — the rare chassis
-              // whose natural balance already sits past its own grip target — flips which
-              // fraction produces the smaller delta; assigning fracLo→dlo/fracHi→dhi unconditionally
-              // put lo above hi in that case, and the +0.03 floor below collapsed the band to a
-              // near-fixed sliver instead of properly scaling on the correct side of natural.
+              // min/max, not a fixed lo/hi assignment: a negative _gap — the rare chassis whose
+              // natural balance already sits past its own grip target — flips which fraction
+              // produces the smaller delta. See docs/PHYSICS.md for what the fixed assignment
+              // did to the band in that case.
               const _d1=_fracLo*_gap,_d2=_fracHi*_gap;
               const _dlo=Math.min(_d1,_d2),_dhi=Math.max(_d1,_d2);
               const _lo=Math.max(0.20,Math.min(0.87,natMechBalance+_dlo));
@@ -6025,29 +6049,18 @@ function App(){
                 const fBmp=tune.bumpZetaF??physics.bumpZeta??39;
                 const rReb=tune.zetaR??physics.reboundZeta??70;
                 const rBmp=tune.bumpZetaR??physics.bumpZeta??39;
-                // Settle time measured off the plotted trace rather than read from tune.settleF/R,
-                // because this dashed line annotates THIS curve. Verified against the closed-form
-                // free decay (x(0)=1, v(0)=0 — algebraically the step-response error signal, so
-                // textbook settling-time results apply): the Euler measurement lands within ~1-2%
-                // of exact across the ζ range. The analytic value differs for two reasons:
-                //   (1) settleTimeFromZeta is a simplified decay envelope, and NOT a bound in
-                //       either direction — it drops the 1/√(1-ζ²) amplitude factor that would make
-                //       it one, and ignores the (1+ωn·t) factor at critical damping. It runs long
-                //       below ζ≈79% and short above it; at ζ=100%, 1.4 Hz it reads 0.26s against a
-                //       true 0.44s.
-                //   (2) It sees the REBOUND zeta only, while computeOscillation alternates
-                //       rebound/bump by velocity sign — which moves the answer whenever overshoot
-                //       clears the band (ζ below ~59%).
-                // DAMPERS keeps reporting the analytic figure: it's the one SETTLE TIME mode
-                // back-solves against, and changing it would break the target→readout round-trip.
-                // Two properties of "last band exit" worth knowing before reading this marker:
-                // it STEPS at ζ≈59.1% (where the first overshoot peak stops clearing ±10%:
-                // e^-πζ/√(1-ζ²)=0.1), 1.4 Hz going 0.456s → 0.267s between ζ=59% and 60%; and the
-                // real minimum settle sits AT that step, not at critical damping — ζ≈59% settles
-                // in 0.267s where ζ=100% takes 0.442s. Both are properties of the definition, not
-                // of the integration (the same algebra gives the textbook ζ≈0.78 optimum for a 2%
-                // band). Right at the step the marker is knife-edge sensitive — a peak grazing the
-                // band edge — so expect it to jump between ζ=58% and 60%.
+                // Settle time is measured off the plotted trace rather than read from
+                // tune.settleF/R, because this dashed line annotates THIS curve: the analytic
+                // figure sees REBOUND ζ only, while computeOscillation alternates rebound/bump by
+                // velocity sign. DAMPERS deliberately keeps quoting the analytic one — it is what
+                // SETTLE TIME mode back-solves against, so changing it would break that
+                // round-trip. The two therefore disagree on purpose, and the chart's own Hint
+                // says so.
+                // Three things about this marker surprise people, all properties of the "last
+                // band exit" definition rather than of the integration: it can land BEFORE the
+                // neutral ring, it steps rather than sliding as ζ rises, and the quickest settle
+                // is not at critical damping. docs/PHYSICS.md carries the derivation, the exact
+                // figures either side of the step, and the textbook cross-check.
                 const SETTLE_ENV=0.1;
                 const curveSettle=pts=>{
                   let i=pts.length-1;                          // trace starts at x=1, so i lands >=0
@@ -6352,10 +6365,10 @@ function App(){
                 </RowGroup>
               );
             })()}
-            {physics.rearHzClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
+            {hzClampNote&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
-              Rear Hz capped at 1.6× front ({tune.rHz.toFixed(2)} Hz). Raise Target Speed or increase Ride Stiffness to bring the natural ratio within range.
+              {hzClampNote}
             </div>}
             {tune.coSolveLiftRisk&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
@@ -6585,9 +6598,7 @@ function App(){
                   :' ARB Stiffness limits the total ARB budget — raise ARB Stiffness % to give the bars more range.')
                 :' ARB floor/ceiling limits prevented the required front/rear split. Widen the ARB range or reduce the balance target.'}
             </>));
-            if(physics.rearHzClamped)warnings.push(warnBox('rearhz','#f59e0b',<>
-              Rear Hz capped at 1.6× front ({tune.rHz.toFixed(2)} Hz). Raise Target Speed or increase Ride Stiffness to bring the natural ratio within range.
-            </>));
+            if(hzClampNote)warnings.push(warnBox('rearhz','#f59e0b',hzClampNote));
             if(tune.coSolveLiftRisk)warnings.push(warnBox('lift','#f59e0b',<>
               Rear springs are significantly stiffer than front ({tune.rHz.toFixed(2)} vs {tune.fHz.toFixed(2)} Hz).
               Stiff rear springs reduce droop travel and can cause inside rear wheel lift under hard cornering.
