@@ -104,7 +104,8 @@ Reference docs for maintainers:
 - [CODEC.md](docs/CODEC.md) — the share-code field ID table (never reuse an id)
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
-- [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — unresolved quirks and test-coverage gaps
+- [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
+- [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
 
 ---
 
@@ -115,7 +116,15 @@ No build tools required. Open `index.html` in a browser, edit with any text edit
 ```
 node tests.js          # physics unit tests (mirrored copy — see CODE_MAP.md)
 node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
+node tests-docs.js     # documentation drift checks (reads index.html and docs/)
 ```
+
+`tests-docs.js` fails when a fact stated in the docs stops matching the code:
+a codec id table that has drifted, an enum value no doc mentions, a storage key
+that vanished, a slider range that contradicts what `sanitizeTune` actually
+clamps to, a collapsible section missing from the `open` state, or a broken
+link between docs. It checks names, ids, keys and numbers — never prose — so a
+green run means the facts line up, not that the writing is still accurate.
 
 ---
 

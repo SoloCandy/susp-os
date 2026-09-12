@@ -165,6 +165,54 @@ INT/PRO BUILD section (safe only because the two were mutually exclusive on
 
 Sections are collapsed on load — `open` is plain `useState`, not persisted.
 
+**Every section needs its key initialised in that `useState`, even at `false`.**
+The SECTIONS `−`/`+` buttons blanket-toggle `Object.keys(p)`, so a key that only
+materialises once something writes it is silently skipped by expand-all until
+then. `alignment` was missing and behaved exactly that way: it collapsed
+correctly (undefined is falsy) and its own header toggled it fine, so the gap
+only showed as `+` not expanding that one section, and only in PRO. A tutorial
+step that writes the key papered over it further. Adding a section means adding
+its key here, not just rendering a `Sec`.
+
+---
+
+## Header layout: `headerCompact`
+
+The full header row — brand, IMP/MET, the game-mode dropdown, BEG/INT/PRO, then
+undo / `?` / TERMS / GARAGE — needs roughly 975px once the four divider margins
+and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
+cutoff, so between those widths the desktop header used to render and push
+GARAGE and its neighbours off-screen: that row has no wrap and no horizontal
+scroll. Adding the third game mode is what pushed it over; two fitted inside
+768px.
+
+`headerCompact` is `windowWidth < 1000`. Measured flush at exactly 960, so the
+extra headroom covers a three-digit count and font metrics differing from the
+machine it was measured on. **Do not lower it without re-measuring the GARAGE
+button's right edge against the viewport.**
+
+Two things to know before touching it:
+
+- **It is deliberately not folded into `isMobile`.** That flag also drives the
+  sidebar overlay, the backdrop, `sidebarWidth` and the brand sizing, so turning
+  every ~900px laptop into the overlay-sidebar layout would be a far larger
+  behaviour change than the bug warrants. `headerCompact` decides only *where*
+  the units / game-mode / tier groups live.
+- **Three gate sites move those groups and must stay in sync**: header row 1
+  (units + game mode + tiers, shown when *not* compact), header row 2 (the tier
+  row, shown when compact), and the top of the sidebar scroll area (units + game
+  mode, shown when compact). Gating only some of them leaves those controls
+  unreachable in the gap.
+
+A container-shaped decision elsewhere follows the same precedent rather than
+reusing a viewport flag: the BeamNG output grid collapses to one column on a
+`@container (max-width:580px)` query against the output panel's own width,
+because that width depends on sidebar state rather than window size. `auto-fit`
+was tried and rejected there — on wide monitors `minmax(280px,1fr)` grows to
+three or four columns, which breaks the front/rear pairing the layout exists
+for. A fixed two-column template plus the container query is the only way to cap
+it at exactly two without an unwanted `maxWidth` margin cap.
+
 ---
 
 ## localStorage
@@ -307,6 +355,14 @@ hooks.** `tests.js` is a hand-maintained duplicate of the physics functions
 and does not read `index.html` at all — it passes whether or not the app
 works. See the Test coverage section of [PHYSICS.md](PHYSICS.md).
 
+**`tests-docs.js` is the docs equivalent**: it reads `index.html` and `docs/*.md`
+and fails when a fact stated in prose no longer matches the code — a drifted codec
+id table, an enum value no doc mentions, an encoder index that no longer
+round-trips through its decoder array, a storage key that vanished, a slider range
+contradicting `sanitizeTune`, a section missing from the `open` state, a broken
+doc link. It exists because a docs audit found ten errors and eight of them were
+mechanical. It checks names, ids, keys and numbers only, never prose.
+
 **`tests-beamng.js` is the exception**: it lifts the real physics layer out of
 `index.html` with string slices and drives it directly, so it *does* fail when
 the app breaks. It exists because the physical-unit mode is defined by what it
@@ -328,3 +384,6 @@ non-trivial edit:
    mirror by hand, since nothing will tell you it drifted.
 6. `node tests-beamng.js` if anything in `computeTune`, `GAME_LIMITS`, or the
    unit constants moved. This one reads `index.html`, so it needs no mirroring.
+7. `node tests-docs.js` after any docs edit, and after touching the codec,
+   `sanitizeTune`, storage keys, the `open` state, or a slider range. Also reads
+   `index.html`, so it needs no mirroring either.

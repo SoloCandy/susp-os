@@ -146,7 +146,7 @@ sub-tier/MANUAL) is PRO-only, since there's nothing to configure without it.
 | `al.mode` | What it does |
 |---|---|
 | **build** (AUTO / Nudge OFF, default) | `computeAlignment`'s output, unchanged — see the rest of this file |
-| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = resolveArbBalTarget(ch,fe) − naturalMechBalanceOf(ch)` — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target |
+| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − naturalMechBalanceOf(ch)` — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so MECH and GRIP nudge from the same number whenever GRIP target mode is active |
 | **grip** (AUTO / Nudge GRIP) | Nudges using `gripGap = -(natGripBalance-0.5)` instead — counteracts the chassis's own natural at-limit tendency (understeer-prone chassis gets pushed toward more aggressive/oversteer-leaning alignment, and vice versa), independent of whatever ARB balance mode is active |
 | **manual** | Direct entry — wires up `al.camberF/camberR/toeF/toeR/caster` (these fields, plus `al.alignManual`, predate this feature and were previously unused dead state with no UI) |
 

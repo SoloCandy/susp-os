@@ -1,0 +1,1663 @@
+# SUSP.OS — Resolved Incident History
+
+Bugs found and fixed, and deliberate behaviour changes. Split out of
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md), which now carries only what is still true.
+
+This is not a changelog of features. Every entry is here because the *reason* it
+broke is worth remembering — several are traps the codebase could fall into again,
+and a few inline comments in `index.html` point here specifically to say “do not
+reintroduce this”. Newest first, matching the order they were written in.
+
+> Nothing in this file describes current behaviour. If an entry here seems to
+> contradict the app, the app is right and the entry is history.
+
+---
+
+## Fixed — the rear-Hz clamp warning described a cap that never existed (resolved)
+
+Both output layouts rendered "Rear Hz capped at 1.6× front" whenever
+`physics.rearHzClamped` was set. Nothing in the app has ever capped a front/rear
+ratio: every branch in `feelToPhysics` clamps the derived axle to `HZ_MIN`/
+`HZ_MAX`, the band. The sentence carried two further errors:
+
+- **The advice was backwards.** It said to *increase* Ride Stiffness, which under
+  a FRONT ride reference pushes the rear further out of the band. The RIDE
+  section's own flat-ride advisory says to *lower* it, so the two contradicted
+  each other on screen.
+- **It always said "Rear".** Under a REAR ride reference the clamped axle is the
+  front; under SHARED both axles are solved together.
+
+Replaced by a single `hzClampNote` derived once in `App()` and consumed by both
+layouts. It names the axle actually clamped, quotes the band and the clamped
+value, and picks advice per `physics.rearHzMode` — leading with Target Speed for
+FLAT RIDE, since raising it shrinks the traverse offset toward zero and so moves
+the derived axle back toward the reference for *either* Ride Reference, unlike a
+stiffness nudge whose correct direction flips with the anchor.
+
+The two layouts previously held byte-identical copies of the wrong sentence, which
+is how a fix to one would have missed the other. That duplication is the reason it
+is now computed in one place rather than written twice correctly.
+
+## Fixed — SECTIONS expand-all skipped ALIGNMENT (resolved)
+
+`open`'s initial `useState` listed every collapsible sidebar section except
+`alignment`. The section itself worked — `undefined` is falsy so it rendered
+collapsed, and its own header toggled it — but the SECTIONS `+`/`−` buttons
+blanket-toggle `Object.keys(p)`, so a key absent from that object is skipped
+entirely. Expand-all therefore left ALIGNMENT closed until the user had opened it
+by hand at least once, or until a PRO tutorial step wrote the key via the
+`tutFocus` effect.
+
+PRO-only, cosmetic, and self-healing after one manual toggle, which is why it
+survived. Fixed by initialising `alignment:false` alongside the other section
+keys. The invariant — every section needs its key present from the start, even at
+`false` — is now written down in [CODE_MAP.md](CODE_MAP.md), since adding a
+section is exactly when it is easy to miss again.
+
+## Fixed — flat-ride docs said "stiffer" where they meant frequency, and miscredited a source
+
+Two documentation errors around `flatRideRearHz`, both caught by checking the
+literature rather than the code. No behaviour change.
+
+**"Rear 10–20% stiffer than front"** appeared in the `flatRideRearHz` comment, in
+[PHYSICS.md](PHYSICS.md), and in the FLAT RIDE entry below. Every ratio in that
+material is a **frequency** ratio, and rate goes as Hz², so read as spring rate
+the same band is 21–44%. Olley's own statement of the rule is front natural
+frequency ≈ 80% of rear, i.e. rear ≈ ×1.25 — slightly above the 10–20% band the
+docs quoted, which comes from Penske and Race Comp rather than from Olley.
+
+**"Olley's 'Flat Ride' Revisited"** was credited to Sharp & Pilbeam. It is Crolla
+& King, Vehicle System Dynamics 33(sup1), 762–774, 1999. Sharp & Pilbeam have a
+genuinely related paper, *"Achievability and Value of Passive Suspension Designs
+for Minimum Pitch Response"* (1993), which is not the same work. The companion
+citation was also tightened: the *Nonlinear Engineering* paper is Marzbani et
+al., *"Flat Ride; Problems and Solutions in Vehicle"*, 1(3–4), 101–108,
+doi:10.1515/nleng-2013-0002, rather than Jazar alone.
+
+Worth noting what survived the check: the speed-dependence limitation recorded
+under FLAT RIDE is correct, and it is the main modern criticism of the criterion.
+Crolla & King separately report that Olley tuning still gives a marked pitch
+suppression advantage at higher speeds, so the mode is not obsolete.
+
+## Fixed — INDEPENDENT bump mode was inert under SYNC and NEUTRAL damping balance
+
+Reported as "bump mode independent is currently unusable in damping balance mode
+sync and neutral modes". It was, and for two compounding reasons in one line of
+code. Under `dampBalMode` SYNC or NEUTRAL, `feelToPhysics` (and its `computeTune`
+re-run) resolved the bump zetas as:
+
+```js
+bumpZetaF = Math.max(10, Math.min(zetaF, bumpZeta));
+bumpZetaR = Math.max(10, Math.min(zetaR, bumpZeta));
+```
+
+**The same typed value went to both axles.** The Damping Bias slider moved
+`zetaF`/`zetaR` and nothing else, so it steered the rebound stroke while bump sat
+flat — and SYNC's and NEUTRAL's entire premise (equal settle time, equal damping
+force) applied to half the damper. On the default chassis in SYNC at bias 0,
+front 2.0 Hz / rear 2.4 Hz, rebound 70%: rebound solved to 70/58 for an exactly
+equal 0.305 s, while bump ran 39/39 and settled 0.305 s front against 0.262 s
+rear. Nothing in the UI said so.
+
+**Then the clamp to rebound ζ made the residue nonsense.** Whichever axle's
+rebound sat below the typed value got clipped to it, so the only front/rear bump
+split that survived was an artifact of that clipping — with a rear-biased slider
+the two axles could land at 60/60 (no split at all), and at a firm anchor a typed
+90% against a 70/58 rebound came out 70/58, meaning the top third of a slider
+that reaches 115% did literally nothing. The clamp also contradicted the rest of
+the app, which treats bump above rebound as warned-but-allowed (`⚠ CROSSED`)
+rather than impossible.
+
+RATIO mode was never affected: one percentage scaling both rebound zetas carries
+their split onto bump for free. That is exactly what INDEPENDENT lacked, so the
+fix gives the typed value its own trip through the same solver as its own
+`refZeta` — `balModeZetas(mode, …)` now picks `forceZetas`/`settleZetas` by mode
+for both anchors, at both call sites, so the two cannot drift apart. Bump then
+clamps to 10–200% like STANDARD's independent branch, not to rebound. Same
+scenario after the fix: bump 39/33 at bias 0 in SYNC, both settling 0.305 s;
+90% typed comes out 90/75 and is flagged `⚠ CROSSED` instead of silently clipped.
+See [PHYSICS.md](PHYSICS.md#the-bump-stroke-gets-the-same-split).
+
+Two display bugs fell out of the same misreading and were fixed with it:
+
+- The Bump ζ readout printed the raw typed number. Since *every* Balance Mode
+  splits that anchor, it was one axle's ζ at best (STANDARD, at the ride-reference
+  axle) and neither axle's under SYNC/NEUTRAL. It now shows `F x% | y% R` when
+  the axles diverge, matching what the RATIO readout already did.
+- `⚠ CROSSED` compared the typed bump against `fe.reboundZeta`. That is the wrong
+  yardstick under SETTLE TIME, where the anchor is back-solved rather than typed,
+  and under any split at all. It now compares each axle against its own rebound ζ.
+
+Also fixed while in there: the RATIO→INDEPENDENT toggle seeded the typed value
+from `physics.bumpZetaF` unconditionally, which is only the anchor axle under a
+FRONT ride reference — under REAR it seeded from the derived axle and the tune
+jumped on a mode switch that is supposed to be continuous. It now seeds from the
+anchor axle (midpoint under SHARED, which anchors neither), clamped to the
+slider's own 10–115 range so a firm rebound can't leave the handle pinned at one
+end while the tune runs something else.
+
+## Fixed — physical-unit output was snapped for display but the reported physics was not
+
+Found during a documentation review rather than by a test run — there is no CI,
+and `node tests.js` is the suite that usually gets run, so `tests-beamng.js` sat
+at 35/41 from 2026-08-15 until this was picked up.
+
+`2f640b3` (*"Revamp BeamNG output panel into two-column per-axle layout"*) added
+rounding to BeamNG's real slider increments — 500 N/m spring, 1000 N/m anti-roll,
+100 N/m/s damper — and applied it inside `springOut`/`dampOut`/`arbOut` only,
+explicitly as a display concern. The comment on `roundTo` said so: *"every solver
+calculation keep[s] consuming the raw unrounded v … so this cannot affect
+thresholds or math."*
+
+That was the bug. The rounding was correct; treating it as cosmetic was not.
+The output panel printed a snapped value next to physics derived from the
+**pre-snap** target, so the two did not describe the same tune:
+
+> Front spring printed as **45500 N/m** beside **1.75 Hz**. On the default
+> chassis 45500 N/m gives **1.7476 Hz**; 1.75 Hz needs **45627 N/m**, which the
+> slider cannot hold. Same for ζ and for every balance figure fed by `rsAb`.
+
+This is the identical mistake, in a different mode, to the one already recorded
+below under *"damping ζ% output showed the pre-clamp target, not what the click
+value actually does"* — and the fix is the same shape. Forza quantises to its
+click grid and then back-calculates (`impliedZeta` from the clamped clicks, and
+`rsAbF`/`rsAbR` from the rounded ARB clicks) *"so the balance bar shows what the
+game will really do"*. Physical modes now do that against BeamNG's grid:
+`computeTune` snaps, then derives Hz, ζ, settle times, roll stiffness and the
+balance bar from the snapped values. The grid moved to `PHYS_SNAP` beside the
+calibration constants so the solver can reach it. See
+[PHYSICS.md](PHYSICS.md#physical-unit-output-beamng-game-mode).
+
+Springs are snapped **before** the damper solve and before `rsSpF`/`rsSpR`, so one
+forward pass leaves everything downstream consistent with no second solve. Forza
+does not snap springs — its spring input is fine-grained enough that the pre-snap
+Hz is the Hz you get.
+
+Two things deliberately kept out of it:
+
+- **ARB `MAN`** is a typed value, not a solved one, and Forza's `MAN` likewise
+  bypasses `clk()`'s 0.1-click rounding. Snapping it would have overwritten a
+  number the user entered; `tests-beamng.js` guards this.
+- **Motion ratio** still never reaches the physics. See the caveat below.
+
+### The `mr ≠ 1` corner this leaves behind
+
+The grid physically belongs to the number on the slider, which is the wheel rate
+*after* the `/mr²` division. Snapping there would have made Hz and the balance bar
+move whenever a motion ratio was entered — precisely what the display-only motion
+ratio invariant forbids, and what `tests-beamng.js`'s *"motion ratio never reaches
+the physics"* case asserts.
+
+So `snapPhys` snaps in **wheel-rate space, with no `mr` term**. The consequence:
+at `mr ≠ 1` the printed number is snapped a second time by the output helper after
+the division, and can land up to half a step from the rate the reported physics
+describes. At the default `mr` of 1.0 the two coincide exactly, so only tunes that
+opt into the advanced field are affected, and the residual is bounded by half a
+grid step either way.
+
+Resolving it properly means deciding whether the motion-ratio invariant should
+survive at all, which is a larger question than this fix — the same field is
+already implicated in the deferred ARB lever-arm work in
+[PHYSICS.md](PHYSICS.md#physical-unit-output-beamng-game-mode).
+
+### On the grid values themselves
+
+`PHYS_SNAP`'s 500 / 1000 / 100 arrived inside a layout commit with no recorded
+derivation beyond *"confirmed in-game"*. They are now load-bearing for the
+reported physics rather than for display alone, so they deserve the same scrutiny
+as a calibration constant if anyone re-checks them against the game.
+
+`tests-beamng.js` is back to 41/41, with the assertions that pinned the old
+behaviour rewritten rather than deleted: *"spring rate is mode-invariant"* became
+*"mode-invariant up to BeamNG's slider grid"*, the cross-mode ARB identity now
+allows for both games' quantisation, and *"physical damping keeps full precision"*
+became *"snaps to BeamNG's grid, not to Forza's 0.1 clicks"* — the claim that
+actually mattered. `tests.js` unchanged at 119/119.
+
+## Fixed — brake bias floor of 50% made rear bias unreachable
+
+**The floor.** `recBrakeBias` was clamped to `[50, 68]`. `cade75d` raised the
+floor from 45 to 50 as part of a genuinely correct fix — the previous formula
+subtracted from static weight distribution and ignored that braking transfers
+load forward, so it produced over-aggressive rear bias (its example: 45% front
+for a 44%-front Porsche). Adding the CG/wheelbase weight-transfer term was
+right. Raising the floor on top of it was an overcorrection: the weight-transfer
+term already front-biases the typical recommendation on its own, so the floor
+stopped being a nonsense-guard and became a silent truncator.
+
+It bound hardest exactly where the community *does* recommend rear bias —
+trail-braking and drift (~46–47% front for front-engine, ~46% for mid/rear-
+engine). A 39%-front rear-engine car (`wtMod` ≈ +9) solves to 43 on DRIFT and
+40 on DRAG; both were silently reported as 50.
+
+Three downstream things were unreachable as a direct result, and all three
+had been written as if they weren't:
+
+- the `brakeBias<50 → ['REAR','#ef4444']` indicator in **both** BRAKES cards —
+  a dead branch, since the clamp floor *was* 50
+- `HandlingVerdict`'s tip *"Reduce front brake bias to add entry rotation"* —
+  advice the recommendation engine would not itself follow
+- `bBrakeEntry = -(brakeBias-50)*BRAKE_BIAS_SCALE` could only ever be
+  **negative or zero**, so the brakes contributor could never push oversteer —
+  contradicting its own hint text, which describes the positive case
+
+Floor lowered to **45**. Build-type mods deliberately left alone: they were
+set while the floor masked them, but re-tuning them is a calibration question
+with no telemetry behind it — the same trap as `DIFF_BIAS_SCALE`/
+`BRAKE_BIAS_SCALE` in the open bar-scale entry below.
+
+**Why there is no manual override to fall back on — by design.** Brake bias
+once had one: `7932982` added a BRAKES section with an AUTO/MANUAL toggle,
+manual bias, and brake pressure, and at `cade75d` the resolver still read
+`br.brakeManual ? br.brakeBias : recBrakeBias`. `1c66ba2` removed the UI and
+`082d51e` (codec rewrite) then pruned `brakeManual`/`brakeBias`/`brakePressure`
+as dead state. **This was intentional, not a regression** — worth stating
+plainly because `1c66ba2`'s message ("Fix tutorial card positioning under CSS
+zoom") does not mention brakes, so the git history reads like an accident and
+an audit could easily "restore" it.
+
+The rationale is the app's general contract: SUSP.OS produces a *starting
+point* to enter into the game, and users finalise by feel in-game — the same
+way other tuning calculators work. A manual brake field would only be used
+after the point where the user has left the calculator, so it earns nothing.
+That is why brakes and alignment are auto-only and why the BRAKES card says
+"Fine-tune in 1% steps by feel." See
+[CODE_MAP.md](CODE_MAP.md)'s intentionally-absent note.
+
+This is also why the floor mattered independently of the missing override: with
+no manual escape hatch, the clamped AUTO value *is* the number the user takes
+into the game, so a floor of 50 sent trail-braking and drift builds to a
+starting point the formula never asked for.
+
+Related tier quirk, not fixed: `_brakeGripAdj` is gated on `uiMode==='pro'`,
+so BEG/INT and PRO produce brake recommendations differing by up to ±3% for
+the same car.
+
+## Changed — default Mech Balance Target moved 0.65 → 0.60, and the NAT hint described the wrong baseline
+
+Two independent findings from checking the mech-balance model against
+published community and vehicle-dynamics sources.
+
+**1. The default target sat at the edge of the usable window.** The Forza
+tuning community's documented range for road/circuit work is 0.55–0.65 with
+**~0.60 as the neutral baseline**; 0.62–0.65 is specifically categorised as a
+rotation-biased (touge) setting, and above 0.65 reads as instability.
+`MECH_BALANCE_TARGET` shipped at **0.65** from the commit that introduced BAL
+mode (`a8c94e1`) and was never revisited — so every fresh build defaulted to
+the rotation-biased extreme while presenting itself as the neutral default.
+Now `0.60`. This moves the default *target*, not any formula; `tests.js`'s
+MATCH CHASSIS block still sees a positive gap on its 50/50 fixture (NAT ≈0.49
+vs target 0.60, previously 0.65) so its polarity assertions are unaffected.
+The mirrored copy of the constant in `tests.js` was updated in step — it is
+duplicated there because `index.html` has no build step.
+
+**2. The BALANCE GUIDE's NAT hint described a baseline the code doesn't
+compute.** The hint read *"NAT is the car's natural balance with equal spring
+rates and no ARBs."* But `naturalMechBalanceOf` is
+`m_r·t_r² / (m_f·t_f² + m_r·t_r²)` — mass- and track-weighted, i.e. spring
+rate scaled to corner mass (**equal ride frequency**), not equal spring rates.
+With genuinely equal spring rates and equal track widths the answer would be
+0.50 for every car, which is not what the strip shows. Hint text corrected.
+This is exactly the hint-vs-formula drift [FORMULAS.md](FORMULAS.md) opens by
+warning about, and the same class of bug as the Damping Bias incident recorded
+there.
+
+Also corrected in passing: the GRIP-mode entry below cited
+`MECH_BALANCE_TARGET` as 0.55. It was 0.65 at the time of that fix and has
+never been 0.55.
+
+**Not changed — the displayed number is still an unverified match to Forza's.**
+`computeTune`'s comment claims `mechBalance` "matches what Forza displays as
+Mech Balance." Forza does not publish the formula, and the community reference
+documenting the stat explicitly describes its internal definition as opaque.
+Two facts sit in tension and can't both be right: the app's quantity is
+definitionally *roll stiffness distribution*, which the racing literature
+targets at **front weight bias + ~5% front** (a **rear** fraction near 0.43 for
+a 52/48 car), yet the in-game window everyone tunes to is 0.55–0.65 rear.
+Either the app's number equals Forza's and real-world LLTD is a different
+quantity, or vice versa. Resolving it needs telemetry, not a code change, so
+the claim is left standing but flagged here. Note the app *does* compute
+textbook LLTD separately — `mechBalanceLLT`/`gripBalance`, surfaced as **GRIP
+BIAS** — and that path was verified term-by-term against the standard
+elastic + geometric load-transfer decomposition and found correct.
+
+## Fixed — BOTTOM G's share codes re-solved against the wrong ride height (resolved)
+
+`rideHeightF`/`rideHeightR` were excluded from the share codec (see
+`docs/CODEC.md`) on the reasoning that they were pure calibration inputs to
+`ch.cgHeight` (codec id 4), which already travels as a self-contained
+absolute value — true for that one consumer. But BOTTOM G's stiffness mode
+(codec ids 63/64, see `docs/PHYSICS.md#bottom-gs-stiffness-mode`) added a
+second consumer: its `useEffect` re-solves `rideStiffness` (id 7) from the
+persisted `rideBottomG` target against `ch.rideHeightF/R` *directly*, and
+does so regardless of whether the RIDE HEIGHT → CG toggle is on. Since ride
+height itself never travelled with the code, decoding a BOTTOM G's-mode tune
+on a device whose local ride height differed from the sender's silently
+re-solved to a different Hz — the g-target read identically, but the actual
+spring frequency the receiver got was never the one the sender tuned.
+
+Fixed by adding `rideHeightF`/`rideHeightR` as codec ids 65/66 (`group:'ch'`)
+and giving them entries in `sanitizeTune`'s chassis object — they previously
+weren't clamped/returned there either, so even if a caller had passed them
+through decode they'd have been silently dropped before reaching `setCh`.
+Same root cause as the earlier `useMeasuredNatBal`/`measuredNatBal` fix (ids
+60/61): a field assumed "computed-locally, shared-as-output" turned out to
+have a second consumer that needed the raw input, not just the one output
+already covered.
+
+## Fixed — TUNE CHECK import silently froze ARB balance when already on BEG/INT (resolved)
+
+`importDecoded` (TUNE CHECK's DECODE tab) always sets `arbMode:'man'` to hold
+the exact imported ARB clicks, but MAN was PRO-only — its toggle button was
+hidden below PRO, and a downgrade `useEffect` (keyed on `[uiMode]`) reset it
+back to `'auto'` whenever *leaving* PRO. That effect only fires on a tier
+*change*, so a user already on BEG or INT who opened TUNE CHECK and hit
+IMPORT? never triggered it: `arbMode` stuck on `'man'` with no visible
+indicator, no editing UI at BEG (its ANTI-ROLL BARS card is read-only), and —
+since MAN bypasses the budget/split solve entirely — the FEEL section's
+Balance slider silently stopped moving ARB balance at all, despite its own
+hint text still claiming it does.
+
+First fix attempt promoted `uiMode` to `'pro'` as a side effect of import, so
+the exact ARB split always had a tier that could hold it; rejected as too
+surprising a side effect for what should be a "convert these numbers" button.
+Fixed instead by ungating MAN itself: it's no longer `uiMode==='pro'`-gated
+in the Stiffness Mode button row, and the downgrade effect no longer resets
+`arbMode` away from `'man'` on leaving PRO. MAN is a stable value at every
+tier now, selectable directly at INT; BEG still has no raw-value ARB editing
+UI (same as it has none for springs or dampers), so it stays import-only
+there, but the imported value now sticks correctly instead of being silently
+orphaned.
+
+## Fixed — Balance Guide RANGE band collapsed to a sliver when natural balance already passed grip target (resolved)
+
+The RANGE band (`lo, hi = natMechBalance + fracLo*gap, natMechBalance +
+fracHi*gap`, see `docs/PHYSICS.md`'s Balance Guide RANGE section) assigned
+`fracLo`'s delta to `lo` and `fracHi`'s delta to `hi` unconditionally. That's
+correct while `gap` (NATURAL→GRIP TARGET) is positive, but for the rare
+chassis whose natural mech balance already sits past its own grip-neutral
+point — `gap` negative — multiplying by the larger fraction (`fracHi`)
+produces the *more negative* delta, so the fixed assignment put `lo` above
+`hi`. The existing `hi=Math.max(lo+0.03,...)` floor caught the inversion and
+kept the widget from rendering nonsense, but it also collapsed the
+recommended band to a fixed 0.03-wide sliver near natural instead of
+properly widening on the correct (downward) side, same as it does for the
+positive-gap case.
+
+Verified with a constructed chassis (30% front bias, narrow rear tyre,
+equal tracks) where `gap≈-0.67`: the old formula gave a 0.30-wide sliver
+(0.332–0.362); the fix gives a properly-scaled 0.20–0.332 band (clamped by
+the 0.20 absolute floor, not the bug). Fixed by taking `min`/`max` of the
+two fraction-scaled deltas before assigning them to `lo`/`hi`, in both the
+RANGE block and its mirrored GRIP GAP sub-widget. The direction was never
+wrong — only the band's width in this one edge case.
+
+## Fixed — UI copy sold Butterworth as a settling-time claim (resolved)
+
+Found in the copy audit that followed the settle-marker work below, after a
+user asked what Butterworth still means once the settle readout stopped
+agreeing with it. Three places described ζ≈70% in *settling* terms — "the
+sweet spot, settling cleanly in one or two cycles" (quick glossary and the
+DAMPERS tips card), and the same phrasing in the ζ glossary entry.
+
+Butterworth (ζ = 1/√2 ≈ 0.707) is a **frequency-domain** property: the
+damping ratio at which the response has no resonant peak, so no road
+frequency is amplified more than the rest. It says nothing about how long a
+single bump takes to settle, and the numbers do not line up with the
+settling story it was being used to tell — at ζ=0.707 a single bump
+overshoots ≈4.3% (`e^-πζ/√(1-ζ²)`), which is one small overshoot, not "one
+or two cycles", and the quickest ±10% settle sits nearer ζ≈59%.
+
+The glossary's own **Butterworth** entry was already correct ("the flattest,
+smoothest response with no resonant peak"); the other entries have been
+brought in line with it, and the three optimums are now stated where they
+are likely to be compared: ≈59% quickest settle after one bump, ≈70%
+flattest response to a continuous surface, 100% quickest with no overshoot.
+The default is unchanged and the sweep defends it — at 1.75 Hz, ζ=70%
+settles in 0.23s against 0.21s at the ζ=60% optimum, so the flat response
+costs about two hundredths of a second.
+
+Also corrected while in there: the Rebound ζ / Bump ζ / Bump Ratio readouts
+labelled **everything** above 70% as "BUTTERWORTH", so ζ=95% announced
+itself as Butterworth. Butterworth is a point, not a region — the label now
+covers 68–72% only, and above that the readout says FIRM. Zone colours and
+slider markers are unchanged.
+
+## Fixed — the DYNAMICS chart's settle markers described a different curve than the one drawn (resolved)
+
+Third in the settle-time family below, and the one that was purely a
+*presentation* mismatch: the dashed vertical markers in the VISUALS
+DYNAMICS chart were drawn at `tune.settleF`/`settleR`, straight from
+`settleTimeFromZeta`, while the trace beside them came from
+`computeOscillation`. Those are two different models of the same axle:
+
+- `settleTimeFromZeta` is a **simplified decay envelope**, and not a bound
+  in either direction: it drops the `1/√(1-ζ²)` amplitude factor that the
+  standard envelope formula `-ln(0.1·√(1-ζ²))/(ζωn)` keeps (that one *is* a
+  true upper bound), and it has no equivalent of the `(1+ωn·t)` factor at
+  critical damping. Measured against the closed-form trace at 1.4 Hz it ran
+  **long** below ζ≈79% (0.582s vs 0.546s at ζ=45%) and **short** above it
+  (0.262s vs 0.442s at ζ=100% — 41% early, in the direction that flatters
+  the tune). So the old marker was not biased one way; it drifted either
+  side of the truth depending where the tune sat.
+- `settleTimeFromZeta` takes **rebound ζ only**. `computeOscillation`
+  alternates rebound and bump ζ by velocity sign, so on a tune with a wide
+  split the two disagree again whenever overshoot clears the band (ζ≲60%):
+  at 1.4 Hz, ζreb=30%, the measured settle moves 0.83s → 0.58s as bump ζ
+  goes 30% → 60%, a change the marker could not see at all.
+
+Fixed by measuring settle off the plotted points — a local `curveSettle`
+finds the last sample pair straddling |x|=0.1 and interpolates, the same
+shape as the neutral-crossing `firstCrossing` beside it — and by fitting
+the chart window in two passes (size from the analytic estimate, measure,
+re-fit, re-integrate), because `computeOscillation`'s `nPts` is fixed and
+its step size therefore depends on the window length; measuring on the
+final points is what keeps the marker consistent with the polyline drawn.
+
+Deliberately **not** propagated to the DAMPERS section, the damper detail
+rows, or `tune.settleF`/`settleR` themselves. Those are the per-axle spec
+figure, and SETTLE TIME Rebound Mode back-solves `baseZeta` by inverting
+`settleTimeFromZeta` — swapping in a trace measurement there would break
+the target→readout round-trip (type 0.55s, get 0.55s back) for no gain,
+since the back-solve only needs to invert *consistently*. The consequence
+is that the chart's readout and the DAMPERS figure legitimately differ —
+chart lower on most tunes, higher past ζ≈85% — which the chart's hint now
+states outright.
+
+Known characteristic, not a bug: "last band exit" steps discontinuously at
+**ζ≈59.1%**, where the first overshoot peak stops clearing ±10%
+(`e^(-πζ/√(1-ζ²)) = 0.1`). At 1.4 Hz the exact settling time goes 0.456s at
+ζ=59% → 0.267s at ζ=60%. The textbook settling-time definition has the same
+discontinuity; the envelope formula hid it by never looking at the peaks.
+Right at the step the marker is knife-edge sensitive — a peak grazing the
+band edge — so it jumps between ζ=58% and 60%. Everywhere else the Euler
+measurement is within ~1–2% of the closed-form answer (verified against an
+RK4 reference at dt=1e-5, including the asymmetric bump/rebound case the
+closed form cannot cover).
+
+**The ±10% band is now drawn on the chart**, added after a ζ sweep made the
+readout look wrong when it was not. Two things are unreadable without it:
+
+- Past ζ≈60% the settle marker lands *before* the neutral-crossing ring —
+  at 1.75 Hz, ζ=95%: settle 0.33s, neutral 1.09s. Correct, and impossible
+  to believe with no band drawn: the trace enters the band on the way down
+  and never leaves, so it counts as settled while still creeping the last
+  10% back to ride height.
+- The number falls in **steps**, not smoothly, as rebound ζ rises. Measured
+  in-app at 1.75 Hz with Bump Ratio 56%: 0.93 (ζ=25%) → 0.69 → 0.68 → 0.66
+  → 0.42 (ζ=45%) → 0.41 → 0.39 → 0.21 (ζ=60%) → 0.22 → 0.23 → … → 0.35
+  (ζ=100%). Each drop is an overshoot peak falling inside the band; between
+  drops, more rebound damping buys almost nothing, and past ζ≈60% it makes
+  things worse. The old envelope readout hid all of this behind a smooth
+  1/ζ curve, which is the "it used to feel right" the change trades away.
+
+**Found while verifying the above, not fixed:** that same step is where the
+real settling-time minimum lives, which makes the UI's *"critical damping is
+the fastest possible settle"* true of the envelope model only. Against the
+actual response, ζ≈59.1% settles in 0.267s where ζ=100% takes 0.442s — 1.65×
+slower. SETTLE TIME Rebound Mode's back-solve clamps at ζ=100% on the
+grounds that it is "the true fastest achievable"; that is self-consistent
+with the envelope model it inverts (and the clamp is still right to stop
+there rather than run into overdamped territory), but an aggressive target
+would be better served near ζ≈59%. Left alone deliberately — changing it
+means changing what SETTLE TIME *means* and would move every tune saved
+under it, which is a bigger call than a chart fix. The same algebra
+reproduces the classic ζ≈0.78 optimum for a 2% band, which is the standard
+check that this is the real curve and not an artefact.
+
+## Fixed — settle-time formula treated overdamped ζ as faster, not slower (resolved)
+
+Both the displayed settle time (`tune.settleF`/`settleR`) and the SETTLE
+TIME Rebound Mode's back-solve for `baseZeta` used a single-branch formula,
+`t = 2.302/(ζ·ωn)` (`rate=ζ` throughout), across the *entire* ζ range
+including overdamped (ζ>100%, up to the slider's 200% max). That formula is
+exact for underdamped ζ (≤100%) — the response envelope really does decay
+as `e^-ζωn·t` there — but wrong for overdamped ζ, where the real decay is
+governed by the *slower* of two poles, `rate=ζ-√(ζ²-1)`, which *falls* as ζ
+rises past 100%. Critical damping (ζ=100%) is the fastest possible settle;
+pushing ζ higher makes it settle more slowly (correctly described elsewhere
+in the UI as "sluggish"), not faster.
+
+Two consequences before the fix: (1) the settle-time readout kept reporting
+*shorter* settle times as a user cranked ζ past 100%, the opposite of the
+real behavior; (2) SETTLE TIME mode's back-solve, chasing an aggressive
+(short) target time at a low Hz, could push `baseZeta` past 100% up toward
+its 200% clamp — which in reality made the axle settle *slower*, silently
+defeating the point of the target.
+
+Fixed by extracting a shared `settleTimeFromZeta(zetaPct,hz)` (used for both
+the forward readout and, inverted, the back-solve) that branches on ζ vs.
+100%, and by lowering the back-solve's clamp ceiling from 200% to 100% —
+an unreachable target now stops at critical damping (the true fastest
+achievable) instead of overshooting into overdamped territory. See
+`docs/PHYSICS.md`'s `settleTimeFromZeta` section.
+
+## Fixed — SYNC Damping Balance Mode's "equal settle time" broke the same way past critical damping (resolved)
+
+`settleZetas` (SYNC's implementation) held `ζ·Hz` constant between axles —
+the same naive assumption the settle-time formula above had, and broken for
+the identical reason: "equal `ζ·Hz`" only means "equal real settle time"
+while both axles stay underdamped (ζ≤100%). A Hz mismatch between axles, a
+Damping Bias skew, or simply a high Rebound ζ/Settle Target anchor (up to
+the 200%/critical-damping-and-beyond range) could push the derived axle
+past 100% ζ, at which point SYNC's core promise — both axles finish
+settling at the same time — silently stopped holding, even though the
+(already-fixed) `settleF`/`settleR` readout would show the resulting
+mismatch honestly.
+
+Concrete case: Rebound ζ=200% (heavily overdamped) anchoring a SHARED ride
+reference at front/rear Hz of 1.15/1.31 — the old formula produced settle
+times of ~1.19s front vs ~0.97s rear (a 22% mismatch) despite SYNC being
+active. The whole point of SYNC failed exactly when a user pushed damping
+hard enough to need it least gracefully.
+
+Fixed by giving `settleZetas` its own rate-aware solve: it derives the
+other axle's zeta by matching real decay rate (via `dampRate`/`rateToZeta`,
+the same rate function `settleTimeFromZeta` uses), not raw ζ, falling back
+to critical damping (100%) when the target axle's Hz is too low to ever
+physically match the reference's settle time. `balancedZetas` (the plain
+linear solver) is unchanged and still correct for `forceZetas`/NEUTRAL,
+since damping force is linear in ζ regardless of over/underdamped — only
+settle time needed the nonlinear treatment. Verified in-browser: the case
+above now settles at ~1.11s on both axles. See `docs/PHYSICS.md`'s
+`settleZetas` section and the "settle mode ride-reference anchoring" tests
+in `tests.js`.
+
+## Fixed — MAN ARB stiffness still registered as MECH/CO-SOLVE balance mode enabled (resolved)
+
+Stiffness Mode MAN (direct front/rear ARB clicks) is supposed to bypass the
+ARB budget/split solve entirely — `computeTune`'s `arbMode==='man'` branch
+does this correctly (`index.html` around the `if(arbMode==='man')` check).
+But four separate UI-facing "is a mech/co-solve target active" checks only
+looked at `arbBalMode` (`'mech'`/`'coSolve'`), never at `arbMode`, so a
+leftover `arbBalMode` of MECH or CO-SOLVE from before switching to MAN kept
+the app displaying as if a target were still being solved toward, even
+though ARB itself was no longer participating in any solve:
+
+- `chassisAnalysis.hasMechTarget` (drives the BALANCE GUIDE's target marker)
+- the BALANCE section's `_hasMechTarget` (shown twice — gates the "Balance
+  Target only applies in..." message and the CURRENT/TARGET label)
+- `computeTune`'s `mechBalClamped` (drove a "Mech balance target couldn't
+  be reached" warning even though nothing was targeting it)
+- the Handling Balance widget's `showTgt` (main output panel — showed a
+  TGT marker/value even in MAN mode)
+
+Fixed by adding `arbMode!=='man'` to the `arbBalMode==='mech'||'coSolve'`
+clause in all four, while preserving the existing `arbMode==='man' &&
+rearHzMode==='mech'` case (Hz MECH mode keeps solving spring Hz toward the
+target independently of ARB stiffness mode, so that combination correctly
+still counts). Verified: MECH balance mode + switching Stiffness Mode to
+MAN now correctly falls back to "Balance Target only applies in..." and
+drops the TGT marker; switching back to AUTO restores it.
+
+Not touched: the ANTI-ROLL BARS section's MECH/CO-SOLVE "ARB SPLIT"
+readout boxes (`(fe.arbBalMode??'weight')==='mech'/'coSolve'` blocks) still
+show under MAN — CO-SOLVE's rear-Hz solve genuinely keeps running
+independent of `arbMode` (see `computeTune`'s `arbBalMode==='coSolve'`
+branch, which isn't gated on `arbMode` at all), so a blanket hide would
+wrongly remove the still-functional SPRING SHARE control. Properly
+resolving this needs to split "ARB-derived readouts" (stale under MAN)
+from "Hz-derived readouts" (still live) rather than one on/off flag —
+left as a follow-up, not fixed here.
+
+**Follow-up review found a fifth site the fix above missed:** `showTgt`
+(the Balance Guide widget's own "is a target active" check, main output
+panel) still read `... || (arbMode==='man' && rearHzMode==='mech')` — the
+Hz-MECH clause restricted to MAN — while the four sites above correctly
+treat `rearHzMode==='mech'` as unconditional. Concretely: with
+`arbMode='auto'` and `rearHzMode='mech'`, the spring-Hz solve was actively
+targeting Mech Balance and the BALANCE section showed live target controls,
+but the widget's own TGT marker stayed hidden — contradicting the sidebar
+one screen away. Fixed by dropping the `arbMode==='man'&&` restriction so
+`showTgt` matches `hasMechTarget`. Verified in-app: AUTO stiffness mode +
+MECH Hz mode now shows TARGET in the BALANCE GUIDE strip instead of CURRENT.
+
+## Fixed — GRIP mode's resolved target wasn't reaching several read sites (resolved)
+
+`feEffective.arbBalTarget` is documented as "the single funnel that resolves
+both TARGET and GRIP modes to an absolute value ... for every downstream
+display," but six call sites bypassed it and called `resolveArbBalTarget(ch,fe)`
+directly instead — a function that only understands TARGET-mode deltas and has
+no concept of GRIP mode. Whenever `arbBalTargetMode==='grip'`, all six instead
+showed/used a stale or default (`MECH_BALANCE_TARGET`, 0.65 at the time) value rather than
+the live grip-derived target the physics engine was actually solving toward:
+`computeDiff`'s MATCH CHASSIS correction, the alignment MECH-mode gap, the RIDE
+section's Hz-readout text, both SpringDial/ArbDial ghost rings, and the
+`mechBalClamped` warning text. Fixed by reading `feEffective.arbBalTarget`
+(already resolved, GRIP-aware) at all six sites instead; `computeDiff`'s call
+site now passes `feEffective` rather than raw `fe`. Verified in-app: switching
+Balance Target mode to GRIP now shows the same TARGET value in the BALANCE
+GUIDE strip, the ARB SPLIT readout, and the RIDE section's solved-Hz text —
+previously the RIDE/warning text lagged behind with the old TARGET-mode value.
+
+## Fixed — share codes reinterpreted the Balance Target against the wrong baseline (resolved)
+
+`arbBalTarget` (id 40) and `arbBalDelta` (id 54) are both stored as *deltas*
+from `naturalMechBalanceOf(ch)`, specifically so a shared build "re-targets
+correctly against whatever chassis it's applied to." But `useMeasuredNatBal`/
+`measuredNatBal` were excluded from the codec, on the assumption that this
+followed the same "computed-locally, shared-as-output" pattern as
+`useRideHeightCG`. It didn't: `ch.cgHeight` (ride-height CG's output) is a
+self-contained absolute value, but `naturalMechBalanceOf(ch)` is the *baseline*
+a delta gets re-expanded against on the receiving end. Since the measured
+override never travelled, a receiver always decoded with
+`useMeasuredNatBal=false`, so the baseline silently fell back to geometry —
+which can differ substantially from what the sender measured in-game (the
+MEASURE NAT BAL entry above cites a real 0.49-vs-0.42 case). The delta then
+re-expanded against a different baseline than the sender used, so the
+receiver's absolute Mech Balance Target silently diverged from what the sender
+actually tuned toward. The identical gap affected GRIP mode, since
+`gripBalTarget = 1 - natGripBalance + arbBalDelta` and `natGripBalance` has the
+same measured-or-geometry split.
+
+Fixed by adding `useMeasuredNatBal`/`measuredNatBal` to the codec as ids 60/61
+(`group:'ch'`, same reasoning as `motionRatioF/R`) — see
+[CODEC.md](CODEC.md) for the field table and semantic-change note. Also
+widened `sanitizeTune`'s decode clamp on `arbBalTarget` from a flat `±0.70` to
+`[0.20-natMechBalance, 0.90-natMechBalance]`, matching the live Field's actual
+reachable range (the flat clamp could silently truncate deltas beyond ±0.70 for
+chassis with a low natural balance). Verified in-app: with MEASURE NAT BAL set
+to 0.65 and Balance Target in GRIP mode, the generated share code decodes
+(`60:1|61:0.65`) to the same NAT/TARGET values (0.65/0.42) as the sender after
+loading it into a reset instance; an old-format code without ids 60/61 still
+decodes cleanly with `useMeasuredNatBal` falling back to its default.
+
+## Fixed — NEUTRAL+AUTO ARB budget could blow up with ARB Bias + high Rear Multiplier (resolved)
+
+`computeTune`'s NEUTRAL ARB balance mode (AUTO stiffness only) expands
+the ARB roll-stiffness budget when the natural AUTO budget is
+too small to let the F/R split fully cancel the springs' balance-bar bias.
+That expanded budget was computed once, before ARB Bias was applied — but
+ARB Bias then shifts the split away from that exact-cancel point anyway. At
+a high Rear Multiplier (1.25×+ — springs strongly rear-biased) combined
+with ARB Bias pushed to REAR HEAVY, this left both front *and* rear ARB
+oversized (a real case hit 63.1/65.0, both effectively maxed) instead of
+the moderate values a rear-heavy bias should produce.
+
+Fixed by only running the expansion when ARB Bias is centred (`0`) — the
+only case where "reach exact cancellation" is the actual goal. Any nonzero
+bias means the user has already opted out of exact cancellation, so the
+budget stays at its natural AUTO size. Verified: same car (2.90 Hz front,
+1.25× rear multiplier) with ARB Bias at full rear-heavy went from 63.1/65.0
+(MAX/MAX) to 18.9/19.7 (LOW/LOW); ARB Bias at 0 is unaffected (still
+reaches the springs-cancelling split and still shows "ARB MAXED — CAN'T
+FULLY CANCEL" honestly when the game's 65-click limit is a genuine
+constraint).
+
+## Fixed — MEASURE NAT BAL calibration was ignored by WEIGHT/NEUTRAL ARB modes (resolved)
+
+The Tune Check "MEASURE NAT BAL" flow lets a PRO user replace the
+track-width geometry prediction with an actual in-game Mech Balance
+reading (`ch.measuredNatBal`, read via `naturalMechBalanceOf(ch)`). That
+calibration only ever reached `resolveArbBalTarget` — the MECH/CO-SOLVE
+target and the informational "NATURAL"/"CUR" display — never the ARB
+split WEIGHT and NEUTRAL modes actually compute. Both of those read raw
+`ch.frontBias` directly (`arbBalance` in `feelToPhysics`, and NEUTRAL's
+`nf0` in `computeTune`), completely bypassing the calibration.
+
+Since WEIGHT is the default mode, this meant a user's in-game measurement
+had zero effect on their actual tune for anyone not specifically in
+MECH/CO-SOLVE. Real case: measured 0.49 in-game, calculator predicted
+CUR 0.42 (from the uncalibrated formula), applied tune actually read 0.50
+in Forza — an 0.08 gap the calibration was supposed to prevent.
+
+Fixed by adding a new PRO-only Balance Mode, **CHASSIS** (`index.html`
+`computeTune`, `arbBalMode==='chassis'` branch) — same split formula as
+WEIGHT, but anchored to `naturalMechBalanceOf(ch)` instead of raw
+`ch.frontBias`, so it honours a MEASURE NAT BAL reading (or at minimum the
+track-width-corrected geometry) instead of the cruder heuristic. WEIGHT
+and NEUTRAL themselves were deliberately left unchanged — swapping their
+formula would shift ARB output for every BEG/INT tune too, since
+`naturalMechBalanceOf`'s fallback is track-width-weighted even at default
+geometry, not just weight-fraction. CHASSIS scopes the fix to PRO only.
+
+## Fixed — MECH/CO-SOLVE solved a real correction against a MEASURE NAT BAL target that needed none (resolved)
+
+A deeper version of the bug above, found by a user with a 50/50-weight-distribution
+car whose measured natural balance (0.55) differs from what the track-width
+geometry formula predicts (~0.49, since the front track is wider than the
+rear). `resolveArbBalTarget` correctly resolves the MECH/CO-SOLVE **target**
+through `naturalMechBalanceOf(ch)` (the measured reading, when set). But the
+solvers that figure out *how much springs/ARBs need to move* to reach that
+target — `resolveCoSolveSpringShare`'s `R_baseline`, `feelToPhysics`'s CO-SOLVE
+Kcs pre-inversion `Rbl`, and `computeTune`'s ARB-split `_mechTgt`/final
+`mechBalance` — all independently recomputed the *geometric* equal-Hz,
+zero-ARB ratio from raw track width/mass, never consulting
+`naturalMechBalanceOf(ch)`. So even with the Mech Balance Target sitting at
+"0 from NAT" (target = the measured 0.55 exactly — the UI's own documented
+meaning: "no ARB correction needed"), CO-SOLVE saw a target of 0.55 against a
+baseline of 0.49 and "corrected" a 0.06 gap that wasn't real, biasing the rear
+spring Hz (~1.09–1.20× front) and skewing the ARB split (e.g. 40/60F/R)
+instead of leaving both alone. Confirmed live: user's share code
+`1|1:2021|2:50|...|60:1|61:0.55` (measured 0.55, weight distribution 50/50,
+CO-SOLVE, ROLL stiffness mode) read CUR 0.64 against TGT 0.55 with the rear
+spring pinned to REAR ×1.20 — nowhere near the "0 correction" state the 0-delta
+target promised.
+
+Fixed by treating the gap between `naturalMechBalanceOf(ch)` and the plain
+geometric formula as a constant offset — the same treatment `tireCorr`
+already gets — instead of substituting the measured value directly into the
+ratio-inversion math (an earlier attempt at this fix did exactly that and made
+things worse: it forced the Hz solve to fake-match the measured ratio through
+the geometry formula, distorting springs even further from equal). The
+offset is subtracted from the solve target going in and added back to the
+reported balance coming out, at all three sites, so it cancels in the final
+reported `mechBalance` (unchanged) while correctly zeroing the *work* the
+solver thinks it needs to do when target and NAT coincide. Verified live with
+the reported share code: springs now read REAR ×0.98 (matching the same
+small residual `tireCorr` offset the *unmeasured* geometric case shows at its
+own natural target — i.e. identical relative behavior, not a new distortion),
+ARB split reads 52/48F/R (vs 40/60 before), and MECH BALANCE reads
+`NAT 0.55 → CUR 0.55 → TGT 0.55`. `tests.js` (111) and `tests-beamng.js` (41)
+unaffected.
+
+**Follow-up (now also fixed):** the `rearHzMode==='mech'` Hz-ratio solve in
+`feelToPhysics` (reached whenever Ride Frequency Mode is MECH, for ARB
+Balance Modes `weight`/`manual`/`mech` — everything except CO-SOLVE, which
+has its own pre-inversion above) had the identical gap: its `rsBalTgt` was
+`fe.arbBalTarget` clamped straight through with no tyre-width or NAT-BAL
+correction, then fed directly into the same raw track-width/mass ratio
+inversion used everywhere else. Confirmed with the same share code
+(RIDE HZ MODE = MECH, ARB BAL MODE = MECH): target sitting exactly on the
+measured NAT (0.55, 0-delta) still produced `rHz/fHz = 1.1274` instead of
+~1.00. Fixed with the same additive-offset treatment — `tireCorr_m` and
+`natOffset_m` (gap between `naturalMechBalanceOf(ch)` and the block's own
+geometric `_rsBalNat_m`) are now subtracted from `rsBalTgt` before it enters
+the ratio math, in both the `shared`-reference and `front`/`rear`-reference
+copies of this block. Verified live: `rHz/fHz` now reads 0.9809 (the same
+residual as the CO-SOLVE fix — parity, not a new distortion) and
+`mechBalance` reads 0.5500 against the 0.5500 target for both `rideRef`
+settings. `tests.js`/`tests-beamng.js` still 152/152.
+
+Also checked ARB BAL CHASSIS (`arbBalMode==='chassis'`) while auditing the
+other modes — it already anchors directly to `naturalMechBalanceOf(ch)`
+(`const natPct=naturalMechBalanceOf(ch)*100`) rather than inverting a ratio
+against a geometric baseline, so it was never affected by this bug class.
+
+## Fixed — CO-SOLVE Auto Spring Share fell far short of large Balance Target bias values
+
+Follow-up to the fix above, found on a rear-biased test car (40/60 weight
+distribution) whose measured NAT sat 0.08 below the geometric estimate —
+then a Balance Target bias was dialed ±0.05–0.15 away from that NAT on top.
+CO-SOLVE with **Auto Spring Share** (the default) undershot badly at the
+larger bias values — e.g. bias +0.15 (target 0.646) only achieved 0.535, an
+11% miss — while switching Spring Share to **manual** and pushing it to
+~100% reliably landed within 0.03% of every target in the same sweep. That
+gap meant Auto Spring Share was leaving the correction on the table it was
+capable of making.
+
+Root cause: `resolveCoSolveSpringShare`'s Auto Spring Share search
+(`simUtil`/bisection) picks `S` — how much of the correction springs take
+vs. ARBs — by searching for where a spring "utilization" measure crosses an
+ARB "utilization" measure. But `abUtil` (`Math.max(abF_s,abR_s)/utilRef`)
+only measured how close ARB sat to the **ceiling**. When a large correction
+drives one ARB axle toward zero, `abUtil` read as comfortably low — the
+search saw no problem and settled on a low `S`, handing most of the
+correction to a low-budget ARB. In reality that near-zero axle gets floored
+up to the game's 1-click minimum by `clk()` later in `computeTune` — real,
+extra stiffness the split never asked for, which steals back part of the
+correction ARB was supposed to deliver, and the search never saw it happen
+because `simUtil` doesn't model the floor.
+
+Fixed by adding a floor-strain term to `simUtil` — `1/max(0.05, min(abF_s,
+abR_s)) - 1`, unbounded the same way ceiling overshoot already is — so
+wanting an axle near zero is now treated exactly like wanting one past the
+ceiling: both mean "ARB can't cleanly express this split," and the search
+hands more of the correction to springs instead of stopping early. Verified
+live on the same rear-biased car across a full bias sweep (±0.15): the
+worst-case error dropped from ~11% to ~0.13%, and every other point in the
+sweep landed under 0.15%. `tests.js` (111) and `tests-beamng.js` (41) both
+still pass — the bias=0 / small-bias / default cases the existing test suite
+covers were already comfortably inside ARB's floor and ceiling, so `S`
+there is unchanged.
+
+## Changed — ARB MAN moved from Balance Mode to Stiffness Mode
+
+MAN (direct front/rear ARB click entry) used to live under Balance Mode
+(`arbBalMode:'man'`) alongside WEIGHT/NEUTRAL/MECH/CO-SOLVE. It's now a
+Stiffness Mode option (`arbMode:'man'`, alongside AUTO/ROLL/SHARE)
+instead, since it bypasses the entire budget+split system rather than
+choosing a split within a budget — a stiffness-level concept, not a
+balance-level one. Selecting Stiffness Mode MAN now hides Balance Mode
+entirely (nothing left for it to control).
+
+Old share codes/saves with `arbBalMode:'man'` still load correctly: a
+migration in `sanitizeTune` (share-code path) and a matching one-time
+`useEffect` in `App()` (persisted-state path) both rewrite it to
+`arbBalMode:'manual'` + `arbMode:'man'` on load — see
+[CODEC.md](CODEC.md)'s notes on id 41 for the encoding side of this.
+
+This entry and [CODEC.md](CODEC.md) both said `'weight'` until an audit
+checked them against the code. The destination is the invisible `'manual'`
+placeholder (`ARB_BAL_MODE_DEC` index 6), added precisely so that migrating
+off MAN doesn't light up a Balance Mode button the user never chose —
+landing on WEIGHT would defeat the placeholder's whole purpose.
+[CODE_MAP.md](CODE_MAP.md)'s retained-legacy section had it right
+throughout; the two that were wrong have been corrected.
+
+## Fixed — MATCH CHASSIS ignored layout polarity for FWD (resolved)
+
+`computeDiff`'s MATCH CHASSIS correction biases
+`diffBiasExit`/`diffBiasEntry` toward the Mech Balance Target's gap from
+natural balance. The correction was applied with the same sign regardless
+of drivetrain layout — but more front-axle lock means *understeer* on a
+FWD car, while more rear-axle lock means *oversteer* on RWD/AWD (see
+[FORMULAS.md](FORMULAS.md)'s `bDiffAccel`/`bDiffDecel` signs). So on a FWD
+car with MATCH CHASSIS on, wanting more oversteer would push the correction
+the wrong way — toward more front lock, i.e. more understeer.
+
+Fixed by flipping the correction's sign for `ch.layout==='FWD'` only (RWD/AWD
+unaffected — their diff-lock polarity already matches the correction's
+assumption). Verified manually: FWD Accel lock reads 17% with MATCH CHASSIS
+off (baseline), and correctly *drops* to 13% with it on and a
+oversteer-wanting target — previously it would have risen instead.
+
+**Lesson:** any correction/nudge formula that's derived assuming one
+drivetrain's polarity needs an explicit per-layout check before being
+applied generically. This is the same class of bug as the Damping Bias
+hint-text mismatch (see [FORMULAS.md](FORMULAS.md)) — trust the underlying
+`bXxx` balance formulas over intuition when wiring up a new correction.
+
+**Not a bug (re-verified after an external report claimed otherwise):**
+the EXIT slider's UI code flips the sign of the
+stored `dr.diffBiasExit` value for FWD only, so the slider's right side
+reads as oversteer-leaning despite FWD's lock-to-balance polarity being
+opposite RWD/AWD's. `computeDiff`'s `+effBiasExit*0.15` term for FWD
+is *intentionally* the same sign as RWD's — the UI flip
+already carries the per-layout inversion, so the formula doesn't need to.
+An external review (Gemini) analyzed the formula in isolation, missed the
+UI-level flip, and proposed flipping the formula's sign too — which would
+double-cancel and silently reintroduce this exact bug. Re-verified live:
+FWD EXIT slider at −50 ("PUSH") reads Accel 30%; at +50 ("ROTATION") reads
+Accel 15% — correctly less lock on the oversteer-leaning side. Both sites
+now cross-reference each other in comments to prevent this specific
+misdiagnosis from recurring. (The slider's left/right labels were later
+unified to GRIP/ROTATE across all layouts for UI consistency — FWD no
+longer shows PUSH/ROTATION specifically — but the underlying sign-flip
+logic and this verification are unaffected, since only the label text
+changed, not the polarity.)
+
+## Fixed — Test coverage gaps: `computeDiff` and `computeAlignment` now covered (resolved)
+
+`tests.js` gained suites for both, previously untested:
+
+- **`computeDiff`**: layout-dependent lock/balance signs for RWD/FWD/AWD,
+  diff type scaling (drift/offroad vs race), SPORT's decel lockout, MANUAL
+  mode bypassing MATCH CHASSIS, and a regression guard for the MATCH
+  CHASSIS FWD-polarity bug above — exactly the test that would have caught
+  it immediately instead of it surviving until manual testing.
+- **`computeAlignment`**: roll/CG-height compensation, layout-dependent
+  camber gain ordering (FWD least reactive, RWD most), the front camber
+  clamp floor, toe front/rear lookup-table sanity, caster's FWD flat
+  reduction, and a regression guard for the Drift/Drag frozen-camber bug
+  above. Writing it also caught a real error in this file's own toe-front
+  documentation (see [ALIGNMENT.md](ALIGNMENT.md) — the `(fHz-1.8)×0.010`
+  term's direction was written backwards).
+
+## Fixed — `bDiffDecel` pushed the same direction as `bDiffAccel` instead of resisting it (resolved)
+
+Per [FORMULAS.md](FORMULAS.md), the Handling Balance model treated *any*
+lock magnitude (accel or decel, on whichever axle is driven) as pushing
+the same oversteer/understeer direction. Real-world tuning intuition (and
+this app's own EXIT/ENTRY slider hint text) treats decel lock as more
+nuanced — e.g. "STABLE increases rear decel lock, which *resists*
+lift-off oversteer" implies decel lock reduces oversteer risk, not that it
+straightforwardly adds to an oversteer number the way accel lock does. For
+RWD/AWD-rear, the old formula had `bDiffDecel` scaling *positive*
+(oversteer) with more rear decel lock — directly contradicting the ENTRY
+slider's own "resists lift-off oversteer" hint text.
+
+Fixed by flipping `bDiffDecel`'s sign on the driven axle for RWD and
+AWD-rear so decel lock always contributes **understeer**, regardless of
+layout (`bDiffDecel = -vals.decel*(1-nf)*DIFF_BIAS_SCALE` for RWD; `bRD =
+-vals.rearDecel*(1-nf)*C*DIFF_BIAS_SCALE` for AWD). FWD's decel term was
+already correct (front decel lock → understeer, matching its own hint
+text: "more resistance to rotation on entry") and was left unchanged.
+Net effect: decel lock's direction no longer depends on layout the way
+accel lock's does — it's understeer-pushing everywhere, matching the
+"decel lock resists rotation" tuning intuition. Updated the balance-bar
+hint text and the `HandlingVerdict` dominant-contributor tip for "diff
+entry" (which previously assumed rear-decel-dominant meant oversteer, and
+inferred FWD vs RWD/AWD from the total's sign rather than checking
+`diffLayout` directly) to match. See [FORMULAS.md](FORMULAS.md) for the
+corrected formula. Verified via `tests.js`'s `computeDiff` layout-sign
+suite (`RWD: bDiffDecel negative (understeer) at high lock`).
+
+## Fixed — damping ζ% output showed the pre-clamp target, not what the click value actually does (resolved)
+
+Found immediately after the Damping Balance Mode work above, via a direct design question: ARB
+already has a deliberate, documented precedent for this (`rsAbF`/`rsAbR` are recomputed from
+the clamped, rounded ARB click values rather than the pre-clamp roll-stiffness target — "so the
+balance bar shows what the game will really do," see the BeamNG plan's correction #4 in git
+history and [PHYSICS.md](PHYSICS.md)). Damping never got the same treatment: `computeTune`
+solved `zetaF`/`zetaR`/`bumpZetaF`/`bumpZetaR` once, used them to compute the raw damper
+coefficient, scaled/clamped/rounded *that* into the final `rebF`/`rebR`/`bumpF`/`bumpR` click
+values — and then kept displaying the original pre-clamp ζ everywhere (output card sub-labels,
+`settleF`/`settleR`, and `bDampBias`'s Handling Balance contribution), even when clamping had
+silently pulled the real value far below it. A car requesting 115% ζ on a heavy build could
+clamp to 18.1/20.0 clicks (a real ζ of ~17%) while every ζ% readout in the app kept saying 115%.
+
+Fixed by adding `impliedZeta` (the exact inverse of `solveDampRaw`) and reassigning
+`zetaF`/`zetaR`/`bumpZetaF`/`bumpZetaR` from the final click values immediately after they're
+solved, so everything computed from them afterward — `settleF`/`settleR`, the output cards,
+`bDampBias` — describes the click value actually shown, not the target that produced it before
+clamping. Verified live: the 115%-target/heavy-car scenario above now correctly reads 17% ζ on
+both axles (front and rear converge on the *same* implied ζ despite different Hz/mass and
+different final click values, since `solveDampRaw` is linear in ζ — a proportional click
+scale-down is mathematically identical to scaling ζ by the same factor). An unclamped scenario
+is unaffected beyond ~0.1-click rounding noise. Four regression tests added to `tests.js`
+(`impliedZeta — inverse of solveDampRaw...`): a round-trip identity check, a clamped scenario
+confirming the implied ζ lands well below an unreachable target, and an unclamped scenario
+confirming near-exact agreement.
+
+## Fixed — Damping Balance Mode was hardcoded to SYNC-equivalent under SETTLE TIME (resolved)
+
+Shipped alongside the Damping Balance Mode feature and caught the same day, before release,
+after a user pointed out the flaw directly: REBOUND MODE (CHARACTER/SETTLE TIME) and Damping
+Balance Mode (STANDARD/SYNC/NEUTRAL) are two independent decisions — REBOUND MODE only decides
+how a single anchor ζ is obtained (typed directly, or back-solved from an absolute settle-time
+target); Damping Balance Mode decides how that one value becomes a front/rear split. The
+initial implementation conflated them: `feelToPhysics` special-cased `dampCharMode==='settle'`
+into always using the SYNC formula (`settleZetas`), and the UI hid the Balance Mode selector
+entirely under SETTLE TIME on the (wrong) assumption that STANDARD/NEUTRAL had no meaning
+there.
+
+Fixed by extracting a single `baseZeta` value (typed `reboundZeta` under CHARACTER, or the
+settle-target back-solve under SETTLE TIME) and running the *same* STANDARD/SYNC/NEUTRAL
+dispatch against it regardless of REBOUND MODE. Under SETTLE TIME, only SYNC now guarantees
+both axles hit the target time — STANDARD/NEUTRAL still anchor the reference axle to it
+exactly, but the other axle's real settle time is whatever that mode's split produces, reported
+honestly rather than forced equal. Verified live: STANDARD under SETTLE TIME shows the
+reference axle exactly at target with the other axle deviating; NEUTRAL produces a third,
+distinct split; SYNC still shows EQUAL — all three now behave distinctly under both REBOUND
+MODEs.
+
+## Fixed — SETTLE TIME's zeta and bump readouts fell back to the frozen CHARACTER default (resolved)
+
+Two further bugs found immediately after the above fix, while verifying it — both are the same
+root mistake in different call sites: reading `fe.reboundZeta`/`physics.reboundZeta`/
+`physics.bumpZeta` (the raw CHARACTER-mode inputs) instead of the actual computed
+`physics.zetaF`/`physics.bumpZetaF` (which correctly reflect whichever REBOUND MODE + Damping
+Balance Mode combination is active).
+
+1. **A DAMPERS-section readout box showed the frozen default instead of the live value.** Its
+   `biased` flag (whether to show a two-column F/R breakdown vs. a single combined number) was
+   `(fe.dampingBias??0)!==0` — true only when the bias slider is off-centre. But SYNC/NEUTRAL
+   can diverge front-to-rear *at bias 0 too* (Hz/mass differ even unbiased), and the "not
+   biased" branch displayed `physics.reboundZeta`/`physics.bumpZeta` — fields that are always
+   `fe.reboundZeta`/a `reboundZeta`-derived value, never updated for SETTLE TIME's back-solved
+   anchor. Reported as "some parts say the correct zeta value, where others report the default
+   70%." Fixed by deriving `biased` from actual `zetaF`/`zetaR` divergence
+   (`Math.abs(physics.zetaF-physics.zetaR)>0.5`) and using `physics.zetaF`/`physics.bumpZetaF`
+   in both branches — the single-number case is now just "the front value," which already
+   equals the rear value whenever they're not meaningfully biased, instead of a stale fallback.
+   The same stale-field pattern was also found and fixed in the DampingDial visual (VISUALS
+   card), the Bump Ratio slider's own preview readout, and the INDEPENDENT bump-mode toggle's
+   seed value (all three now read `physics.zetaF`/`physics.bumpZetaF` unconditionally, dropping
+   redundant `dampCharMode==='settle'` special cases entirely).
+
+2. **Bump output stayed frozen regardless of Hz.** `bumpZeta` (the RATIO-mode intermediate,
+   consumed by the STANDARD branch's %-split and by the INDEPENDENT-bump fallback) was computed
+   from the raw `reboundZeta` (`fe.reboundZeta`, the CHARACTER-mode default) rather than
+   `baseZeta` (the value REBOUND MODE actually anchors to). Under SETTLE TIME + STANDARD, this
+   meant Front Bump/Rear Bump — real output values, not just a display readout — never changed
+   when Ride Stiffness or the Settle Target moved, staying pinned at whatever
+   `70×bumpRatioVal/100` worked out to. Reported as "damping outputs don't change when the Hz
+   is altered, but the zeta is updated" (Rebound ζ *did* correctly track Hz via `baseZeta`;
+   Bump ζ silently didn't, because its own anchor computation ran before `baseZeta` existed and
+   was never updated to use it). Fixed by reordering `feelToPhysics` so `baseZeta` is computed
+   first and `bumpZeta`'s RATIO-mode branch reads it instead of `reboundZeta`. Verified live:
+   Front Bump moved from 39% (frozen) to 10% at Hz 3.00 and 26% at Hz 1.00, matching
+   `baseZeta×bumpRatioVal/100` exactly at each point. A regression test
+   (`tests.js`, "SETTLE TIME mode: bumpZeta anchors to baseZeta, not raw reboundZeta")
+   explicitly compares the fixed formula's Hz-sensitivity against the buggy formula's frozen
+   output.
+
+**Lesson:** when a feature introduces a new "real" source of truth for a value (`baseZeta`
+composing REBOUND MODE with Damping Balance Mode), every existing call site that read the old
+raw input directly (`fe.reboundZeta`, `physics.reboundZeta`, `physics.bumpZeta`) needs an
+explicit audit — grep for the retired field's every use, not just the primary computation path.
+Both of these were readout/display and derived-value sites well outside the formula that was
+the actual focus of the change, which is exactly why they were missed on the first pass.
+
+## Fixed — legacy Settle Sync migration silently dropped SYNC on GARAGE-loaded builds (resolved)
+
+Shipped alongside the Damping Balance Mode feature (STANDARD/SYNC/NEUTRAL replacing the old
+boolean "Settle Sync" toggle) and caught the same day, before release. `migrateDampBalMode`,
+the helper that converts a legacy `settleMode`/`settleBias` pair into the new `dampBalMode`/
+`dampingBias` fields, originally decided whether to migrate by checking
+`DAMP_BAL_MODE_DEC.includes(fe.dampBalMode)` — "does this object already have a valid balance
+mode?" That check is unreliable: `decodeTune` pre-fills *every* `CODEC_FIELD` (including
+`dampBalMode`) with its default before overlaying whatever ids a code actually carries, and
+`mergeDefaults`/`{...DEF_FE,...e.fe}` do the same for persisted state and GARAGE entry loads.
+So a legacy object that still carried `settleMode:true` also arrived with `dampBalMode`
+already sitting at `'standard'` — inherited from the spread, not actually chosen — and the
+naive check treated that as "already migrated," silently discarding the real
+`settleMode`/`settleBias` values.
+
+This was invisible in the two paths exercised during initial testing (a hand-rolled test
+object with no `dampBalMode` key at all, and the one-time persisted-state migration effect,
+whose *outer* `if(fe.settleMode!=null)` guard happened to make the inner bug unreachable) but
+broke the third: `garageLoadBuild`, which loads a saved GARAGE "build" entry into live state.
+Loading any build entry saved before this feature existed — with Settle Sync switched on —
+silently reverted it to STANDARD mode instead of the equivalent SYNC mode, with no warning.
+
+Fixed by making `fe.settleMode`'s mere *presence* (not `fe.dampBalMode`'s value) the migration
+trigger — `settleMode` is only ever present on a pre-migration object, since nothing in the
+app writes it anymore, making it the only reliable signal. Also routed `garageLoadBuild`
+through the same shared `migrateDampBalMode` helper as `sanitizeTune` and the persisted-state
+effect (it previously did a raw `{...DEF_FE,...e.fe}` merge with no migration at all — the
+proximate bug reported as "settle time isn't working"). Verified by seeding a legacy GARAGE
+entry (`settleMode:true, settleBias:-20`) directly into `localStorage` and loading it via LOAD
+BUILD: now correctly resolves to `dampBalMode:'sync', dampingBias:20`. Four regression tests
+added to `tests.js` (`migrateDampBalMode — legacy Settle Sync migration`), specifically
+including the "dampBalMode already default-filled" case that let this ship in the first place.
+
+**Lesson:** a field's mere presence/validity is not proof it was *chosen* — defaulting logic
+(`mergeDefaults`, `decodeTune`'s pre-fill) can populate a "new" field on an old object before
+migration code ever sees it. The reliable signal for "does this need migrating" is the
+presence of the *legacy* field being replaced, not the absence or validity of the new one.
+
+## Fixed — CHASSIS Balance Mode's SAME/OPPOSITE Split Direction was inverted (resolved)
+
+`computeTune`'s `arbBalMode==='chassis'` branch is meant to mirror WEIGHT's
+SAME/OPPOSITE split-direction toggle exactly, just anchored to
+`naturalMechBalanceOf(ch)` (a rear roll-stiffness fraction) instead of raw
+`ch.frontBias`. WEIGHT's formula is `(arbSplitOpposite ? ch.frontBias :
+(100-ch.frontBias)) + arbBias*0.4` — SAME uses the *rear* weight fraction
+(`100-frontBias`) directly as `rF` (the rear ARB fraction consumed
+downstream by `arbR=budget*rF`). CHASSIS used `(arbSplitOpposite ? natPct :
+(100-natPct))` — but `natPct` is already a rear fraction (same role as
+`100-ch.frontBias`, not `ch.frontBias`), so the two branches were swapped
+relative to WEIGHT's pattern.
+
+Effect: selecting **SAME** in CHASSIS mode actually mirrored the ARB split
+*away* from the chassis's natural balance (behaved like OPPOSITE), and
+**OPPOSITE** actually reinforced it (behaved like SAME) — contradicting
+both the function's own inline comment and the in-app Split Direction hint
+text ("SAME tracks the reference balance directly — a front-heavy car gets
+a front-heavy ARB split... this is how WEIGHT/CHASSIS behave by default").
+PRO-only (CHASSIS mode is PRO-gated) and untouched by `tests.js`, which has
+no CHASSIS-mode coverage — nothing caught it before a manual code review.
+
+Fixed by swapping the ternary branches to `(arbSplitOpposite ?
+(100-natPct) : natPct)`, matching WEIGHT's SAME/OPPOSITE mapping. Verified
+in-app: default chassis (`NAT 0.47`, i.e. front is naturally 53% of roll
+stiffness) now reads **F 53% / R 47%** under SAME (front-heavy chassis →
+front-heavy ARB split, correct) and **F 47% / R 53%** under OPPOSITE
+(mirrored around 50/50, correct) — previously these were swapped.
+
+## Fixed — Alignment Mode's MECH/GRIP nudge was nearly invisible (resolved)
+
+The ALIGNMENT sidebar presented BUILD/MECH/GRIP/MANUAL as four co-equal
+buttons, but comparing their output showed the differences were hardly
+noticeable. Two compounding causes: (1) the MECH/GRIP toe nudge
+(`±0.05×k`) was smaller than `computeAlignment`'s 0.1° toe rounding step for
+most realistic gaps/strengths, so it got rounded away to nothing — toe
+essentially never visibly changed between modes; (2) GRIP's gap
+(`gripGap = -(natGripBalance-0.5)*2`) was pre-scaled `×2` relative to MECH's
+gap before both hit the same `/0.30` saturation clamp, so GRIP reliably
+nudged at full strength while MECH rarely did, despite the two being shown
+as equivalent options.
+
+The 0.1° toe rounding itself is correct and was kept — Forza's toe input
+only accepts one decimal place, so a finer grid would recommend values that
+aren't actually enterable in-game (an earlier pass at this fix tried
+rounding to 0.05° instead, which had to be reverted for that reason). Fixed
+instead by doubling the toe nudge coefficient (`0.05`→`0.10`, see
+[ALIGNMENT.md](ALIGNMENT.md)) so a fully-saturated nudge can cross one whole
+0.1° step, dropping GRIP's `×2` pre-scale so both nudge sources sit on the
+same raw scale, and restructuring the sidebar into an AUTO (→ Nudge:
+OFF/MECH/GRIP) / MANUAL hierarchy instead of four flat peer buttons, since
+BUILD/MECH/GRIP were never actually equal alternatives — MECH/GRIP are small
+nudges layered on the BUILD baseline, and MANUAL is a full bypass. At
+typical (non-saturated) gaps/strengths, toe still often rounds back to
+BUILD's value — that now reflects the real precision ceiling rather than a
+formula bug.
+
+## Fixed — `computeAlignment` was blind to the car's actual balance tuning (resolved)
+
+`computeAlignment` only reacted to build type, drivetrain layout, front
+weight bias, front/rear spring Hz, and roll angle — never `natMechBalance`,
+`gripBalance`, or the resolved Mech Balance Target. Two cars with identical
+build+layout but very different balance tuning got identical camber/toe/
+caster recommendations.
+
+Fixed by adding a PRO-only **Alignment Mode** selector (BUILD/MECH/GRIP/
+MANUAL) with a Nudge Strength slider — see
+[ALIGNMENT.md](ALIGNMENT.md)'s "Alignment Mode (PRO)" section for the full
+formula. `computeAlignment` itself (BUILD mode) is unchanged; the nudge is
+layered on top, opt-in per mode rather than an always-on background
+adjustment, so the design question ("which signal, how strong") became a
+user choice instead of something we had to bake in.
+
+## Fixed — Drift/Drag camber ignored CG height and roll angle (resolved)
+
+Every other build's camber target scaled with `rollDeg×camberGain` (itself
+derived from `cgHeight`) — see [ALIGNMENT.md](ALIGNMENT.md)'s Camber table.
+Drift and Drag instead returned fixed constants regardless of those inputs,
+so two drift cars with very different CG heights got the same camber
+recommendation.
+
+Fixed by folding Drift (`optimalCamber:-2.5`) and Drag (`optimalCamber:-0.2`)
+into the same roll-compensated formula every other build uses, instead of a
+separate branch with hardcoded values. Verified manually: Drift camber now
+moves from −1.2° to −4.0° (clamp) as CG height goes from 450mm to 800mm on
+the same car, where it used to stay frozen at −3.0° regardless.
+
+## Fixed — Dead-code audit (resolved)
+
+A full pass over `index.html` removed code that no consumer referenced —
+unreferenced scalars and constants, dead object keys (including
+`PRESET_SAVES`' unused `notes` field — *not* the same `notes` field later
+added to unified GARAGE entries, which is live user data; same name,
+different thing, don't remove it on a future sweep), dead component props,
+and two large discarded blocks (a duplicate tyre-width recommendation chain,
+and a ~20-binding IIFE prologue whose live twin sat ~550 lines further
+down and had already drifted — it destructured a `gap` key
+`chassisAnalysis` doesn't return, so its guard was permanently false). The
+full itemised inventory lives in the commit messages, not here — `git log
+--grep "Dead-code cleanup"` for the pass, `git log -S<identifier>` for any
+individual removal.
+
+**Why this needed a custom verification method.** `tests.js` cannot detect
+breakage in `index.html` (it duplicates the physics rather than importing
+them), and there is no linter or CI. So the pass was gated on a zero-diff
+browser harness instead: nine `localStorage` fixtures covering BEG/INT/PRO,
+all three ride references, CO-SOLVE, MECH with off-centre weight bias,
+asymmetric tyres, and MANUAL alignment; each captured the `outerHTML` of
+every `#zone-*` section after expanding all sections and the handling-balance
+panel. Because everything removed was unreferenced, the pass criterion was
+byte-identical output. Baseline reproducibility was confirmed first (same
+fixture, two reloads, zero diffs). Every phase came back CLEAN.
+
+Two limits of that harness are worth recording. It only sees rendered DOM, so
+**tooltip text is invisible to it** — `Hint` content is not in the document
+until the tooltip is opened, which is exactly how the ALIGNMENT hint bug below
+escaped notice. And it cannot reach state that only arises mid-migration.
+
+## Fixed — ALIGNMENT card hint said "Recommended starting point" in MANUAL mode (resolved)
+
+The output panel's ALIGNMENT card built its hint prefix from
+`al.alignManual` — a legacy boolean that nothing sets true (`DEF_AL` defines
+it `false`; the alignment UI writes `al.mode`). So the hint described the
+values as a recommendation even when the user had typed them in by hand.
+
+Fixed by testing the resolved `alignMode` instead. The `al.alignManual`
+fallback inside `alignMode` itself, and its `DEF_AL` entry, both stay — they
+still migrate state saved before `al.mode` existed.
+
+Found during the dead-code audit but fixed separately, since it changes
+behaviour and the cleanup was deliberately zero-diff.
+
+## Fixed — FLAT RIDE offset was doubled, biasing every fresh install toward oversteer (resolved)
+
+`flatRideRearHz` computed `1/rearHz = 1/frontHz − 2·(wheelbase/speed)`. The rear
+wheel meets a bump **one** traverse time after the front, not two, so the offset
+should be `t`. No comment or doc justified the doubling and git history doesn't
+reach past the original single-file import.
+
+FLAT RIDE is `DEF_FE.rearHzMode`, so this was the out-of-box state. On a fresh
+install with stock defaults the app produced:
+
+| | before | after |
+|---|---|---|
+| rear/front Hz ratio | ×1.43 | ×1.18 |
+| rear spring | 494 lb/in (**RACE** band) | 334 lb/in (FIRM) |
+| handling balance | **+14.9 oversteer** | +6.5 |
+
+Front sat at 1.75 Hz in the ROAD band throughout, so a new user's first view was a
+road-frequency front axle paired with a race-frequency rear, and a balance bar
+already reading strongly oversteer before they had touched a control.
+
+It also degraded as the user tuned, which is the wrong way round for a default —
+the ratio climbed with stiffness (×1.76 at 2.5 Hz front, ×2.07 at 3.0 Hz, where it
+hit the `HZ_MAX` ceiling) and with lower target speeds (×3.39 at 30 mph). Olley's
+flat-ride rule of thumb is rear ≈10–20% higher in *frequency* than front (every
+ratio here is a frequency ratio, not a spring-rate one); the corrected form
+gives ×1.18 at the default and stays inside ×1.35 across the practical range.
+
+**This changes output for existing FLAT RIDE tunes**, including saved garage
+entries and shared codes — those store the *mode*, not the resolved Hz, so they
+re-solve with the corrected offset and get a softer rear. Accepted deliberately as
+a bug fix rather than versioned behind a toggle.
+
+`flatRideSharedHz` inverts the same relationship and was re-derived to match
+(`t·fHz² − fHz·(2 + 2·avg·t) + 2·avg = 0`); a round-trip check over 24
+speed/stiffness combinations confirms the solved pair still averages to the target
+and agrees with `flatRideRearHz`.
+
+Two notes for future work:
+
+- `tests.js` kept passing after the app was fixed, because it **mirrors** the
+  formula rather than importing it — exactly the silent-drift hazard
+  [CODE_MAP.md](CODE_MAP.md) warns about for that file. The mirror is now updated and four assertions pin the
+  resulting ratio, so a re-doubling fails immediately.
+- The two clamp/band assertions in that suite encoded the old formula's numbers
+  rather than independent physics, so their fixtures had to be re-derived. Worth
+  remembering that "the tests pass" said nothing here.
+
+## Fixed — Fresh installs defaulted to a track build with a comfort-oriented Hz mode (resolved)
+
+Fixing the `2t`→`t` offset above corrected FLAT RIDE's own math, but FLAT RIDE was
+still `DEF_FE.rearHzMode`, and `DEF_DR.buildType` defaulted to `'track'`. Research
+into flat-ride methodology (see the caveat now in
+[PHYSICS.md](PHYSICS.md#rearsecondary-hz-modes)) found the literature explicit that
+flat ride is a comfort/road philosophy — Race Comp: *"Many racecars do not use flat
+ride and there can be benefits to higher front frequencies"* — which is backwards
+for a `track`-flagged fresh install.
+
+Changed both fresh-install defaults:
+
+- `DEF_FE.rearHzMode`: `'flatRide'` → `'multiplier'` at the existing `rearHzMult:1.20`
+  (already the upper end of Penske/Race Comp's published 10–20% band).
+- `DEF_DR.buildType`: `'track'` → `'street'`.
+
+**`buildType` could not change alone.** `recommendedDiffType` maps
+`street→'sport'`, `track→'race'`; `DEF_DR.diffType` was hardcoded `'race'`,
+matching `track` exactly. Changing only `buildType` would have shown a spurious
+amber "RECOMMENDED: SPORT / → USE SPORT" mismatch banner on the DIFFERENTIAL card
+for every INT/PRO fresh install — trading one first-launch rough edge for another.
+`DEF_DR.diffType` moved to `'sport'` alongside it. Checked the AWD center-split
+recommendation for the same hazard: `DEF_DR.diffCenter:65` was already a latent
+mismatch against `_baseCenterLookup.track`'s `70` (dormant, since that banner is
+AWD-only and layout defaults to RWD) — it now matches `_baseCenterLookup.street`
+exactly, a side-effect fix rather than a new change.
+
+The BEG-panel RESET button carried its own hardcoded
+`rearHzMode:'multiplier', rearHzMult:1.0` — a second, divergent "flat" default
+(matched axles) presumably chosen specifically to counter the old `flatRide`
+default. Simplified to inherit `DEF_FE` directly now that the two agree.
+
+Also reordered the Hz Mode buttons to **MULTIPLIER, MECH, FLAT RIDE, INDEPENDENT**
+(previously FLAT RIDE first) so the button order reflects which modes the new
+defaults favour, and added an in-app advisory: when FLAT RIDE's resulting
+rear/front ratio exceeds ×1.25 (Olley's own front≈80%-of-rear reference), a banner
+suggests raising Target Speed or lowering Ride Stiffness. FLAT RIDE itself is
+unchanged and remains fully available.
+
+**Verification note:** the fresh-install default change moved `fHz`/`rHz` (and
+everything downstream — springs-R, dampers-R, ARB, balance, roll) for 56 of the
+existing 64-case Horizon/Motorsport regression fixtures from last session, because
+those fixtures don't override `rearHzMode` and therefore all resolved rear Hz via
+whatever the default was. Checked that the front axle is byte-identical in all 64
+cases (it's always the reference axle) and that the 8 CO-SOLVE fixtures are
+byte-identical (CO-SOLVE overrides `effectiveRHz` regardless of `rearHzMode`) — the
+diff is fully explained by the intended default change, not a leak elsewhere.
+
+## Fixed — `NMM_PER_LBIN` was 10× too high, so every MET-mode spring readout was wrong (resolved)
+
+`NMM_PER_LBIN` was defined as `LB_IN_TO_NM/100`. `LB_IN_TO_NM` is **N/m** per
+lb/in (175.127 — the name is misleading), and N/m → N/mm is a divide by
+**1000**, not 100. The correct figure is 1 lbf/in = 4.4482 N / 25.4 mm =
+**0.175127 N/mm**; the constant evaluated to 1.751.
+
+Confirmed in the running app before the fix: with the default chassis the
+SPRINGS card showed `261 lb/in` under IMP and `457 N/mm` under MET, where the
+correct value is **45.7 N/mm**. A 457 N/mm spring would be beyond a formula car;
+45.7 is an ordinary sports-car rate. Every metric spring number the app had ever
+shown — output card, VISUALS strip, and the Tune Check spring inputs — was off by
+exactly one decimal place.
+
+It was **deliberately deferred** during the BeamNG work rather than folded into a
+feature commit, because it visibly changes numbers users had been reading and
+acting on. This entry records discharging that deferral.
+
+Fixed by correcting the divisor to `1000`. All four consumers route through the
+one constant (`springOut`'s MET branch, which feeds both the SPRINGS card and the
+VISUALS strip; the Tune Check spring inputs; and the MEASURE-mode probe rate
+readouts), so no call site needed its own change.
+
+**One knock-on handled at the same time.** The Tune Check spring input rendered
+`Math.round(value * conv)` at `step={1}`. With the corrected constant those
+numbers are 10× smaller, so whole-number rounding would have turned ~0.57 lb/in
+of entry resolution into ~5.7 lb/in, and 45.7 N/mm would have displayed as "46".
+The MET branch now carries one decimal at `step 0.1`, matching the output card.
+The BeamNG branch keeps whole N/m at `step 100`, which is right for that unit.
+
+The BeamNG mode was unaffected throughout: BeamNG's slider is **N/m**, so it
+converts with `LB_IN_TO_NM` directly and never touched this constant. (An interim
+`N_MM_PER_LB_IN` existed while BeamNG output was mistakenly built in N/mm; once
+the real unit was confirmed from an in-game screenshot it became unnecessary and
+was removed rather than left as a near-duplicate.) Verified post-fix: BeamNG
+springs still read ~45,600 N/m and the 64-fixture physics snapshot showed **zero**
+diffs, since the constant is display-only and `computeTune` never reads it.
+
+`tests-beamng.js` previously pinned the wrong value deliberately. That assertion
+is now inverted to guard the correct one, checked against SI from first principles
+(`4.4482216 / 25.4`) rather than against the app's own constants, so a regression
+in either `LB_IN_TO_NM` or the divisor is caught. The MET assertion in
+`springOut`'s test was also strengthened — it compared the function against the
+same constant the function uses, so it passed under any value and pinned nothing.
+
+## Fixed — MAN ARB fields didn't respect the per-game click ceiling (resolved)
+
+Two bugs, found months apart, in the same theme: the MAN-mode ARB click
+fields (`fe.arbManF`/`arbManR`) getting out of sync with the game's actual
+ceiling (`lim.arb`, 65 for HORIZON / 40 for MOTORSPORT).
+
+1. **The field accepted clicks MOTORSPORT would silently discard.** The
+   input hardcoded `max={65}` — `GAME_LIMITS.horizon.arb` — so in
+   MOTORSPORT (ceiling 40) anything typed between 41 and 65 was accepted,
+   stored, and then quietly thrown away by `computeTune`'s `lim.arb` clamp
+   before it reached the output; the field's hint named no limit, so
+   nothing on screen contradicted the wrong number. Fixed by binding `max`
+   to `lim.arb` and stating the ceiling in the hint, the same way BASIC
+   mode's hint already interpolates `${lim.arb}`.
+2. **Switching between the two Forza modes didn't reclamp an existing
+   value.** A React input's `max` attribute doesn't retroactively clamp a
+   value already sitting in state, and the migration effect that converts
+   these fields only fires on the *physical vs. click-scale* boundary
+   (e.g. BeamNG↔Forza, the only transition where what the field's units
+   *mean* changes) — not on a HORIZON↔MOTORSPORT switch. Concretely: set
+   MAN ARB F to 55 under HORIZON, switch to MOTORSPORT — the field kept
+   showing 55 while `computeTune` silently clamped the real output to 40,
+   displayed value and actual output disagreeing with no visible
+   indication. Fixed by adding a second effect, keyed on `fe.gameMode`
+   rather than the physical/click-scale boundary, that clamps
+   `arbManF`/`arbManR` to the new mode's `lim.arb` whenever the
+   destination is non-physical and Stiffness Mode is MAN.
+
+General lesson (part 1) matches the `arbCtx`/`lim.arb` pattern used
+everywhere else: a game-mode-dependent limit should never be written as a
+literal, because only one of the two modes will be right. Lesson (part 2):
+binding an input's `max` fixes new entry, not values already in state —
+a ceiling that can change at runtime needs its own reclamp effect, not just
+a tighter `max`.
+
+## Fixed — GEOMETRY GAP readout could never show a negative sign (resolved)
+
+The BALANCE section's GEOMETRY GAP panel printed its value as
+`{dSign}{gap.toFixed(2)}`, where `dSign` was computed as `gap>=0?'+':'-'`.
+But `gap` is `Math.abs(_sgap)`, so the test could never be false and the sign
+was always `+`. The direction text immediately below it branches correctly on
+`targetBal>natBal`, so a negative gap rendered as `+0.10` directly above the
+line "Wider front track or narrower rear…" — the number contradicted its own
+caption.
+
+Fixed by taking the sign from `_sgap`, the pre-`abs` value.
+
+Worth flagging for future cleanup passes: this **looked** like dead code (a
+ternary with an unreachable branch) but was actually lost information.
+Deleting `dSign` and hardcoding `'+'` — the obvious "simplification" — would
+have made the bug permanent.
+
+## Fixed — CO-SOLVE Auto Spring Share pinned at 100% spring / 0% ARB regardless of target (resolved)
+
+Auto Spring Share is supposed to binary-search for the spring/ARB split `S`
+where "spring utilisation" equals "ARB utilisation" — i.e. find a genuine
+middle ground rather than dumping the whole balance correction onto one
+side. In practice it almost never found one. Two compounding bugs:
+
+1. **Scale mismatch.** Spring utilisation was measured as Hz distance moved
+   toward `HZ_MAX`, against the full `HZ_MIN..HZ_MAX` span (~4.7 Hz). ARB
+   utilisation was measured as clicks used against the 65-click limit.
+   Measured directly with the default chassis and a `+0.15` Mech Balance
+   Target delta: across the full `S` sweep, ARB utilisation only dropped
+   from 0.71→0.41, while spring utilisation only climbed to 0.17 at `S=100%`
+   — it could never reach ARB's floor, so the search always walked to the
+   `S=100%` boundary. AUTO behaved like SPRING ONLY in essentially every
+   realistic configuration.
+2. **Directional clamp.** Spring utilisation was `Math.max(0, ...)`-clamped,
+   so any target requiring the rear to *soften* relative to front
+   (understeer-leaning deltas — the direction a naturally rear-heavy chassis
+   typically needs) pinned the metric at exactly 0 regardless of `S`. `ARB
+   CORR` read exactly `-0.000` no matter how large the correction.
+
+Fixed by expressing both sides in the same currency: spring utilisation is
+now the incremental rear roll-stiffness the spring correction carries,
+converted through the same `ARB_RS_SCALE·track²` relationship real ARB
+clicks use, then scaled against `lim.arb` — "how many ARB clicks would this
+same physical correction have cost." No arbitrary reference band, and
+`Math.abs()` on the signed delta makes it direction-agnostic.
+
+Verified (default chassis, PRO, CO-SOLVE, AUTO on): `+0.15` target now
+splits 63% spring / 37% ARB (previously 100/0); `-0.15` splits 84%/16% with
+a nonzero ARB contribution (previously exactly 0); a small `+0.05` target
+correctly stays spring-only (cheap to do that way, not a regression); a
+large `+0.30` target shifts to 34% spring / 66% ARB. A degenerate case
+(manually forced 50% ARB share) still pins at spring-only, but for a
+legitimate reason confirmed by inspection — both ARB bars were already
+maxed at 65 clicks purely from the oversized budget, independent of `S`.
+
+An intermediate fix attempt rescaled spring utilisation against the
+Rear/Front Multiplier slider's own 0.50–3.00 band instead of the full Hz
+range. Also insufficient — a typical target's Hz ratio shift (~35%) still
+only moved the metric to ~0.18 against that scale, short of ARB's floor.
+Recorded here so a future pass doesn't reach for the same fix and stop
+short of verifying it against a real target.
+
+## Fixed — SYNC/NEUTRAL Damping Balance recompute stayed skipped/mis-anchored under SETTLE TIME + CO-SOLVE (resolved)
+
+A recurrence of the same bug class as "Damping Balance Mode was hardcoded to
+SYNC-equivalent under SETTLE TIME" above, at a call site that fix didn't
+reach. `computeTune` re-derives `zetaF`/`zetaR` from `effectiveRHz` (the
+post-CO-SOLVE rear Hz) so SYNC/NEUTRAL's "both axles hit the same settle
+time/force" guarantee still holds after CO-SOLVE moves the rear Hz away from
+what `feelToPhysics` originally solved zetas against. The guard excluded
+`dampCharMode==='settle'` entirely, so with CO-SOLVE + SETTLE TIME + SYNC or
+NEUTRAL all active together (three independent, freely combinable toggles),
+the recompute never ran and the damper split stayed solved against the stale
+pre-CO-SOLVE rear Hz. Fixing just the guard wasn't enough on its own: the
+recompute anchors to `phys.reboundZeta`, the raw CHARACTER-mode slider value
+— under SETTLE TIME the real anchor is `baseZeta` (the settle-target
+back-solved value), which `feelToPhysics` computed internally but never
+returned.
+
+Fixed by dropping the `dampCharMode!=='settle'` exclusion and returning
+`baseZeta` from `feelToPhysics` so the recompute can anchor to it instead of
+`reboundZeta` (this is a no-op outside SETTLE TIME, where `baseZeta` already
+equals `reboundZeta`). Verified numerically in physical-unit mode (no click
+quantisation to obscure the result): with CO-SOLVE + SETTLE TIME + SYNC,
+front and rear settle times now match to floating-point precision after the
+fix, versus a ~25% mismatch before it.
+
+## Fixed — inverse FLAT RIDE (rear→front) kept the doubled traverse-time offset (resolved)
+
+A second, missed instance of "FLAT RIDE offset was doubled" above. That fix
+corrected `flatRideRearHz` and `flatRideSharedHz`, but `feelToPhysics` has a
+third, mirror-image path — Ride Reference = REAR under FLAT RIDE, which
+solves front Hz *from* the user's rear-Hz target — that still divided by
+`2*(wheelbase/speed)` instead of the single traverse time `t`. Anyone using
+Ride Reference REAR (rather than the default FRONT) got the same class of
+error the original fix was meant to eliminate everywhere: at the default
+chassis, rearHz=2.0 Hz, 70 mph, the buggy formula solved front Hz to 1.487
+instead of the correct 1.706 (~15% off).
+
+Fixed by removing the `2*` so this path mirrors the other two. Verified
+numerically against the corrected `flatRideRearHz`/`flatRideSharedHz` math.
+
+## Fixed — CO-SOLVE's Hz-slider pre-inversion ignored Auto Spring Share (resolved)
+
+A gap in the same feature as "CO-SOLVE Auto Spring Share pinned at 100%..."
+above. When Ride Reference is REAR or SHARED under CO-SOLVE, `feelToPhysics`
+has to pre-invert the Hz slider (the user is setting the rear/shared target,
+but the solver works front→rear) through a spring-share ratio `Kcs`. That
+inversion assumed a fixed `S=50%`, while `computeTune`'s Auto Spring Share
+(the default) resolves the real `S` via a 12-step binary search that
+generally lands elsewhere — so the Hz value that comes back out of the full
+solve didn't match what the user set on the slider (measured ~4%, ~0.08 Hz,
+in a representative case). The analogous MECH-mode solver already runs a
+2-pass fixed-point loop specifically to avoid this kind of mismatch; CO-SOLVE
+had no equivalent.
+
+Fixed by factoring the Auto Spring Share search out of `computeTune` into a
+shared `resolveCoSolveSpringShare` helper, called from both `computeTune`
+(unchanged behaviour) and `feelToPhysics`'s pre-inversion via a 2-pass fixed
+point on the estimated front Hz — the same pattern MECH mode uses for its
+own auto-share estimate. Guarantees both call sites converge on the same
+`S` instead of drifting independently. Verified: the manual-share path
+(`springShareAuto:false`) still solves the rear Hz to the exact slider
+target; the auto-share path now converges to within the 2-pass
+approximation instead of the previous ~4% miss.
+
+## Fixed — LOAD CODE for CHASSIS reset the locally-calibrated ride-height CG fields (resolved)
+
+`useRideHeightCG`/`rideHeightF`/`rideHeightR` are deliberately excluded from
+the share codec (see [CODEC.md](CODEC.md)) so they stay locally remembered
+per the note there. But the LOAD CODE handler applied the decoded chassis as
+`setCh({...DEF_CH,...ic})` — defaults overlaid only by the codec's fields —
+rather than merging over the *current* chassis state, so loading any share
+code that included CHASSIS data silently reset the user's ride-height CG
+calibration back to `DEF_CH`'s defaults (`useRideHeightCG:false`,
+`rideHeightF:0.13`, `rideHeightR:0.12`) with no warning.
+
+Fixed by merging over the current chassis instead of the defaults
+(`{...DEF_CH,...prev,...ic}`) — the decoded fields still win where the codec
+carries them, but anything absent from the codec (ride-height CG, and any
+future local-only chassis field) now survives a code load unchanged.
+
+## Fixed — restoring a v2 backup file could produce duplicate garage entry ids (resolved)
+
+`unifyLegacy` (the legacy v1 backup/migration path) explicitly dedups entry
+ids against a running `used` Set before they enter the garage list, with a
+comment noting duplicate ids are a "silent render corruption" hazard (the
+garage list keys `<EntryCard>` by `id`). The v2 restore path never got the
+same treatment — it applied `parseBackup`'s output straight into `entries`
+with no id check, so re-importing a previously-exported v2 file (or merging
+two export files) whose entries shared ids with entries already in the
+garage produced duplicate React keys.
+
+Fixed by dedup'ing incoming ids against the ids being kept at the RESTORE
+button handler, using the same bump-on-collision approach as
+`unifyLegacy`. v2 entries carry explicit `createdAt`/`updatedAt` (unlike
+legacy ones, which use `id` as a timestamp fallback), so bumping `id` alone
+is safe here and doesn't disturb sort order.
+
+## Fixed — PRO-only MAN ARB clicks and MANUAL diff mode survived a downgrade to BEG/INT (resolved)
+
+Two related tier-gating gaps found together, both missing from the
+"BEG/INT: fall back to simple modes if switching down from PRO" effect that
+already resets `arbBalMode`/`rearHzMode`:
+
+1. **ARB Stiffness Mode MAN** (direct front/rear click entry) is a separate
+   PRO-only control from `arbBalMode` — its fields render on
+   `fe.arbMode==='man'` alone, with no `uiMode==='pro'` check, and nothing
+   reset `arbMode` on downgrade. A user who enabled MAN mode on PRO kept
+   full editable access to it after dropping to INT.
+2. **MANUAL differential mode** (`dr.diffManual`) and its AUTO/MANUAL toggle
+   are both PRO-gated, but nothing reset `diffManual` on downgrade either —
+   so a user who set MANUAL on PRO and downgraded got a completely blank
+   DRIVETRAIN diff section: the AUTO block stayed hidden (`diffManual` still
+   true) and the MANUAL block plus the toggle to get back to AUTO were both
+   gated behind PRO, with no way back short of returning to PRO.
+
+Fixed by extending the same downgrade effect to also reset `arbMode` to
+`'auto'` and `dr.diffManual` to `false` when leaving PRO tier.
+
+## Fixed — garage sort comparator called `Date.now()` fresh on every comparison (resolved)
+
+`stampOf()` falls back to `Date.now()` for entries with no
+`updatedAt`/`createdAt` (hand-edited or corrupted entries), and the garage
+list's `recent`/`oldest`/`kind` sort comparators called it directly inside
+the comparator function rather than precomputing it once. Since
+`Date.now()` returns a different value on each call, two timestamp-less
+entries being compared could get different "now" values on different
+invocations during the same sort — an inconsistent comparator, which can
+produce unstable ordering.
+
+Fixed by precomputing a `stampOf` value per visible entry once, before
+sorting, and having the comparators read from that instead of calling
+`stampOf` themselves.
+
+## Fixed — ARB MAN fields could never be omitted from a share code once touched (resolved)
+
+`CODEC_FIELDS` resolves each field's "is this at default, and can it be
+omitted" check against `DEF_GROUPS.fe` (`=DEF_FE`), but `DEF_FE` never
+defined `arbManF`/`arbManR` (ids 46/47) — their real nominal default of 20
+lived only in `sanitizeTune`'s clamp calls. So the codec's default came out
+as `undefined`, which a real value can never equal, and `encodeTune` could
+never omit these two fields once a user's `fe.arbManF`/`arbManR` became a
+concrete number (i.e. the first time MAN mode was ever touched) — even after
+setting them back to 20, every future share code still carried them,
+bloating the code without changing what it decoded to.
+
+Fixed by adding `arbManF:20,arbManR:20` to `DEF_FE`, matching
+`sanitizeTune`'s fallback.
+
+## Fixed — four in-app hint/tutorial strings lagged behind recent behavior changes (resolved)
+
+A full audit of every hint and tutorial step against the live formulas turned
+up four places where UI copy still described pre-fix or pre-refactor
+behavior:
+
+1. **STANDARD Damping Balance Mode's hint** still described the pre-`daad350`
+   mechanism, where the bias slider's own sign picked which axle stayed
+   pinned at the base ζ ("front bias: front stays firm, rear softens; rear
+   bias: rear stays firm, front softens"). Since `daad350` made the pinned
+   axle follow Ride Reference instead, that description is only correct for
+   one of the two bias directions under the default (FRONT) Ride Reference,
+   and wrong outright under REAR. Fixed by rewriting the hint to describe the
+   Ride-Reference-anchored mechanism generically instead of naming a fixed
+   front/rear direction.
+2. **Three tutorial steps** (PRO's "Welcome — Pro Mode", INT's "Chassis", and
+   PRO's "Chassis Geometry") described CG Height Source as something PRO adds
+   on top of Intermediate. `23791d3` moved it to INT tier months ago; the
+   README's tier table was updated at the time, but these three tutorial
+   strings were missed. Fixed by dropping "CG height" from the two "what PRO
+   adds" lists (Welcome and Chassis Geometry) and moving the mention into the
+   INT step instead, where it's actually new.
+3. **The Settle Target hint** referenced "Settle Bias" — the pre-rename name
+   for what's now the Damping Bias slider. `settleBias` only exists in
+   migration/legacy-read code, so the hint pointed at a control name that no
+   longer appears anywhere in the UI. Fixed by updating the hint to say
+   "Damping Bias."
+
+Also, PRO's "Mech Balance Target" tutorial step quoted static per-layout
+target ranges (e.g. "RWD track: 0.60–0.70") that were never derived from the
+app's own math — the actual Balance Guide range comes from a per-chassis,
+per-build-type calculation (`_fracMap`, see `docs/PHYSICS.md`) that can land
+well outside those numbers for a given car. Not a regression from a specific
+commit, just guidance that was never grounded in the calculation it sat next
+to. Replaced with a pointer to the Balance Guide itself rather than numbers
+that could mislead more than they helped.
+
+## Fixed — TutorialPanel forced "SCROLL FOR MORE" on short steps because the card was too narrow (resolved)
+
+`TutorialPanel`'s card width (`CARD_W`) was a flat 264px on every screen
+size, in the app's monospace font. On a wide desktop viewport that's a lot of
+unused horizontal room next to the card, but the card itself still wrapped
+body text into as many short lines as it would on a phone — so even a
+brief, brevity-audited 4-sentence step (e.g. PRO's "Chassis Geometry") could
+still overflow its `maxHeight` and trigger the "▼ SCROLL FOR MORE" fade,
+purely from wrap count rather than actual length. Fixed by scaling `CARD_W`
+with viewport width — `min(380, max(264, innerWidth/zoom * 0.24))` — so it
+stays at 264px on mobile (unchanged) but widens on desktop, cutting the
+wrapped-line count enough that the same audited-brief copy fits without a
+scrollbar.
+
+Separately, the RIGHT-panel branch of `measure()` (targets like the
+balance-bar or `zone-output`) always floated the card *above* the target,
+sized to whatever room existed above it — even when the target sat high in
+the viewport with most of the screen empty below it. Fixed by comparing
+`availAbove` vs `availBelow` and floating the card on whichever side has
+more room, flipping the arrow to point up when the card lands below its
+target. `TutorialPanel`'s arrow renderer gained an `'up'` case alongside the
+existing `'left'`/`'down'` ones.
+
+A follow-up screenshot (PRO's "Calibrating Natural Balance" step, with the
+BALANCE sidebar section expanded) showed the same symptom survived on the
+LEFT-panel branch for a different reason: `top` was pinned to a fixed
+`midY-80` offset from the focused zone's vertical centre, not to the card's
+actual content height. A tall focused section (spanning from the section
+header down through the Balance Guide widget) has its midpoint sitting low
+in the viewport, so the card got pinned low too — starved to a short box
+even though the rest of the screen above it had nothing in the card's way.
+Fixed to match the RIGHT-panel branch's approach: measure the card's real
+rendered height (`cardRef`) and centre the card on the target's midpoint
+using that actual height, clamped to stay fully on-screen, instead of
+deriving position from a fixed offset that had no relationship to how tall
+the content actually was.
+
+A second follow-up screenshot (PRO's last step, "Output Panel & Tune Check",
+`focus:['output']`) showed the RIGHT-panel branch still had a version of the
+same bug: `zone-output` spans nearly the full panel height on that step (the
+sidebar is closed for it), so both `availAbove` and `availBelow` are small —
+the fix above just made it pick whichever cramped sliver was *larger*, which
+still wasn't enough room for that step's five-sentence body and still forced
+a scrollbar, while the actual open space (available by centring, same as the
+`MIN_USABLE` fallback already did for the fully-symmetric case) sat unused.
+Fixed by comparing both sides against the card's own measured natural height
+instead of a flat 180px minimum — if neither side can actually fit the
+content, centre it (full near-viewport-height budget) rather than hug a side
+that's merely the less-cramped of two bad options.

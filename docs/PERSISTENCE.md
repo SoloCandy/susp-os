@@ -71,6 +71,17 @@ still only needs to live in the right one of `ch` / `fe` / `dr`.
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
 see [CODEC.md](CODEC.md)'s excluded-fields section.
 
+**`al` (alignment) does not travel either.** The "any new field travels for free"
+property above is specifically a `ch`/`fe`/`dr` property — those are the three
+payloads an entry carries. `al` is persisted in its own key (`suspos_al_v2`) and is
+not part of the entry shape, so SAVE CAR does **not** capture Alignment Mode, Nudge
+Strength, or MANUAL camber/toe/caster, and LOAD CHASSIS / LOAD BUILD leave whatever
+alignment state is currently live untouched. For BUILD mode that is invisible,
+since `computeAlignment` re-derives the same angles from `ch` + the tune. For
+MANUAL it means typed angles are lost on save. The share codec has the identical
+gap for the identical reason — see [CODEC.md](CODEC.md) and
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 ### Migration chain
 
 `suspos_saves_v9` → `suspos_builds_v1` → `suspos_garage_v2`
