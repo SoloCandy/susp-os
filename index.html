@@ -168,7 +168,7 @@ const KMH_PER_MPH=1.60934;
 // N/mm per lb/in, for the IMP/MET display toggle. LB_IN_TO_NM is N/m per lb/in despite
 // the name, and N/m → N/mm is a divide by 1000: 1 lbf/in = 4.4482 N / 25.4 mm = 0.175127.
 // (This was /100 for a long time, making every metric spring readout 10× high — see the
-// resolved entry in docs/KNOWN_ISSUES.md.) Physical-unit game modes don't use this at all:
+// resolved entry in docs/HISTORY.md.) Physical-unit game modes don't use this at all:
 // BeamNG's slider is N/m, so it converts with LB_IN_TO_NM directly.
 const NMM_PER_LBIN=LB_IN_TO_NM/1000;
 const ARB_RS_SCALE=240;
@@ -270,7 +270,7 @@ const mrDiv=mr=>{const v=Number(mr);return v>0?v*v:1;};
 // Consequence at mr != 1: the printed number is re-snapped by the output helper after the
 // /mr² division, so it can sit up to half a step off the rate these physics describe. At the
 // default mr of 1.0 — and so for every tune that does not opt into the advanced field — the
-// two coincide exactly. See docs/KNOWN_ISSUES.md.
+// two coincide exactly. See docs/HISTORY.md.
 const snapPhys=(v,step)=>roundTo(v,step);
 const rsToHz=rs=>rs>6?0.8+(rs/100)*2.7:rs;
 const hzToRs=hz=>Math.round(Math.max(HZ_MIN,Math.min(HZ_MAX,hz))*100)/100;
@@ -284,7 +284,7 @@ const hzToRs=hz=>Math.round(Math.max(HZ_MIN,Math.min(HZ_MAX,hz))*100)/100;
 // as Hz², so ×1.20 in frequency is ×1.44 in rate, and reading one as the other is how the
 // original error survived review in the first place.
 // docs/PHYSICS.md carries Olley's rule, the practitioner band, the before/after ratio table
-// and the sources; docs/KNOWN_ISSUES.md has the incident and the behaviour-change note.
+// and the sources; docs/HISTORY.md has the incident and the behaviour-change note.
 const flatRideRearHz=(fHz,wb,mph)=>{
   if(mph>=200)return{hz:fHz,clamped:false};
   const ms=mph*MPH_TO_MS;
@@ -489,15 +489,28 @@ const feelToPhysics=(ch,fe)=>{
     }
     frontHz=est;
   }
+  // SHARED splits an average-Hz target into front/rear by a ratio. All three sites below need
+  // identical treatment, so it lives here once: clamp BOTH axles to the band, and report the
+  // clamp off the RAW values. Two bugs this closes — frontHz carried only a HZ_MIN floor, so a
+  // multiplier below 1 printed an out-of-band front Hz with nothing flagged; and the multiplier
+  // path reported clamped:false unconditionally, hiding a rear pinned at HZ_MAX (avg 5.0 Hz
+  // × 3.00 asks for 7.50 and silently delivers a 2.2 ratio instead of the 3.0 requested).
+  // Testing the raws rather than the clamped results also stops a solve that legitimately
+  // lands ON a bound from reporting itself as clamped.
+  const splitAvgHz=(avgHz,mult)=>{
+    const rawF=2*avgHz/(1+mult),rawR=2*avgHz*mult/(1+mult);
+    const cl=v=>Math.max(HZ_MIN,Math.min(HZ_MAX,v));
+    return{fHz:cl(rawF),rHz:cl(rawR),
+           clamped:rawF<HZ_MIN||rawF>HZ_MAX||rawR<HZ_MIN||rawR>HZ_MAX};
+  };
   let rearHz,rearHzClamped;
   if(rideRef==='shared'){
     // Slider represents avgHz = (fHz+rHz)/2; mode sets the ratio
     const avgHz=frontHz;
     if(rearHzMode==='multiplier'){
       const mult=fe.rearHzMult??1.20;
-      frontHz=Math.max(HZ_MIN,2*avgHz/(1+mult));
-      rearHz=Math.max(HZ_MIN,Math.min(HZ_MAX,2*avgHz*mult/(1+mult)));
-      rearHzClamped=false;
+      const _sp=splitAvgHz(avgHz,mult);
+      frontHz=_sp.fHz;rearHz=_sp.rHz;rearHzClamped=_sp.clamped;
     } else if(rearHzMode==='mech'&&arbBalModeEarly!=='coSolve'){
       const m_m=cornerMasses(ch);
       const arbBalTgt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
@@ -548,9 +561,8 @@ const feelToPhysics=(ch,fe)=>{
         if(disc>=0&&Math.abs(alpha)>1e-10){
           const mult_man=(-beta+Math.sqrt(disc))/(2*alpha);
           if(mult_man>0){
-            frontHz=Math.max(HZ_MIN,2*avgHz/(1+mult_man));
-            rearHz=Math.max(HZ_MIN,Math.min(HZ_MAX,2*avgHz*mult_man/(1+mult_man)));
-            rearHzClamped=frontHz<=HZ_MIN||rearHz>=HZ_MAX;
+            const _sp=splitAvgHz(avgHz,mult_man);
+            frontHz=_sp.fHz;rearHz=_sp.rHz;rearHzClamped=_sp.clamped;
             _manSolved_sh=true;
           }
         }
@@ -559,9 +571,8 @@ const feelToPhysics=(ch,fe)=>{
         const _effRsBal_m=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
         const R_m=_effRsBal_m/(1-_effRsBal_m);
         const mult_m=Math.sqrt(R_m*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
-        frontHz=Math.max(HZ_MIN,2*avgHz/(1+mult_m));
-        rearHz=Math.max(HZ_MIN,Math.min(HZ_MAX,2*avgHz*mult_m/(1+mult_m)));
-        rearHzClamped=frontHz<=HZ_MIN||rearHz>=HZ_MAX;
+        const _sp=splitAvgHz(avgHz,mult_m);
+        frontHz=_sp.fHz;rearHz=_sp.rHz;rearHzClamped=_sp.clamped;
       }
     } else if(rearHzMode==='shared'){
       // Solve front/rear Hz so both axles bottom out at the identical g, from each
@@ -680,11 +691,16 @@ const feelToPhysics=(ch,fe)=>{
         }
       }
     }
-    // Assign primary/secondary to front/rear axes
+    // Assign primary/secondary to front/rear axes. rearHzClamped names the axle it originally
+    // guarded, but it means "the DERIVED axle was clamped" — under a REAR reference that axle
+    // is the front, so it must still carry secondaryHzClamped. Hard-coding false here silently
+    // swallowed every front-axle clamp under REAR (inverse FLAT RIDE at a low Target Speed
+    // floors the front at HZ_MIN), leaving the banner, the warnBox and the CLAMPED badge all
+    // dark while the reference axle itself, which is never clamped, was the only one reported.
     if(rideRef==='front'){
       rearHz=secondaryHz;rearHzClamped=secondaryHzClamped;
     } else {
-      rearHz=primaryHz;rearHzClamped=false;
+      rearHz=primaryHz;rearHzClamped=secondaryHzClamped;
       frontHz=secondaryHz; // re-assign: secondary is now front
     }
   }
@@ -722,7 +738,7 @@ const feelToPhysics=(ch,fe)=>{
         // target should stop there rather than overshoot into overdamped territory where zeta
         // climbing higher makes it settle SLOWER. Against the real trace the quickest ±10% settle
         // sits nearer ζ≈59%, so this clamp is self-consistent with what it inverts rather than
-        // physically optimal — deliberate, and recorded in docs/KNOWN_ISSUES.md.
+        // physically optimal — deliberate, and recorded in docs/HISTORY.md.
         return Math.max(10,Math.min(100,refHz>0?2.302/(settleTarget*refHz*2*Math.PI)*100:70));
       })()
     : reboundZeta;
@@ -800,7 +816,7 @@ const feelToPhysics=(ch,fe)=>{
 // CO-SOLVE spring-share (S) resolution — shared by feelToPhysics (Kcs slider pre-inversion)
 // and computeTune (effectiveRHz) so both agree on the same S. Auto Spring Share has no closed
 // form (it's a search), so feelToPhysics can't approximate it independently without the two
-// diverging — see docs/KNOWN_ISSUES.md.
+// diverging — see docs/HISTORY.md.
 const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
   const{arbBalTarget,arbMode,arbShareMan,arbBasicMan,arbTargetRoll,springShareAuto,springShareManual}=opts;
   const lim=GAME_LIMITS[gameMode],utilRef=lim?.arb??ARB_UTIL_REF;
@@ -1046,7 +1062,7 @@ const computeTune=(ch,phys,gameMode)=>{
     // raw front weight %. WEIGHT intentionally stays on raw frontBias so BEG/INT output is
     // unaffected — this is the PRO-only mode that actually honours a MEASURE NAT BAL reading
     // (previously that calibration only reached the MECH/CO-SOLVE target, never WEIGHT/NEUTRAL's
-    // own split — see docs/KNOWN_ISSUES.md).
+    // own split — see docs/HISTORY.md).
     // SAME/OPPOSITE mirrors WEIGHT's own toggle — SAME tracks natural balance directly,
     // OPPOSITE mirrors around 50% so the bars counteract the chassis's natural tendency.
     const natPct=naturalMechBalanceOf(ch)*100;
@@ -1160,7 +1176,7 @@ const computeAlignment=(ch,tune,layout,buildType)=>{
 
   // Drift wants more static camber than Track for sustained high-slip-angle grip; Drag wants
   // near-zero for a flat straight-line contact patch. Both now scale with actual roll/CG like
-  // every other build instead of being frozen constants (see docs/KNOWN_ISSUES.md history).
+  // every other build instead of being frozen constants (see docs/HISTORY.md).
   const optimalCamber=isDrift?-2.5:isDrag?-0.2:isOffroad?-0.3:isRally?-0.8:isStreet?-1.0:-1.5;
   const recCamberF=Math.round(Math.max(-4.0,Math.min(0.0,
     optimalCamber - rollDeg*camberGain + fwdReduction))*10)/10;
@@ -3699,12 +3715,20 @@ function App(){
     // that panel isn't obstructed. Focus-less info steps leave it as the user set it.
     else if(tutFocus)setSidebarOpen(!(tutFocus.includes('output')||tutFocus.includes('balance-bar')));
   },[tutMode,tutStep]); // eslint-disable-line
-  // Every collapsible section needs its key present from the start, even at `false`: the
-  // SECTIONS −/+ buttons blanket-toggle `Object.keys(p)`, so a section whose key only appears
-  // once something has already written it is silently skipped by expand-all until then.
-  // `alignment` was missing and behaved exactly that way — it collapsed correctly by accident
-  // (undefined is falsy) and `tog` toggled it fine, but + and − ignored it until either the
-  // user opened it by hand or a PRO tutorial step wrote the key via the tutFocus effect.
+  // `open` holds two unrelated kinds of flag: the collapsible SIDEBAR SECTIONS (SECTION_KEYS
+  // below — exactly one per <Sec>, all nine of them, `visuals` included), and flags that are
+  // not sections at all — balanceExpanded (the balance detail overlay), factoryOpen (the
+  // GARAGE factory list) and the vis* cards NESTED INSIDE the VISUALS section. The SECTIONS
+  // −/+ buttons used to blanket-toggle `Object.keys(p)`, which reached all of those: + popped
+  // the balance overlay and every visualisation card open, − closed the factory list. They
+  // now walk SECTION_KEYS, so they move exactly what their label says.
+  //
+  // Keep SECTION_KEYS and this initialiser in step when adding a <Sec> — grep the Sec call
+  // sites for the authoritative list. A section missing from EITHER is skipped by expand-all while
+  // still collapsing and toggling normally, which is how `alignment` hid: absent from the
+  // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
+  // to open that one section, in PRO only.
+  const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
   const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,visuals:false,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
@@ -3943,7 +3967,7 @@ function App(){
   // produced, which also left three downstream behaviours unreachable. Build-type mods are
   // deliberately left as-is — they were authored while the floor masked them, and re-tuning them
   // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
-  // See docs/KNOWN_ISSUES.md for the worked cases and docs/FORMULAS.md for the resulting span.
+  // See docs/HISTORY.md for the worked cases and docs/FORMULAS.md for the resulting span.
   const recBrakeBias=Math.round(Math.max(45,Math.min(68,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
   const brakeBias=recBrakeBias;
   // positive = oversteer, negative = understeer
@@ -3997,7 +4021,7 @@ function App(){
   // Switching between two click-scale modes with different ARB ceilings (e.g. HORIZON's 65 vs
   // MOTORSPORT's 40) doesn't change what arbManF/arbManR mean, so the effect above skips it —
   // but a value valid under the old ceiling can exceed the new one, and nothing else reclamps
-  // it (computeTune clamps the OUTPUT, leaving the displayed field stale). See docs/KNOWN_ISSUES.md.
+  // it (computeTune clamps the OUTPUT, leaving the displayed field stale). See docs/HISTORY.md.
   useEffect(()=>{
     if(physMode||lim?.arb==null||(fe.arbMode??'auto')!=='man')return;
     setFe(p=>{
@@ -4026,11 +4050,16 @@ function App(){
     if(!physics.rearHzClamped)return null;
     const rRef=physics.rideRef??'front';
     const band=`${HZ_MIN.toFixed(1)}–${HZ_MAX.toFixed(1)} Hz`;
+    // physics.frontHz/rearHz, NOT tune.fHz/rHz: the clamp flag was computed against these, and
+    // the RIDE card's own readouts quote them too. In the physical-unit modes computeTune
+    // re-derives its pair from the SNAPPED spring rate, so tune.rHz can read 5.52 for an axle
+    // this sentence has just said was clamped to 5.50 — a banner naming the band contradicting
+    // itself, and disagreeing with the figure two panels away.
     const what=rRef==='shared'
-      ?`The solved front/rear split hit the ${band} limit and was clamped to ${tune.fHz.toFixed(2)} / ${tune.rHz.toFixed(2)} Hz.`
+      ?`The solved front/rear split hit the ${band} limit and was clamped to ${physics.frontHz.toFixed(2)} / ${physics.rearHz.toFixed(2)} Hz.`
       :rRef==='rear'
-      ?`Front Hz hit the ${band} limit and was clamped to ${tune.fHz.toFixed(2)} Hz.`
-      :`Rear Hz hit the ${band} limit and was clamped to ${tune.rHz.toFixed(2)} Hz.`;
+      ?`Front Hz hit the ${band} limit and was clamped to ${physics.frontHz.toFixed(2)} Hz.`
+      :`Rear Hz hit the ${band} limit and was clamped to ${physics.rearHz.toFixed(2)} Hz.`;
     // Raising Target Speed always narrows the front/rear split — the traverse offset t=wb/speed
     // shrinks toward zero, so the derived axle moves back toward the reference one. That makes
     // it the single flat-ride lever pointing the right way for EVERY Ride Reference, unlike a
@@ -4041,7 +4070,10 @@ function App(){
       ?'Move the Mech Balance Target closer to the chassis natural balance, or adjust Ride Stiffness to give the solve room inside the band.'
       :physics.rearHzMode==='shared'
       ?'Adjust the Avg Bottom-Out target, or bring the front and rear ride heights closer together so both axles solve inside the band.'
-      :'Adjust Ride Stiffness so the derived axle solves inside the band.';
+      // MULTIPLIER and INDEPENDENT. Only reachable under a SHARED reference, where the slider
+      // sets the AVERAGE and a ratio far from 1.0 throws one end of the split out of the band —
+      // the other references clamp these two modes without ever raising the flag.
+      :'Move the Rear/Front Multiplier toward 1.00, or adjust Ride Stiffness so both ends of the split land inside the band.';
     return `${what} ${advice}`;
   })();
   const responseFactors=(()=>{
@@ -4088,7 +4120,7 @@ function App(){
     // Recommendation target: co-solve/mech target when active, else neutral 0.50.
     // MAN ARB stiffness bypasses arbBalMode's solve entirely — unless Hz MECH mode is
     // separately still solving spring Hz toward the target — so a leftover arbBalMode of
-    // mech/coSolve from before switching to MAN must not count here (see KNOWN_ISSUES.md).
+    // mech/coSolve from before switching to MAN must not count here (see HISTORY.md).
     const hasMechTarget=((feEffective.arbMode??'auto')!=='man'&&(feEffective.arbBalMode==='coSolve'||feEffective.arbBalMode==='mech'))
       ||(feEffective.rearHzMode??'flatRide')==='mech';
     const targetBal=hasMechTarget?Math.max(0.20,Math.min(0.90,feEffective.arbBalTarget??0.55)):0.50;
@@ -4568,9 +4600,9 @@ function App(){
                        padding:'5px 12px 4px',borderBottom:'1px solid #0f172a'}}>
             <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS</span>
             <button className="tbtn" style={{fontSize:10}}
-              onClick={()=>setOpen(p=>Object.fromEntries(Object.keys(p).map(k=>[k,false])))}>−</button>
+              onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,false]))}))}>−</button>
             <button className="tbtn" style={{fontSize:10}}
-              onClick={()=>setOpen(p=>Object.fromEntries(Object.keys(p).map(k=>[k,true])))}>+</button>
+              onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,true]))}))}>+</button>
           </div>}
 
           {uiMode!=='beginner'&&<>
@@ -4793,7 +4825,7 @@ function App(){
                   // `+effBiasExit*0.15` term, ~index.html:840). That formula is intentionally
                   // uniform across layouts precisely because this UI layer already carries the
                   // per-layout inversion; flipping both would double-cancel and silently
-                  // reintroduce the original bug. See docs/KNOWN_ISSUES.md's MATCH CHASSIS entry.
+                  // reintroduce the original bug. See docs/HISTORY.md's MATCH CHASSIS entry.
                   value={ch.layout==='FWD'?-(dr.diffBiasExit??0):(dr.diffBiasExit??0)}
                   onChange={v=>pDr('diffBiasExit')(ch.layout==='FWD'?-v:v)}
                   min={-50} max={50}

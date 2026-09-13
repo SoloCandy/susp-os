@@ -165,14 +165,25 @@ INT/PRO BUILD section (safe only because the two were mutually exclusive on
 
 Sections are collapsed on load — `open` is plain `useState`, not persisted.
 
-**Every section needs its key initialised in that `useState`, even at `false`.**
-The SECTIONS `−`/`+` buttons blanket-toggle `Object.keys(p)`, so a key that only
-materialises once something writes it is silently skipped by expand-all until
-then. `alignment` was missing and behaved exactly that way: it collapsed
-correctly (undefined is falsy) and its own header toggled it fine, so the gap
-only showed as `+` not expanding that one section, and only in PRO. A tutorial
-step that writes the key papered over it further. Adding a section means adding
-its key here, not just rendering a `Sec`.
+`open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
+exactly one per `Sec`, all nine including `visuals` — are listed in `SECTION_KEYS`
+beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
+detail overlay), `factoryOpen` (the GARAGE factory list) and the four `vis*` cards
+nested *inside* the VISUALS section.
+
+**The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**
+They used to blanket-toggle every key, which reached the other six: `+` popped the
+balance overlay and every visualisation card open, `−` closed the factory list.
+Neither is what a control labelled SECTIONS should move, and the blast radius grew
+with every flag added to the object.
+
+**Adding a `Sec` means adding its key to `SECTION_KEYS` *and* to the initialiser.**
+A section missing from either is skipped by expand-all while still collapsing and
+toggling normally, so nothing looks broken. `alignment` was missing from the
+initialiser and behaved exactly that way: it read as falsy, its own header worked,
+and the only symptom was `+` not opening that one section, in PRO only — with a
+tutorial step that writes the key papering over even that. `tests-docs.js` checks
+the initialiser against every `open.*` and `tog('...')` use in the source.
 
 ---
 

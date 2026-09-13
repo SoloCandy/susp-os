@@ -23,7 +23,7 @@ Key empirical constants calibrated from real Forza data:
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
 | `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale) |
 | `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent |
-| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
+| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md) |
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
 | `DIFF_TYPE_SCALE` | race 1.00 / sport 0.88 / rally 0.76 / offroad 0.52 / drift 1.10 | AUTO solver multipliers per diff type. Community-estimated: same slider % produces less effective lock on Rally/Offroad than Race, more on Drift. Sport is accel-only (no decel slider in-game) |
 | `BRAKE_BIAS_SCALE` | 0.20 | Brake balance deviation → handling bias contribution |
@@ -262,7 +262,7 @@ cost is a corner case at `mr ≠ 1`: the printed value is snapped a second time 
 the output helper *after* the `/mr²` division, so it can sit up to half a step away
 from the rate the reported physics describes. At the default `mr` of 1.0 the two
 coincide exactly, so this only affects tunes that opt into the advanced field. See
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+[HISTORY.md](HISTORY.md).
 
 BeamNG does not expose motion ratio, and it differs per vehicle *and* per axle, so
 it cannot be derived — only entered. Left at 1.0 the output is the wheel rate.
@@ -380,7 +380,7 @@ so clipping it here would contradict the rest of the app.
 
 Before this, INDEPENDENT under SYNC/NEUTRAL did the opposite of both rules —
 it fed the same typed ζ to *both* axles and then clipped each to that axle's
-rebound ζ. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+rebound ζ. See [HISTORY.md](HISTORY.md).
 
 **`settleTimeFromZeta(zetaPct,hz)`** computes the displayed `settleF`/
 `settleR` (and, inverted, the SETTLE TIME back-solve above) from ζ and Hz.
@@ -457,7 +457,7 @@ Two consequences worth keeping in view, neither of them addressed here:
   grounds that critical damping is "the true fastest achievable". That
   holds inside the envelope model it inverts, and is self-consistent, but
   against the real response an aggressive target would be better served
-  near ζ≈59% than at 100%. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+  near ζ≈59% than at 100%. See [HISTORY.md](HISTORY.md).
 
 `computeTune` re-runs whichever of SYNC/NEUTRAL is active a second time
 after CO-SOLVE resolves `effectiveRHz`, so the settle-time or force split
@@ -516,7 +516,7 @@ frequency (dispatch lives in `feelToPhysics`):
   **+14.9 oversteer** before the user touched anything. `tests.js` pins the
   ratio at two speeds and two stiffnesses so the doubling cannot silently
   return. The default has since moved to MULTIPLIER (below) — see
-  [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for both behaviour-change notes.
+  [HISTORY.md](HISTORY.md) for both behaviour-change notes.
 
   **Two limits worth knowing before relying on this mode:**
 
@@ -605,7 +605,7 @@ frequency (dispatch lives in `feelToPhysics`):
   Without this, a MEASURE NAT BAL reading that differs from the geometric
   estimate made every one of these solvers "correct" a gap that wasn't
   real, even when the Balance Target sat exactly on the measured NAT (0
-  bias). See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full incident and
+  bias). See [HISTORY.md](HISTORY.md) for the full incident and
   all four sites this touched (`resolveCoSolveSpringShare`'s `R_baseline`,
   the CO-SOLVE `Kcs` pre-inversion's `Rbl`, `computeTune`'s ARB-split
   `_mechTgt`/`mechBalance`, and MECH's own `rsBalTgt`).
@@ -630,7 +630,7 @@ frequency (dispatch lives in `feelToPhysics`):
   undermines. Whichever side is cheaper for a given `S` absorbs more of the
   correction, and the search converges on the split where neither is
   disproportionately stressed. A prior version compared Hz distance against
-  the game's Hz range instead — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for
+  the game's Hz range instead — see [HISTORY.md](HISTORY.md) for
   why that mismatch left AUTO pinned at 100% spring / 0% ARB in almost
   every real case; a later fix (also documented there) is the floor term
   above, for the opposite failure — AUTO understating how much correction
@@ -643,6 +643,41 @@ frequency (dispatch lives in `feelToPhysics`):
   target, more of the correction landing on springs vs ARBs changes how much
   the fix also shifts PLANTED↔REACTIVE character as a side effect, not just
   which numbers move.
+
+### When the band clamp is reported (`physics.rearHzClamped`)
+
+Every mode above clamps its solved frequencies into `HZ_MIN..HZ_MAX`. One flag,
+`rearHzClamped`, says whether that clamp actually bit, and it drives three things:
+the amber banner under the RIDE rows, the matching `warnBox` in the output panel,
+and the `CLAMPED`/`⚠` markers on the Hz readouts.
+
+The name is historical — it means **the derived axle was clamped**, not
+specifically the rear. Under a REAR ride reference the derived axle is the front,
+and under SHARED both are solved together, so the banner names the axle it is
+actually talking about rather than always saying "Rear".
+
+Which modes can raise it:
+
+| Mode | Raises the flag? |
+|---|---|
+| FLAT RIDE | yes — the solve genuinely runs out of band |
+| MECH | yes |
+| SHARED | yes |
+| MULTIPLIER | only under a SHARED reference, where the slider sets the average and the ratio throws one end out of band; with a front or rear reference it clamps silently |
+| INDEPENDENT | no — the field itself is already clamped on entry |
+| CO-SOLVE | no — forced false, since `mechBalClamped` covers its limits instead |
+
+Two gaps here were closed together, both of which made the flag lie rather than
+merely under-report. Under a REAR reference the assignment step discarded the
+derived axle's clamp entirely and hard-set the flag false, so a front axle floored
+at `HZ_MIN` — ordinary with inverse FLAT RIDE at a low Target Speed — reported
+nothing at all. And in the SHARED multiplier and MECH paths `frontHz` carried only
+a `HZ_MIN` floor with no ceiling, so a multiplier below 1.0 printed a front Hz
+*above* `HZ_MAX` with no marker, while the multiplier path separately reported
+`clamped:false` unconditionally and hid a rear pinned at the ceiling. All three
+SHARED sites now share one `splitAvgHz` helper that clamps both axles and reports
+off the raw values — which also means a solve landing exactly *on* a bound no
+longer reports itself as clamped. See [HISTORY.md](HISTORY.md).
 
 ## RESPONSE / transient character (`responseFactors`)
 

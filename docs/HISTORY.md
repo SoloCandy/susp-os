@@ -13,6 +13,56 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — the Hz band clamp reported the wrong axle, or no axle at all
+
+`physics.rearHzClamped` is the single flag behind the amber RIDE banner, the output
+panel's `warnBox`, and the `CLAMPED`/`⚠` markers on the Hz readouts. It means "the
+derived axle was clamped", and three separate paths in `feelToPhysics` stopped it
+meaning that.
+
+**Under a REAR ride reference it was hard-set to `false`.** The primary/secondary
+assignment step wrote `rearHzClamped=false` instead of carrying
+`secondaryHzClamped` across, so every front-axle clamp went unreported — including
+the ordinary case of inverse FLAT RIDE at a low Target Speed, which floors the
+front at `HZ_MIN`. The reference axle is the one that is never clamped, so the flag
+was reporting the only axle that could not need it.
+
+**In the SHARED multiplier path it was hard-set to `false` too.** Avg 5.0 Hz at a
+×3.00 multiplier asks for a 7.50 Hz rear, silently delivers 5.50, and so delivers a
+2.2 ratio rather than the 3.0 requested, with nothing on screen saying so.
+
+**`frontHz` had no ceiling in the SHARED multiplier and MECH paths.** Both clamped
+it with `Math.max(HZ_MIN, …)` and no `Math.min(HZ_MAX, …)`, so a multiplier below
+1.0 — avg 5.0 Hz at ×0.50 gives 6.67 — printed a front Hz above the band with no
+marker beside it. The MECH path's flag test (`frontHz<=HZ_MIN||rearHz>=HZ_MAX`) also
+read the clamped results rather than the raw ones, so a solve landing exactly on a
+bound reported itself as clamped when nothing had moved.
+
+All three SHARED sites now go through one `splitAvgHz` helper that clamps both
+axles and derives the flag from the raw values, and the REAR assignment carries
+`secondaryHzClamped` through. The three sites were byte-identical copies of the
+same six lines, which is how two of them drifted from the third.
+
+Found alongside a rewrite of the banner copy itself, which had claimed a "1.6×
+front" cap that nothing has ever applied, told the user to *increase* Ride
+Stiffness (the wrong direction under a front reference, and contradicting the RIDE
+section's own advisory), and always said "Rear". The rewritten note was correct but
+unreachable for the REAR case until the flag was fixed — see
+[PHYSICS.md](PHYSICS.md) for which modes can raise it today.
+
+## Changed — SECTIONS −/+ no longer toggles things that are not sections
+
+The sidebar's SECTIONS `−`/`+` buttons mapped over `Object.keys(open)`. That object
+also holds `balanceExpanded`, `factoryOpen` and the four `vis*` visualisation cards,
+so `+` popped the balance detail overlay and every visualisation card open and `−`
+closed the GARAGE factory list — none of them sections, and the blast radius grew
+with every flag added to `open`.
+
+They now walk an explicit `SECTION_KEYS` list. This also replaces the invariant that
+a missing key silently opts a section out of expand-all: the earlier fix for
+`alignment` added the key to the initialiser, which worked, but left the next
+section to fall into the same trap. See [CODE_MAP.md](CODE_MAP.md).
+
 ## Fixed — the rear-Hz clamp warning described a cap that never existed (resolved)
 
 Both output layouts rendered "Rear Hz capped at 1.6× front" whenever

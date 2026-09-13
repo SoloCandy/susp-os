@@ -74,7 +74,7 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
   builds; every other combination lands front-biased because the
   CG/wheelbase weight-transfer term dominates. The floor was 50 until it was
   found to be silently truncating those cases — see
-  [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+  [HISTORY.md](HISTORY.md).
 
 ## Differential (`computeDiff`)
 

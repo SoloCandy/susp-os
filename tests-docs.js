@@ -82,6 +82,16 @@ function topLevelKeys(body) {
 }
 
 const stripComments = s => s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+// Comment-free source, computed once. Three checks below want it, and SRC is ~500KB, so
+// re-running both passes per check was three identical full scans for one run.
+const SRC_NC = stripComments(SRC);
+
+// The spring-frequency band, read off the code. Two things below need it — the doc
+// check and the sanitizeTune clamp resolver — and a literal copy in this file would be
+// exactly the drift this suite exists to catch, one file further out. Hoisted here
+// because check() bodies run as they are declared, before the later top-level statements.
+const HZ_BAND = /const HZ_MIN=([\d.]+),HZ_MAX=([\d.]+)/.exec(SRC_NC);
+if (!HZ_BAND) throw new Error('cannot parse HZ_MIN/HZ_MAX from index.html');
 
 // ── codec ───────────────────────────────────────────────────────────────────
 const codecBlockStart = SRC.indexOf('const CODEC_FIELDS=[');
@@ -110,7 +120,7 @@ check('every ch/fe/dr default key has a codec id or a documented exclusion', () 
   covered.add('ch.tyreF'); covered.add('ch.tyreR');
   const missing = [];
   for (const [group, name] of [['ch', 'DEF_CH'], ['fe', 'DEF_FE'], ['dr', 'DEF_DR']])
-    for (const key of topLevelKeys(objectBody(name)))
+    for (const key of topLevelKeys(stripComments(objectBody(name))))
       if (!covered.has(`${group}.${key}`) && !CODEC_EXCLUDED.includes(key))
         missing.push(`${group}.${key}`);
   return missing.length === 0 ||
@@ -124,7 +134,7 @@ check('every CODEC_EXCLUDED key is justified in CODEC.md', () => {
 
 check('DEF_GROUPS covers every group CODEC_FIELDS references', () => {
   const declared = new Set(Object.keys(
-    Object.fromEntries((stripComments(SRC).match(/const DEF_GROUPS=\{([^}]*)\}/)[1])
+    Object.fromEntries((SRC_NC.match(/const DEF_GROUPS=\{([^}]*)\}/)[1])
       .split(',').map(p => [p.split(':')[0].trim(), 1]))));
   const used = new Set(codecRows.filter(r => r.group).map(r => r.group));
   const orphan = [...used].filter(g => !declared.has(g));
@@ -158,7 +168,7 @@ check('CODEC.md "next available id" is max+1', () => {
 section('enum values');
 
 const enums = [];
-for (const m of stripComments(SRC).matchAll(/const (\w+_DEC)=\[([^\]]*)\]/g)) {
+for (const m of SRC_NC.matchAll(/const (\w+_DEC)=\[([^\]]*)\]/g)) {
   const values = [...m[2].matchAll(/'([^']*)'/g)].map(v => v[1]);
   enums.push({ name: m[1], values });
 }
@@ -177,7 +187,7 @@ check('every encoder index round-trips through its decoder array', () => {
   // retired 'balance' value decodes to 'auto' instead of throwing. That asymmetry
   // is the design, so the check only walks ENC → DEC.
   const problems = [];
-  for (const m of stripComments(SRC).matchAll(/const (\w+)_ENC=\{([^}]*)\}/g)) {
+  for (const m of SRC_NC.matchAll(/const (\w+)_ENC=\{([^}]*)\}/g)) {
     const base = m[1];
     const dec = enums.find(e => e.name === `${base}_DEC`);
     if (!dec) { problems.push(`${base}_ENC has no matching ${base}_DEC`); continue; }
@@ -190,18 +200,39 @@ check('every encoder index round-trips through its decoder array', () => {
   return problems.length === 0 || problems.join('; ');
 });
 
-check('every decoder value appears somewhere in docs/', () => {
+check("every decoder value is listed at its own index in CODEC.md's registry", () => {
   // Catches a newly appended enum value that no doc enumerates — the failure that
   // let the invisible 'manual' balance mode go undocumented in the one file whose
   // stated job is that no enum position is ever lost.
+  //
+  // Checked against that array's OWN registry row, index and value together. Two
+  // weaker versions were tried and rejected. A bare \b word match over all of docs/
+  // was green either way: 12 of these values are ordinary English (drift, ratio,
+  // roll, share, drag, independent) or saturate prose (front, rear, manual), so
+  // they matched any doc merely discussing the subject — including 'manual', the
+  // case the paragraph above cites, which means the check could never have caught
+  // the bug it was written for. Searching all of docs/ for a quoted literal was
+  // better but still not per-array: appending 'manual' to DAMP_BAL_MODE_DEC passed
+  // on ALIGN_MODE_DEC's documentation of its own, unrelated 'manual'.
+  //
+  // Pinning the index too means this now also guards against a REORDERED array,
+  // which is the codec's cardinal sin — every share code in circulation stores the
+  // index, never the string.
+  const esc = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rows = new Map();
+  for (const m of doc['CODEC.md'].matchAll(/^\|\s*`(\w+_DEC)`\s*\|([^|]*)\|/gm))
+    rows.set(m[1], m[2]);
   const problems = [];
-  for (const { name, values } of enums)
-    for (const v of values) {
-      if (!v) continue;
-      if (!new RegExp(`['\`]${v}['\`]|\\b${v}\\b`).test(ALL_DOCS))
-        problems.push(`${name}: '${v}'`);
-    }
-  return problems.length === 0 || `undocumented enum value(s): ${problems.join(', ')}`;
+  for (const { name, values } of enums) {
+    const row = rows.get(name);
+    if (row === undefined) { problems.push(`${name}: no row in CODEC.md's index registry`); continue; }
+    values.forEach((v, i) => {
+      if (!v) return;
+      if (!new RegExp(`(^|[^\\d])${i}\\s+\`${esc(v)}\``).test(row))
+        problems.push(`${name}[${i}] '${v}' not listed at that index`);
+    });
+  }
+  return problems.length === 0 || problems.join('; ');
 });
 
 // ── localStorage ────────────────────────────────────────────────────────────
@@ -285,8 +316,8 @@ check('PHYS_SNAP increments appear in PHYSICS.md', () => {
 });
 
 check('the Hz band constants appear in SLIDERS.md and PHYSICS.md', () => {
-  const m = /const HZ_MIN=([\d.]+),HZ_MAX=([\d.]+)/.exec(SRC);
-  const band = `${m[1]}–5.5`;
+  const m = HZ_BAND;
+  const band = `${m[1]}–${m[2]}`;
   const problems = [];
   for (const [label, text] of [['SLIDERS.md', doc['SLIDERS.md']], ['PHYSICS.md', doc['PHYSICS.md']]])
     if (!text.includes(m[1]) || !text.includes(m[2])) problems.push(label);
@@ -304,9 +335,18 @@ section('slider ranges vs sanitizeTune clamps');
 //
 // SLIDERS.md rows opt in with an invisible marker: <!--@range fe.targetSpeed-->
 // Markdown renders HTML comments as nothing, so the table reads identically.
+// Both ends are asserted rather than passed straight to slice(). indexOf returns -1
+// when an anchor moves, and slice() reads -1 as "one before the end" instead of
+// erroring — so a renamed useTwoTap would silently widen this to the whole file and
+// pull in cl(...) calls from elsewhere, while the size smoke-check below still passed.
+// Failing loudly here is the difference between a broken check and a lying one.
 const sanStart = SRC.indexOf('const sanitizeTune=');
-const sanitize = SRC.slice(sanStart, SRC.indexOf('\nconst useTwoTap', sanStart));
-const CONSTS = { HZ_MIN: '0.8', HZ_MAX: '5.5' };
+const sanEnd = SRC.indexOf('\nconst useTwoTap', sanStart);
+if (sanStart < 0 || sanEnd < 0)
+  throw new Error('cannot bound sanitizeTune in index.html: its declaration or the ' +
+                  'following `const useTwoTap` anchor moved — re-anchor this slice');
+const sanitize = SRC.slice(sanStart, sanEnd);
+const CONSTS = { HZ_MIN: HZ_BAND[1], HZ_MAX: HZ_BAND[2] };
 const clamps = new Map();
 for (const m of sanitize.matchAll(/(\w+):\s*cl\((ch|fe|dr)\?\.(\w+),\s*([^,]+?),\s*([^,]+?),/g)) {
   const resolve = v => (CONSTS[v.trim()] ?? v.trim());
@@ -354,13 +394,32 @@ check('the fe fields most prone to range drift are all marked', () => {
 // ── cross-doc consistency ───────────────────────────────────────────────────
 section('cross-doc consistency');
 
-check('no doc link points at a file that does not exist', () => {
+// GitHub's heading-slug rules: lowercase, drop everything that is not word/space/
+// hyphen, then each remaining space becomes a hyphen. Runs of spaces are NOT
+// collapsed, so "RESPONSE / transient character" slugs with a double hyphen.
+const slugsOf = text => new Set(
+  [...text.matchAll(/^#{1,6}[ \t]+(.+?)[ \t]*$/gm)]
+    .map(m => m[1].toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/ /g, '-')));
+const DOC_SLUGS = Object.fromEntries(Object.entries(doc).map(([f, t]) => [f, slugsOf(t)]));
+
+check('no doc link points at a file or heading that does not exist', () => {
+  // The fragment is checked, not discarded. Splitting a doc is exactly when anchors
+  // rot: this suite landed alongside a split that moved ~1,660 lines out of
+  // KNOWN_ISSUES.md into HISTORY.md, and a filename-only check calls every pointer
+  // into the moved half green, because the file it names still exists.
   const problems = [];
-  for (const [file, text] of Object.entries(doc))
-    for (const m of text.matchAll(/\]\(([A-Z_]+\.md)(#[\w-]*)?\)/g))
-      if (!doc[m[1]]) problems.push(`${file} → ${m[1]}`);
+  const resolve = (from, file, frag) => {
+    if (!doc[file]) { problems.push(`${from} → ${file} (no such file)`); return; }
+    const a = frag && frag.slice(1);
+    if (a && !DOC_SLUGS[file].has(a)) problems.push(`${from} → ${file}#${a} (no such heading)`);
+  };
+  for (const [file, text] of Object.entries(doc)) {
+    for (const m of text.matchAll(/\]\(([A-Z_]+\.md)(#[\w-]*)?\)/g)) resolve(file, m[1], m[2]);
+    // Same-file links carry no filename, and rot the same way.
+    for (const m of text.matchAll(/\]\((#[\w-]+)\)/g)) resolve(file, file, m[1]);
+  }
   for (const m of README.matchAll(/\]\(docs\/([A-Z_]+\.md)(#[\w-]*)?\)/g))
-    if (!doc[m[1]]) problems.push(`README.md → ${m[1]}`);
+    resolve('README.md', m[1], m[2]);
   return problems.length === 0 || `broken link(s): ${problems.join(', ')}`;
 });
 
@@ -379,9 +438,18 @@ check('no doc states a hardcoded line count for index.html', () => {
   const sources = { 'CLAUDE.md': fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8'), 'README.md': README, ...doc };
   for (const [file, text] of Object.entries(sources))
     for (const m of text.matchAll(/([\d][\d,]{2,})[- ]line\b/g)) {
-      // Allow it when the sentence is explicitly about the past.
-      const ctx = text.slice(Math.max(0, m.index - 120), m.index + 120);
-      if (/\buntil\b|\bused to\b|\bwas\b|\bran to\b|\bhistor/i.test(ctx)) continue;
+      // Allow it only when THIS CLAUSE is explicitly about the past. A ±120-char
+      // window was too coarse to mean anything: any unrelated "was" nearby exempted
+      // the live claim beside it, so "index.html is a 7,500-line file; the previous
+      // layout was three files" passed on the strength of the second clause alone.
+      // Bounded by . ! ? and ; — the semicolon matters, it is what separates those
+      // two clauses — but NOT by newline, since markdown wraps mid-sentence and the
+      // past-tense cue often lands on the following line.
+      const before = text.slice(0, m.index), after = text.slice(m.index + m[0].length);
+      const end = after.search(/[.!?;]/);
+      const clause = before.slice(before.search(/[.!?;][^.!?;]*$/) + 1)
+                   + m[0] + (end < 0 ? after : after.slice(0, end));
+      if (/\buntil\b|\bused to\b|\bwas\b|\bwere\b|\bran to\b|\bhistor/i.test(clause)) continue;
       problems.push(`${file}: "${m[0]}"`);
     }
   return problems.length === 0 ||

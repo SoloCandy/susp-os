@@ -137,6 +137,32 @@ assumed. The same reasoning applies to any future enum append.
 **Enum indices are as permanent as ids.** Renumbering `GAME_MODE_DEC` would
 silently reinterpret every code already in circulation. Append only.
 
+The full index registry, which is what "append only" is a promise about. Every
+value below is load-bearing at the position shown: a share code stores the index,
+never the string, so moving one reinterprets codes already in the wild.
+`tests-docs.js` checks that each of these values is written somewhere in `docs/`
+as a quoted or backticked literal, so a newly appended value cannot slip in
+undocumented.
+
+| Array | Index → value |
+|---|---|
+| `DIFF_TYPE_DEC` | 0 `race` · 1 `sport` · 2 `rally` · 3 `offroad` · 4 `drift` |
+| `ALIGN_MODE_DEC` | 0 `build` · 1 `mech` · 2 `grip` · 3 `manual` |
+| `GAME_MODE_DEC` | 0 `horizon` · 1 `motorsport` · 2 `beamng` |
+| `DAMPING_MODE_DEC` | 0 `ratio` · 1 `independent` |
+| `REAR_HZ_MODE_DEC` | 0 `flatRide` · 1 `independent` · 2 `multiplier` · 3 `mech` · 4 `shared` |
+| `ARB_MODE_DEC` | 0 `auto` · 1 `roll` · 2 `share` · 3 `auto` · 4 `man` · 5 `basic` |
+| `ARB_BAL_MODE_DEC` | 0 `weight` · 1 `mech` · 2 `coSolve` · 3 `man` · 4 `neutral` · 5 `chassis` · 6 `manual` |
+| `RIDE_REF_DEC` | 0 `front` · 1 `rear` · 2 `shared` |
+| `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` |
+| `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
+| `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
+
+`ARB_MODE_DEC` carries `auto` twice on purpose — index 3 is a retired `balance`
+value decoding to `auto` rather than throwing. `ALIGN_MODE_DEC` has no encoder
+and no id at all: `al` is not a codec group (see the excluded-fields section
+below), so only its membership test matters, not its order.
+
 ## Notes on semantic changes (id kept, meaning changed)
 
 Changing what a raw number *means* without changing its `id`/`group`/`key`
@@ -182,7 +208,7 @@ reinterprets old codes under new rules. Two examples so far:
   alongside the MAN migration. Same split formula as WEIGHT, but anchored to
   `naturalMechBalanceOf(ch)` (track-width geometry, or the MEASURE NAT BAL
   reading when set) instead of raw `ch.frontBias` — see
-  [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for why WEIGHT itself was deliberately
+  [HISTORY.md](HISTORY.md) for why WEIGHT itself was deliberately
   left on the simpler raw-weight formula rather than switched over.
 - **ids 48/49 (`settleBias`/`settleMode`) → id 62 (`dampBalMode`)** — the
   boolean "Settle Sync" toggle (id 49) plus its own bias field (id 48) were
