@@ -1627,16 +1627,24 @@ const DEF_AL={alignManual:false,
 const ALIGN_MODE_DEC=['build','mech','grip','manual'];
 const BRAKE_BIAS_SCALE=0.20;
 
+// Every preset authors damping as rebound ζ (CHARACTER), never as a Settle Target. Beginner's
+// loadPreset forces dampCharMode:'zeta', so a SETTLE preset silently fell back to DEF_FE's 70%
+// there while INT/PRO back-solved its target — STREET gave ζ≈30% in INT/PRO and 70% in BEG.
+// The one-decimal values below are what the old targets back-solved to (STREET 0.55s, TRACK
+// 0.40s, MOTORSPT 0.25s, X COUNTRY 1.00s at each preset's own Hz). On the default chassis they
+// leave every INT/PRO spring, damper and ARB output identical in all three game modes; on other
+// chassis the rounding can move a damper by one 0.1-click step. Whole numbers move several
+// dampers even on the default chassis. See docs/PRESETS.md.
 const PRESET_SAVES=(()=>{
   return{
     1:{name:'STREET',
        fe:{...DEF_FE,rideStiffness:2.20,rearHzMode:'multiplier',rearHzMult:1.15,
-           dampCharMode:'settle',settleTarget:0.55,
+           dampCharMode:'zeta',reboundZeta:30.3,
            bumpRatio:52,arbMode:'auto'},
        dr:{...DEF_DR,buildType:'street',diffType:'race',diffBiasExit:-10,diffBiasEntry:10}},
     2:{name:'TRACK',
        fe:{...DEF_FE,rideStiffness:2.50,rearHzMode:'multiplier',rearHzMult:1.05,
-           dampCharMode:'settle',settleTarget:0.40,dampingBias:5,
+           dampCharMode:'zeta',reboundZeta:36.6,dampingBias:5,
            bumpRatio:58,arbMode:'roll',arbTargetRollMan:1.5},
        dr:{...DEF_DR,buildType:'track',diffType:'race',diffBiasExit:5,diffBiasEntry:0}},
     3:{name:'RALLY',
@@ -1651,12 +1659,12 @@ const PRESET_SAVES=(()=>{
            diffBiasExit:22,diffBiasEntry:-18,diffRearAccel:65,diffRearDecel:15}},
     5:{name:'MOTORSPT',
        fe:{...DEF_FE,rideStiffness:3.20,rearHzMode:'multiplier',rearHzMult:0.92,
-           dampCharMode:'settle',settleTarget:0.25,dampingBias:10,
+           dampCharMode:'zeta',reboundZeta:45.8,dampingBias:10,
            bumpRatio:64,arbMode:'roll',arbTargetRollMan:0.8},
        dr:{...DEF_DR,buildType:'track',diffType:'race',diffBiasExit:10,diffBiasEntry:-5}},
     6:{name:'X COUNTRY',
        fe:{...DEF_FE,rideStiffness:0.90,rearHzMode:'multiplier',rearHzMult:1.00,
-           dampCharMode:'settle',settleTarget:1.00,dampingBias:5,
+           dampCharMode:'zeta',reboundZeta:40.7,dampingBias:5,
            bumpRatio:38,arbMode:'share',arbShareMan:5},
        dr:{...DEF_DR,buildType:'offroad',diffType:'offroad'}},
   };

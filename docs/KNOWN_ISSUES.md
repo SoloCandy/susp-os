@@ -13,6 +13,27 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — Beginner's Character slider cannot show three factory presets' damping
+
+The Character slider maps its −50..+50 position to `reboundZeta = 70 − v·0.5`, so it
+can only express **ζ 45–95%**, and its readout (`stAgVal`) clamps anything outside
+that to the end stop. Since the factory presets were converted to ζ (see
+[HISTORY.md](HISTORY.md)), three of them sit below the floor: STREET 30.3%, TRACK
+36.6%, X COUNTRY 40.7%. MOTORSPT's 45.8% is just inside.
+
+Loading one of those in Beginner shows Character pinned at **+50 AGILE**. The tune
+itself is correct — it is exactly what INT/PRO produce — but the first drag on
+Character rewrites ζ from the slider position, so STREET jumps from 30.3% to at
+least 45%, roughly 1.5× the rebound damping, from a one-step nudge.
+
+This was reachable before, by switching to Beginner with any tune under ζ 45%. The
+conversion made it the normal path for half the factory presets.
+
+**Not fixed here.** Widening the mapping does not move any stored tune — Character
+writes `reboundZeta` directly — but it re-slopes what every slider position means
+and what the readout shows for every Beginner user, and the new span (and whether
+bump ratio's `56 + v·0.22` follows it) is a feel decision rather than a bug fix.
+
 ## Open — alignment state travels in neither the share codec nor the garage
 
 `al` is the fourth state group (`suspos_al_v2`: `mode`, `nudgeStrength`, manual

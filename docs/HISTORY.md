@@ -13,6 +13,41 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — factory presets author damping as ζ, and Beginner no longer drops it
+
+STREET, TRACK, MOTORSPT and X COUNTRY stored their damping as Settle Targets
+(`dampCharMode:'settle'`, 0.55s / 0.40s / 0.25s / 1.00s) and carried no
+`reboundZeta` of their own. Beginner's `loadPreset` forces `dampCharMode:'zeta'`,
+so in Beginner those four presets silently fell back to `DEF_FE`'s 70% while INT
+and PRO back-solved the target. **The same preset produced two different tunes by
+tier.** On the default chassis in HORIZON, STREET gave rebound 4.3 / 4.5 clicks in
+INT/PRO and 9.9 / 10.5 in Beginner — more than double.
+
+It surfaced while seeding the Vehicle DNA archetypes: converted
+to ζ, the presets spanned 30–70% in an order that made no sense (STREET lighter
+than RALLY in INT/PRO, everything near 70% in Beginner).
+
+All four now use CHARACTER mode with the ζ their old target back-solved to at
+their own Hz, to one decimal: STREET 30.3, TRACK 36.6, MOTORSPT 45.8, X COUNTRY
+40.7.
+
+- **INT/PRO: unchanged.** Checked against the previous `index.html` with the real
+  solver across 6 presets × 3 chassis × 3 game modes: 52 of 54 identical in every
+  spring, damper and ARB output. The two exceptions are TRACK on a heavy FWD
+  chassis in HORIZON and MOTORSPORT, where front bump moves 5.2 → 5.1 — one 0.1-click
+  step from rounding 36.637 to 36.6. Whole numbers were tried and rejected: they
+  move dampers on the default chassis too.
+- **Beginner: changed deliberately.** It now gets the damping the presets were
+  authored with. STREET rebound 9.9 / 10.5 → 4.3 / 4.5, TRACK 11.2 / 10.9 → 5.9 /
+  5.7, MOTORSPT 14.3 / 12.2 → 9.4 / 8.0, X COUNTRY 4.0 / 3.7 → 2.3 / 2.2 (default
+  chassis, HORIZON). RALLY and DRIFT were already ζ presets and do not move.
+
+The trap worth remembering is that a mode override on load is only safe when every
+preset supplies the field that mode reads. PRESETS.md's "Adding a new preset" now
+says so. The conversion also makes an existing Beginner limitation routine — three
+of these ζ values sit below the Character slider's reach; see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 ## Fixed — the Hz band clamp reported the wrong axle, or no axle at all
 
 `physics.rearHzClamped` is the single flag behind the amber RIDE banner, the output

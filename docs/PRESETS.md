@@ -27,6 +27,10 @@ toggles, and its Balance slider's own mechanism assumes NEUTRAL ARB mode —
 see the Balance row in [SLIDERS.md](SLIDERS.md)), plus `dampCharMode:'zeta'`,
 `dampBalMode:'standard'`, and zeroed `dampingBias` since Beginner's
 Character slider only understands the simple rebound-ζ/bump-ratio model.
+That `dampCharMode` override is why every preset authors damping as
+`reboundZeta` and never as a Settle Target: a SETTLE preset carries no ζ of
+its own, so Beginner falls back to `DEF_FE`'s 70%. Four presets did exactly
+that until they were converted — see [HISTORY.md](HISTORY.md).
 It also forces `rearHzMode:'multiplier'` — omitted from this list until an
 audit caught it. That one matters for the Rear Hz Mult column below: a preset
 authored under a different Hz mode still lands on MULTIPLIER in Beginner, so
@@ -34,12 +38,12 @@ the ratio shown is the one actually applied there.
 
 | # | Name | Build Type | Diff Type | Ride Stiffness | Rear Hz Mult | Damping Char | Notes |
 |---|---|---|---|---|---|---|---|
-| 1 | STREET | street | race | 2.20 Hz | 1.15× | SETTLE 0.55s, bias 0 | Bump ratio 52, ARB AUTO. diffBiasExit −10 (GRIP-leaning), diffBiasEntry +10 (STABLE-leaning) |
-| 2 | TRACK | track | race | 2.50 Hz | 1.05× | SETTLE 0.40s, bias −5 (FRONT) | Bump ratio 58, ARB ROLL @ 1.5°. diffBiasExit +5, diffBiasEntry 0 |
+| 1 | STREET | street | race | 2.20 Hz | 1.15× | CHARACTER ζ=30.3, bias 0 | Bump ratio 52, ARB AUTO. diffBiasExit −10 (GRIP-leaning), diffBiasEntry +10 (STABLE-leaning) |
+| 2 | TRACK | track | race | 2.50 Hz | 1.05× | CHARACTER ζ=36.6, bias −5 (FRONT) | Bump ratio 58, ARB ROLL @ 1.5°. diffBiasExit +5, diffBiasEntry 0 |
 | 3 | RALLY | rally | rally | 1.55 Hz | 1.05× | CHARACTER ζ=58, bias +5 (REAR) | Bump ratio 38, ARB SHARE @ 8%. diffBiasExit −5, diffBiasEntry −15 |
 | 4 | DRIFT | drift | drift | 1.80 Hz | 1.30× | CHARACTER ζ=60, bias −18 (FRONT) | Bump ratio 40. diffBiasExit +22, diffBiasEntry −18, diffRearAccel 65, diffRearDecel 15 |
-| 5 | MOTORSPT | track | race | 3.20 Hz | 0.92× | SETTLE 0.25s, bias −10 (FRONT) | Bump ratio 64, ARB ROLL @ 0.8°. diffBiasExit +10, diffBiasEntry −5 |
-| 6 | X COUNTRY | offroad | offroad | 0.90 Hz | 1.00× | SETTLE 1.00s, bias −5 (FRONT) | Bump ratio 38, ARB SHARE @ 5% |
+| 5 | MOTORSPT | track | race | 3.20 Hz | 0.92× | CHARACTER ζ=45.8, bias −10 (FRONT) | Bump ratio 64, ARB ROLL @ 0.8°. diffBiasExit +10, diffBiasEntry −5 |
+| 6 | X COUNTRY | offroad | offroad | 0.90 Hz | 1.00× | CHARACTER ζ=40.7, bias −5 (FRONT) | Bump ratio 38, ARB SHARE @ 5% |
 
 > **STREET's diff type is `race`, not `sport`.** It was changed from `sport`
 > in `3960b38`, a commit whose message is entirely about surfacing the diff
@@ -56,10 +60,16 @@ the ratio shown is the one actually applied there.
   before layout/build-specific derivation.
 - **Rear Hz Mult** — `fe.rearHzMult` under `rearHzMode:'multiplier'`; ratio
   of rear to front spring frequency.
-- **Damping Char** — either `SETTLE` mode (`dampCharMode:'settle'`,
-  `settleTarget` in seconds, `dampingBias` skew) or `CHARACTER` mode
-  (`dampCharMode:'zeta'`, explicit `reboundZeta`, `dampBalMode` +
-  `dampingBias` — all six presets use the default `dampBalMode:'standard'`).
+- **Damping Char** — `CHARACTER` mode for all six (`dampCharMode:'zeta'`,
+  explicit `reboundZeta`, `dampBalMode` + `dampingBias` — all six use the
+  default `dampBalMode:'standard'`). STREET, TRACK, MOTORSPT and X COUNTRY
+  were authored as Settle Targets (0.55s, 0.40s, 0.25s, 1.00s); their ζ is
+  what those targets back-solved to at each preset's own Hz, to one decimal.
+  On the default chassis that keeps their INT/PRO output identical in all
+  three game modes; on other chassis the rounding can move one damper by a
+  single 0.1-click step. Three of them sit below ζ 45%, the floor of
+  Beginner's Character slider, which therefore loads pinned at AGILE — see
+  [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
   The "bias" figure above is the **Damping Bias slider's own reading**,
   which is `-dampingBias` in *every* mode — the slider is a single
   unconditional negation (`value={-(fe.dampingBias??0)}`, `leftLabel="FRONT"`
@@ -103,6 +113,9 @@ feature rather than a deliberate gate:
 
 - Add a new numbered entry to `PRESET_SAVES`, spreading `DEF_FE`/`DEF_DR`
   and overriding only what's distinctive about the preset.
+- Author damping as `dampCharMode:'zeta'` with an explicit `reboundZeta`,
+  never as a `settleTarget`. Beginner's `loadPreset` forces CHARACTER mode, so
+  a Settle Target would be silently replaced by `DEF_FE`'s 70% there.
 - Update `PRESET_DESC` (module scope, one copy — it used to be duplicated in the
   Beginner panel and the BUILD section, with diverging text; unifying the garage
   collapsed them) with a `tag`/`sub` description pair.
