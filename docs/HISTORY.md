@@ -23,7 +23,7 @@ and PRO back-solved the target. **The same preset produced two different tunes b
 tier.** On the default chassis in HORIZON, STREET gave rebound 4.3 / 4.5 clicks in
 INT/PRO and 9.9 / 10.5 in Beginner — more than double.
 
-It surfaced while seeding the Vehicle DNA archetypes: converted
+It surfaced while seeding the Vehicle DNA archetypes ([DNA.md](DNA.md)): converted
 to ζ, the presets spanned 30–70% in an order that made no sense (STREET lighter
 than RALLY in INT/PRO, everything near 70% in Beginner).
 

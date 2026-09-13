@@ -104,6 +104,7 @@ Reference docs for maintainers:
 - [CODEC.md](docs/CODEC.md) — the share-code field ID table (never reuse an id)
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
+- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (**design only — not implemented yet**)
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
 
