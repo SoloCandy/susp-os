@@ -4793,8 +4793,12 @@ function App(){
               const dt=dr.diffType??'race';
               // Same left/right vocabulary (GRIP↔ROTATE) regardless of layout — previously FWD
               // used PUSH↔ROTATION for the same slider, which read as a different control when
-              // switching layouts. Direction is consistent: right = more lock = more rotation-
-              // leaning, same as RWD/AWD always used.
+              // switching layouts. What is consistent is the BALANCE direction: right = more
+              // rotation-leaning on every layout. That is *not* the same as "more lock" — on
+              // RWD/AWD right adds rear accel lock, but on FWD right REDUCES front accel lock
+              // (via the value flip below), because more front lock means more push. Conflating
+              // the two is what put the wrong lock direction in the FWD hint text below; see
+              // docs/HISTORY.md.
               return(<>
                 {ch.layout==='AWD'&&uiMode!=='beginner'&&<>
                   <div style={groupHdr}>FRONT AXLE</div>
@@ -4833,7 +4837,7 @@ function App(){
                   rightLabel="ROTATE"
                   markers={[{value:0,color:'#475569'}]}
                   hint={(ch.layout==='FWD'
-                    ?'Front diff accel lock. Toward GRIP reduces lock — more traction but more understeer on corner exit is avoided. Toward ROTATE increases lock for cleaner pivot and less push.'
+                    ?'Front diff accel lock. Toward GRIP increases lock — more corner-exit traction, but more push. Toward ROTATE reduces lock for a freer pivot and less understeer.'
                     :ch.layout==='RWD'
                     ?'Rear diff accel lock. Toward ROTATE increases lock — more power oversteer on exit. Toward GRIP reduces lock for cleaner exit traction.'
                     :'Rear diff exit character. Toward ROTATE increases rear accel lock — more oversteer on exit. Toward GRIP reduces rear accel lock for traction.')

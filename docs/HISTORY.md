@@ -13,6 +13,78 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — the FWD EXIT hint named the wrong lock direction
+
+The EXIT slider's FWD hint read "Toward GRIP reduces lock … Toward ROTATE
+increases lock for cleaner pivot and less push". Both halves were backwards.
+On FWD the slider is displayed flipped
+(`value={ch.layout==='FWD'?-(dr.diffBiasExit??0):…}`) while `computeDiff`'s
+accel term keeps RWD's sign, so the ROTATE end is *less* front accel lock, not
+more. Probed against the real `computeDiff` (FWD, 60% front, Track/Race):
+
+| EXIT slider | stored `diffBiasExit` | front Accel | `bDiffAccel` |
+|---|---|---|---|
+| −50 (GRIP) | +50 | 28% | −2.35 |
+| 0 | 0 | 20% | −1.68 |
+| +50 (ROTATE) | −50 | 13% | −1.09 |
+
+The slider itself is correct — right is still the oversteer-leaning end, because
+*less* front lock is what frees a FWD car's rotation, and `bDiffAccel` rises
+from −2.35 to −1.09 across that sweep. Only the hint's description of the lock
+was wrong, and it contradicted the `Accel %` readout sitting directly beneath
+it. `tests.js` already asserted the underlying direction ("FWD: higher
+EXIT/ENTRY → more accel lock" on the *stored* value), and the MATCH CHASSIS
+entry below recorded the same measurement from a live check — the hint was
+never checked against either.
+
+Rewritten to mirror the RWD/AWD phrasing: "Toward GRIP increases lock — more
+corner-exit traction, but more push. Toward ROTATE reduces lock for a freer
+pivot and less understeer."
+
+The block comment above the slider was the likelier source of the error — it
+asserted "right = more lock = more rotation-leaning, same as RWD/AWD always
+used", chaining a true claim (right = more rotation-leaning, every layout) to a
+false one (right = more lock, FWD excepted). Corrected to separate the two,
+since that conflation is exactly what the hint encoded. The AWD front-axle EXIT
+hint (PUSH↔NEUTRAL, `diffFrontExitBias`) was checked at the same time and is
+correct: PUSH does increase front accel lock there.
+
+**Lesson:** on FWD, balance direction and lock direction point opposite ways —
+that is the whole reason the UI flip exists. Any copy about this slider has to
+say which of the two it is describing. The `Accel %` readout under the slider
+is the cheapest check available: sweep the slider and read it.
+
+## Fixed — PRESETS.md described the diff-bias *slider* sign as the stored sign
+
+[PRESETS.md](PRESETS.md)'s "Reading the columns" section sent readers to
+[SLIDERS.md](SLIDERS.md) for `diffBiasExit`/`diffBiasEntry` with the gloss
+"positive = oversteer-leaning per the convention documented there". SLIDERS.md's
+convention is the app-wide **right = OVERSTEER** rule for *sliders*, and both of
+these sliders reach it through a sign flip, so the gloss was wrong for the
+stored values the preset table actually lists:
+
+- `dr.diffBiasEntry` stored positive is **STABLE** (understeer-leaning) on every
+  layout — `computeDiff` says so in a comment (`−50=loose, +50=stable`), and the
+  slider negates unconditionally (`value={-(dr.diffBiasEntry??0)}`). The same
+  table's STREET row already read `diffBiasEntry +10 (STABLE-leaning)`, directly
+  contradicting the column note a few lines below it.
+- `dr.diffBiasExit` stored positive is more accel lock on the driven axle, which
+  is oversteer-leaning only on RWD/AWD; the slider flips it for FWD, where the
+  reading is GRIP.
+
+Corrected in place: the column note now describes the stored fields and names
+the flip at each slider, and the preset rows spell the side out per row the way
+the Damping Char column does (RALLY `−15` and DRIFT `−18` as LOOSE-leaning,
+exit sides qualified "on RWD/AWD"). SLIDERS.md's EXIT/ENTRY rows keep their
+correct `Right = OVERSTEER-leaning` reading and now state the stored polarity
+beside it, since PRESETS.md points there.
+
+**Lesson:** "positive = oversteer" is three different claims in this codebase —
+the `bXxx` contributor sign ([FORMULAS.md](FORMULAS.md)), the slider reading
+([SLIDERS.md](SLIDERS.md)), and the stored field. A doc that hands one
+convention off to another doc by reference is where they get conflated. No code
+changed.
+
 ## Fixed — the Hz band clamp reported the wrong axle, or no axle at all
 
 `physics.rearHzClamped` is the single flag behind the amber RIDE banner, the output
