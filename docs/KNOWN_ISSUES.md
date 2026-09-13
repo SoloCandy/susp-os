@@ -13,6 +13,24 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — the TRACK preset's roll target is out of reach at its own spring rate
+
+TRACK uses ARB Stiffness Mode ROLL ° with a **1.5°** target at 2.50 Hz (×1.05 rear).
+On the default chassis its springs alone hold the car to **1.32°** — flatter than the
+target — so the solver has no bar budget to give, both bars sit on the 1-click floor,
+and `rollClamped` is true the moment the preset loads. The output card's roll-short
+note is telling the truth.
+
+In Forza the bars are a small share of total roll stiffness (MOTORSPT's roughly 40
+clicks supply about an eighth), so the roll angles a given spring rate can reach form
+a narrow window whose top is the springs-only figure. A ROLL ° target has to sit
+inside it. Found while seeding Vehicle DNA's roll axis, whose first ranges copied this
+mistake; see [DNA.md](DNA.md).
+
+**Not fixed here.** Lowering the target (anything under about 1.3° on the default
+chassis) or softening the springs changes what TRACK loads for every user, and which
+of the two is right is a tuning decision. MOTORSPT's 0.8° at 3.20 Hz is reachable.
+
 ## Open — Beginner's Character slider cannot show three factory presets' damping
 
 The Character slider maps its −50..+50 position to `reboundZeta = 70 − v·0.5`, so it

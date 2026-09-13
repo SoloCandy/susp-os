@@ -104,7 +104,7 @@ Reference docs for maintainers:
 - [CODEC.md](docs/CODEC.md) — the share-code field ID table (never reuse an id)
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
-- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (**design only — not implemented yet**)
+- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (**core implemented and tested; no UI yet**)
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
 
@@ -118,6 +118,7 @@ No build tools required. Open `index.html` in a browser, edit with any text edit
 node tests.js          # physics unit tests (mirrored copy — see CODE_MAP.md)
 node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
 node tests-docs.js     # documentation drift checks (reads index.html and docs/)
+node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

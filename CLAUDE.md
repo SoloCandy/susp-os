@@ -36,7 +36,7 @@ Adding a slider with a `sanitizeTune` clamp? Mark its SLIDERS.md row with
 marker as nothing.
 
 `docs/CODE_MAP.md`'s "Testing reality" section carries the full routine — the
-other two suites, what each one can and cannot prove, and why the browser is
+other three suites, what each one can and cannot prove, and why the browser is
 still the only real verification.
 
 ## Habits worth keeping

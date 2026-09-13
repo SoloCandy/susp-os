@@ -4,11 +4,15 @@ A saved, chassis-portable description of *how a car should drive* — sharp and
 agile, compliant and forgiving, planted, tail-happy — that is applied to whatever
 chassis is loaded by solving the tune that produces it on that car.
 
-> **Status: design only. None of this exists in `index.html` yet.** There is no
-> `compileDNA`, no `measureDNA`, no `suspos_dna_v1` key and no DNA section. Do not
-> grep for them. When the feature lands, the facts below move into the docs that
-> own them (see [Doc obligations on implementation](#doc-obligations-on-implementation))
-> and this file becomes the feature's reference rather than its proposal.
+> **Status: core implemented, no UI.** `index.html` has the pure layer —
+> `resolveFeEffective`, `gripNeutralOf`, and under the `── Vehicle DNA ──` banner
+> `DNA_AXES`, `sanitizeDNA`, `compileDNA`, `measureDNA`, `dnaTolerances`,
+> `dnaEvaluate` and `applyDNA`, plus `DNA_ARCHETYPES` beside the factory presets —
+> and `tests-dna.js` exercises it. Nothing in `App` calls the DNA functions yet: there
+> is no `suspos_dna_v1` key, garage payload, DNA section or VISUALS card. The sections
+> on storage and UI below are still design. When the UI lands, the remaining facts
+> move into the docs that own them (see
+> [Doc obligations when the UI lands](#doc-obligations-when-the-ui-lands)).
 
 Scope note: this file is the design of a layer that sits *above* the solver. It
 introduces no new physics and no new calibration constant. The solve math it
@@ -266,14 +270,15 @@ exactly and derive the other. With `rideRef:'front'`, `tune.zetaF` is the stored
 neither axle holds it, so rebound ζ would never round-trip. `platformHz` is
 therefore the front axle's frequency, not an average.
 
-### Prerequisite: one `feEffective` funnel
+### One `feEffective` funnel
 
 `feEffective` — the step that resolves `arbBalTarget` (a stored delta) or GRIP's
-`arbBalDelta` into the absolute target the physics sees — is built inline in `App`.
-The compiler must run the identical resolution. Extract it as a pure
-`resolveFeEffective(ch, fe)` that `App` also calls. A second copy would repeat the
-`natOffset` incident, where one idea implemented at four sites drifted apart (see
-[HISTORY.md](HISTORY.md)).
+`arbBalDelta` into the absolute target the physics sees — used to be built inline in
+`App`. The compiler has to run the identical resolution, so it is now the pure
+`resolveFeEffective(ch, fe)`, and `App`'s `feEffective` is a call to it; grip-neutral
+itself is `gripNeutralOf(ch)`. A second copy would have repeated the `natOffset`
+incident, where one idea implemented at four sites drifted apart (see
+[HISTORY.md](HISTORY.md)). `tests-dna.js` fails if an inline copy reappears.
 
 ---
 
@@ -290,20 +295,31 @@ configuration: under MULTIPLIER with a FRONT reference the rear axle is clamped 
 the Hz band with `rearHzClamped` forced false (see
 [PHYSICS.md](PHYSICS.md#when-the-band-clamp-is-reported-physicsrearhzclamped)).
 
-| Axis | Tolerance | Source of the tolerance |
+`dnaTolerances(tune, gameMode)` sets each allowance to half of one quantisation step
+of whatever produced the number, so rounding the game imposes is never reported as a
+miss:
+
+| Axis | Tolerance | Source |
 |---|---|---|
-| `platformHz` | 0.01 Hz | `sanitizeTune` rounds `rideStiffness` to 0.01 |
-| `pitchRatio` | 0.01 | — |
-| `rollDegPerG` | 0.05° | `rollClamped`'s own threshold |
+| `platformHz` | 0.005 Hz, plus half a 500 N/m spring step in Hz in physical modes (`ΔHz/Hz = ½·Δk/k`) | `sanitizeTune`'s 0.01 Hz rounding; `PHYS_SNAP.spring` |
+| `pitchRatio` | exact in Forza; the two axles' half spring steps in physical modes | `PHYS_SNAP.spring` |
+| `rollDegPerG` | 0.05° | `rollClamped`'s own threshold, already downstream of ARB click rounding |
 | `balanceOffset` | 0.01 | `mechBalClamped`'s own threshold |
-| `reboundZeta` | the ζ one 0.1 click represents at this Hz and corner mass | `clampDamp` rounding |
+| `reboundZeta` | ζ × half a damper step ÷ the rebound value — 0.05 click in Forza, 50 N·s/m in physical modes | `clampDamp` rounding; `PHYS_SNAP.damp` |
+| `bumpRatio` | the same, summed over the rebound and bump dampers | as above |
+| setting axes | exact | written verbatim |
+
+`tests-dna.js` checks this against the app's own flags: across fixtures, game modes and
+a grid of roll and balance targets, a DNA roll hit is exactly `!rollClamped`, a balance
+hit is exactly `!mechBalClamped`, and no damping miss is reported while
+`dampingClamped` is false.
 
 ### Which axes can give way
 
 | Missed axis | Cause | Candidates that can move |
 |---|---|---|
 | `pitchRatio` | `platformHz · pitchRatio` outside `HZ_MIN`..`HZ_MAX` | `pitchRatio`, `platformHz` |
-| `reboundZeta` | `tune.dampingClamped` — the pair was scaled to fit the click range | `reboundZeta`, `platformHz` (lower Hz needs fewer clicks) |
+| `reboundZeta` or `bumpRatio` | `tune.dampingClamped` — a pair was scaled to fit the click range (down at the ceiling, up off the 1-click floor) | `reboundZeta`, `platformHz` (lower Hz needs fewer clicks, higher Hz more). `bumpRatio` is not ranked; the row uses `reboundZeta`'s rank |
 | `rollDegPerG` | `tune.rollClamped` — springs alone already stiffer than the target, or bars at ceiling | `rollDegPerG`, `platformHz` (springs carry the roll) |
 | `balanceOffset` | `tune.mechBalClamped`, or the `gripBalTarget` clamp | `balanceOffset`, `pitchRatio` (springs take part of the correction), `rollDegPerG` (a bigger bar budget gives the split more authority) |
 
@@ -314,27 +330,46 @@ Resolving roll first often clears balance for free.
 
 ### The resolver
 
-1. Compile directly and measure.
-2. Take the first missed axis in the table's order.
-3. Among its candidates, pick the one ranked **lowest** in `keep`.
-   - If that is the missed axis itself, **accept the miss**: record it and move on.
-   - Otherwise bisect the candidate's field until the miss clears or the candidate's
-     range is exhausted, then try the next-lowest candidate.
-4. Direction of each move comes from the residual's sign: roll too flat → lower
-   `platformHz`; roll too loose at the bar ceiling → raise it; damping clamped →
-   lower it; balance short of an oversteer target → raise `pitchRatio`, short of an
-   understeer target → lower it; balance short on bar authority → lower
-   `rollDegPerG`.
-5. A move can create a new miss earlier in the table (lowering Hz changes damper
-   clicks), so restart from step 2. Cap at four passes and report what remains.
+`applyDNA(ch, fe, dr, dna)`:
 
-Bisection is about 15 forward solves; a realistic apply is well under 100.
-`computeTune` is pure and cheap, so this costs nothing perceptible.
+1. `sanitizeDNA`, compile, and measure.
+2. Take the first row in the table whose axes miss and that has not been accepted.
+3. Try its candidates **least protected first**. Reaching the missed axis itself means
+   everything left is more protected, so the miss is **accepted** instead.
+4. A candidate is searched toward **both** ends of its range: 96 steps outward from its
+   current value, then bisection inside the first step that clears. The nearer
+   clearing value wins. It clears only if the missed axes hit, the candidate hits its
+   own new value, and every axis ranked above the candidate that currently hits still
+   hits — a move may only spend axes ranked below itself.
+5. After any move, every accepted miss is judged again, because a move can unblock one:
+   lowering pitch for balance can make a roll miss fixable that no platform value
+   could fix before. Stop after `DNA_MAX_MOVES` (4) moves or when nothing is left to
+   resolve.
 
-Every move is recorded as `{axis, from, to, because}` for the match readout — e.g.
-*roll 3.0 → 2.2°/g, bars at 65 clicks* — so the app never presents a compromise as
-the target. This is the same principle as `impliedZeta` and the ARB stiffness being
-recomputed from clamped clicks.
+There is no per-axis direction table. An earlier draft of this section listed one
+("roll too flat → lower `platformHz`" and so on); searching both ways gets the same
+answers without a table that could be written backwards.
+
+The result carries `moves` (`{axis, from, to, protects, cause}`), `misses`
+(`{axis, target, achieved, cause}`) and `inexpressible`, for the match readout — e.g.
+*roll 3.0 → 2.2°/g, anti-roll bars at their limit* — so the app never presents a
+compromise as the target. This is the same principle as `impliedZeta` and the ARB
+stiffness being recomputed from clamped clicks. A typical apply takes well under a
+millisecond; `tests-dna.js` fails if the worst case in its sample reaches 50 ms.
+
+**Limits worth knowing:**
+
+- **One axis at a time.** Keeping a protected axis by moving two lower-ranked ones
+  together is not searched. TAIL-HAPPY on a front-heavy or staggered chassis in Forza
+  shows it: raising pitch would reach balance but breaks roll, which TAIL-HAPPY ranks
+  above pitch, and roll alone cannot reach balance — so the balance miss is accepted,
+  even though moving pitch *and* platform together might have kept both.
+- **Resolution.** A clearing window narrower than one 96th of an axis's range can be
+  stepped over. Such windows are real: on a 60% front chassis MOMENTUM's balance clears
+  only across roughly 0.07 of pitch, because raising the rear spring rate eats the
+  bar budget ROLL ° leaves. A 12-step first version missed exactly those. A window
+  that is missed is reported as a miss, never hidden.
+- **Greedy.** Rows resolve in dependency order, not by a global optimum.
 
 The resolver reads the same measurements in all three game modes. BeamNG has no
 click ceilings, so `dampingClamped` and bar-ceiling roll misses do not arise there;
@@ -355,17 +390,19 @@ nothing branches on the mode name.
 match readout shows.
 
 ```js
-gripTarget    = 1 - balanceFromRsBal(ch, naturalMechBalanceOf(ch))
 platformHz    = tune.fHz
 pitchRatio    = tune.rHz / tune.fHz
 rollDegPerG   = tune.rollDeg
-balanceOffset = tune.mechBalance - gripTarget
+balanceOffset = tune.mechBalance - gripNeutralOf(ch)
 reboundZeta   = tune.zetaF
 bumpRatio     = 100 * tune.bumpZetaF / tune.zetaF
-dampBias      = fe.dampBalMode === 'sync' ? -fe.dampingBias : null
-diffExit      = !dr.diffManual ? (ch.layout === 'FWD' ? -dr.diffBiasExit : dr.diffBiasExit) : null
-diffEntry     = !dr.diffManual && dr.diffType !== 'sport' ? -dr.diffBiasEntry : null
+dampBias      = fe.dampBalMode === 'sync' ? dnaNeg(fe.dampingBias) : null
+diffExit      = dr.diffManual ? null : (ch.layout === 'FWD' ? dnaNeg(dr.diffBiasExit) : dr.diffBiasExit)
+diffEntry     = dr.diffManual || dr.diffType === 'sport' ? null : dnaNeg(dr.diffBiasEntry)
 ```
+
+`dnaNeg` negates without producing −0, which would survive JSON as 0 but fail
+`Object.is` against it; `compileDNA` uses it for the same three fields.
 
 `tune.mechBalance` and `gripBalTarget` are on the same scale — both include the
 tyre-width and MEASURE NAT BAL corrections — which is what `mechBalClamped` already
@@ -452,7 +489,7 @@ stored format.
 |---|---|---|---|---|
 | `platformHz` | 2.6–3.0 | 1.4–1.8 | 3.0–3.6 | 2.0–2.4 |
 | `pitchRatio` | 1.10–1.15 | 1.00–1.05 | 0.92–1.00 | 1.15–1.30 |
-| `rollDegPerG` | 1.0–1.4 | 2.5–3.5 | 0.6–0.9 | 1.4–2.0 |
+| `rollDegPerG` | 0.85–0.95 | 2.8–3.2 | 0.72–0.80 | 1.25–1.45 |
 | `balanceOffset` | −0.010..−0.005 | −0.045..−0.025 | −0.030..−0.020 | 0.000..+0.020 |
 | `reboundZeta` | 36–42 | 55–60 | 43–48 | 38–44 |
 | `bumpRatio` | 52–58 | 36–42 | 60–66 | 44–50 |
@@ -461,8 +498,8 @@ stored format.
 | `diffEntry` | 0 | +15 | −5 | +10 |
 | `keep` (most protected first) | platform, balance, pitch, roll, ζ | platform, balance, ζ, pitch, roll | platform, roll, pitch, balance, ζ | balance, roll, ζ, platform, pitch |
 
-Anchors: RALLY 1.55 Hz / ×1.05 / bump 38; MOTORSPT 3.20 Hz / ×0.92 / bump 64 /
-roll 0.8°; DRIFT ×1.30. RALLY's damping and diff seeds are the RALLY preset's
+Anchors: RALLY 1.55 Hz / ×1.05 / bump 38; MOTORSPT 3.20 Hz / ×0.92 / bump 64;
+DRIFT ×1.30. RALLY's damping and diff seeds are the RALLY preset's
 values converted to slider convention per [Sign conventions](#sign-conventions)
 (stored `diffBiasEntry −15` reads +15 LOOSE), and GT3's `dampBias` is MOTORSPT's. The
 other damping and diff seeds are judgement calls with no preset behind them.
@@ -472,6 +509,29 @@ rally 0.30–0.55, track 0.55–0.95, drift 0.90–1.55) converted at the defaul
 whose gap is 0.061, and rounded to 0.005. They are small because that chassis is
 nearly balanced to begin with, and several sit inside the resolver's own 0.01
 tolerance of neutral. Of all the seeds, these most need in-game tuning.
+
+### Roll seeds sit inside what the platform allows
+
+The first roll ranges were copied from the presets' ROLL ° targets, and two of them
+could not be met. In Forza the bars add little roll stiffness — at about 40 clicks MOTORSPT's
+bars supply roughly an eighth of the total — so at a given spring rate the reachable roll
+window is narrow, and its top is whatever the springs alone produce. Measured on the
+default chassis, reachable in both Forza modes:
+
+| Archetype | Platform / pitch | Reachable roll | First seed | Now |
+|---|---|---|---|---|
+| MOMENTUM | 2.80 Hz / ×1.125 | 0.81–1.03° | 1.20° — flatter than asked, bars at 1 click | 0.90° |
+| RALLY / B-ROAD | 1.60 Hz / ×1.025 | 2.15–3.32° | 3.00° | 3.00° |
+| GT3 | 3.30 Hz / ×0.96 | 0.72–0.87° | 0.75° | 0.76° |
+| TAIL-HAPPY RWD | 2.20 Hz / ×1.225 | 1.14–1.49° | 1.70° — flatter than asked, bars at 1 click | 1.35° |
+
+Each new range sits inside its window where the personality puts its bars: MOMENTUM and
+GT3 toward the stiff end, RALLY near the soft top, TAIL-HAPPY in the middle. The
+windows move with the chassis, so on other chassis the resolver still decides.
+
+The TRACK preset has the same problem, and it predates this work: it asks for 1.5° at
+2.50 Hz, where its springs alone hold the default chassis to 1.32°. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ### Rebound ζ seeds
 
@@ -506,28 +566,43 @@ quantity the app computes and a sign the inputs determine.
 
 ---
 
-## Verification plan
+## Tests
 
-A `tests-dna.js` suite that lifts the real functions out of `index.html` the way
-`tests-beamng.js` does — a mirror could not catch a compiler that drifted from the
-solver it drives.
+`tests-dna.js` lifts the real functions out of `index.html` the way `tests-beamng.js`
+does — a mirror could not catch a compiler that drifted from the solver it drives.
 
-1. **Round-trip.** For DNAs whose targets are reachable, `measureDNA(compileDNA(p))`
-   matches `p` within the tolerance table.
-2. **Portability.** The same `p` on every chassis in the
-   [synthetic set](#synthetic-chassis-set) measures the same on every axis that did
-   not miss. **If this fails, the model is wrong** — which is why it runs before any
-   UI exists.
-3. **Solver untouched.** A compiled patch is a fixed point of `sanitizeTune`, and the
-   stamped tune survives a share-code round trip.
-4. **Honest reporting.** Every recorded resolver move corresponds to a real residual;
-   an unreachable target is reported, never silently replaced.
-5. **Sign conventions.** Each setting axis compiles and measures back to itself on
-   FWD, RWD and AWD.
+1. **One funnel.** `resolveFeEffective` matches TARGET and GRIP resolution, and `App`
+   calls it rather than an inline copy.
+2. **Solver untouched.** Axis defaults match `DEF_FE`/`DEF_DR`; every range end and
+   every compiled archetype is a `sanitizeTune` fixed point on every layout and game
+   mode; the patch adds no unknown keys and leaves unrelated fields alone.
+3. **Sign conventions.** Each setting axis compiles and measures back to itself on
+   FWD, RWD and AWD; the three slider expressions it mirrors are pinned in the source;
+   zero never compiles to −0; Sport's ENTRY reads as inexpressible.
+4. **Independent oracle.** Miss detection agrees with `rollClamped`,
+   `mechBalClamped` and `dampingClamped` (see the tolerance table). Forza platform and
+   pitch read back exactly; BeamNG's stay within the spring-grid tolerance.
+5. **Portability.** The fixtures still cover both gap signs and near-zero; in BeamNG,
+   where bars have no ceiling, every archetype that ranks balance first or second lands
+   it on every fixture; the same offset lands on the balanced and rear-biased chassis
+   that broke the gap fraction.
+6. **Resolver.** Each conflict — pitch band, springs stiffer than the roll target,
+   damper ceiling, damper floor, bar authority for balance — gives way in `keep` order
+   both ways round; an out-of-range balance target is never chased.
+7. **Invariants**, over every archetype and a seeded fuzz set on every fixture and game
+   mode: moves stay within the cap and the axis ranges; no axis moves to save a
+   less-protected one; nothing ranked above every moved axis is broken; every axis off
+   its target was moved or reported; every outcome miss has a cause; resolved tunes
+   are `sanitizeTune` fixed points; re-applying a resolution moves nothing; the worst
+   case stays under 50 ms.
 
-Then the browser routine in [CODE_MAP.md](CODE_MAP.md): compile-check, PRO tier,
-APPLY on a stock chassis, VISUALS DNA MATCH, an edited chassis showing drift,
-RE-APPLY.
+The invariants were also run one-off against 4,500 random chassis and DNAs over three
+seeds with no violations. That first surfaced the accepted-miss re-judging in step 5 of
+the resolver: a resolved DNA re-applied to itself moved again.
+
+In the browser, a MOMENTUM tune compiled in Node for the preview's stored chassis and
+written into its storage rendered exactly the springs, dampers, ARB clicks, roll and
+mech balance Node predicted, with no unreached-target warning.
 
 ### Synthetic chassis set
 
@@ -543,11 +618,13 @@ measured on the default chassis with only the named field changed.
 | Front-heavy | `frontBias: 60` — gap +0.256 | a large correction for the bars to carry; bar authority |
 | Wide rear | `tyreF: '225/40R18'`, `tyreR: '325/30R20'` — gap +0.315 | the tyre-width path, `TIRE_MECH_SCALE` |
 | Wide front | the reverse — gap −0.192 | the tyre-width path with the gap reversed |
-| Heavy | weight raised until the default Hz hits HORIZON's damper ceiling | `dampingClamped`, the ζ ↔ platform trade |
-| Light | weight lowered until a damper sits on the 1-click floor | `dampScale`'s scale-up branch |
+| Heavy | `weight: 12000` | `dampingClamped` at the damper ceiling, the ζ ↔ platform trade |
+| Light | `weight: 500` | `dampScale`'s scale-up branch off the 1-click floor |
 
-Every chassis runs in HORIZON, MOTORSPORT and BEAMNG. The Heavy and Light weights are
-found when the suite is written, not guessed here.
+Every chassis runs in HORIZON, MOTORSPORT and BEAMNG. The Heavy and Light weights were
+found by search against HORIZON's limits; the suite fails if a calibration change stops
+either one reaching its limit, rather than letting the fixture quietly stop testing
+anything.
 
 **Real-car validation is a separate, later step.** Whether an archetype *feels*
 right is an in-game question, answered by driving cars you already know. It needs no
@@ -559,9 +636,14 @@ particular calibration cars, and it is not what `tests-dna.js` proves.
 
 1. **Archetype sign-off** — names, seeds, `keep` orders, and whether four is the
    right set. Not blocking: it is data, and it is best settled in-game.
-2. **Tier switching** — what INT shows for a tune carrying PRO-only modes
-   (`arbBalMode:'mech'`, `arbBalTargetMode:'grip'`) needs checking in the browser; the
-   compiled tune is the first routine way to produce one.
+2. **What to do when a DNA tune leaves PRO** — a decision for the UI phase. Checked in
+   the browser: switching a compiled tune to INT runs `App`'s BEG/INT fallback effect,
+   which rewrites `arbBalMode:'mech'` to `'weight'`. Springs, dampers and roll are
+   untouched, but the bar split stops solving for the balance target (24.2 / 21.5 →
+   23.3 / 22.4 clicks on the default chassis) and the MECH readout disappears. Reading
+   the code, Beginner's own effect goes further and also resets `dampBalMode` to
+   `standard` and `dampingBias` to 0. Nothing restores any of it on returning to PRO.
+   Options: warn before the tier change, offer RE-APPLY on return, or accept it.
 
 Settled since the first draft: balance is an absolute offset from grip-neutral (a
 gap fraction was accepted first, then rejected — see
@@ -571,15 +653,17 @@ synthetic chassis instead of calibration-car data; and the factory presets now a
 
 ---
 
-## Doc obligations on implementation
+## Doc obligations when the UI lands
+
+Done with the core: [CODE_MAP.md](CODE_MAP.md) lists the DNA functions,
+`resolveFeEffective`, `DNA_ARCHETYPES` and `tests-dna.js`; the README lists the suite.
 
 | Change | Update |
 |---|---|
 | `suspos_dna_v1`, the `dna` payload, the `'dna'` kind, RESTORE's kind list | [PERSISTENCE.md](PERSISTENCE.md) — `tests-docs.js` fails on an undocumented key |
-| `zone-dna`, the new `Sec`, `visDna`, `DNA_ARCHETYPES`, `resolveFeEffective` | [CODE_MAP.md](CODE_MAP.md) — its zone count and section count are both checked |
+| `zone-dna`, the new `Sec`, `visDna`, the DNA functions gaining call sites | [CODE_MAP.md](CODE_MAP.md) — its zone count and section count are both checked; move the DNA core out of the intentionally-retained section |
 | `'dna'` in `SECTION_KEYS` and the `open` initialiser, `visDna` in the initialiser | `index.html` — `tests-docs.js` checks the initialiser |
 | DNA axis sliders | [SLIDERS.md](SLIDERS.md) |
-| Archetypes | [PRESETS.md](PRESETS.md) |
 | Aero, progressive breakaway, CO-SOLVE for pitch, the gap-fraction balance axis — rejected | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | PRO feature list | `README.md` |
 | This file | Drop the status banner; keep only what is true of the shipped feature |

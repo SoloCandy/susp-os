@@ -57,9 +57,10 @@ The source runs top to bottom in this order:
    up here rather than beside the output helpers because `computeTune` snaps to
    it before deriving the physics it reports. Changing any of these retunes the
    whole app; [PHYSICS.md](PHYSICS.md) carries the calibration table.
-2. **Pure physics** — no React, no state, safe to lift out (see below).
+2. **Pure physics** — no React, no state, safe to lift out (see below). It ends
+   with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
 3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
-   `PRESET_SAVES`, `BUILD_PRESET_MAP`.
+   `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
 4. **Persistence primitives** — `mergeDefaults`, `usePersist`.
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
@@ -73,6 +74,8 @@ The source runs top to bottom in this order:
 These are pure functions of their arguments, in dependency order:
 
 ```
+resolveFeEffective(ch, fe)             → resolves the stored TARGET/GRIP balance delta
+                                         into the absolute target (App's feEffective)
 feelToPhysics(ch, fe)                  → resolves feel settings into physics
                                          (front/rear Hz, ζ per axle, ARB mode…)
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
@@ -86,7 +89,9 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
-`naturalMechBalanceOf`, `resolveArbBalTarget`, `computeOscillation`
+`naturalMechBalanceOf`, `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
+balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
+`computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
 takes Hz + rebound/bump ζ + a duration; the chart's own `curveSettle` and
 `firstCrossing` read the settle time and neutral crossing back off those
@@ -95,8 +100,15 @@ points rather than from `tune.settleF`/`settleR`), `resolveCoSolveSpringShare`
 pre-inversion and `computeTune`'s `effectiveRHz` solve so both agree on the
 same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.
 
-In `App()` the chain is `feelToPhysics` → `computeTune` → everything else,
-each in its own `useMemo`.
+In `App()` the chain is `resolveFeEffective` → `feelToPhysics` → `computeTune` →
+everything else, the last three each in its own `useMemo`.
+
+**Vehicle DNA core** (see [DNA.md](DNA.md)): `sanitizeDNA` normalises a DNA;
+`compileDNA` turns its axes into an `fe`/`dr` patch; `measureDNA` reads the axes back
+off any tune; `dnaTolerances` sizes a hit from the game's quantisation;
+`dnaEvaluate` runs one compile through exactly App's chain; `applyDNA` compiles and
+resolves conflicts in the DNA's `keep` order. Constants: `DNA_AXES`, `DNA_YIELDABLE`,
+`DNA_MAX_MOVES`.
 
 ---
 
@@ -330,6 +342,12 @@ answer at extreme balance targets.
 hidden in physical modes, so these look unreachable. They cover a persisted
 `arbMode:'basic'` surviving a game-mode switch before the migration effect runs.
 
+**The Vehicle DNA core and `DNA_ARCHETYPES`** — no call site anywhere in `App`, so
+a search-based audit will read the whole `── Vehicle DNA ──` block as dead. It is the
+tested core of a feature whose UI has not been built yet; `tests-dna.js` is its
+consumer until then, and [DNA.md](DNA.md) is the spec the UI will follow. The
+exception is `resolveFeEffective`, which `App` already calls.
+
 **`TutorialPanel`'s `right` positioning fallback** — still unreachable (every
 `setPos` sets `left`). The GARAGE drawer is the first right-side, full-height
 tutorial target, and it does *not* reach that branch: a full-height element leaves
@@ -381,6 +399,11 @@ declines to do to the solver's output, which a mirror cannot express — a mirro
 of "return the value unchanged" asserts nothing. If its `slice()` markers stop
 matching after a reorganisation, fix the markers; don't delete the suite.
 
+**`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
+compiler drives the real solver, so only the real solver can test it. Where it can, it
+checks DNA against the app's own flags (`rollClamped`, `mechBalClamped`,
+`dampingClamped`) rather than against itself.
+
 So the only real verification is the browser. A reasonable routine after a
 non-trivial edit:
 
@@ -398,3 +421,7 @@ non-trivial edit:
 7. `node tests-docs.js` after any docs edit, and after touching the codec,
    `sanitizeTune`, storage keys, the `open` state, or a slider range. Also reads
    `index.html`, so it needs no mirroring either.
+8. `node tests-dna.js` after touching `feelToPhysics`, `computeTune`,
+   `resolveFeEffective`, `sanitizeTune`, `DEF_FE`/`DEF_DR`, the Damping Bias / EXIT /
+   ENTRY slider expressions, or anything under the `── Vehicle DNA ──` banner. Reads
+   `index.html` too.

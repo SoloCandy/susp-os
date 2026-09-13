@@ -245,6 +245,18 @@ const naturalMechBalanceOf=ch=>{
 const resolveArbBalTarget=(ch,fe)=>fe.arbBalTarget==null
   ?MECH_BALANCE_TARGET
   :Math.max(0.20,Math.min(0.90,naturalMechBalanceOf(ch)+fe.arbBalTarget));
+// Grip-neutral mech balance: the mech balance that cancels this chassis's natural at-limit grip
+// tendency (the Balance Guide's GRIP TARGET). GRIP mode's Balance Offset and Vehicle DNA's
+// balanceOffset axis are both measured from here.
+const gripNeutralOf=ch=>1-balanceFromRsBal(ch,naturalMechBalanceOf(ch));
+// fe.arbBalTarget is stored as a delta from naturalMechBalanceOf(ch) (null = untouched, falls back
+// to MECH_BALANCE_TARGET) so a saved/shared build re-targets against whatever chassis it's applied
+// to. This is the single funnel that resolves both TARGET and GRIP modes to the absolute value the
+// physics engine and every downstream display read. It was inline in App until Vehicle DNA's
+// compiler needed the identical resolution — keep one copy, not two (docs/DNA.md).
+const resolveFeEffective=(ch,fe)=>(fe.arbBalTargetMode??'manual')==='grip'
+  ?{...fe,arbBalTarget:Math.max(0.20,Math.min(0.90,gripNeutralOf(ch)+(fe.arbBalDelta??0)))}
+  :{...fe,arbBalTarget:resolveArbBalTarget(ch,fe)};
 // rideStiffness now stores Hz directly (HZ_MIN–HZ_MAX).
 // Old saves/shares stored integers 0–100 — detect and auto-migrate.
 // Single source of truth for the spring-frequency operating band. Change here to
@@ -1336,6 +1348,216 @@ const hzCtx=hz=>{
 // (SOFT is the implicit floor). Colour matches that band's hzCtx colour.
 const HZ_MARKERS=HZ_BANDS.map((v,i)=>({value:v,color:HZ_BAND_COLS[i+1],
   label:['ROAD','FIRM','RACE'][i]}));
+// ── Vehicle DNA ─────────────────────────────────────────────────────────────
+// A chassis-portable handling personality: axis TARGETS, compiled into ordinary fe/dr fields in
+// PRO's target modes, never a change to feelToPhysics/computeTune. Core only — App does not call
+// any of this yet; tests-dna.js is its consumer until the UI lands. docs/DNA.md is the spec and
+// carries the reasoning behind every mode choice below.
+
+// Each range is the sanitizeTune clamp of the field the axis compiles into, so a compiled patch is
+// always a sanitizeTune fixed point (tests-dna.js asserts it). Defaults match DEF_FE; they are
+// literals because DEF_FE is declared further down and this table evaluates at load.
+const DNA_AXES={
+  platformHz:   {min:HZ_MIN,max:HZ_MAX,def:1.75},  // front wheel Hz          → rideStiffness
+  pitchRatio:   {min:0.50,max:3.00,def:1.20},      // rear Hz / front Hz      → rearHzMult
+  rollDegPerG:  {min:0.3,max:5.0,def:1.8},         // body roll at 1 g        → arbTargetRollMan
+  balanceOffset:{min:-0.20,max:0.20,def:0},        // mech balance past grip-neutral, + = OS → arbBalDelta
+  reboundZeta:  {min:10,max:200,def:70},           // % at the front anchor   → reboundZeta
+  bumpRatio:    {min:10,max:100,def:56},           // bump ζ as % of rebound  → bumpRatio
+  dampBias:     {min:-50,max:50,def:0},            // slider value, + = REAR  → dampingBias (negated)
+  diffExit:     {min:-50,max:50,def:0},            // slider value, + = ROTATE → diffBiasExit (negated on FWD)
+  diffEntry:    {min:-50,max:50,def:0},            // slider value, + = LOOSE → diffBiasEntry (negated)
+};
+// The axes that can give way when targets conflict — the only ones a DNA's `keep` order ranks.
+// Bump ratio and the setting axes never trade against another axis. This order is also the
+// fallback `keep` for a DNA that doesn't supply a complete one.
+const DNA_YIELDABLE=['platformHz','balanceOffset','rollDegPerG','pitchRatio','reboundZeta'];
+const DNA_MAX_MOVES=4;
+// Stored fields that are the negation of their slider. Avoids writing -0, which survives JSON as 0
+// but fails Object.is against it.
+const dnaNeg=v=>v===0?0:-v;
+
+// The single choke point for a DNA from anywhere — storage, a file, an archetype. Out-of-range or
+// non-numeric axes fall back to their range or default; `keep` is repaired into a permutation of
+// DNA_YIELDABLE with any missing axes appended in that order.
+const sanitizeDNA=raw=>{
+  const ax=raw?.axes??{};
+  const axes=Object.fromEntries(Object.entries(DNA_AXES).map(([k,{min,max,def}])=>{
+    const v=ax[k];
+    return[k,(typeof v==='number'&&isFinite(v))?Math.max(min,Math.min(max,v)):def];
+  }));
+  const seen=new Set();
+  const keep=[...(Array.isArray(raw?.keep)?raw.keep:[]),...DNA_YIELDABLE]
+    .filter(k=>DNA_YIELDABLE.includes(k)&&!seen.has(k)&&seen.add(k));
+  return{v:1,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,keep};
+};
+
+// Axes → a patch spread over the current fe/dr, so everything not named here (gameMode,
+// targetSpeed, the MAN ARB fields, buildType, diffType) survives. Every axis lands on one field in
+// a mode where that field already IS a target. Not CO-SOLVE: its rear/front ratio is exactly 1 at
+// spring share 0 and can only move the way the balance correction points, so pitch would not be
+// an independent axis. FRONT ride reference because SYNC holds the reference axle's ζ exactly.
+const compileDNA=(ch,fe,dr,axes)=>({
+  fe:{...fe,
+    rideRef:'front',rideStiffMode:'hz',
+    // sanitizeTune rounds rideStiffness to 0.01 — round here too, or the patch is not a fixed point.
+    rideStiffness:Math.round(axes.platformHz*100)/100,
+    rearHzMode:'multiplier',rearHzMult:axes.pitchRatio,
+    arbMode:'roll',arbTargetRollMan:axes.rollDegPerG,
+    arbBalMode:'mech',arbBalTargetMode:'grip',arbBalDelta:axes.balanceOffset,
+    dampCharMode:'zeta',reboundZeta:axes.reboundZeta,
+    dampingMode:'ratio',bumpRatio:axes.bumpRatio,
+    dampBalMode:'sync',dampingBias:dnaNeg(axes.dampBias)},
+  dr:{...dr,diffManual:false,
+    diffBiasExit:ch.layout==='FWD'?dnaNeg(axes.diffExit):axes.diffExit,
+    diffBiasEntry:dnaNeg(axes.diffEntry)},
+});
+
+// The inverse of compileDNA, readable against ANY tune. The six outcome axes come from `tune`, so
+// they mean the same whatever modes produced it. The three setting axes only mean the same under
+// the modes compileDNA sets, so they read null otherwise — the UI says "mode differs" rather than
+// comparing two quantities that merely share a name.
+const measureDNA=(ch,tune,fe,dr)=>({
+  platformHz:tune.fHz,
+  pitchRatio:tune.rHz/tune.fHz,
+  rollDegPerG:tune.rollDeg,
+  // Same scale as gripBalTarget: both carry the tyre-width and MEASURE NAT BAL corrections.
+  balanceOffset:tune.mechBalance-gripNeutralOf(ch),
+  reboundZeta:tune.zetaF,
+  bumpRatio:100*tune.bumpZetaF/tune.zetaF,
+  dampBias:fe.dampBalMode==='sync'?dnaNeg(fe.dampingBias??0):null,
+  diffExit:dr.diffManual?null:(ch.layout==='FWD'?dnaNeg(dr.diffBiasExit??0):(dr.diffBiasExit??0)),
+  // Sport has no decel lock in-game, so ENTRY is inexpressible there, not merely different.
+  diffEntry:dr.diffManual||dr.diffType==='sport'?null:dnaNeg(dr.diffBiasEntry??0),
+});
+
+// How far a measured axis may sit from its target and still count as hit. Each allowance is half
+// of one quantisation step of whatever produced the number, so rounding the game imposes is never
+// reported as a miss: sanitizeTune's 0.01 Hz, BeamNG's 500 N/m spring and 100 N/m/s damper grids,
+// Forza's 0.1-click damper step. Roll and balance reuse rollClamped's and mechBalClamped's own
+// thresholds, which already sit downstream of ARB click rounding.
+const dnaTolerances=(tune,gameMode)=>{
+  const phys=isPhysical(gameMode);
+  const hzRel=lbIn=>phys?(PHYS_SNAP.spring/2)/(2*lbIn*LB_IN_TO_NM):0;   // ΔHz/Hz = ½·Δk/k
+  const dHalf=phys?PHYS_SNAP.damp/2:0.05;
+  const relF=hzRel(tune.springF),relR=hzRel(tune.springR);
+  const ratio=tune.bumpZetaF/tune.zetaF;
+  return{
+    platformHz:0.005+tune.fHz*relF+1e-9,
+    pitchRatio:(tune.rHz/tune.fHz)*(relF+relR)+1e-6,
+    rollDegPerG:0.05,
+    balanceOffset:0.01,
+    reboundZeta:tune.zetaF*dHalf/Math.max(1e-9,tune.rebF)+1e-6,
+    bumpRatio:100*ratio*(dHalf/Math.max(1e-9,tune.rebF)+dHalf/Math.max(1e-9,tune.bumpF))+1e-6,
+    dampBias:1e-9,diffExit:1e-9,diffEntry:1e-9,
+  };
+};
+
+// One forward solve of a set of axis values, through exactly the path App takes.
+const dnaEvaluate=(ch,fe,dr,axes)=>{
+  const c=compileDNA(ch,fe,dr,axes);
+  const gameMode=c.fe.gameMode??DEF_FE.gameMode;
+  const tune=computeTune(ch,feelToPhysics(ch,resolveFeEffective(ch,c.fe)),gameMode);
+  return{fe:c.fe,dr:c.dr,tune,measured:measureDNA(ch,tune,c.fe,c.dr),tol:dnaTolerances(tune,gameMode)};
+};
+
+// Compile, then give way where the game's limits make the targets conflict. Each row names the
+// axes a limit can make miss and the axes that could move to recover them, in dependency order —
+// balance depends on the roll budget (when springs alone exceed the roll target MECH's split is
+// skipped and both miss together), so roll is resolved first. For a miss, the candidates are tried
+// least-protected first; reaching the missed axis itself means everything left is more protected,
+// so the miss is accepted instead. A candidate is searched toward BOTH ends of its range and the
+// nearest value that clears the miss wins — no per-axis direction table to get backwards. Every
+// move and every accepted miss is returned, so the app never presents a compromise as the target.
+const applyDNA=(ch,fe,dr,dnaRaw)=>{
+  const dna=sanitizeDNA(dnaRaw);
+  const rank=k=>dna.keep.indexOf(k);                       // lower = more protected
+  const work={...dna.axes};
+  const hit=(e,w,k)=>e.measured[k]==null||Math.abs(e.measured[k]-w[k])<=e.tol[k];
+  const ROWS=[
+    {id:'pitch',axes:['pitchRatio'],cands:['pitchRatio','platformHz'],
+     // MULTIPLIER under a FRONT reference clamps the rear axle with rearHzClamped forced false, so
+     // this one is detected from the band itself rather than from a flag.
+     cause:e=>{const r=e.fe.rideStiffness*work.pitchRatio;
+       return r>HZ_MAX||r<HZ_MIN?'rear axle outside the Hz band':'spring rate snapping';}},
+    {id:'damping',axes:['reboundZeta','bumpRatio'],own:'reboundZeta',cands:['reboundZeta','platformHz'],
+     cause:e=>e.tune.dampingClamped?'damper click range':'damper rounding'},
+    {id:'roll',axes:['rollDegPerG'],cands:['rollDegPerG','platformHz'],
+     cause:e=>!e.tune.rollClamped?'rounding'
+       :e.measured.rollDegPerG<work.rollDegPerG?'springs alone are stiffer than the roll target'
+       :'anti-roll bars at their limit'},
+    {id:'balance',axes:['balanceOffset'],cands:['balanceOffset','pitchRatio','rollDegPerG'],
+     cause:e=>{const t=gripNeutralOf(ch)+work.balanceOffset;
+       return t<0.20||t>0.90?'target outside the 0.20–0.90 balance range'
+         :e.tune.mechBalClamped?'anti-roll bars cannot reach the split':'rounding';}},
+  ];
+  // Axes more protected than `cand` that currently hit must still hit after it moves — a move may
+  // only spend axes ranked below itself. Bump ratio shares reboundZeta's rank (the damping row).
+  const guardedBy=cand=>Object.keys(DNA_AXES).filter(k=>{
+    const r=rank(k==='bumpRatio'?'reboundZeta':k);
+    return r>=0&&r<rank(cand)&&hit(ev,work,k);
+  });
+  const tryMove=(cand,protectedAxes)=>{
+    const v0=work[cand],{min,max}=DNA_AXES[cand],guard=guardedBy(cand);
+    const clears=v=>{
+      const w={...work,[cand]:v},e=dnaEvaluate(ch,fe,dr,w);
+      return[...protectedAxes,...guard,cand].every(k=>hit(e,w,k));
+    };
+    // Scan outward from the current value before bisecting. Testing only the range ends is not
+    // enough: a candidate's own valid region can be interior — pitch misses itself once
+    // platform·pitch leaves the Hz band — and the clearing window can be narrow. Raising pitch to
+    // fix balance also eats the bar budget ROLL ° leaves, so a front-heavy chassis may clear only
+    // across ~0.07 of pitch. 12 steps walked straight over windows like that; 96 steps is 1/96 of
+    // the axis range. A window narrower than one step can still be missed — it is then reported
+    // as a miss, never hidden.
+    const STEPS=96;
+    let best=null;
+    for(const bound of [min,max]){
+      if(bound===v0)continue;
+      let prev=v0;
+      for(let s=1;s<=STEPS;s++){
+        const v=v0+(bound-v0)*s/STEPS;
+        if(!clears(v)){prev=v;continue;}
+        let ok=v,bad=prev;
+        for(let i=0;i<14;i++){const mid=(ok+bad)/2;if(clears(mid))ok=mid;else bad=mid;}
+        if(best==null||Math.abs(ok-v0)<Math.abs(best-v0))best=ok;
+        break;
+      }
+    }
+    return best;
+  };
+  const moves=[],accepted=new Set();
+  let ev=dnaEvaluate(ch,fe,dr,work);
+  while(moves.length<DNA_MAX_MOVES){
+    const row=ROWS.find(r=>!accepted.has(r.id)&&r.axes.some(k=>!hit(ev,work,k)));
+    if(!row)break;
+    const own=row.own??row.axes[0];
+    let moved=false;
+    for(const cand of [...row.cands].sort((a,b)=>rank(b)-rank(a))){
+      if(cand===own)break;
+      const to=tryMove(cand,row.axes);
+      if(to==null)continue;
+      moves.push({axis:cand,from:work[cand],to,protects:own,cause:row.cause(ev)});
+      work[cand]=to;
+      ev=dnaEvaluate(ch,fe,dr,work);
+      moved=true;
+      // A move can unblock a miss accepted earlier — lowering pitch for balance can make a roll
+      // miss that no platform value could fix become fixable — so every accepted miss is judged
+      // again against the new state. DNA_MAX_MOVES still bounds the loop. Without this a resolved
+      // DNA was not a fixed point: applying its own result could move again.
+      accepted.clear();
+      break;
+    }
+    if(!moved)accepted.add(row.id);
+  }
+  const rowOf=k=>ROWS.find(r=>r.axes.includes(k));
+  return{
+    dna,fe:ev.fe,dr:ev.dr,tune:ev.tune,measured:ev.measured,tol:ev.tol,work,moves,
+    misses:Object.keys(DNA_AXES).filter(k=>!hit(ev,work,k))
+      .map(k=>({axis:k,target:work[k],achieved:ev.measured[k],cause:rowOf(k)?.cause(ev)??null})),
+    inexpressible:Object.keys(DNA_AXES).filter(k=>ev.measured[k]==null),
+  };
+};
 // ── Output unit formatting ──────────────────────────────────────────────────
 // The Forza modes emit clicks on a 1..lim scale, so their readouts want a "/ N"
 // denominator and a near-the-ceiling warning. Physical modes emit real units and
@@ -1681,6 +1903,27 @@ const PRESET_DESC={
   6:{tag:'Max travel',sub:'Very soft · float feel'},
 };
 const BUILD_PRESET_MAP={street:[1],track:[2,5],drift:[4],rally:[3],offroad:[6],drag:[2]};
+// Vehicle DNA factory archetypes — each axis at the midpoint of the range in docs/DNA.md. These are
+// hypotheses to tune in-game, not calibration. Retuning one later never moves a DNA someone has
+// saved, because a saved DNA is a copy of axis values. No UI reads these yet; tests-dna.js does.
+const DNA_ARCHETYPES=[
+  {v:1,name:'MOMENTUM',
+   axes:{platformHz:2.80,pitchRatio:1.125,rollDegPerG:0.90,balanceOffset:-0.0075,
+         reboundZeta:39,bumpRatio:55,dampBias:5,diffExit:10,diffEntry:0},
+   keep:['platformHz','balanceOffset','pitchRatio','rollDegPerG','reboundZeta']},
+  {v:1,name:'RALLY / B-ROAD',
+   axes:{platformHz:1.60,pitchRatio:1.025,rollDegPerG:3.00,balanceOffset:-0.035,
+         reboundZeta:57.5,bumpRatio:39,dampBias:5,diffExit:-5,diffEntry:15},
+   keep:['platformHz','balanceOffset','reboundZeta','pitchRatio','rollDegPerG']},
+  {v:1,name:'GT3',
+   axes:{platformHz:3.30,pitchRatio:0.96,rollDegPerG:0.76,balanceOffset:-0.025,
+         reboundZeta:45.5,bumpRatio:63,dampBias:-10,diffExit:5,diffEntry:-5},
+   keep:['platformHz','rollDegPerG','pitchRatio','balanceOffset','reboundZeta']},
+  {v:1,name:'TAIL-HAPPY RWD',
+   axes:{platformHz:2.20,pitchRatio:1.225,rollDegPerG:1.35,balanceOffset:0.010,
+         reboundZeta:41,bumpRatio:47,dampBias:10,diffExit:20,diffEntry:10},
+   keep:['balanceOffset','rollDegPerG','reboundZeta','platformHz','pitchRatio']},
+];
 
 const Hint=({text})=>{
   const[pos,setPos]=useState(null);
@@ -3895,14 +4138,8 @@ function App(){
   const cm=useMemo(()=>cornerMasses(ch),[ch]);
   const dispMass=kg=>metricUnits?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
   const natGripBalance=balanceFromRsBal(ch,naturalMechBalanceOf(ch));
-  const gripBalTarget=Math.max(0.20,Math.min(0.90,1-natGripBalance+(fe.arbBalDelta??0)));
-  // fe.arbBalTarget is stored as a delta from naturalMechBalanceOf(ch) (null = untouched,
-  // falls back to MECH_BALANCE_TARGET) so a saved/shared build re-targets against whatever
-  // chassis it's applied to. feEffective is the single funnel that resolves both TARGET and
-  // GRIP modes to an absolute value for the physics engine and every downstream display.
-  const feEffective=(fe.arbBalTargetMode??'manual')==='grip'
-    ?{...fe,arbBalTarget:gripBalTarget}
-    :{...fe,arbBalTarget:resolveArbBalTarget(ch,fe)};
+  // The single TARGET/GRIP resolution funnel — see resolveFeEffective.
+  const feEffective=resolveFeEffective(ch,fe);
   const physics=useMemo(()=>feelToPhysics(ch,feEffective),[ch,feEffective]);
   const tune=useMemo(()=>computeTune(ch,physics,fe.gameMode),[ch,physics,fe.gameMode]);
   // BOTTOM G's stiffness mode: fe.rideBottomG is a stored TARGET load factor (not a Hz), so it
