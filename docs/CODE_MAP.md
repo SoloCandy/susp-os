@@ -86,7 +86,11 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
-`naturalMechBalanceOf`, `resolveArbBalTarget`, `computeOscillation`
+`naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
+Guide's recommended band — module-level rather than inline because the RANGE
+block and the GRIP GAP sub-widget both call it, and a band they disagreed on
+would make "in range" mean two different things in one panel),
+`resolveArbBalTarget`, `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
 takes Hz + rebound/bump ζ + a duration; the chart's own `curveSettle` and
 `firstCrossing` read the settle time and neutral crossing back off those

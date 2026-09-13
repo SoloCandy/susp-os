@@ -13,6 +13,48 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — Balance Guide RANGE's sub-1 fractions rank builds by correction, not by rotation
+
+The RANGE band scales its deltas as `balanceBandDelta(frac, gap)`, where
+`gap = (1 - natGripBalance) - natMechBalance` (see
+[PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section). A fraction above 1.0
+now overshoots toward oversteer under either sign of `gap`, which is what fixed
+the DRIFT-points-at-understeer defect in [HISTORY.md](HISTORY.md). A fraction at
+or below 1.0 was deliberately left alone, and that leaves a narrower version of
+the same tension.
+
+`frac ≤ 1` means "cancel this much of the chassis's natural tendency". On a
+front-biased chassis (`gap > 0`) that reads as a rotation scale by accident:
+OFFROAD at 0.15 barely corrects the natural understeer and TRACK at 0.95 nearly
+erases it, so a higher fraction looks like more rotation. On a strongly
+oversteering chassis (`gap` well negative) the same fractions run the other way
+— a higher fraction cancels more of the *oversteer*, so it recommends less
+rotation. The build table's intended ordering is only preserved by the
+`frac > 1` entries.
+
+This is visible where a build's whole pair sits below 1.0 while a more aggressive
+build's pair straddles it. AWD is the layout where the two overlap enough to
+invert: DRIFT is 0.75–1.30 against TRACK's 0.45–0.80, and below about 45% front
+bias AWD DRIFT's band hi drops below AWD TRACK's. At AWD 36% front
+(`nat` 0.631, `gap` −0.332) TRACK recommends 0.365–0.481 and DRIFT recommends
+0.382–0.412 — the drift band is the more conservative of the two. FWD and RWD
+hold their ordering across 30–70% front bias, because their DRIFT pair
+(0.90–1.55) clears TRACK's (0.55–0.95) outright.
+
+Every band still lands on the oversteer side of grip-neutral for such a chassis,
+so no recommendation is *backwards* in the way the fixed defect was — the
+ordering between two builds is what is off, and only for AWD under ~45% front.
+
+Fixing it properly means deciding what a sub-1 fraction is supposed to mean:
+a fraction of the correction (today), or a position on an absolute rotation
+scale anchored at grip-neutral. The second reading would move STREET, TRACK,
+RALLY and OFFROAD on every rear-biased chassis, so it is a re-calibration of
+published guidance rather than a bug fix, and wants a decision before code.
+`tests-docs.js` cannot see this; the pinned characterisation lives in the
+scratch verification described in [HISTORY.md](HISTORY.md)'s entry.
+
+---
+
 ## Open — alignment state travels in neither the share codec nor the garage
 
 `al` is the fourth state group (`suspos_al_v2`: `mode`, `nudgeStrength`, manual
