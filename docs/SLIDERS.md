@@ -5,8 +5,10 @@ physically, and its effect on handling balance (oversteer/understeer).
 
 Balance direction is sourced from the authoritative `bXxx` contributor
 formulas in `index.html` (`bSp`, `bAb`, `bDampBias`, `bDiffAccel/Decel/
-Front/Rear`, `bBrakeEntry`), not slider hint text alone — hint text has
-been wrong at least once (Damping Bias) relative to the actual formula.
+Front/Rear`, `bBrakeEntry`), not slider hint text alone — hint text has been
+wrong relative to the actual formula twice now: Damping Bias (which said the
+opposite of what `bDampBias` computes) and the FWD EXIT hint (which had the
+lock direction backwards). Both are in [HISTORY.md](HISTORY.md).
 
 Convention across the app: **right = OVERSTEER, left = UNDERSTEER** for
 every balance-relevant slider.

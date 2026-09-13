@@ -13,6 +13,47 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — the FWD EXIT hint named the wrong lock direction
+
+The EXIT slider's FWD hint read "Toward GRIP reduces lock … Toward ROTATE
+increases lock for cleaner pivot and less push". Both halves were backwards.
+On FWD the slider is displayed flipped
+(`value={ch.layout==='FWD'?-(dr.diffBiasExit??0):…}`) while `computeDiff`'s
+accel term keeps RWD's sign, so the ROTATE end is *less* front accel lock, not
+more. Probed against the real `computeDiff` (FWD, 60% front, Track/Race):
+
+| EXIT slider | stored `diffBiasExit` | front Accel | `bDiffAccel` |
+|---|---|---|---|
+| −50 (GRIP) | +50 | 28% | −2.35 |
+| 0 | 0 | 20% | −1.68 |
+| +50 (ROTATE) | −50 | 13% | −1.09 |
+
+The slider itself is correct — right is still the oversteer-leaning end, because
+*less* front lock is what frees a FWD car's rotation, and `bDiffAccel` rises
+from −2.35 to −1.09 across that sweep. Only the hint's description of the lock
+was wrong, and it contradicted the `Accel %` readout sitting directly beneath
+it. `tests.js` already asserted the underlying direction ("FWD: higher
+EXIT/ENTRY → more accel lock" on the *stored* value), and the MATCH CHASSIS
+entry below recorded the same measurement from a live check — the hint was
+never checked against either.
+
+Rewritten to mirror the RWD/AWD phrasing: "Toward GRIP increases lock — more
+corner-exit traction, but more push. Toward ROTATE reduces lock for a freer
+pivot and less understeer."
+
+The block comment above the slider was the likelier source of the error — it
+asserted "right = more lock = more rotation-leaning, same as RWD/AWD always
+used", chaining a true claim (right = more rotation-leaning, every layout) to a
+false one (right = more lock, FWD excepted). Corrected to separate the two,
+since that conflation is exactly what the hint encoded. The AWD front-axle EXIT
+hint (PUSH↔NEUTRAL, `diffFrontExitBias`) was checked at the same time and is
+correct: PUSH does increase front accel lock there.
+
+**Lesson:** on FWD, balance direction and lock direction point opposite ways —
+that is the whole reason the UI flip exists. Any copy about this slider has to
+say which of the two it is describing. The `Accel %` readout under the slider
+is the cheapest check available: sweep the slider and read it.
+
 ## Fixed — PRESETS.md described the diff-bias *slider* sign as the stored sign
 
 [PRESETS.md](PRESETS.md)'s "Reading the columns" section sent readers to
