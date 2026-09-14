@@ -406,7 +406,7 @@ matching after a reorganisation, fix the markers; don't delete the suite.
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
-checks DNA against the app's own flags (`rollClamped`, `mechBalClamped`,
+checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
 `dampingClamped`) rather than against itself.
 
 So the only real verification is the browser. A reasonable routine after a

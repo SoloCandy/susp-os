@@ -13,6 +13,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — Vehicle DNA's roll axis became ARB share
+
+`rollDegPerG` (ROLL °) was replaced by `arbShare` (SHARE %), and the DNA format moved to
+v2. A roll target was unreliable to hit: body roll scales with CG height, which the app
+estimates, so a value that landed on one chassis missed on a lower or higher one — in
+BeamNG too, where the bars have no ceiling. Share doesn't depend on CG; its misses come
+from the game's bar range instead, which is exact. `computeTune` gained `shareClamped`
+and `arbShareTol` as SHARE's counterparts of `rollClamped`, and the sidebar ARB Share
+field now steps by 0.5 so DNA values can be set by hand. The archetype seeds and the
+measurements behind them are in [DNA.md](DNA.md#arb-share-rather-than-roll-degrees).
+
+---
+
 ## Fixed — RESTORE deleted every entry of a kind the backup file didn't contain
 
 RESTORE replaces the ticked kinds and keeps the rest. A kind absent from the file had

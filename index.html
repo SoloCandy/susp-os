@@ -1165,6 +1165,16 @@ const computeTune=(ch,phys,gameMode)=>{
   const rsTotal=rsSpF+rsSpR+rsAbF+rsAbR;
   const rollDeg=rsTotal>0?rollMoment/rsTotal*(180/Math.PI):0;
   const rollClamped=arbMode==='roll'&&Math.abs(rollDeg-arbTargetRoll)>0.05;
+  // SHARE's counterpart: the bars could not supply the requested fraction — a bar at the 1-click
+  // floor or the lim.arb ceiling, often because MECH pushed the split to one end. The allowance is
+  // half a bar quantisation step expressed in share points (Forza's 0.1 click, BeamNG's anti-roll
+  // spring grid), with a 0.5-point floor: on a soft car with small bars one BeamNG grid step alone
+  // moves the share by more than a point.
+  const arbShareOut=rsTotal>0?(rsAbF+rsAbR)/rsTotal*100:0;
+  const halfArbStep=track=>physUnits?(PHYS_SNAP.arb/2)*track*track/2:0.05*ARB_RS_SCALE*track*track;
+  const arbShareTol=rsTotal>0
+    ?Math.max(0.5,100*(1-arbShareOut/100)*(halfArbStep(ch.trackF)+halfArbStep(ch.trackR))/rsTotal):0.5;
+  const shareClamped=arbMode==='share'&&Math.abs(arbShareOut-arbShareMan)>arbShareTol;
   const nf=ch.frontBias/100;
   // positive = oversteer (rear-heavy roll stiffness), negative = understeer (front-heavy)
   // Each term is weighted by its actual share of total roll stiffness so that ARBs
@@ -1201,8 +1211,8 @@ const computeTune=(ch,phys,gameMode)=>{
          rebF:r1(rebF),rebR:r1(rebR),
          bumpF:r1(bumpF),bumpR:r1(bumpR),
          arbF,arbR,
-         fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,mechBalClamped,neutralClamped,dampingClamped,
-         arbShare:rsTotal>0?(rsAbF+rsAbR)/rsTotal*100:0,
+         fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,dampingClamped,
+         arbShare:arbShareOut,
          bSp,bAb,bTot,mechBalance,gripBalance,
          rsSpF,rsSpR,rsAbF,rsAbR,
          balArbSplit:(arbBalMode==='mech'||arbBalMode==='coSolve'||arbBalMode==='neutral'||arbBalMode==='chassis')?Math.round(rF*100):null,
@@ -1397,7 +1407,7 @@ const HZ_MARKERS=HZ_BANDS.map((v,i)=>({value:v,color:HZ_BAND_COLS[i+1],
 const DNA_AXES={
   platformHz:   {min:HZ_MIN,max:HZ_MAX,def:1.75},  // front wheel Hz          → rideStiffness
   pitchRatio:   {min:0.50,max:3.00,def:1.20},      // rear Hz / front Hz      → rearHzMult
-  rollDegPerG:  {min:0.3,max:5.0,def:1.8},         // body roll at 1 g        → arbTargetRollMan
+  arbShare:     {min:0,max:80,def:15},             // % of roll stiffness from bars → arbShareMan
   balanceOffset:{min:-0.20,max:0.20,def:0},        // mech balance past grip-neutral, + = OS → arbBalDelta
   reboundZeta:  {min:10,max:200,def:70},           // % at the front anchor   → reboundZeta
   bumpRatio:    {min:10,max:100,def:56},           // bump ζ as % of rebound  → bumpRatio
@@ -1408,7 +1418,7 @@ const DNA_AXES={
 // The axes that can give way when targets conflict — the only ones a DNA's `keep` order ranks.
 // Bump ratio and the setting axes never trade against another axis. This order is also the
 // fallback `keep` for a DNA that doesn't supply a complete one.
-const DNA_YIELDABLE=['platformHz','balanceOffset','rollDegPerG','pitchRatio','reboundZeta'];
+const DNA_YIELDABLE=['platformHz','balanceOffset','arbShare','pitchRatio','reboundZeta'];
 const DNA_MAX_MOVES=4;
 // Stored fields that are the negation of their slider. Avoids writing -0, which survives JSON as 0
 // but fails Object.is against it.
@@ -1417,16 +1427,20 @@ const dnaNeg=v=>v===0?0:-v;
 // The single choke point for a DNA from anywhere — storage, a file, an archetype. Out-of-range or
 // non-numeric axes fall back to their range or default; `keep` is repaired into a permutation of
 // DNA_YIELDABLE with any missing axes appended in that order.
+// v2 replaced v1's rollDegPerG with arbShare. Roll depends on CG height, which the app only
+// estimates, so a roll value can't be converted without a chassis — a v1 DNA takes the arbShare
+// default, and its keep order carries the rank across.
 const sanitizeDNA=raw=>{
   const ax=raw?.axes??{};
+  const keepIn=(Array.isArray(raw?.keep)?raw.keep:[]).map(k=>k==='rollDegPerG'?'arbShare':k);
   const axes=Object.fromEntries(Object.entries(DNA_AXES).map(([k,{min,max,def}])=>{
     const v=ax[k];
     return[k,(typeof v==='number'&&isFinite(v))?Math.max(min,Math.min(max,v)):def];
   }));
   const seen=new Set();
-  const keep=[...(Array.isArray(raw?.keep)?raw.keep:[]),...DNA_YIELDABLE]
+  const keep=[...keepIn,...DNA_YIELDABLE]
     .filter(k=>DNA_YIELDABLE.includes(k)&&!seen.has(k)&&seen.add(k));
-  return{v:1,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,keep};
+  return{v:2,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,keep};
 };
 
 // Axes → a patch spread over the current fe/dr, so everything not named here (gameMode,
@@ -1440,7 +1454,7 @@ const compileDNA=(ch,fe,dr,axes)=>({
     // sanitizeTune rounds rideStiffness to 0.01 — round here too, or the patch is not a fixed point.
     rideStiffness:Math.round(axes.platformHz*100)/100,
     rearHzMode:'multiplier',rearHzMult:axes.pitchRatio,
-    arbMode:'roll',arbTargetRollMan:axes.rollDegPerG,
+    arbMode:'share',arbShareMan:axes.arbShare,
     arbBalMode:'mech',arbBalTargetMode:'grip',arbBalDelta:axes.balanceOffset,
     dampCharMode:'zeta',reboundZeta:axes.reboundZeta,
     dampingMode:'ratio',bumpRatio:axes.bumpRatio,
@@ -1457,7 +1471,7 @@ const compileDNA=(ch,fe,dr,axes)=>({
 const measureDNA=(ch,tune,fe,dr)=>({
   platformHz:tune.fHz,
   pitchRatio:tune.rHz/tune.fHz,
-  rollDegPerG:tune.rollDeg,
+  arbShare:tune.arbShare,
   // Same scale as gripBalTarget: both carry the tyre-width and MEASURE NAT BAL corrections.
   balanceOffset:tune.mechBalance-gripNeutralOf(ch),
   reboundZeta:tune.zetaF,
@@ -1471,7 +1485,7 @@ const measureDNA=(ch,tune,fe,dr)=>({
 // How far a measured axis may sit from its target and still count as hit. Each allowance is half
 // of one quantisation step of whatever produced the number, so rounding the game imposes is never
 // reported as a miss: sanitizeTune's 0.01 Hz, BeamNG's 500 N/m spring and 100 N/m/s damper grids,
-// Forza's 0.1-click damper step. Roll and balance reuse rollClamped's and mechBalClamped's own
+// Forza's 0.1-click damper step. Share and balance reuse shareClamped's and mechBalClamped's own
 // thresholds, which already sit downstream of ARB click rounding.
 const dnaTolerances=(tune,gameMode)=>{
   const phys=isPhysical(gameMode);
@@ -1482,7 +1496,7 @@ const dnaTolerances=(tune,gameMode)=>{
   return{
     platformHz:0.005+tune.fHz*relF+1e-9,
     pitchRatio:(tune.rHz/tune.fHz)*(relF+relR)+1e-6,
-    rollDegPerG:0.05,
+    arbShare:tune.arbShareTol,
     balanceOffset:0.01,
     reboundZeta:tune.zetaF*dHalf/Math.max(1e-9,tune.rebF)+1e-6,
     bumpRatio:100*ratio*(dHalf/Math.max(1e-9,tune.rebF)+dHalf/Math.max(1e-9,tune.bumpF))+1e-6,
@@ -1500,8 +1514,8 @@ const dnaEvaluate=(ch,fe,dr,axes)=>{
 
 // Compile, then give way where the game's limits make the targets conflict. Each row names the
 // axes a limit can make miss and the axes that could move to recover them, in dependency order —
-// balance depends on the roll budget (when springs alone exceed the roll target MECH's split is
-// skipped and both miss together), so roll is resolved first. For a miss, the candidates are tried
+// balance depends on the bar budget SHARE sets (MECH can only split what the budget supplies, and a
+// bar pinned at its floor or ceiling misses both together), so share is resolved first. For a miss, the candidates are tried
 // least-protected first; reaching the missed axis itself means everything left is more protected,
 // so the miss is accepted instead. A candidate is searched toward BOTH ends of its range and the
 // nearest value that clears the miss wins — no per-axis direction table to get backwards. Every
@@ -1519,11 +1533,13 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
        return r>HZ_MAX||r<HZ_MIN?'rear axle outside the Hz band':'spring rate snapping';}},
     {id:'damping',axes:['reboundZeta','bumpRatio'],own:'reboundZeta',cands:['reboundZeta','platformHz'],
      cause:e=>e.tune.dampingClamped?'damper click range':'damper rounding'},
-    {id:'roll',axes:['rollDegPerG'],cands:['rollDegPerG','platformHz'],
-     cause:e=>!e.tune.rollClamped?'rounding'
-       :e.measured.rollDegPerG<work.rollDegPerG?'springs alone are stiffer than the roll target'
-       :'anti-roll bars at their limit'},
-    {id:'balance',axes:['balanceOffset'],cands:['balanceOffset','pitchRatio','rollDegPerG'],
+    // Platform is the only other lever: bars add a fixed stiffness per click while springs scale
+    // with Hz, so a softer platform raises the share the bars can reach and a stiffer one lowers it.
+    {id:'share',axes:['arbShare'],cands:['arbShare','platformHz'],
+     cause:e=>!e.tune.shareClamped?'rounding'
+       :e.measured.arbShare<work.arbShare?'anti-roll bars at their limit'
+       :'anti-roll bars at their 1-click minimum'},
+    {id:'balance',axes:['balanceOffset'],cands:['balanceOffset','pitchRatio','arbShare'],
      cause:e=>{const t=gripNeutralOf(ch)+work.balanceOffset;
        return t<0.20||t>0.90?'target outside the 0.20–0.90 balance range'
          :e.tune.mechBalClamped?'anti-roll bars cannot reach the split':'rounding';}},
@@ -1543,7 +1559,7 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
     // Scan outward from the current value before bisecting. Testing only the range ends is not
     // enough: a candidate's own valid region can be interior — pitch misses itself once
     // platform·pitch leaves the Hz band — and the clearing window can be narrow. Raising pitch to
-    // fix balance also eats the bar budget ROLL ° leaves, so a front-heavy chassis may clear only
+    // fix balance also moves the springs the share budget is sized from, so a front-heavy chassis may clear only
     // across ~0.07 of pitch. 12 steps walked straight over windows like that; 96 steps is 1/96 of
     // the axis range. A window narrower than one step can still be missed — it is then reported
     // as a miss, never hidden.
@@ -1808,7 +1824,7 @@ const autoTagsOf=e=>{
 const entrySummary=(e,metric)=>{
   if(e?.dna&&!e.ch&&!e.fe&&!e.dr){
     const a=sanitizeDNA(e.dna).axes;
-    return['platformHz','rollDegPerG','balanceOffset','reboundZeta'].map(k=>dnaFmt(k,a[k])).join(' · ');
+    return['platformHz','arbShare','balanceOffset','reboundZeta'].map(k=>dnaFmt(k,a[k])).join(' · ');
   }
   const bits=[];
   if(e?.ch){
@@ -1951,26 +1967,27 @@ const PRESET_DESC={
   6:{tag:'Max travel',sub:'Very soft · float feel'},
 };
 const BUILD_PRESET_MAP={street:[1],track:[2,5],drift:[4],rally:[3],offroad:[6],drag:[2]};
-// Vehicle DNA factory archetypes — each axis at the midpoint of the range in docs/DNA.md. These are
-// hypotheses to tune in-game, not calibration. Retuning one later never moves a DNA someone has
-// saved, because a saved DNA is a copy of axis values. No UI reads these yet; tests-dna.js does.
+// Vehicle DNA factory archetypes — seeds in docs/DNA.md. These are hypotheses to tune in-game, not
+// calibration. Retuning one later never moves a DNA someone has saved, because a saved DNA is a copy
+// of axis values. arbShare seeds are chosen to be reachable on every synthetic chassis in
+// Motorsport, whose 40-click bars are the tightest ceiling; see docs/DNA.md before raising one.
 const DNA_ARCHETYPES=[
-  {v:1,name:'MOMENTUM',
-   axes:{platformHz:2.80,pitchRatio:1.125,rollDegPerG:0.90,balanceOffset:-0.0075,
+  {v:2,name:'MOMENTUM',
+   axes:{platformHz:2.80,pitchRatio:1.125,arbShare:7.5,balanceOffset:-0.0075,
          reboundZeta:39,bumpRatio:55,dampBias:5,diffExit:10,diffEntry:0},
-   keep:['platformHz','balanceOffset','pitchRatio','rollDegPerG','reboundZeta']},
-  {v:1,name:'RALLY / B-ROAD',
-   axes:{platformHz:1.60,pitchRatio:1.025,rollDegPerG:3.00,balanceOffset:-0.035,
+   keep:['platformHz','balanceOffset','pitchRatio','arbShare','reboundZeta']},
+  {v:2,name:'RALLY / B-ROAD',
+   axes:{platformHz:1.60,pitchRatio:1.025,arbShare:12.5,balanceOffset:-0.035,
          reboundZeta:57.5,bumpRatio:39,dampBias:5,diffExit:-5,diffEntry:15},
-   keep:['platformHz','balanceOffset','reboundZeta','pitchRatio','rollDegPerG']},
-  {v:1,name:'GT3',
-   axes:{platformHz:3.30,pitchRatio:0.96,rollDegPerG:0.76,balanceOffset:-0.025,
+   keep:['platformHz','balanceOffset','reboundZeta','pitchRatio','arbShare']},
+  {v:2,name:'GT3',
+   axes:{platformHz:3.30,pitchRatio:0.96,arbShare:4.5,balanceOffset:-0.025,
          reboundZeta:45.5,bumpRatio:63,dampBias:-10,diffExit:5,diffEntry:-5},
-   keep:['platformHz','rollDegPerG','pitchRatio','balanceOffset','reboundZeta']},
-  {v:1,name:'TAIL-HAPPY RWD',
-   axes:{platformHz:2.20,pitchRatio:1.225,rollDegPerG:1.35,balanceOffset:0.010,
+   keep:['platformHz','arbShare','pitchRatio','balanceOffset','reboundZeta']},
+  {v:2,name:'TAIL-HAPPY RWD',
+   axes:{platformHz:2.20,pitchRatio:1.225,arbShare:7.0,balanceOffset:0.010,
          reboundZeta:41,bumpRatio:47,dampBias:10,diffExit:20,diffEntry:10},
-   keep:['balanceOffset','rollDegPerG','reboundZeta','platformHz','pitchRatio']},
+   keep:['balanceOffset','arbShare','reboundZeta','platformHz','pitchRatio']},
 ];
 
 // Presentation for the GARAGE DNA editor, the sidebar marks and the VISUALS match card, in the
@@ -1978,7 +1995,7 @@ const DNA_ARCHETYPES=[
 const DNA_AXIS_UI=[
   {k:'platformHz',   label:'PLATFORM',   unit:' Hz',step:0.01,  dp:2},
   {k:'pitchRatio',   label:'PITCH',      unit:'×',  step:0.005, dp:3},
-  {k:'rollDegPerG',  label:'ROLL',       unit:'°/g',step:0.01,  dp:2},
+  {k:'arbShare',     label:'ARB SHARE',  unit:'%',  step:0.5,   dp:1},
   {k:'balanceOffset',label:'BALANCE',    unit:'',   step:0.0025,dp:4,signed:true},
   {k:'reboundZeta',  label:'REBOUND ζ',  unit:'%',  step:0.5,   dp:1},
   {k:'bumpRatio',    label:'BUMP RATIO', unit:'%',  step:1,     dp:0},
@@ -5722,12 +5739,12 @@ function App(){
                 min={0} max={100} step={1} unit="%"
                 hint={`Overall ARB stiffness level, roughly 0% ≈ 1 click to 100% ≈ ${lim.arb} clicks (this game mode's limit) per axle at a neutral front/rear split. Unlike SHARE %, this doesn't scale with spring rate — moving the springs won't change the target level. Balance Mode still splits it front/rear, and unequal track widths mean the actual clicks per side won't land exactly on the stated percentage.`}/>}
             {(fe.arbMode??'auto')==='roll'&&
-              <Field label={<>{dnaDot('rollDegPerG')}Target Roll Angle</>} value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
+              <Field label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
                 min={0.3} max={5.0} step={0.1} unit="° @ 1g"
                 hint="Body roll the anti-roll bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars that let the suspension articulate over terrain."/>}
             {(fe.arbMode??'auto')==='share'&&
-              <Field label="ARB Share" value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
-                min={0} max={80} step={1} unit="%"
+              <Field label={<>{dnaDot('arbShare')}ARB Share</>} value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
+                min={0} max={80} step={0.5} unit="%"
                 hint="Fraction of total roll stiffness supplied by ARBs. 0% = springs handle all roll resistance. 20–30% is typical sport. Higher = stiffer bars relative to springs, more abrupt load transfer."/>}
             {(fe.arbMode??'auto')==='man'&&
               <div style={{display:'flex',gap:6,marginBottom:10}}>
