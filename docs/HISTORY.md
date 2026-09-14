@@ -13,6 +13,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — RESTORE deleted every entry of a kind the backup file didn't contain
+
+RESTORE replaces the ticked kinds and keeps the rest. A kind absent from the file had
+its checkbox greyed out, but the box stayed ticked, and the replace step read the tick
+state alone. So restoring a builds-only file deleted every chassis and car entry in
+the garage, replacing them with nothing. Found while adding saved Vehicle DNAs as a
+fourth kind, where it would have hit every restore: no backup made before that has a
+DNA in it. A kind now counts as selected only when the file carries at least one entry
+of it.
+
+---
+
 ## Changed — leaving PRO asks first while a Vehicle DNA is applied
 
 The BEG/INT fallback effects rewrite `arbBalMode` MECH → WEIGHT (and BEG also resets

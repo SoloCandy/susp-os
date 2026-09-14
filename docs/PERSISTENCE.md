@@ -61,6 +61,7 @@ kind would desync the moment an entry is rewritten:
 | `chassis` | `ch` | LOAD CHASSIS |
 | `build` | `fe` + `dr` | LOAD BUILD |
 | `car` | `ch` + `fe` + `dr` | both, separately |
+| `dna` | `dna` only | LOAD DNA — shown in GARAGE → DNA → MY DNA, not the main list |
 | `empty` | none | none — corrupt entry, delete only |
 
 Save and load are still full generic spreads (`{...ch}` / `{...DEF_CH,...e.ch}`,
@@ -69,9 +70,10 @@ travels with garage entries with no save/load code change** — the property the
 two-list split existed to provide, preserved. Only the *grouping* changed: a field
 still only needs to live in the right one of `ch` / `fe` / `dr`.
 
-`dna` is the Vehicle DNA a build was stamped from (the `applied` shape of
-`suspos_dna_v1`). It is kept only beside `fe`/`dr`, plays no part in `kindOf`, and an
-entry without it — every entry saved before DNA existed — loads as "no DNA". See
+`dna` means two things by position. Beside `fe`/`dr` it is the Vehicle DNA a build was
+stamped from (the `applied` shape of `suspos_dna_v1`) and plays no part in `kindOf`; an
+entry without it — every entry saved before DNA existed — loads as "no DNA". Alone it is
+a saved DNA (a `sanitizeDNA` shape), kind `dna`. See
 [DNA.md](DNA.md).
 
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
@@ -140,4 +142,6 @@ and a v2 file with a damaged version field still imports.
 
 Restore replaces the **selected kinds** and keeps the rest. The old behaviour
 replaced one whole list and left the other alone; with a single list, replacing
-everything would silently delete the kinds the user didn't tick.
+everything would silently delete the kinds the user didn't tick. A kind the file
+carries none of is not replaced even if its greyed-out box is still ticked — see
+[HISTORY.md](HISTORY.md).

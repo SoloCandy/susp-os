@@ -116,7 +116,8 @@ off any tune; `dnaTolerances` sizes a hit from the game's quantisation;
 `dnaEvaluate` runs one compile through exactly App's chain; `applyDNA` compiles and
 resolves conflicts in the DNA's `keep` order. Constants: `DNA_AXES`, `DNA_YIELDABLE`,
 `DNA_MAX_MOVES`. Presentation: `DNA_AXIS_UI`, `dnaFmt`, `DNA_MODE_FIELDS`. In `App`,
-`dnaStore` (`suspos_dna_v1`), `dnaPreview`, `dnaLink`, `dnaApply`, `dnaUnlink`, `dnaDot`
+`dnaStore` (`suspos_dna_v1`), `dnaRef`, `dnaPreview`, `dnaLink`, `dnaApply`, `dnaSave`,
+`dnaLoadSaved`, `dnaUnlink`, `dnaDot`, `garageEntries`/`dnaEntries`
 and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
 `visDna` card and the tier warning.
 
@@ -190,7 +191,7 @@ Sections are collapsed on load — `open` is plain `useState`, not persisted.
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
 exactly one per `Sec`, all nine including `visuals` — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
-detail overlay), `factoryOpen` and `dnaOpen` (the GARAGE factory list and DNA editor) and the `vis*` cards
+detail overlay), `factoryOpen`, `dnaOpen` and `dnaSavedOpen` (the GARAGE factory list, DNA editor and MY DNA drawer) and the `vis*` cards
 nested *inside* the VISUALS section.
 
 **The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**

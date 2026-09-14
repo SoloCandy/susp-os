@@ -422,13 +422,16 @@ different modes would compare two quantities that merely share a name.
 | What | Where | Notes |
 |---|---|---|
 | The editor's draft and the last APPLY | `suspos_dna_v1` = `{ draft, applied }` | Object-valued, so `mergeDefaults` fills new fields for free |
+| Saved custom DNAs | garage entries carrying only `dna`, kind `'dna'` | Listed in the MY DNA drawer, not the main garage list; included in BACKUP/RESTORE |
 | Which DNA a saved build came from | optional `dna` on a garage entry beside `fe`/`dr` | Not part of `kindOf` — a build with a `dna` is still a build |
 | Factory archetypes | `DNA_ARCHETYPES` constant | Buttons in the GARAGE DNA section |
 | Share codes | **Not in v1** | The stamped tune already travels through the existing codec |
 
-`draft` is a DNA plus `base`, the archetype it started from. `sanitizeDNA` drops
-`base`; the app reads it off the stored draft to say "EDITED FROM GT3" and to apply
-an edited draft as `GT3 (edited)`.
+`draft` is a DNA plus `ref`, what it was loaded from: `{name, axes}` for an archetype,
+`{id, name, axes}` for a saved DNA. `sanitizeDNA` drops `ref`, so the app reads it off
+the stored draft. A saved DNA is looked up live by `id`, so renaming or rewriting the
+entry shows at once; `ref`'s own `name`/`axes` stand in if the entry was deleted. The
+ref drives "EDITED FROM …", REVERT, and the APPLY name (`GT3 (edited)`).
 
 `applied` is `{ name, axes, achieved }`: the name shown in the sidebar, the axis
 targets, and what `measureDNA` read straight after APPLY. **Drift is judged against
@@ -437,9 +440,11 @@ moment it is applied. An axis has drifted when its current measurement is more t
 `dnaTolerances` allowance from `achieved`, or when it reads `null` (mode differs)
 where it didn't before.
 
-**Saving custom DNAs is not built.** Designed as a garage entry kind `'dna'`; adding it
-touches `kindOf`, `normalizeEntry`, the filter chips, and RESTORE's hardcoded kind
-list. **Factory archetypes stay out of the entry list** for the reason presets do —
+**A saved DNA is `{ id, name, dna, tags, notes, createdAt, updatedAt }`** with `dna` a
+`sanitizeDNA` shape. `kindOf` returns `'dna'` only when there is no `ch`/`fe`/`dr`; a
+`dna` beside `fe`/`dr` is still a build's provenance. The main garage list, its ALL
+count and its empty states use `garageEntries`, which excludes the kind; BACKUP and
+RESTORE list it as a fourth checkbox. **Factory archetypes stay out of the entry list** for the reason presets do —
 see [PRESETS.md](PRESETS.md).
 
 **Share codes stay out of v1** because a DNA group in `CODEC_FIELDS` means new ids
@@ -468,6 +473,11 @@ The link only drives read-outs. What happens to it:
 - **GARAGE drawer, DNA section** (`dnaOpen`), between FACTORY and the saved entries.
   Below PRO it shows only a note to switch to PRO.
   - archetype buttons, which load a draft; they do not apply;
+  - **MY DNA** (`dnaSavedOpen`), a drawer laid out like the saved garage list: a name
+    field and SAVE DNA, then an `EntryCard` per saved DNA — rename, date, ↺ REWRITE WITH
+    EDITOR DNA, delete, summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and
+    does not apply. No filter, sort or search;
+  - EDITING / EDITED FROM … with REVERT;
   - one `FeelSlider` per axis over the full `DNA_AXES` range;
   - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
     missed (and why), or not expressible. Solved only while the section is open;
@@ -485,7 +495,7 @@ The link only drives read-outs. What happens to it:
   rewrite `arbBalMode` (and at BEG `dampBalMode`/`dampingBias`) and nothing restores
   them. `requestMode` wraps `tryAccessMode` for the header tier buttons.
 
-Not built from the first design: the `keep` order editor, SAVE DNA, a radar chart,
+Not built from the first design: the `keep` order editor, a radar chart,
 and re-apply from the match card. The Balance Guide keeps showing its build-type band
 even when the DNA sits outside it.
 

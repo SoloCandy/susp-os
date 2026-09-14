@@ -1700,7 +1700,10 @@ const usePersist=(key,initial)=>{
 // an entry is rewritten with different data.
 const kindOf=e=>{
   const hasCh=!!e?.ch, hasBuild=!!(e?.fe||e?.dr);
-  return hasCh&&hasBuild?'car':hasCh?'chassis':hasBuild?'build':'empty';
+  // A saved Vehicle DNA carries only `dna`. A `dna` beside fe/dr is a build's provenance and
+  // doesn't change its kind.
+  return hasCh&&hasBuild?'car':hasCh?'chassis':hasBuild?'build'
+    :e?.dna?.axes&&typeof e.dna.axes==='object'?'dna':'empty';
 };
 // 'empty' is the corrupt/hand-edited case. It renders as a deletable card rather than
 // crashing — a `ch:null` entry used to take the whole app down via the ErrorBoundary,
@@ -1728,8 +1731,9 @@ const normalizeEntry=raw=>{
     ...(raw?.ch?{ch:raw.ch}:{}),
     ...(raw?.fe?{fe:raw.fe}:{}),
     ...(raw?.dr?{dr:raw.dr}:{}),
-    // Which DNA a build was stamped from. Only meaningful beside fe/dr, and never part of kindOf.
-    ...((raw?.fe||raw?.dr)&&raw?.dna&&typeof raw.dna==='object'?{dna:raw.dna}:{}),
+    // Beside fe/dr: which DNA a build was stamped from. Alone: a saved DNA (kind 'dna').
+    ...(raw?.dna&&typeof raw.dna==='object'
+      &&((raw.fe||raw.dr)||(!raw.ch&&raw.dna.axes&&typeof raw.dna.axes==='object'))?{dna:raw.dna}:{}),
     tags:      Array.isArray(raw?.tags)?raw.tags.filter(x=>typeof x==='string'):[],
     notes:     typeof raw?.notes==='string'?raw.notes:'',
     createdAt: Number.isFinite(raw?.createdAt)?raw.createdAt:t,
@@ -1802,6 +1806,10 @@ const autoTagsOf=e=>{
 // ignored the IMP/MET toggle entirely. Wheelbase stays in metres in both unit systems,
 // matching how it's displayed everywhere else in the app.
 const entrySummary=(e,metric)=>{
+  if(e?.dna&&!e.ch&&!e.fe&&!e.dr){
+    const a=sanitizeDNA(e.dna).axes;
+    return['platformHz','rollDegPerG','balanceOffset','reboundZeta'].map(k=>dnaFmt(k,a[k])).join(' · ');
+  }
   const bits=[];
   if(e?.ch){
     bits.push(metric?`${Math.round(e.ch.weight/KG_TO_LB)}kg`:`${Math.round(e.ch.weight)}lb`);
@@ -1842,6 +1850,7 @@ const KIND_META={
   chassis:{label:'CH', color:'#60a5fa'},
   build:  {label:'BLD',color:'#a78bfa'},
   car:    {label:'CAR',color:'#4ade80'},
+  dna:    {label:'DNA',color:'#818cf8'},
   empty:  {label:'⚠',  color:'#f59e0b'},
 };
 
@@ -3271,7 +3280,7 @@ const copyToClipboard=(text,onDone)=>{
 
 // One garage entry. Takes a props object rather than positional args — the old inline
 // card() helper had 7 positionals and this needs roughly twice that.
-const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onRewrite,onDelete,onRename,onNotes,onAddTag,onRemoveTag,allTags})=>{
+const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onLoadDna,onRewrite,onDelete,onRename,onNotes,onAddTag,onRemoveTag,allTags})=>{
   const kind=kindOf(entry);
   const km=KIND_META[kind];
   const[editing,setEditing]=useState(false);
@@ -3321,7 +3330,7 @@ const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onRewrite,onDelete
           nothing has to guess which payloads the user meant to overwrite */}
       {rwOpen&&<div style={{display:'flex',gap:3,alignItems:'center'}}>
         <span style={{fontSize:8,color:'#64748b',letterSpacing:1,flexShrink:0}}>REWRITE</span>
-        {[['chassis','CHASSIS'],['build','BUILD'],['both','BOTH']].map(([k,l])=>(
+        {(kind==='dna'?[['dna','WITH EDITOR DNA']]:[['chassis','CHASSIS'],['build','BUILD'],['both','BOTH']]).map(([k,l])=>(
           <button key={k} className="tbtn" style={{fontSize:9,padding:'2px 5px'}}
             onClick={()=>{onRewrite(entry.id,k);setRwOpen(false);}}>{l}</button>
         ))}
@@ -3366,7 +3375,10 @@ const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onRewrite,onDelete
            {entry.notes?entry.notes.split('\n')[0]:'+ notes'}
          </span>}
       {/* load buttons — only for payloads this entry actually carries */}
-      {kind!=='empty'&&<div style={{display:'flex',gap:4}}>
+      {kind==='dna'&&<div style={{display:'flex',gap:4}}>
+        <button className="tbtn" style={{flex:1,fontSize:9}} onClick={()=>onLoadDna(entry)}>LOAD DNA</button>
+      </div>}
+      {kind!=='empty'&&kind!=='dna'&&<div style={{display:'flex',gap:4}}>
         {entry.ch&&<button className="tbtn" style={{flex:1,fontSize:9}}
           onClick={()=>onLoadChassis(entry)}>LOAD CHASSIS</button>}
         {(entry.fe||entry.dr)&&<button className="tbtn" style={{flex:1,fontSize:9}}
@@ -3896,6 +3908,7 @@ function App(){
   // against. Cleared by anything that replaces the tune wholesale, and before leaving PRO.
   const[dnaStore,setDnaStore]=usePersist('suspos_dna_v1',{draft:DNA_ARCHETYPES[0],applied:null});
   const[dnaTierWarn,setDnaTierWarn]=useState(null);
+  const[dnaEntryName,setDnaEntryName]=useState('');
   // One-time migration: pull any customized old preset slots (suspos_saves_v9) into MY BUILDS.
   // The 6 factory slots that match their defaults are skipped; only renamed/overwritten slots move.
   // Non-destructive (old key left intact); guarded by a flag so it runs at most once per browser.
@@ -4057,7 +4070,7 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
   // parse to a full radius, and only when the rounded-mm result actually changed, so this
@@ -4078,7 +4091,7 @@ function App(){
 
   const[showDataModal,setShowDataModal]=useState(false);
   const[dataMode,setDataMode]=useState('share'); // 'share'|'load'|'backup'|'restore'
-  const[exportSel,setExportSel]=useState({chassis:true,build:true,car:true});
+  const[exportSel,setExportSel]=useState({chassis:true,build:true,car:true,dna:true});
   const[importCode,setImportCode]=useState('');
   const[importSel,setImportSel]=useState({ch:true,fe:true,dr:true});
   const[importErr,setImportErr]=useState('');
@@ -4086,7 +4099,7 @@ function App(){
   const[shareSel,setShareSel]=useState({ch:true,fe:true,dr:true});
   const[restoreData,setRestoreData]=useState(null);
   const[restoreErr,setRestoreErr]=useState('');
-  const[restoreSel,setRestoreSel]=useState({chassis:true,build:true,car:true});
+  const[restoreSel,setRestoreSel]=useState({chassis:true,build:true,car:true,dna:true});
   const[resetOpts,setResetOpts]=useState({tune:true,tutorials:false});
   const[hzDraft,setHzDraft]=useState(null);     // transient: direct front Hz entry
   const[rearHzDraft,setRearHzDraft]=useState(null); // transient: direct rear Hz entry (independent mode)
@@ -4222,9 +4235,20 @@ function App(){
   const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
   // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
   // its own name plus "(edited)", so the sidebar never claims a stock GT3 that isn't one.
-  const dnaBase=DNA_ARCHETYPES.find(a=>a.name===(dnaStore.draft?.base??dnaStore.draft?.name));
-  const dnaEdited=!!dnaBase&&DNA_AXIS_UI.some(({k})=>Math.abs(dnaBase.axes[k]-dnaDraft.axes[k])>1e-9);
-  const dnaName=dnaEdited?dnaBase.name+' (edited)':dnaDraft.name;
+  // `ref` is what the draft was loaded from: an archetype by name, or a saved DNA by entry id.
+  // A saved one is read live, so renaming or rewriting the entry is reflected at once; if it was
+  // deleted, the snapshot taken at load stands in.
+  const dnaRef=(()=>{
+    const r=dnaStore.draft?.ref;
+    if(r?.id!=null){
+      const e=entries.find(x=>x.id===r.id&&kindOf(x)==='dna');
+      return e?{id:e.id,name:e.name,axes:sanitizeDNA(e.dna).axes}:(r.axes?{name:r.name,axes:r.axes}:null);
+    }
+    const a=DNA_ARCHETYPES.find(x=>x.name===(r?.name??dnaStore.draft?.base??dnaStore.draft?.name));
+    return a?{name:a.name,axes:a.axes}:null;
+  })();
+  const dnaEdited=!!dnaRef&&DNA_AXIS_UI.some(({k})=>Math.abs((dnaRef.axes[k]??NaN)-dnaDraft.axes[k])>1e-9||!isFinite(dnaRef.axes[k]));
+  const dnaName=dnaRef?(dnaEdited?dnaRef.name+' (edited)':dnaRef.name):dnaDraft.name;
   // Only solved while the editor is on screen — the resolver runs many forward solves.
   const dnaPreview=useMemo(()=>uiMode==='pro'&&garagePanelOpen&&open.dnaOpen?applyDNA(ch,fe,dr,dnaDraft):null,
     [uiMode,garagePanelOpen,open.dnaOpen,ch,fe,dr,dnaDraft]);
@@ -4239,6 +4263,16 @@ function App(){
     });
     return{name:a.name,rows,by:Object.fromEntries(rows.map(r=>[r.k,r])),drifted:rows.filter(r=>r.drift).length};
   },[dnaStore.applied,uiMode,ch,tune,fe,dr]);
+  const dnaSave=()=>{
+    const now=Date.now(),name=dnaEntryName.trim()||dnaName;
+    setEntries(list=>[normalizeEntry({id:now,name,dna:{...dnaDraft,name},createdAt:now,updatedAt:now}),...list]);
+    setDnaStore({...dnaStore,draft:{...dnaDraft,name,ref:{id:now,name,axes:dnaDraft.axes}}});
+    setDnaEntryName('');
+  };
+  const dnaLoadSaved=e=>{
+    const d=sanitizeDNA(e.dna);
+    setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes}}});
+  };
   const dnaUnlink=()=>{if(dnaStore.applied)setDnaStore({...dnaStore,applied:null});};
   const dnaApply=()=>{
     const r=applyDNA(ch,fe,dr,dnaDraft);
@@ -4560,6 +4594,7 @@ function App(){
     }),...list]);
   };
   const garageRewrite=(id,which)=>mutEntry(id,e=>{
+    if(which==='dna')return{...e,dna:{...dnaDraft,name:e.name}};
     const{dna:_d,...rest}=e;
     return{...(which==='build'||which==='both'?rest:e),
       ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
@@ -4590,10 +4625,12 @@ function App(){
   const allTags=[...new Set(entries.flatMap(e=>e.tags||[]))].sort();
   // filter by kind -> filter by text -> sort. Filtering first keeps the sort stable with
   // respect to what's actually visible.
+  const garageEntries=entries.filter(e=>kindOf(e)!=='dna');
+  const dnaEntries=entries.filter(e=>kindOf(e)==='dna').sort((a,b)=>stampOf(b)-stampOf(a));
   const kindCounts=entries.reduce((a,e)=>{const k=kindOf(e);a[k]=(a[k]||0)+1;return a;},{});
   const garageList=(()=>{
     const q=garageSearch.trim().toLowerCase();
-    let out=garageUI.filter==='all'?entries:entries.filter(e=>kindOf(e)===garageUI.filter);
+    let out=garageUI.filter==='all'?garageEntries:garageEntries.filter(e=>kindOf(e)===garageUI.filter);
     if(q)out=out.filter(e=>{
       // derived auto-tag labels are searchable too — typing AWD or RACE or DRIFT filters
       // instantly with no manual tagging effort, which is what earns the feature its place
@@ -4608,7 +4645,7 @@ function App(){
       recent:(a,b)=>stamp.get(b)-stamp.get(a),
       oldest:(a,b)=>stamp.get(a)-stamp.get(b),
       name:(a,b)=>(a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()),
-      kind:(a,b)=>{const o={chassis:0,build:1,car:2,empty:3};
+      kind:(a,b)=>{const o={chassis:0,build:1,car:2,dna:3,empty:4};
         return (o[kindOf(a)]-o[kindOf(b)])||(stamp.get(b)-stamp.get(a));},
     };
     return[...out].sort(by[garageUI.sort]||by.recent);
@@ -4831,7 +4868,7 @@ function App(){
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
               setShareCopied(false);setImportCode('');setImportErr('');
               setImportSel({ch:true,fe:true,dr:true});
-              setExportSel({chassis:true,build:true,car:true});setShowDataModal(true);
+              setExportSel({chassis:true,build:true,car:true,dna:true});setShowDataModal(true);
             }}>SHARE</button>
           </div>
         </div>
@@ -7389,13 +7426,14 @@ function App(){
                     {key:'chassis',label:'CHASSIS',sub:'Chassis-only entries'},
                     {key:'build',  label:'BUILDS', sub:'Tune-only entries'},
                     {key:'car',    label:'CARS',   sub:'Chassis + tune entries'},
+                    {key:'dna',    label:'DNA',    sub:'Saved handling DNAs'},
                   ].map(({key,label,sub})=>chkRow(key,label,sub,exportSel[key],
                     e=>setExportSel(s=>({...s,[key]:e.target.checked})),
                     !entries.some(en=>kindOf(en)===key)))}
                   <div style={{display:'flex',gap:6,marginTop:14}}>
                     <button className="tbtn" style={{flex:1,fontSize:11}} onClick={close}>CANCEL</button>
                     <button className="tbtn on" style={{flex:1,fontSize:11}}
-                      disabled={!exportSel.chassis&&!exportSel.build&&!exportSel.car}
+                      disabled={!exportSel.chassis&&!exportSel.build&&!exportSel.car&&!exportSel.dna}
                       onClick={()=>{
                         // 'empty' (corrupt) entries are excluded from every kind, so they
                         // never propagate into a backup file
@@ -7454,13 +7492,14 @@ function App(){
                       {key:'chassis',label:'CHASSIS',sub:'Chassis-only entries'},
                       {key:'build',  label:'BUILDS', sub:'Tune-only entries'},
                       {key:'car',    label:'CARS',   sub:'Chassis + tune entries'},
+                    {key:'dna',    label:'DNA',    sub:'Saved handling DNAs'},
                     ].map(({key,label,sub})=>chkRow(key,label,sub,restoreSel[key],
                       e=>setRestoreSel(s=>({...s,[key]:e.target.checked})),
                       !restoreData.some(e=>kindOf(e)===key)))}
                     <div style={{display:'flex',gap:6,marginTop:14}}>
                       <button className="tbtn" style={{flex:1,fontSize:11}} onClick={close}>CANCEL</button>
                       <button className="tbtn on" style={{flex:1,fontSize:11}}
-                        disabled={!restoreSel.chassis&&!restoreSel.build&&!restoreSel.car}
+                        disabled={!restoreSel.chassis&&!restoreSel.build&&!restoreSel.car&&!restoreSel.dna}
                         onClick={()=>{
                           // Replace the selected kinds, KEEP the rest. The old per-list restore
                           // replaced one whole list and left the other alone; with a single list
@@ -7471,9 +7510,14 @@ function App(){
                           // approach unifyLegacy uses for legacy imports, but here against the
                           // live garage rather than a second legacy list. v2 entries carry explicit
                           // createdAt/updatedAt (unlike legacy ones), so bumping id alone is safe.
-                          const kept=entries.filter(e=>!restoreSel[kindOf(e)]);
+                          // A kind the file has none of is greyed out but can still be ticked, and
+                          // replacing it would delete that kind outright. Every backup made before
+                          // saved DNAs existed is one of those, so a kind only counts as selected
+                          // when the file actually carries it.
+                          const chosen=k=>restoreSel[k]&&restoreData.some(e=>kindOf(e)===k);
+                          const kept=entries.filter(e=>!chosen(kindOf(e)));
                           const usedIds=new Set(kept.map(e=>e.id));
-                          const incoming=restoreData.filter(e=>restoreSel[kindOf(e)]).map(e=>{
+                          const incoming=restoreData.filter(e=>chosen(kindOf(e))).map(e=>{
                             let nid=e.id;
                             while(usedIds.has(nid))nid++;
                             usedIds.add(nid);
@@ -7879,7 +7923,7 @@ function App(){
             <div style={{padding:'7px 12px',borderBottom:'1px solid #0f172a',flexShrink:0,
                          display:'flex',flexDirection:'column',gap:5}}>
               <div style={{display:'flex',gap:3}}>
-                {[['all','ALL',entries.length],['chassis','CHASSIS',kindCounts.chassis||0],
+                {[['all','ALL',garageEntries.length],['chassis','CHASSIS',kindCounts.chassis||0],
                   ['build','BUILDS',kindCounts.build||0],['car','CARS',kindCounts.car||0]].map(([k,l,n])=>(
                   <button key={k} className={`tbtn${garageUI.filter===k?' on':''}`}
                     style={{flex:1,fontSize:9,padding:'3px 2px'}}
@@ -7957,20 +8001,53 @@ function App(){
                   Switch to PRO to build a tune from a handling DNA.</div>}
                 {open.dnaOpen&&dnaPreview&&(()=>{
                   const r=dnaPreview;
-                  const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaDraft,base:dnaStore.draft?.base??dnaDraft.name,axes:{...dnaDraft.axes,[k]:v}}});
+                  const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaDraft.axes,[k]:v}}});
                   const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
                   const modeDiffs=DNA_MODE_FIELDS.filter(([o,f])=>(o==='fe'?fe:dr)[f]!==(o==='fe'?r.fe:r.dr)[f]);
                   return(<>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:8}}>
                       {DNA_ARCHETYPES.map(a=>{
-                        const on=dnaBase?.name===a.name;
+                        const on=dnaRef?.id==null&&dnaRef?.name===a.name;
                         return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:9,padding:'4px 2px'}}
-                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,base:a.name}})}>{a.name}</button>;
+                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes}}})}>{a.name}</button>;
                       })}
                     </div>
-                    {dnaEdited&&<div style={{fontSize:9,color:'#f59e0b',marginBottom:6}}>
-                      EDITED FROM {dnaBase.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
-                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaBase,base:dnaBase.name}})}>REVERT</span></div>}
+                    {/* MY DNA — saved DNAs as garage entries of kind 'dna', laid out like the saved
+                        garage list below: a save row, then EntryCards. LOAD DNA fills the editor;
+                        it does not apply. */}
+                    <div style={{marginBottom:10}}>
+                      <div onClick={()=>setOpen(p=>({...p,dnaSavedOpen:!p.dnaSavedOpen}))}
+                        style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:5,userSelect:'none'}}>
+                        <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>MY DNA</span>
+                        <span style={{fontSize:9,color:'#475569'}}>{dnaEntries.length}</span>
+                        <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.dnaSavedOpen?'▲':'▼'}</span>
+                      </div>
+                      {open.dnaSavedOpen&&<>
+                        <div style={{marginBottom:6}}>
+                          <input value={dnaEntryName} onChange={e=>setDnaEntryName(e.target.value)}
+                            onKeyDown={e=>{if(e.key==='Enter')dnaSave();}}
+                            placeholder={`Name this DNA… (${dnaName})`}
+                            style={{width:'100%',background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
+                                    padding:'4px 7px',fontSize:11,color:'#e2e8f0',outline:'none',
+                                    fontFamily:'inherit',marginBottom:5}}/>
+                          <button className="tbtn" style={{width:'100%',fontSize:9}} onClick={dnaSave}>SAVE DNA</button>
+                        </div>
+                        {dnaEntries.length===0
+                          ?<div style={{fontSize:10,color:'#374151',textAlign:'center',padding:'10px 0',letterSpacing:1}}>
+                             NO SAVED DNA<div style={{fontSize:9,marginTop:6,letterSpacing:0}}>
+                               Set the sliders below, name it above, then save.</div></div>
+                          :dnaEntries.map(e=>(
+                             <EntryCard key={e.id} entry={e} metricUnits={metricUnits} allTags={allTags}
+                               onLoadDna={dnaLoadSaved}
+                               onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
+                               onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
+                           ))}
+                      </>}
+                    </div>
+                    <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
+                      {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
+                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes}}})}>REVERT</span></>
+                        :<>EDITING {dnaName}</>}</div>
                     {DNA_AXIS_UI.map(({k,label,step})=>(
                       <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
                         onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
@@ -8006,7 +8083,7 @@ function App(){
                   mode of a filter UI is a user who can't find their data and doesn't know why */}
               {garageList.length===0
                 ?<div style={{fontSize:10,color:'#374151',textAlign:'center',padding:'20px 0',letterSpacing:1}}>
-                   {entries.length===0
+                   {garageEntries.length===0
                      ?<>NO SAVED ENTRIES<div style={{fontSize:9,marginTop:6,letterSpacing:0}}>
                         Name your setup above, then save it as a chassis, a build, or both.</div></>
                      :garageSearch.trim()
