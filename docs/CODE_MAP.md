@@ -115,7 +115,11 @@ everything else, the last three each in its own `useMemo`.
 off any tune; `dnaTolerances` sizes a hit from the game's quantisation;
 `dnaEvaluate` runs one compile through exactly App's chain; `applyDNA` compiles and
 resolves conflicts in the DNA's `keep` order. Constants: `DNA_AXES`, `DNA_YIELDABLE`,
-`DNA_MAX_MOVES`.
+`DNA_MAX_MOVES`. Presentation: `DNA_AXIS_UI`, `dnaFmt`, `DNA_MODE_FIELDS`. In `App`,
+`dnaStore` (`suspos_dna_v1`), `dnaRef`, `dnaPreview`, `dnaLink`, `dnaApply`, `dnaSave`,
+`dnaLoadSaved`, `dnaUnlink`, `dnaDot`, `garageEntries`/`dnaEntries`
+and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
+`visDna` card and the tier warning.
 
 ---
 
@@ -187,11 +191,11 @@ Sections are collapsed on load — `open` is plain `useState`, not persisted.
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
 exactly one per `Sec`, all nine including `visuals` — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
-detail overlay), `factoryOpen` (the GARAGE factory list) and the four `vis*` cards
+detail overlay), `factoryOpen`, `dnaOpen` and `dnaSavedOpen` (the GARAGE factory list, DNA editor and MY DNA drawer) and the `vis*` cards
 nested *inside* the VISUALS section.
 
 **The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**
-They used to blanket-toggle every key, which reached the other six: `+` popped the
+They used to blanket-toggle every key, which reached every one of those: `+` popped the
 balance overlay and every visualisation card open, `−` closed the factory list.
 Neither is what a control labelled SECTIONS should move, and the blast radius grew
 with every flag added to the object.
@@ -349,12 +353,6 @@ answer at extreme balance targets.
 hidden in physical modes, so these look unreachable. They cover a persisted
 `arbMode:'basic'` surviving a game-mode switch before the migration effect runs.
 
-**The Vehicle DNA core and `DNA_ARCHETYPES`** — no call site anywhere in `App`, so
-a search-based audit will read the whole `── Vehicle DNA ──` block as dead. It is the
-tested core of a feature whose UI has not been built yet; `tests-dna.js` is its
-consumer until then, and [DNA.md](DNA.md) is the spec the UI will follow. The
-exception is `resolveFeEffective`, which `App` already calls.
-
 **`TutorialPanel`'s `right` positioning fallback** — still unreachable (every
 `setPos` sets `left`). The GARAGE drawer is the first right-side, full-height
 tutorial target, and it does *not* reach that branch: a full-height element leaves
@@ -408,7 +406,7 @@ matching after a reorganisation, fix the markers; don't delete the suite.
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
-checks DNA against the app's own flags (`rollClamped`, `mechBalClamped`,
+checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
 `dampingClamped`) rather than against itself.
 
 So the only real verification is the browser. A reasonable routine after a

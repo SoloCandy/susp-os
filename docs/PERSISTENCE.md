@@ -22,6 +22,7 @@ examples of that).
 | `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
+| `suspos_dna_v1` | Vehicle DNA: the GARAGE editor's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |
 | `suspos_garage_ui_v1` | Garage panel filter + sort preference (`{filter, sort}`) — search text is deliberately not persisted | `{filter:'all', sort:'recent'}` |
 | `suspos_garage_v1` | Legacy chassis-only Garage (`{id, name, ch, savedAt}`) — **read-only**, migration source | `[]` |
 | `suspos_builds_v1` | Legacy tune-only My Builds (`{id, name, fe, dr, savedAt}`) — **read-only**, migration source | `[]` |
@@ -48,7 +49,7 @@ Don't bump for:
 One list holds every saved thing. An entry carries any combination of payloads:
 
 ```js
-{ id, name, ch?, fe?, dr?, tags:[], notes:'', createdAt, updatedAt }
+{ id, name, ch?, fe?, dr?, dna?, tags:[], notes:'', createdAt, updatedAt }
 ```
 
 Absent payloads are **omitted**, not stored as `null`. The entry's *kind* is
@@ -60,6 +61,7 @@ kind would desync the moment an entry is rewritten:
 | `chassis` | `ch` | LOAD CHASSIS |
 | `build` | `fe` + `dr` | LOAD BUILD |
 | `car` | `ch` + `fe` + `dr` | both, separately |
+| `dna` | `dna` only | LOAD DNA — shown in GARAGE → DNA → MY DNA, not the main list |
 | `empty` | none | none — corrupt entry, delete only |
 
 Save and load are still full generic spreads (`{...ch}` / `{...DEF_CH,...e.ch}`,
@@ -67,6 +69,12 @@ and the same for `fe`/`dr`), so **any new `ch`/`fe`/`dr` field automatically
 travels with garage entries with no save/load code change** — the property the old
 two-list split existed to provide, preserved. Only the *grouping* changed: a field
 still only needs to live in the right one of `ch` / `fe` / `dr`.
+
+`dna` means two things by position. Beside `fe`/`dr` it is the Vehicle DNA a build was
+stamped from (the `applied` shape of `suspos_dna_v1`) and plays no part in `kindOf`; an
+entry without it — every entry saved before DNA existed — loads as "no DNA". Alone it is
+a saved DNA (a `sanitizeDNA` shape), kind `dna`. See
+[DNA.md](DNA.md).
 
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
 see [CODEC.md](CODEC.md)'s excluded-fields section.
@@ -134,4 +142,6 @@ and a v2 file with a damaged version field still imports.
 
 Restore replaces the **selected kinds** and keeps the rest. The old behaviour
 replaced one whole list and left the other alone; with a single list, replacing
-everything would silently delete the kinds the user didn't tick.
+everything would silently delete the kinds the user didn't tick. A kind the file
+carries none of is not replaced even if its greyed-out box is still ticked — see
+[HISTORY.md](HISTORY.md).

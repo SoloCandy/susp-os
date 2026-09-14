@@ -13,6 +13,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — Vehicle DNA's roll axis became ARB share
+
+`rollDegPerG` (ROLL °) was replaced by `arbShare` (SHARE %), and the DNA format moved to
+v2. A roll target was unreliable to hit: body roll scales with CG height, which the app
+estimates, so a value that landed on one chassis missed on a lower or higher one — in
+BeamNG too, where the bars have no ceiling. Share doesn't depend on CG; its misses come
+from the game's bar range instead, which is exact. `computeTune` gained `shareClamped`
+and `arbShareTol` as SHARE's counterparts of `rollClamped`, and the sidebar ARB Share
+field now steps by 0.5 so DNA values can be set by hand. The archetype seeds and the
+measurements behind them are in [DNA.md](DNA.md#arb-share-rather-than-roll-degrees).
+
+---
+
+## Fixed — RESTORE deleted every entry of a kind the backup file didn't contain
+
+RESTORE replaces the ticked kinds and keeps the rest. A kind absent from the file had
+its checkbox greyed out, but the box stayed ticked, and the replace step read the tick
+state alone. So restoring a builds-only file deleted every chassis and car entry in
+the garage, replacing them with nothing. Found while adding saved Vehicle DNAs as a
+fourth kind, where it would have hit every restore: no backup made before that has a
+DNA in it. A kind now counts as selected only when the file carries at least one entry
+of it.
+
+---
+
+## Changed — leaving PRO asks first while a Vehicle DNA is applied
+
+The BEG/INT fallback effects rewrite `arbBalMode` MECH → WEIGHT (and BEG also resets
+`dampBalMode` and `dampingBias`) with nothing to restore them on returning to PRO, so a
+compiled DNA tune silently stopped solving for its balance target. The header tier
+buttons now go through `requestMode`: with a DNA link it shows STAY PRO / SWITCH, and
+SWITCH removes the link along with the tier change. Switching tiers without a link is
+unchanged.
+
+---
+
 ## Fixed — the Balance Guide band dropped grip-neutral when a fraction pair straddled 1.0
 
 Introduced by the overshoot fix directly below, found reviewing it the same day.

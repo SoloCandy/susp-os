@@ -11,7 +11,7 @@
 //   2. The axis table matches DEF_FE and sanitizeTune: a compiled patch is a sanitizeTune fixed
 //      point, so nothing downstream can silently rewrite a DNA-produced tune.
 //   3. Sign conventions: dampBias, diffExit and diffEntry read as their sliders on every layout.
-//   4. Miss detection agrees with the app's OWN flags (rollClamped, mechBalClamped,
+//   4. Miss detection agrees with the app's OWN flags (shareClamped, mechBalClamped,
 //      dampingClamped) — an independent oracle, not DNA checking itself.
 //   5. Portability: a protected balanceOffset lands on every synthetic chassis when bars aren't
 //      ceiling-limited, including the balanced and rear-biased chassis that broke the rejected
@@ -77,7 +77,7 @@ const LIGHT = { weight: 500 };
 const chOf = over => ({ ...M.DEF_CH, ...over });
 const feOf = (mode, over = {}) => ({ ...M.DEF_FE, gameMode: mode, ...over });
 const drOf = (over = {}) => ({ ...M.DEF_DR, ...over });
-const OUTCOME = ['platformHz', 'pitchRatio', 'rollDegPerG', 'balanceOffset', 'reboundZeta', 'bumpRatio'];
+const OUTCOME = ['platformHz', 'pitchRatio', 'arbShare', 'balanceOffset', 'reboundZeta', 'bumpRatio'];
 const SETTING = ['dampBias', 'diffExit', 'diffEntry'];
 const rankIn = (dna, k) => dna.keep.indexOf(k === 'bumpRatio' ? 'reboundZeta' : k);
 
@@ -132,7 +132,7 @@ section('axis table vs DEF_FE and sanitizeTune');
 
 t('axis defaults match DEF_FE / DEF_DR', () => {
   const A = M.DNA_AXES, F = M.DEF_FE, D = M.DEF_DR;
-  const pairs = [['platformHz', F.rideStiffness], ['pitchRatio', F.rearHzMult], ['rollDegPerG', F.arbTargetRollMan],
+  const pairs = [['platformHz', F.rideStiffness], ['pitchRatio', F.rearHzMult], ['arbShare', F.arbShareMan],
     ['balanceOffset', F.arbBalDelta], ['reboundZeta', F.reboundZeta], ['bumpRatio', F.bumpRatio],
     ['dampBias', F.dampingBias], ['diffExit', D.diffBiasExit], ['diffEntry', D.diffBiasEntry]];
   for (const [k, want] of pairs) assert(A[k].def === want, `${k}.def ${A[k].def} vs ${want}`);
@@ -145,7 +145,7 @@ t('DNA_YIELDABLE is five distinct outcome axes', () => {
 
 t('every axis range survives sanitizeTune at both ends (ranges = clamps)', () => {
   const def = M.sanitizeDNA({}).axes;
-  const field = { platformHz: ['fe', 'rideStiffness'], pitchRatio: ['fe', 'rearHzMult'], rollDegPerG: ['fe', 'arbTargetRollMan'],
+  const field = { platformHz: ['fe', 'rideStiffness'], pitchRatio: ['fe', 'rearHzMult'], arbShare: ['fe', 'arbShareMan'],
     balanceOffset: ['fe', 'arbBalDelta'], reboundZeta: ['fe', 'reboundZeta'], bumpRatio: ['fe', 'bumpRatio'],
     dampBias: ['fe', 'dampingBias'], diffExit: ['dr', 'diffBiasExit'], diffEntry: ['dr', 'diffBiasEntry'] };
   for (const [k, { min, max }] of Object.entries(M.DNA_AXES)) {
@@ -164,25 +164,33 @@ section('sanitizeDNA — the single choke point');
 t('garbage in → a complete default DNA', () => {
   for (const raw of [null, undefined, {}, 'dna', 42, { axes: 'x', keep: 'y' }]) {
     const d = M.sanitizeDNA(raw);
-    assert(d.v === 1 && d.name === 'Untitled', `header for ${JSON.stringify(raw)}`);
+    assert(d.v === 2 && d.name === 'Untitled', `header for ${JSON.stringify(raw)}`);
     for (const [k, { def }] of Object.entries(M.DNA_AXES)) assert(d.axes[k] === def, `${k} default`);
     assert(JSON.stringify(d.keep) === JSON.stringify(M.DNA_YIELDABLE), 'keep default');
   }
 });
 
 t('out-of-range axes clamp; non-finite and non-numeric fall back to default', () => {
-  const d = M.sanitizeDNA({ axes: { platformHz: 99, pitchRatio: -3, rollDegPerG: NaN, reboundZeta: Infinity, bumpRatio: '60' } });
+  const d = M.sanitizeDNA({ axes: { platformHz: 99, pitchRatio: -3, arbShare: NaN, reboundZeta: Infinity, bumpRatio: '60' } });
   assert(d.axes.platformHz === M.HZ_MAX, 'platform high clamp');
   assert(d.axes.pitchRatio === 0.5, 'pitch low clamp');
-  assert(d.axes.rollDegPerG === M.DNA_AXES.rollDegPerG.def, 'NaN → default');
+  assert(d.axes.arbShare === M.DNA_AXES.arbShare.def, 'NaN → default');
   assert(d.axes.reboundZeta === M.DNA_AXES.reboundZeta.def, 'Infinity → default');
   assert(d.axes.bumpRatio === M.DNA_AXES.bumpRatio.def, 'string → default');
 });
 
 t('keep is repaired into a permutation of DNA_YIELDABLE', () => {
-  const d = M.sanitizeDNA({ keep: ['rollDegPerG', 'bogus', 'rollDegPerG', 'dampBias', 'reboundZeta'] });
-  const want = ['rollDegPerG', 'reboundZeta', ...M.DNA_YIELDABLE.filter(k => k !== 'rollDegPerG' && k !== 'reboundZeta')];
+  const d = M.sanitizeDNA({ keep: ['arbShare', 'bogus', 'arbShare', 'dampBias', 'reboundZeta'] });
+  const want = ['arbShare', 'reboundZeta', ...M.DNA_YIELDABLE.filter(k => k !== 'arbShare' && k !== 'reboundZeta')];
   assert(JSON.stringify(d.keep) === JSON.stringify(want), `got ${d.keep}`);
+});
+
+t('a v1 DNA migrates: roll is dropped for the share default, its keep rank carries over', () => {
+  const d = M.sanitizeDNA({ v: 1, axes: { platformHz: 2.5, rollDegPerG: 0.9 }, keep: ['rollDegPerG', 'platformHz'] });
+  assert(d.v === 2 && !('rollDegPerG' in d.axes), 'roll axis survived');
+  assert(d.axes.arbShare === M.DNA_AXES.arbShare.def, 'arbShare not defaulted');
+  assert(d.axes.platformHz === 2.5, 'other axes lost');
+  assert(d.keep[0] === 'arbShare' && d.keep[1] === 'platformHz', `keep not carried: ${d.keep}`);
 });
 
 t('factory archetypes are already clean (sanitizeDNA is a no-op on them)', () => {
@@ -196,7 +204,7 @@ section('compileDNA — a patch in PRO target modes');
 
 t('sets exactly the documented modes', () => {
   const { fe, dr } = M.compileDNA(chOf({}), M.DEF_FE, M.DEF_DR, M.sanitizeDNA({}).axes);
-  const want = { rideRef: 'front', rideStiffMode: 'hz', rearHzMode: 'multiplier', arbMode: 'roll', arbBalMode: 'mech',
+  const want = { rideRef: 'front', rideStiffMode: 'hz', rearHzMode: 'multiplier', arbMode: 'share', arbBalMode: 'mech',
     arbBalTargetMode: 'grip', dampCharMode: 'zeta', dampingMode: 'ratio', dampBalMode: 'sync' };
   for (const [k, v] of Object.entries(want)) assert(fe[k] === v, `fe.${k} = ${fe[k]}`);
   assert(dr.diffManual === false, 'dr.diffManual');
@@ -299,14 +307,14 @@ t('BeamNG: platform and pitch sit inside the spring-grid tolerance', () => {
   }
 });
 
-t('roll hit ⇔ !rollClamped, balance hit ⇔ !mechBalClamped, !dampingClamped ⇒ damping hit', () => {
+t('share hit ⇔ !shareClamped, balance hit ⇔ !mechBalClamped, !dampingClamped ⇒ damping hit', () => {
   let n = 0;
   for (const mode of MODES) for (const over of Object.values(FIXTURES)) for (const a of M.DNA_ARCHETYPES)
-  for (const roll of [0.6, 1.0, 1.8, 3.0]) for (const off of [-0.1, -0.02, 0, 0.04, 0.15]) {
-    const ch = chOf(over), axes = { ...a.axes, rollDegPerG: roll, balanceOffset: off };
+  for (const share of [3, 8, 15, 30]) for (const off of [-0.1, -0.02, 0, 0.04, 0.15]) {
+    const ch = chOf(over), axes = { ...a.axes, arbShare: share, balanceOffset: off };
     const e = M.dnaEvaluate(ch, feOf(mode), M.DEF_DR, axes);
-    const rollHit = Math.abs(e.measured.rollDegPerG - roll) <= e.tol.rollDegPerG;
-    assert(rollHit === !e.tune.rollClamped, `${mode}/${a.name} roll ${roll}: DNA hit=${rollHit}, rollClamped=${e.tune.rollClamped}`);
+    const shareHit = Math.abs(e.measured.arbShare - share) <= e.tol.arbShare;
+    assert(shareHit === !e.tune.shareClamped, `${mode}/${a.name} share ${share}: DNA hit=${shareHit}, shareClamped=${e.tune.shareClamped}`);
     const tgt = M.gripNeutralOf(ch) + off;
     if (tgt >= 0.20 && tgt <= 0.90 && e.tune.rsAbF + e.tune.rsAbR > 0) {
       const balHit = Math.abs(e.measured.balanceOffset - off) <= e.tol.balanceOffset;
@@ -349,7 +357,7 @@ t('BeamNG: an archetype that protects balance lands it on every fixture', () => 
 t('the same offset means the same distance from grip-neutral on balanced and rear-biased cars', () => {
   // The rejected gap fraction gave these two chassis near-zero authority (docs/DNA.md).
   for (const fn of ['Balanced', 'RearBiased']) for (const off of [-0.06, 0.06]) {
-    const dna = { axes: { ...M.DNA_ARCHETYPES[2].axes, balanceOffset: off }, keep: ['balanceOffset', 'rollDegPerG', 'pitchRatio', 'platformHz', 'reboundZeta'] };
+    const dna = { axes: { ...M.DNA_ARCHETYPES[2].axes, balanceOffset: off }, keep: ['balanceOffset', 'arbShare', 'pitchRatio', 'platformHz', 'reboundZeta'] };
     const res = M.applyDNA(chOf(FIXTURES[fn]), feOf('beamng'), M.DEF_DR, dna);
     near(res.measured.balanceOffset, off, 0.01, `${fn} offset ${off}`);
   }
@@ -377,14 +385,15 @@ t('pitch band: platform gives way when pitch is protected, and not otherwise', (
   assert(missed(keepPlat, 'pitchRatio')?.cause === 'rear axle outside the Hz band', 'pitch miss or its cause missing');
 });
 
-t('roll: springs stiffer than the target — platform drops only if roll outranks it', () => {
-  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 3.5, rollDegPerG: 3.0 };
-  const keepRoll = M.applyDNA(chOf({}), feOf('horizon'), M.DEF_DR, { axes, keep: ['rollDegPerG', 'platformHz'] });
-  assert(moved(keepRoll, 'platformHz') && !missed(keepRoll, 'rollDegPerG'), 'platform should drop and roll land');
-  assert(keepRoll.work.platformHz < 3.5, 'platform did not drop');
-  const keepPlat = M.applyDNA(chOf({}), feOf('horizon'), M.DEF_DR, { axes, keep: ['platformHz', 'rollDegPerG'] });
+t('share: bars at their ceiling — platform drops only if share outranks it', () => {
+  // Bars add a fixed stiffness per click; stiff springs leave them a small fraction of the total.
+  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 3.5, arbShare: 30 };
+  const keepShare = M.applyDNA(chOf({}), feOf('horizon'), M.DEF_DR, { axes, keep: ['arbShare', 'platformHz'] });
+  assert(moved(keepShare, 'platformHz') && !missed(keepShare, 'arbShare'), 'platform should drop and share land');
+  assert(keepShare.work.platformHz < 3.5, 'platform did not drop');
+  const keepPlat = M.applyDNA(chOf({}), feOf('horizon'), M.DEF_DR, { axes, keep: ['platformHz', 'arbShare'] });
   assert(!moved(keepPlat, 'platformHz'), 'platform moved although it is more protected');
-  assert(missed(keepPlat, 'rollDegPerG')?.cause === 'springs alone are stiffer than the roll target', 'roll miss or its cause missing');
+  assert(missed(keepPlat, 'arbShare')?.cause === 'anti-roll bars at their limit', 'share miss or its cause missing');
 });
 
 t('damping ceiling (HEAVY): platform drops only if ζ outranks it', () => {
@@ -408,12 +417,12 @@ t('damping floor (LIGHT): platform rises only if ζ outranks it', () => {
 });
 
 t('balance (FrontHeavy, Forza): pitch carries the correction only if balance outranks it', () => {
-  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, rollDegPerG: 0.9, balanceOffset: 0 };
+  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, arbShare: 7.5, balanceOffset: 0 };
   const keepBal = M.applyDNA(chOf(FIXTURES.FrontHeavy), feOf('horizon'), M.DEF_DR,
-    { axes, keep: ['platformHz', 'balanceOffset', 'pitchRatio', 'rollDegPerG', 'reboundZeta'] });
+    { axes, keep: ['platformHz', 'balanceOffset', 'pitchRatio', 'arbShare', 'reboundZeta'] });
   assert(moved(keepBal, 'pitchRatio') && !missed(keepBal, 'balanceOffset'), 'pitch should move and balance land');
   const keepPitch = M.applyDNA(chOf(FIXTURES.FrontHeavy), feOf('horizon'), M.DEF_DR,
-    { axes, keep: ['platformHz', 'pitchRatio', 'rollDegPerG', 'reboundZeta', 'balanceOffset'] });
+    { axes, keep: ['platformHz', 'pitchRatio', 'arbShare', 'reboundZeta', 'balanceOffset'] });
   assert(keepPitch.moves.length === 0, `moved ${keepPitch.moves.map(m => m.axis)} although balance is least protected`);
   assert(missed(keepPitch, 'balanceOffset')?.cause === 'anti-roll bars cannot reach the split', 'balance miss or its cause missing');
 });
