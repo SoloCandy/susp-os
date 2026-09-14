@@ -13,6 +13,12 @@ lock direction backwards). Both are in [HISTORY.md](HISTORY.md).
 Convention across the app: **right = OVERSTEER, left = UNDERSTEER** for
 every balance-relevant slider.
 
+Every slider's value can also be typed: click the readout to the right of its
+label. The field holds the slider's own number, even where the readout shows
+something derived (UNDERSTEER, F 52 | 48 R), so on the flipped sliders (Damping
+Bias, EXIT, ENTRY) a negative number is toward the left end. A typed value is
+clamped to the ranges below but not snapped to the slider's step.
+
 > Keep this in sync with `index.html` whenever a slider's range, mechanism,
 > or tier gating changes — see the note in `CLAUDE.md` about reviewing docs
 > after major changes.

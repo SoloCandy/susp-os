@@ -130,7 +130,7 @@ and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
 |---|---|
 | `Hint` | everywhere — the ⓘ affordance |
 | `Field` | numeric inputs across all sections |
-| `FeelSlider` | BEG feel sliders and most INT/PRO sliders |
+| `FeelSlider` | BEG feel sliders, most INT/PRO sliders, and the DNA editor. A string (or absent) `readout` is click-to-type: it opens a number field holding the slider's own value, commits on Enter/blur clamped to `min`/`max` but not snapped to `step`, and only if the text was edited; Escape cancels. A `readout` passed as an element is left as it is — the Hz and BOTTOM G readouts carry their own typed entry through `hzDraft`/`rearHzDraft` |
 | `Toggle` | mode switches |
 | `Sec` | the nine collapsible sidebar sections (`div.stog` header) |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
