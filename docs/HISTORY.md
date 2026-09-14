@@ -13,6 +13,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — leaving PRO asks first while a Vehicle DNA is applied
+
+The BEG/INT fallback effects rewrite `arbBalMode` MECH → WEIGHT (and BEG also resets
+`dampBalMode` and `dampingBias`) with nothing to restore them on returning to PRO, so a
+compiled DNA tune silently stopped solving for its balance target. The header tier
+buttons now go through `requestMode`: with a DNA link it shows STAY PRO / SWITCH, and
+SWITCH removes the link along with the tier change. Switching tiers without a link is
+unchanged.
+
+---
+
 ## Fixed — the Balance Guide band dropped grip-neutral when a fraction pair straddled 1.0
 
 Introduced by the overshoot fix directly below, found reviewing it the same day.

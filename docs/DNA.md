@@ -4,15 +4,10 @@ A saved, chassis-portable description of *how a car should drive* — sharp and
 agile, compliant and forgiving, planted, tail-happy — that is applied to whatever
 chassis is loaded by solving the tune that produces it on that car.
 
-> **Status: core implemented, no UI.** `index.html` has the pure layer —
-> `resolveFeEffective`, `gripNeutralOf`, and under the `── Vehicle DNA ──` banner
-> `DNA_AXES`, `sanitizeDNA`, `compileDNA`, `measureDNA`, `dnaTolerances`,
-> `dnaEvaluate` and `applyDNA`, plus `DNA_ARCHETYPES` beside the factory presets —
-> and `tests-dna.js` exercises it. Nothing in `App` calls the DNA functions yet: there
-> is no `suspos_dna_v1` key, garage payload, DNA section or VISUALS card. The sections
-> on storage and UI below are still design. When the UI lands, the remaining facts
-> move into the docs that own them (see
-> [Doc obligations when the UI lands](#doc-obligations-when-the-ui-lands)).
+> **Status: implemented in PRO, first-pass UI.** The editor lives in the GARAGE
+> drawer; the look is expected to change once it has been used. Core functions sit
+> under the `── Vehicle DNA ──` banner in `index.html` and are exercised by
+> `tests-dna.js`.
 
 Scope note: this file is the design of a layer that sits *above* the solver. It
 introduces no new physics and no new calibration constant. The solve math it
@@ -426,60 +421,73 @@ different modes would compare two quantities that merely share a name.
 
 | What | Where | Notes |
 |---|---|---|
-| The editor's current DNA | `suspos_dna_v1` = `{ draft }` | Object-valued, so `mergeDefaults` fills new fields for free |
-| Saved DNAs | Garage entries with a new `dna` payload | New derived kind `'dna'` |
-| Factory archetypes | `DNA_ARCHETYPES` constant | FACTORY cards, same pattern as `PRESET_SAVES` |
+| The editor's draft and the last APPLY | `suspos_dna_v1` = `{ draft, applied }` | Object-valued, so `mergeDefaults` fills new fields for free |
+| Which DNA a saved build came from | optional `dna` on a garage entry beside `fe`/`dr` | Not part of `kindOf` — a build with a `dna` is still a build |
+| Factory archetypes | `DNA_ARCHETYPES` constant | Buttons in the GARAGE DNA section |
 | Share codes | **Not in v1** | The stamped tune already travels through the existing codec |
 
-**A DNA entry carries only `dna`.** Mixing it with `ch`/`fe`/`dr` would turn
-`kindOf`'s simple derivation into a combinatorial one. Adding the kind touches
-`kindOf`, `normalizeEntry`, the garage filter chips, and RESTORE — whose kind list
-is written out as three hardcoded rows plus a `disabled` condition naming all three,
-so a fourth kind needs both.
+`draft` is a DNA plus `base`, the archetype it started from. `sanitizeDNA` drops
+`base`; the app reads it off the stored draft to say "EDITED FROM GT3" and to apply
+an edited draft as `GT3 (edited)`.
 
-**Factory archetypes stay out of the entry list** for the reason presets do: six
-identical read-only entries would ride along in every backup and multiply on every
-restore. See [PRESETS.md](PRESETS.md).
+`applied` is `{ name, axes, achieved }`: the name shown in the sidebar, the axis
+targets, and what `measureDNA` read straight after APPLY. **Drift is judged against
+`achieved`, not the targets**, so a resolver compromise is not reported as drift the
+moment it is applied. An axis has drifted when its current measurement is more than its
+`dnaTolerances` allowance from `achieved`, or when it reads `null` (mode differs)
+where it didn't before.
 
-(For presets that was six identical read-only entries; for archetypes it would be four,
-with the same multiplication on every restore.)
+**Saving custom DNAs is not built.** Designed as a garage entry kind `'dna'`; adding it
+touches `kindOf`, `normalizeEntry`, the filter chips, and RESTORE's hardcoded kind
+list. **Factory archetypes stay out of the entry list** for the reason presets do —
+see [PRESETS.md](PRESETS.md).
 
-**Share codes stay out of v1** because a DNA group in `CODEC_FIELDS` means the same
-threading the `al` gap needs — new ids, a group through `DEF_GROUPS`/`encodeTune`/
-`decodeTune`/`sanitizeTune` — for an object that is not a tune. A DNA share code, if
-wanted, should be its own format rather than new tune-codec ids. Codec ids are
-permanent either way; see [CODEC.md](CODEC.md).
+**Share codes stay out of v1** because a DNA group in `CODEC_FIELDS` means new ids
+threaded through `DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune` for an
+object that is not a tune. Codec ids are permanent; see [CODEC.md](CODEC.md).
 
-### Apply once without an "active DNA" link
+### The applied link
 
-The match readout always compares the **current** tune with the **editor's** DNA.
-There is no stored "this tune came from that DNA" link, so loading a build, a preset
-or a share code needs no invalidation logic — the readout simply becomes a
-comparison ("how GT3 is this tune?"). That also avoids adding the kind of effect
-the `rideBottomG` race came from.
+APPLY is still apply-once: nothing re-solves when the chassis or a control changes.
+The link only drives read-outs. What happens to it:
+
+| Event | Link |
+|---|---|
+| APPLY | set to this DNA |
+| SAVE BUILD / SAVE CAR, and REWRITE of a build | copied onto the entry as `dna` (removed from the entry if there is no link) |
+| LOAD BUILD / LOAD CAR's build | replaced by the entry's `dna`, or cleared if it has none |
+| Factory preset LOAD, LOAD CODE's OVERWRITE with feel or drivetrain ticked, RESET of the tune | cleared |
+| Leaving PRO | a confirm first; SWITCH clears it |
+| ✕ on the sidebar DNA line | cleared, tune untouched |
+| Undo (↩), chassis edits, control edits | unchanged — they show as drift |
 
 ---
 
 ## UI (PRO)
 
-- **GARAGE drawer.** FACTORY DNA cards above saved DNA entries. The card action is
-  **EDIT**, which loads the DNA into the editor; it does not apply. Below PRO, DNA
-  entries still render — with a PRO badge and no action — so entry counts and search
-  do not change with the tier.
-- **Sidebar section DNA** (`zone-dna`, PRO only):
-  - archetype picker;
-  - one `FeelSlider` per axis, each with a `markers` entry at the current tune's
-    measured value, so drift is visible on the control itself;
-  - the `keep` order, reordered with ▲ ▼;
-  - **APPLY** behind `useTwoTap`, because it overwrites the tune;
-  - **SAVE DNA**.
-- **VISUALS card DNA MATCH** (`visDna`). A radar of target over achieved, each axis
-  normalised over its DNA range and balance centred on grip-neutral, plus the resolver's
-  move list and any **mode differs** axes.
-- **Balance Guide** keeps showing its build-type band even when the DNA sits outside
-  it. A tail-happy DNA on a TRACK build *should* read out of band.
-- **Macro sliders** (Aggression, Compliance, Oversteer Bias) are deferred to the
-  BEG phase. In PRO the axes are the controls.
+- **GARAGE drawer, DNA section** (`dnaOpen`), between FACTORY and the saved entries.
+  Below PRO it shows only a note to switch to PRO.
+  - archetype buttons, which load a draft; they do not apply;
+  - one `FeelSlider` per axis over the full `DNA_AXES` range;
+  - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
+    missed (and why), or not expressible. Solved only while the section is open;
+  - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
+  - **APPLY**, undoable with ↩ like any load.
+- **Sidebar DNA line**, above CHASSIS: name, drift count, ✕ to remove the link. The name
+  opens the editor. Not a `Sec`.
+- **Sidebar marks**: a dot on the label of each control an axis compiled onto — indigo
+  while it reads as applied, amber once drifted. `dnaDot` is the only call site pattern.
+  The ride stiffness and rear multiplier dots show only under a FRONT ride reference,
+  since under any other reference those sliders hold a different quantity.
+- **VISUALS card DNA MATCH** (`visDna`): target, now, and ✓/≠ per axis. Shown only while
+  a link exists.
+- **Tier warning**: leaving PRO with a link asks first — the BEG/INT fallback effects
+  rewrite `arbBalMode` (and at BEG `dampBalMode`/`dampingBias`) and nothing restores
+  them. `requestMode` wraps `tryAccessMode` for the header tier buttons.
+
+Not built from the first design: the `keep` order editor, SAVE DNA, a radar chart,
+and re-apply from the match card. The Balance Guide keeps showing its build-type band
+even when the DNA sits outside it.
 
 ---
 
@@ -647,34 +655,13 @@ particular calibration cars, and it is not what `tests-dna.js` proves.
 
 1. **Archetype sign-off** — names, seeds, `keep` orders, and whether four is the
    right set. Not blocking: it is data, and it is best settled in-game.
-2. **What to do when a DNA tune leaves PRO** — a decision for the UI phase. Checked in
-   the browser: switching a compiled tune to INT runs `App`'s BEG/INT fallback effect,
-   which rewrites `arbBalMode:'mech'` to `'weight'`. Springs, dampers and roll are
-   untouched, but the bar split stops solving for the balance target (24.2 / 21.5 →
-   23.3 / 22.4 clicks on the default chassis) and the MECH readout disappears. Reading
-   the code, Beginner's own effect goes further and also resets `dampBalMode` to
-   `standard` and `dampingBias` to 0. Nothing restores any of it on returning to PRO.
-   Options: warn before the tier change, offer RE-APPLY on return, or accept it.
+2. **What the editor should look like** — the first pass is deliberately rough; see
+   [UI (PRO)](#ui-pro) for what exists.
 
 Settled since the first draft: balance is an absolute offset from grip-neutral (a
 gap fraction was accepted first, then rejected — see
 [Why not a gap fraction](#why-not-a-gap-fraction)); the portability test uses
 synthetic chassis instead of calibration-car data; and the factory presets now author
-ζ, which unblocked the ζ seeds.
+ζ, which unblocked the ζ seeds; leaving PRO with an applied DNA asks first and
+removes the link.
 
----
-
-## Doc obligations when the UI lands
-
-Done with the core: [CODE_MAP.md](CODE_MAP.md) lists the DNA functions,
-`resolveFeEffective`, `DNA_ARCHETYPES` and `tests-dna.js`; the README lists the suite.
-
-| Change | Update |
-|---|---|
-| `suspos_dna_v1`, the `dna` payload, the `'dna'` kind, RESTORE's kind list | [PERSISTENCE.md](PERSISTENCE.md) — `tests-docs.js` fails on an undocumented key |
-| `zone-dna`, the new `Sec`, `visDna`, the DNA functions gaining call sites | [CODE_MAP.md](CODE_MAP.md) — its zone count and section count are both checked; move the DNA core out of the intentionally-retained section |
-| `'dna'` in `SECTION_KEYS` and the `open` initialiser, `visDna` in the initialiser | `index.html` — `tests-docs.js` checks the initialiser |
-| DNA axis sliders | [SLIDERS.md](SLIDERS.md) |
-| Aero, progressive breakaway, CO-SOLVE for pitch, the gap-fraction balance axis — rejected | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
-| PRO feature list | `README.md` |
-| This file | Drop the status banner; keep only what is true of the shipped feature |

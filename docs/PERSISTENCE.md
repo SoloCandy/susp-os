@@ -22,6 +22,7 @@ examples of that).
 | `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
+| `suspos_dna_v1` | Vehicle DNA: the GARAGE editor's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |
 | `suspos_garage_ui_v1` | Garage panel filter + sort preference (`{filter, sort}`) — search text is deliberately not persisted | `{filter:'all', sort:'recent'}` |
 | `suspos_garage_v1` | Legacy chassis-only Garage (`{id, name, ch, savedAt}`) — **read-only**, migration source | `[]` |
 | `suspos_builds_v1` | Legacy tune-only My Builds (`{id, name, fe, dr, savedAt}`) — **read-only**, migration source | `[]` |
@@ -48,7 +49,7 @@ Don't bump for:
 One list holds every saved thing. An entry carries any combination of payloads:
 
 ```js
-{ id, name, ch?, fe?, dr?, tags:[], notes:'', createdAt, updatedAt }
+{ id, name, ch?, fe?, dr?, dna?, tags:[], notes:'', createdAt, updatedAt }
 ```
 
 Absent payloads are **omitted**, not stored as `null`. The entry's *kind* is
@@ -67,6 +68,11 @@ and the same for `fe`/`dr`), so **any new `ch`/`fe`/`dr` field automatically
 travels with garage entries with no save/load code change** — the property the old
 two-list split existed to provide, preserved. Only the *grouping* changed: a field
 still only needs to live in the right one of `ch` / `fe` / `dr`.
+
+`dna` is the Vehicle DNA a build was stamped from (the `applied` shape of
+`suspos_dna_v1`). It is kept only beside `fe`/`dr`, plays no part in `kindOf`, and an
+entry without it — every entry saved before DNA existed — loads as "no DNA". See
+[DNA.md](DNA.md).
 
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
 see [CODEC.md](CODEC.md)'s excluded-fields section.

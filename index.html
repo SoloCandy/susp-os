@@ -1728,6 +1728,8 @@ const normalizeEntry=raw=>{
     ...(raw?.ch?{ch:raw.ch}:{}),
     ...(raw?.fe?{fe:raw.fe}:{}),
     ...(raw?.dr?{dr:raw.dr}:{}),
+    // Which DNA a build was stamped from. Only meaningful beside fe/dr, and never part of kindOf.
+    ...((raw?.fe||raw?.dr)&&raw?.dna&&typeof raw.dna==='object'?{dna:raw.dna}:{}),
     tags:      Array.isArray(raw?.tags)?raw.tags.filter(x=>typeof x==='string'):[],
     notes:     typeof raw?.notes==='string'?raw.notes:'',
     createdAt: Number.isFinite(raw?.createdAt)?raw.createdAt:t,
@@ -1960,6 +1962,33 @@ const DNA_ARCHETYPES=[
    axes:{platformHz:2.20,pitchRatio:1.225,rollDegPerG:1.35,balanceOffset:0.010,
          reboundZeta:41,bumpRatio:47,dampBias:10,diffExit:20,diffEntry:10},
    keep:['balanceOffset','rollDegPerG','reboundZeta','platformHz','pitchRatio']},
+];
+
+// Presentation for the GARAGE DNA editor, the sidebar marks and the VISUALS match card, in the
+// order they render. `step` is fine enough to hit every archetype seed exactly.
+const DNA_AXIS_UI=[
+  {k:'platformHz',   label:'PLATFORM',   unit:' Hz',step:0.01,  dp:2},
+  {k:'pitchRatio',   label:'PITCH',      unit:'×',  step:0.005, dp:3},
+  {k:'rollDegPerG',  label:'ROLL',       unit:'°/g',step:0.01,  dp:2},
+  {k:'balanceOffset',label:'BALANCE',    unit:'',   step:0.0025,dp:4,signed:true},
+  {k:'reboundZeta',  label:'REBOUND ζ',  unit:'%',  step:0.5,   dp:1},
+  {k:'bumpRatio',    label:'BUMP RATIO', unit:'%',  step:1,     dp:0},
+  {k:'dampBias',     label:'DAMP BIAS',  unit:'',   step:1,     dp:0,signed:true},
+  {k:'diffExit',     label:'DIFF EXIT',  unit:'',   step:1,     dp:0,signed:true},
+  {k:'diffEntry',    label:'DIFF ENTRY', unit:'',   step:1,     dp:0,signed:true},
+];
+const dnaFmt=(k,v)=>{
+  if(v==null||!isFinite(v))return'—';
+  const u=DNA_AXIS_UI.find(a=>a.k===k);
+  return(u.signed&&v>0?'+':'')+v.toFixed(u.dp)+u.unit;
+};
+// The modes compileDNA forces. The editor lists the ones that differ before APPLY, because the
+// user may have chosen the current ones on purpose.
+const DNA_MODE_FIELDS=[
+  ['fe','rideRef','RIDE REF'],['fe','rideStiffMode','STIFFNESS'],['fe','rearHzMode','REAR HZ'],
+  ['fe','arbMode','ARB'],['fe','arbBalMode','ARB BALANCE'],['fe','arbBalTargetMode','BAL TARGET'],
+  ['fe','dampCharMode','DAMP CHARACTER'],['fe','dampingMode','BUMP'],['fe','dampBalMode','DAMP BALANCE'],
+  ['dr','diffManual','DIFF MANUAL'],
 ];
 
 const Hint=({text})=>{
@@ -3862,6 +3891,11 @@ function App(){
   // scrolled out of view, is a bug factory.
   const[garageUI,setGarageUI]=usePersist('suspos_garage_ui_v1',{filter:'all',sort:'recent'});
   const[garageSearch,setGarageSearch]=useState('');
+  // Vehicle DNA. `draft` is the GARAGE editor's DNA; `applied` is the last APPLY — its name, the
+  // axis targets, and what measureDNA read straight after, which is the baseline drift is judged
+  // against. Cleared by anything that replaces the tune wholesale, and before leaving PRO.
+  const[dnaStore,setDnaStore]=usePersist('suspos_dna_v1',{draft:DNA_ARCHETYPES[0],applied:null});
+  const[dnaTierWarn,setDnaTierWarn]=useState(null);
   // One-time migration: pull any customized old preset slots (suspos_saves_v9) into MY BUILDS.
   // The 6 factory slots that match their defaults are skipped; only renamed/overwritten slots move.
   // Non-destructive (old key left intact); guarded by a flag so it runs at most once per browser.
@@ -3962,6 +3996,12 @@ function App(){
       openTut(needed);
     }
   };
+  // Leaving PRO rewrites the modes a DNA compiles into (see the BEG/INT fallback effects), so ask
+  // first while a DNA is applied.
+  const requestMode=m=>{
+    if(uiMode==='pro'&&m!=='pro'&&dnaStore.applied){setDnaTierWarn(m);return;}
+    tryAccessMode(m);
+  };
   const tutFocus=tutMode?(TUTORIALS[tutMode]?.[tutStep]?.focus??null):null;
   const dim=(...zones)=>{
     if(!tutMode)return{};
@@ -4017,7 +4057,7 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,visuals:false,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
   // parse to a full radius, and only when the rounded-mm result actually changed, so this
@@ -4179,6 +4219,39 @@ function App(){
   const feEffective=resolveFeEffective(ch,fe);
   const physics=useMemo(()=>feelToPhysics(ch,feEffective),[ch,feEffective]);
   const tune=useMemo(()=>computeTune(ch,physics,fe.gameMode),[ch,physics,fe.gameMode]);
+  const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
+  // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
+  // its own name plus "(edited)", so the sidebar never claims a stock GT3 that isn't one.
+  const dnaBase=DNA_ARCHETYPES.find(a=>a.name===(dnaStore.draft?.base??dnaStore.draft?.name));
+  const dnaEdited=!!dnaBase&&DNA_AXIS_UI.some(({k})=>Math.abs(dnaBase.axes[k]-dnaDraft.axes[k])>1e-9);
+  const dnaName=dnaEdited?dnaBase.name+' (edited)':dnaDraft.name;
+  // Only solved while the editor is on screen — the resolver runs many forward solves.
+  const dnaPreview=useMemo(()=>uiMode==='pro'&&garagePanelOpen&&open.dnaOpen?applyDNA(ch,fe,dr,dnaDraft):null,
+    [uiMode,garagePanelOpen,open.dnaOpen,ch,fe,dr,dnaDraft]);
+  const dnaLink=useMemo(()=>{
+    const a=dnaStore.applied;
+    if(!a||uiMode!=='pro')return null;
+    const now=measureDNA(ch,tune,fe,dr),tol=dnaTolerances(tune,fe.gameMode??DEF_FE.gameMode);
+    const rows=DNA_AXIS_UI.map(({k})=>{
+      const was=a.achieved?.[k],cur=now[k];
+      const drift=was==null?cur!=null:cur==null||Math.abs(cur-was)>tol[k];
+      return{k,target:a.axes?.[k],was,cur,drift};
+    });
+    return{name:a.name,rows,by:Object.fromEntries(rows.map(r=>[r.k,r])),drifted:rows.filter(r=>r.drift).length};
+  },[dnaStore.applied,uiMode,ch,tune,fe,dr]);
+  const dnaUnlink=()=>{if(dnaStore.applied)setDnaStore({...dnaStore,applied:null});};
+  const dnaApply=()=>{
+    const r=applyDNA(ch,fe,dr,dnaDraft);
+    setFe(r.fe);setDr(r.dr);
+    setDnaStore({...dnaStore,applied:{name:dnaName,axes:r.dna.axes,achieved:r.measured}});
+  };
+  // A mark on a sidebar control a DNA set: indigo while it still reads as applied, amber once it
+  // has drifted (edited, or the chassis changed under it).
+  const dnaDot=k=>{
+    const r=dnaLink?.by[k];if(!r)return null;
+    return <span title={'DNA '+dnaLink.name+': target '+dnaFmt(k,r.target)+(r.drift?', drifted':'')}
+      style={{color:r.drift?'#f59e0b':'#818cf8',marginRight:4,fontSize:9}}>●</span>;
+  };
   // BOTTOM G's stiffness mode: fe.rideBottomG is a stored TARGET load factor (not a Hz), so it
   // must keep resolving to a fresh Hz whenever the chassis it applies to changes — ride height
   // edits, or a build/share-code load landing a new target on the current chassis. Switching
@@ -4459,6 +4532,7 @@ function App(){
     }
     setFe(adjustedFe);
     setDr(p=>({...DEF_DR,...s.dr}));
+    dnaUnlink();
   };
   // ── GARAGE actions ────────────────────────────────────────────────────────
   // Every mutation is a single setEntries call that stamps updatedAt (usePersist's setter
@@ -4469,7 +4543,7 @@ function App(){
     setEntries(list=>[normalizeEntry({
       id:now,name:entryName.trim()||'Untitled',
       ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
-      ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr}}:{}),
+      ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr},...(dnaStore.applied?{dna:dnaStore.applied}:{})}:{}),
       createdAt:now,updatedAt:now,
     }),...list]);
     setEntryName('');
@@ -4485,10 +4559,13 @@ function App(){
       createdAt:now,updatedAt:now,
     }),...list]);
   };
-  const garageRewrite=(id,which)=>mutEntry(id,e=>({...e,
-    ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
-    ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr}}:{}),
-  }));
+  const garageRewrite=(id,which)=>mutEntry(id,e=>{
+    const{dna:_d,...rest}=e;
+    return{...(which==='build'||which==='both'?rest:e),
+      ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
+      ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr},...(dnaStore.applied?{dna:dnaStore.applied}:{})}:{}),
+    };
+  });
   const garageDelete=id=>setEntries(list=>list.filter(e=>e.id!==id));
   const garageRename=(id,name)=>mutEntry(id,e=>({...e,name:name.trim()||'Untitled'}));
   const garageNotes=(id,notes)=>mutEntry(id,e=>({...e,notes}));
@@ -4508,6 +4585,7 @@ function App(){
       setFe({...rest,...dampBal});
     }
     if(e.dr)setDr({...DEF_DR,...e.dr});
+    if(e.fe||e.dr)setDnaStore({...dnaStore,applied:e.dna??null});
   };
   const allTags=[...new Set(entries.flatMap(e=>e.tags||[]))].sort();
   // filter by kind -> filter by text -> sort. Filtering first keeps the sort stable with
@@ -4541,6 +4619,7 @@ function App(){
       setFe({...DEF_FE});
       setDr({...DEF_DR});
       setAl({...DEF_AL});
+      dnaUnlink();
     }
     if(resetOpts.tutorials)setTutSeen({beginner:false,intermediate:false,pro:false});
     setShowResetModal(false);
@@ -4580,6 +4659,25 @@ function App(){
                 style={{color:'#fca5a5',borderColor:'#7f1d1d'}}>
                 RESET
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {dnaTierWarn&&(
+        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+             onClick={()=>setDnaTierWarn(null)}>
+          <div onClick={e=>e.stopPropagation()}
+               style={{background:'#0a0f1a',border:'1px solid #78350f',borderRadius:6,padding:20,maxWidth:420,width:'100%'}}>
+            <div style={{fontSize:13,letterSpacing:1,color:'#fbbf24',marginBottom:12}}>SWITCH TO {dnaTierWarn==='beginner'?'BEG':'INT'}?</div>
+            <div style={{fontSize:12,color:'#cbd5e1',lineHeight:1.6,marginBottom:14}}>
+              This tune was built from DNA <span style={{color:'#a5b4fc'}}>{dnaStore.applied?.name}</span>.
+              {dnaTierWarn==='beginner'?' BEG':' INT'} can't use MECH balance{dnaTierWarn==='beginner'?', SYNC damper balance or damping bias':''}, so
+              the tune changes and the DNA link is removed. Switching back to PRO doesn't restore it.
+            </div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button className="tbtn" onClick={()=>setDnaTierWarn(null)}>STAY PRO</button>
+              <button className="tbtn" style={{color:'#fbbf24',borderColor:'#78350f'}}
+                onClick={()=>{const m=dnaTierWarn;setDnaTierWarn(null);setDnaStore({...dnaStore,applied:null});tryAccessMode(m);}}>SWITCH</button>
             </div>
           </div>
         </div>
@@ -4670,7 +4768,7 @@ function App(){
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
               {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([mode,label])=>(
                 <button key={mode} className={`tbtn${uiMode===mode?' on':''}`}
-                  onClick={()=>tryAccessMode(mode)} style={{fontSize:11}}>{label}</button>
+                  onClick={()=>requestMode(mode)} style={{fontSize:11}}>{label}</button>
               ))}
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
             </>}
@@ -4691,7 +4789,7 @@ function App(){
           <div style={{display:'flex',gap:4,padding:'0 14px 8px'}}>
             {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([mode,label])=>(
               <button key={mode} className={`tbtn${uiMode===mode?' on':''}`}
-                onClick={()=>tryAccessMode(mode)}
+                onClick={()=>requestMode(mode)}
                 style={{flex:1,fontSize:11,padding:'7px 0',textAlign:'center'}}>
                 {label}
               </button>
@@ -4888,6 +4986,16 @@ function App(){
           </div>}
 
           {uiMode!=='beginner'&&<>
+          {dnaLink&&<div style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
+                                 background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
+            <span style={{color:'#818cf8',letterSpacing:1,cursor:'pointer'}} title="Open the DNA editor"
+              onClick={()=>{setOpen(p=>({...p,dnaOpen:true}));setGaragePanelOpen(true);}}>DNA: {dnaLink.name}</span>
+            <span style={{color:dnaLink.drifted?'#f59e0b':'#475569'}}>
+              {dnaLink.drifted?`· ${dnaLink.drifted} drifted`:'· as applied'}</span>
+            <span style={{flex:1}}/>
+            <button onClick={dnaUnlink} title="Remove the DNA link (the tune stays as it is)"
+              style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
+          </div>}
           <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')}
             onReset={()=>setCh({...DEF_CH})}>
             <Toggle label="Layout" value={ch.layout} onChange={pCh('layout')}
@@ -5105,7 +5213,7 @@ function App(){
                   <Hint text="When on, the diff auto-solver factors how far your mech balance target lies from the chassis's natural balance. A target tuned for more oversteer biases the diff toward rotation; a target tuned for understeer leans the diff toward stability. Off (default) means the diff ignores chassis target entirely. Has no effect in MANUAL mode. Affects the EXIT/ENTRY sliders in this group."/>
                 </div>}
                 <FeelSlider
-                  label="EXIT"
+                  label={<>{dnaDot('diffExit')}EXIT</>}
                   // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
                   // do NOT also flip the sign inside computeDiff's FWD accel formula (the
                   // `+effBiasExit*0.15` term, ~index.html:840). That formula is intentionally
@@ -5128,7 +5236,7 @@ function App(){
                     ?`R.Accel ${diff.rearAccel}%`
                     :`Accel ${diff.accel}%`}/>
                 {dt!=='sport'&&<FeelSlider
-                  label="ENTRY"
+                  label={<>{dnaDot('diffEntry')}ENTRY</>}
                   value={-(dr.diffBiasEntry??0)}
                   onChange={v=>pDr('diffBiasEntry')(-v)}
                   min={-50} max={50}
@@ -5257,7 +5365,7 @@ function App(){
                       onChange={v=>pFe('arbBalTarget')(Math.round(v*100)/100)}
                       min={Math.round((0.20-natMechBalance)*100)/100} max={Math.round((0.90-natMechBalance)*100)/100} step={0.01} unit="from NAT"
                       hint="Deviation from the chassis natural roll balance. 0 = target the natural balance exactly — no ARB correction needed. Positive = rear-biased from natural (oversteer tendency), negative = front-biased (understeer tendency). The BALANCE GUIDE below shows the recommended range for your drivetrain and build type as deltas from NAT — use those as your reference."/>
-                  :<Field label="Balance Offset" value={fe.arbBalDelta??0} onChange={pFe('arbBalDelta')}
+                  :<Field label={<>{dnaDot('balanceOffset')}Balance Offset</>} value={fe.arbBalDelta??0} onChange={pFe('arbBalDelta')}
                       min={-0.20} max={0.20} step={0.01}
                       hint="Offset from the grip-neutralising target. 0 = mech balance exactly opposes the car's natural grip tendency for neutral at-limit handling. Positive = more rear bias (oversteer tendency). Negative = more front bias (understeer tendency). The derived target is shown in the balance guide below."/>
                 }
@@ -5577,7 +5685,7 @@ function App(){
                 min={0} max={100} step={1} unit="%"
                 hint={`Overall ARB stiffness level, roughly 0% ≈ 1 click to 100% ≈ ${lim.arb} clicks (this game mode's limit) per axle at a neutral front/rear split. Unlike SHARE %, this doesn't scale with spring rate — moving the springs won't change the target level. Balance Mode still splits it front/rear, and unequal track widths mean the actual clicks per side won't land exactly on the stated percentage.`}/>}
             {(fe.arbMode??'auto')==='roll'&&
-              <Field label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
+              <Field label={<>{dnaDot('rollDegPerG')}Target Roll Angle</>} value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
                 min={0.3} max={5.0} step={0.1} unit="° @ 1g"
                 hint="Body roll the anti-roll bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars that let the suspension articulate over terrain."/>}
             {(fe.arbMode??'auto')==='share'&&
@@ -5788,7 +5896,7 @@ function App(){
                   hint={`Vertical-g load factor at which the ${rRef==='rear'?'rear':rRef==='shared'?'average':'front'} axle bottoms out, from static ride height and 1g sag — same model as the SAG vs LOAD chart. This target is saved with the build/share code and re-solves Hz on whatever chassis it's applied to. Click the value to type directly.`}/>
                 :
                 <FeelSlider
-                  label={rRef==='rear'?'Rear Stiffness':rRef==='shared'?'Avg Stiffness':'Ride Stiffness'}
+                  label={<>{rRef==='front'&&dnaDot('platformHz')}{rRef==='rear'?'Rear Stiffness':rRef==='shared'?'Avg Stiffness':'Ride Stiffness'}</>}
                   value={primaryHz}
                   onChange={v=>pFe('rideStiffness')(hzToRs(v))}
                   min={HZ_MIN} max={HZ_MAX} step={0.01} leftLabel={HZ_MIN.toFixed(2)} rightLabel={HZ_MAX.toFixed(2)}
@@ -5885,7 +5993,7 @@ function App(){
                 </>
             : (fe.rearHzMode??'flatRide')==='multiplier'
               ? <FeelSlider
-                  label={isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}
+                  label={<>{rRef==='front'&&dnaDot('pitchRatio')}{isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}</>}
                   value={fe.rearHzMult??1.20}
                   onChange={pFe('rearHzMult')} min={0.50} max={3.00} step={0.01}
                   leftLabel="×0.50" rightLabel="×3.00"
@@ -6055,7 +6163,7 @@ function App(){
                     const t=fe.settleTarget??0.80;
                     return`${t.toFixed(2)}s → F ${Math.round(physics.zetaF)}% R ${Math.round(physics.zetaR)}%`;
                   })()}/>
-              : <FeelSlider label="Rebound ζ" value={fe.reboundZeta??70}
+              : <FeelSlider label={<>{dnaDot('reboundZeta')}Rebound ζ</>} value={fe.reboundZeta??70}
                   onChange={pFe('reboundZeta')} min={10} max={200} step={1}
                   leftLabel="10%" rightLabel="200%"
                   hint="Damping ratio for the rebound (extension) stroke — how quickly the suspension returns after compression. 55–70% is typical. 70% is Butterworth: the flattest response to a rough surface, which is not the same as the quickest settle after a single bump (that sits nearer 59%). Above 70% the car feels planted but stiff. Above 100% (overdamped) the suspension moves sluggishly."
@@ -6099,7 +6207,7 @@ function App(){
                     :physics.bumpZetaF)))}))}>INDEPENDENT</button>
             </div>
             {(fe.dampingMode??'ratio')==='ratio'
-              ? <FeelSlider label="Bump Ratio" value={fe.bumpRatio??56}
+              ? <FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
                   onChange={pFe('bumpRatio')} min={10} max={100} step={1}
                   leftLabel="10%" rightLabel="100%"
                   hint="Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads. Higher = more consistent feel between bump and rebound strokes. 40–65% is the typical range for most builds. Readout shows ratio / resulting bump ζ."
@@ -6174,7 +6282,7 @@ function App(){
                   })()
                 : (()=>{const tot=physics.zetaF+physics.zetaR;const fP=tot>0?Math.round(physics.zetaF/tot*100):50;return`F ${fP} | ${100-fP} R`;})();
               return(
-                <FeelSlider label="Damping Bias" value={-(fe.dampingBias??0)}
+                <FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
                   onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
                   markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
@@ -6284,6 +6392,34 @@ function App(){
         {uiMode!=='beginner'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')}>
             <div style={{maxHeight:'50vh',overflowY:'auto',overscrollBehavior:'contain'}}>
+              {dnaLink&&<>
+              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
+                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA MATCH</span>
+                <span style={{fontSize:9,color:'#818cf8'}}>{dnaLink.name}</span>
+                <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visDna?'▲':'▼'}</span>
+              </div>
+              {open.visDna&&<div style={{padding:'0 4px',marginBottom:14,fontSize:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',color:'#475569',fontSize:9,letterSpacing:1,marginBottom:2}}>
+                  <span>AXIS</span><span style={{textAlign:'right'}}>TARGET</span><span style={{textAlign:'right'}}>NOW</span><span/>
+                </div>
+                {dnaLink.rows.map(r=>{
+                  const ui=DNA_AXIS_UI.find(a=>a.k===r.k);
+                  return(
+                    <div key={r.k} style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',lineHeight:1.7}}>
+                      <span style={{color:'#94a3b8'}}>{ui.label}</span>
+                      <span style={{textAlign:'right',color:'#64748b',fontFamily:'var(--font-mono)'}}>{dnaFmt(r.k,r.target)}</span>
+                      <span style={{textAlign:'right',color:r.drift?'#f59e0b':'#cbd5e1',fontFamily:'var(--font-mono)'}}>
+                        {r.cur==null?'MODE':dnaFmt(r.k,r.cur)}</span>
+                      <span style={{color:r.drift?'#f59e0b':'#22c55e',textAlign:'center'}}>{r.drift?'≠':'✓'}</span>
+                    </div>
+                  );
+                })}
+                <div style={{fontSize:9,color:'#475569',marginTop:4,lineHeight:1.5}}>
+                  ≠ = changed since APPLY. MODE = that control is no longer in the mode DNA set.
+                </div>
+              </div>}
+              </>}
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visArb:!p.visArb}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>ARB</span>
@@ -7221,6 +7357,7 @@ function App(){
                           if(importSel.ch) setCh(prev=>({...DEF_CH,...prev,...ic}));
                           if(importSel.fe) setFe({...DEF_FE,...ife});
                           if(importSel.dr) setDr({...DEF_DR,...idr});
+                          if(importSel.fe||importSel.dr) dnaUnlink();
                           close();
                         }catch(e){
                           console.error('Import failed:',e,code);
@@ -7805,6 +7942,65 @@ function App(){
                     );
                   })}
                 </div>}
+              </div>
+              {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records
+                  the link the sidebar marks and the VISUALS match card read. Below PRO the header
+                  stays so the feature is discoverable. */}
+              <div style={{marginBottom:10}}>
+                <div onClick={()=>setOpen(p=>({...p,dnaOpen:!p.dnaOpen}))}
+                  style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:5,userSelect:'none'}}>
+                  <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA</span>
+                  {uiMode!=='pro'&&<span style={{fontSize:8,color:'#818cf8',letterSpacing:1}}>PRO</span>}
+                  <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.dnaOpen?'▲':'▼'}</span>
+                </div>
+                {open.dnaOpen&&uiMode!=='pro'&&<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>
+                  Switch to PRO to build a tune from a handling DNA.</div>}
+                {open.dnaOpen&&dnaPreview&&(()=>{
+                  const r=dnaPreview;
+                  const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaDraft,base:dnaStore.draft?.base??dnaDraft.name,axes:{...dnaDraft.axes,[k]:v}}});
+                  const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
+                  const modeDiffs=DNA_MODE_FIELDS.filter(([o,f])=>(o==='fe'?fe:dr)[f]!==(o==='fe'?r.fe:r.dr)[f]);
+                  return(<>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:8}}>
+                      {DNA_ARCHETYPES.map(a=>{
+                        const on=dnaBase?.name===a.name;
+                        return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:9,padding:'4px 2px'}}
+                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,base:a.name}})}>{a.name}</button>;
+                      })}
+                    </div>
+                    {dnaEdited&&<div style={{fontSize:9,color:'#f59e0b',marginBottom:6}}>
+                      EDITED FROM {dnaBase.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
+                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaBase,base:dnaBase.name}})}>REVERT</span></div>}
+                    {DNA_AXIS_UI.map(({k,label,step})=>(
+                      <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
+                        onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
+                        readout={dnaFmt(k,dnaDraft.axes[k])}/>
+                    ))}
+                    <div style={{borderTop:'1px solid #1e293b',paddingTop:6}}>
+                      <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:3}}>ON THIS CHASSIS</div>
+                      {DNA_AXIS_UI.map(({k,label})=>{
+                        const mv=r.moves.find(m=>m.axis===k),ms=r.misses.find(m=>m.axis===k);
+                        const[txt,col]=r.inexpressible.includes(k)?['— not expressible with this diff','#475569']
+                          :ms?[`${dnaFmt(k,ms.achieved)} · ${ms.cause??'missed'}`,'#f59e0b']
+                          :mv?[`${dnaFmt(k,mv.to)} · moved to keep ${labelOf(mv.protects)}`,'#f59e0b']
+                          :[`✓ ${dnaFmt(k,r.measured[k])}`,'#22c55e'];
+                        return(
+                          <div key={k} style={{display:'flex',gap:6,fontSize:9,lineHeight:1.6}}>
+                            <span style={{color:'#64748b',width:72,flexShrink:0}}>{label}</span>
+                            <span style={{color:col,minWidth:0}}>{txt}</span>
+                          </div>
+                        );
+                      })}
+                      {modeDiffs.length>0&&<div style={{fontSize:9,color:'#f59e0b',marginTop:5,lineHeight:1.5}}>
+                        SWITCHES {modeDiffs.map(([o,f,l])=>
+                          `${l} ${String((o==='fe'?fe:dr)[f]??'—').toUpperCase()} → ${String((o==='fe'?r.fe:r.dr)[f]).toUpperCase()}`).join(' · ')}
+                      </div>}
+                    </div>
+                    <button className="tbtn on" style={{width:'100%',marginTop:8,fontSize:10}} onClick={dnaApply}>
+                      APPLY {dnaName}</button>
+                    <div style={{fontSize:8,color:'#475569',marginTop:3,textAlign:'center'}}>Overwrites the tune once · undo with ↩</div>
+                  </>);
+                })()}
               </div>
               {/* three distinct empty states, each with an inline escape hatch — the failure
                   mode of a filter UI is a user who can't find their data and doesn't know why */}
