@@ -13,6 +13,32 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — undo rebuilt with redo, and moved to the sidebar toolbar
+
+The old undo was an effect that snapshotted `{ch, fe, dr, al}` 600 ms after changes
+stopped, and popped that list on ↩. It had no notion of an action, and four things were
+wrong with it:
+
+- **A load right after an edit lost the state between them.** Both landed inside one
+  600 ms window and became one snapshot, so ↩ jumped past the pre-load tune.
+- **Undo across a game-mode change could corrupt MAN ARBs.** Restoring a snapshot with a
+  different `gameMode` flipped `physMode`, and the unit-conversion effect converted
+  `arbManF`/`arbManR` again, though the snapshot already held them in the right units.
+- **Undo past a tier switch left PRO modes in BEG/INT.** The fallback effects fire only
+  when `uiMode` changes, and a restore doesn't change it.
+- **Undoing APPLY kept the DNA link**, so the sidebar judged the old tune against a DNA
+  that was no longer applied. DNA.md documented that as intended; it stopped making
+  sense once APPLY became one step.
+
+Its replacement is `makeHistory` plus explicit steps: `commit` for discrete actions,
+coalesced bursts for continuous edits, raw setters for deriving effects, and a
+`restoringRef` / `restoreTick` pair so effects neither double-convert nor skip the tier
+clamp after a restore. Snapshots now carry `dnaApplied`. Redo arrived with it (↪,
+Ctrl/⌘+Shift+Z, Ctrl+Y), both buttons moved from the header to beside RESET, and the
+cap went from 50 to 100 steps. Details in [CODE_MAP.md](CODE_MAP.md#undo--redo).
+
+---
+
 ## Changed — Vehicle DNA's roll axis became ARB share
 
 `rollDegPerG` (ROLL °) was replaced by `arbShare` (SHARE %), and the DNA format moved to
