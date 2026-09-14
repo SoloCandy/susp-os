@@ -13,6 +13,50 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — the Balance Guide band dropped grip-neutral when a fraction pair straddled 1.0
+
+Introduced by the overshoot fix directly below, found reviewing it the same day.
+
+`balanceBandDelta` made the band delta V-shaped in `frac` on a negative gap, bottoming
+out at `frac = 1` — grip-neutral. The RANGE block and the GRIP GAP widget still built
+each band from `min`/`max` of the two endpoint deltas. That was correct while the delta
+was `frac*gap` and therefore monotonic, but a pair straddling 1.0 now has its low
+extreme *between* its endpoints. Every such pair lost grip-neutral from its band on
+every rear-biased chassis: DRIFT on all three layouts (0.90–1.55, AWD 0.75–1.30) and
+RWD DRAG (0.60–1.05).
+
+The `hi ≥ lo + 0.03` floor made it worse. With `lo` truncated upward, the floor could
+lift `hi` beyond anything the fractions produce, so the band shifted toward oversteer
+rather than only narrowing. Default chassis geometry, `natMechBalance` scale:
+
+| Layout / front bias / build | Before | After |
+|---|---|---|
+| AWD 45% DRIFT | 0.457–0.487 | 0.430–0.463 |
+| AWD 36% DRIFT | 0.382–0.412 | 0.299–0.398 |
+| RWD 45% DRIFT | 0.441–0.490 | 0.430–0.490 |
+| FWD 40% DRIFT | 0.380–0.485 | 0.357–0.485 |
+| RWD 45% DRAG | 0.435–0.474 | 0.430–0.474 |
+
+The entry below gives RWD 45% DRIFT and DRAG as moving to 0.441–0.490 and
+0.435–0.474; those were the truncated bands.
+
+Fixed with `balanceBandRange(fracLo, fracHi, gap)`, which returns the lowest and highest
+delta over the whole pair — the two endpoints plus `frac = 1` when the pair straddles
+it — and which both widgets now call. Checked against the previous `index.html` over
+every layout and build, front bias 30–70% in half-point steps, and three tyre staggers:
+no band moved anywhere `gap ≥ 0`, every change was a negative-gap straddling pair, and
+every new band equals the fraction pair's exact range.
+
+It changed two claims in KNOWN_ISSUES' sub-1-fraction entry, both of which rested on
+the truncated bands. The AWD DRIFT/TRACK inversion covers every rear-biased chassis, not
+only "below about 45%". And FWD/RWD lose their ordering in a strip just under the
+crossover (47.1–49.5% front), where every band is at the 0.03 minimum width and DRIFT
+and TRACK differ by about 0.001 — the truncation had been lifting DRIFT there by
+accident.
+
+The lesson is the one the V-shape paragraph already stated and the code did not act on:
+once a function stops being monotonic, its endpoints stop being its extremes.
+
 ## Fixed — DRIFT's overshoot aimed at understeer on every rear-biased chassis
 
 The PRO Balance Guide's RANGE band scales its bounds as a fraction of

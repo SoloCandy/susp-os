@@ -15,7 +15,8 @@ entry is in this file, it still describes the app as it stands.
 
 ## Open — Balance Guide RANGE's sub-1 fractions rank builds by correction, not by rotation
 
-The RANGE band scales its deltas as `balanceBandDelta(frac, gap)`, where
+The RANGE band scales its deltas with `balanceBandDelta(frac, gap)` (collected
+over each fraction pair by `balanceBandRange`), where
 `gap = (1 - natGripBalance) - natMechBalance` (see
 [PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section). A fraction above 1.0
 now overshoots toward oversteer under either sign of `gap`, which is what fixed
@@ -34,16 +35,29 @@ rotation. The build table's intended ordering is only preserved by the
 
 This is visible where a build's whole pair sits below 1.0 while a more aggressive
 build's pair straddles it. AWD is the layout where the two overlap enough to
-invert: DRIFT is 0.75–1.30 against TRACK's 0.45–0.80, and below about 45% front
-bias AWD DRIFT's band hi drops below AWD TRACK's. At AWD 36% front
-(`nat` 0.631, `gap` −0.332) TRACK recommends 0.365–0.481 and DRIFT recommends
-0.382–0.412 — the drift band is the more conservative of the two. FWD and RWD
-hold their ordering across 30–70% front bias, because their DRIFT pair
-(0.90–1.55) clears TRACK's (0.55–0.95) outright.
+invert: DRIFT is 0.75–1.30 against TRACK's 0.45–0.80, and on **every** chassis
+with a negative gap — anything under 49.51% front on `DEF_CH` — AWD DRIFT's band
+hi sits below AWD TRACK's. At AWD 36% front (`nat` 0.631, `gap` −0.332) TRACK
+recommends 0.365–0.481 and DRIFT 0.299–0.398: the drift band is the more
+conservative of the two.
 
-Every band still lands on the oversteer side of grip-neutral for such a chassis,
-so no recommendation is *backwards* in the way the fixed defect was — the
-ordering between two builds is what is off, and only for AWD under ~45% front.
+FWD and RWD hold their ordering across 30–70% front bias except in a narrow strip
+just under the crossover, 47.1–49.5% front on `DEF_CH`. There `|gap|` is under
+0.03, every band is squeezed to the 0.03 minimum width around grip-neutral, and
+DRIFT and TRACK differ by about 0.001 (at 48.3%: DRIFT 0.478–0.508, TRACK
+0.479–0.509) — an ordering with nothing left to order. Below that strip their
+DRIFT pair (0.90–1.55) clears TRACK's (0.55–0.95) outright.
+
+This entry first quoted AWD DRIFT at 36% as 0.382–0.412 and put the AWD inversion
+"below about 45%". Both came from a separate defect since fixed — the band dropped
+grip-neutral when a fraction pair straddled 1.0, and the 0.03 floor then inflated
+it (see [HISTORY.md](HISTORY.md)) — which also happened to keep FWD/RWD ordered
+near the crossover.
+
+Every band still lands on or past grip-neutral on the oversteer side for such a
+chassis, so no recommendation is *backwards* in the way the fixed defect was — the
+ordering between two builds is what is off: for AWD on any rear-biased chassis,
+and for FWD/RWD only where the bands have collapsed to the minimum width anyway.
 
 Fixing it properly means deciding what a sub-1 fraction is supposed to mean:
 a fraction of the correction (today), or a position on an absolute rotation

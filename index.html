@@ -468,6 +468,20 @@ const balanceFromRsBal=(ch,rsBal)=>{
 // and keeping the positive branch on the literal frac*gap means no band that exists
 // today can move, .toFixed(2) rounding boundaries included.
 const balanceBandDelta=(frac,gap)=>frac<=1||gap>=0?frac*gap:gap+(frac-1)*(-gap);
+// The delta range a fraction PAIR covers: [lowest, highest] over every fraction from fracLo to
+// fracHi. Both widgets call this rather than taking min/max of the two endpoint deltas, because
+// on a negative gap balanceBandDelta is V-shaped in frac and bottoms out at frac=1 (grip-neutral):
+// a pair that straddles 1 has its low extreme BETWEEN its endpoints. Endpoint min/max dropped
+// grip-neutral from DRIFT's band (0.90–1.55 / AWD 0.75–1.30) and RWD DRAG's (0.60–1.05) on every
+// rear-biased chassis, and the 0.03 minimum width then pushed the truncated band further toward
+// oversteer — AWD DRIFT at 45% front shipped 0.457–0.487 when its fractions only reach 0.430–0.463
+// (docs/HISTORY.md). On a gap >= 0 the delta is monotonic and 1·gap lies strictly between the
+// endpoint deltas, so min/max still return those endpoints exactly: no front-biased band moves.
+const balanceBandRange=(fracLo,fracHi,gap)=>{
+  const ds=[balanceBandDelta(fracLo,gap),balanceBandDelta(fracHi,gap)];
+  if(fracLo<1&&fracHi>1)ds.push(balanceBandDelta(1,gap));
+  return[Math.min(...ds),Math.max(...ds)];
+};
 const feelToPhysics=(ch,fe)=>{
   let frontHz=rsToHz(fe.rideStiffness);
   const rearHzMode=fe.rearHzMode??'flatRide';
@@ -5023,14 +5037,13 @@ function App(){
               // balanceBandDelta, not a bare _frac*_gap: it keeps the >1 fractions' overshoot
               // pointed at oversteer when _gap is negative. A negative _gap is ordinary — any
               // chassis under ~50% front bias — see the helper's own comment for the full why.
-              // min/max, not a fixed lo/hi assignment: a negative _gap — a chassis whose
-              // natural balance already sits past its own grip target — flips which fraction
-              // produces the smaller delta. See docs/PHYSICS.md for what the fixed assignment
-              // did to the band in that case. Still needed after the sign fix: the delta is
-              // V-shaped in _frac when _gap<0, bottoming out at _frac=1, so neither endpoint
-              // is reliably the lower one.
-              const _d1=balanceBandDelta(_fracLo,_gap),_d2=balanceBandDelta(_fracHi,_gap);
-              const _dlo=Math.min(_d1,_d2),_dhi=Math.max(_d1,_d2);
+              // balanceBandRange, not a fixed lo/hi assignment or min/max of the two endpoints:
+              // a negative _gap flips which fraction produces the smaller delta (see
+              // docs/PHYSICS.md for what the fixed assignment did), and since the sign fix the
+              // delta is V-shaped in _frac there, bottoming out at _frac=1 — so for a pair that
+              // straddles 1 the low extreme is grip-neutral itself, which neither endpoint
+              // reaches. The helper includes it.
+              const[_dlo,_dhi]=balanceBandRange(_fracLo,_fracHi,_gap);
               // Signed: _dlo/_dhi go negative whenever _gap does, and a hardcoded '+' in the
               // caption below rendered "Δ+-0.17 → +-0.10" on every rear-biased chassis.
               const _dfmt=v=>(v>=0?'+':'')+v.toFixed(2);
@@ -5165,11 +5178,10 @@ function App(){
               const[_ggFracLo,_ggFracHi]=((_ggFracMap[ch.layout??'RWD']??_ggFracMap.RWD)[dr.buildType??'track'])??[0.55,0.95];
               const _ggNeutral=1-natGripBalance;
               const _ggBaseGap=_ggNeutral-nm;
-              // balanceBandDelta + min/max for the same reasons as the RANGE block above, and
-              // via the same helper so the two widgets cannot disagree on what "in range"
-              // means. Negative is ordinary here too (any chassis under ~50% front bias).
-              const _gg1=balanceBandDelta(_ggFracLo,_ggBaseGap),_gg2=balanceBandDelta(_ggFracHi,_ggBaseGap);
-              const _ggDlo=Math.min(_gg1,_gg2),_ggDhi=Math.max(_gg1,_gg2);
+              // balanceBandRange for the same reasons as the RANGE block above, and via the same
+              // helper so the two widgets cannot disagree on what "in range" means. Negative is
+              // ordinary here too (any chassis under ~50% front bias).
+              const[_ggDlo,_ggDhi]=balanceBandRange(_ggFracLo,_ggFracHi,_ggBaseGap);
               const _ggLo=Math.max(0.20,Math.min(0.87,nm+_ggDlo));
               const _ggHi=Math.max(_ggLo+0.03,Math.min(0.90,nm+_ggDhi));
               const _ggGap=_ggNeutral>_ggHi?_ggNeutral-_ggHi:_ggNeutral<_ggLo?_ggLo-_ggNeutral:0;

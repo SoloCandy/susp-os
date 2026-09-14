@@ -752,11 +752,13 @@ offset:
 
 ```js
 gap = (1 - natGripBalance) - natMechBalance
-d1, d2 = balanceBandDelta(fracLo, gap), balanceBandDelta(fracHi, gap)
-lo, hi = natMechBalance + min(d1,d2), natMechBalance + max(d1,d2)  // clamped to 0.20-0.90
+[dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
+lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.20-0.90, hi ≥ lo + 0.03
 
 balanceBandDelta = (frac, gap) => frac <= 1 || gap >= 0 ? frac*gap
                                                         : gap + (frac-1)*(-gap)
+balanceBandRange = (fracLo, fracHi, gap) =>
+  min/max of balanceBandDelta at fracLo, at fracHi, and at 1 when fracLo < 1 < fracHi
 ```
 
 `fracLo`/`fracHi` come from a per-layout/build table (`_fracMap` in the
@@ -787,9 +789,17 @@ Keeping the positive branch on the literal `frac*gap` it has always used
 means no existing band can shift, including across the `.toFixed(2)`
 rounding boundaries the widget displays.
 
-Both bounds still go through `min`/`max` afterwards. With a negative gap the
-delta is V-shaped in `frac`, bottoming out at `frac = 1`, so neither endpoint
-of a `fracLo`/`fracHi` pair is reliably the lower one.
+That makes the delta **V-shaped in `frac` on a negative gap**, bottoming out at
+`frac = 1` — grip-neutral. So the band is not simply the two endpoint deltas:
+`balanceBandRange` takes the lowest and highest delta over the whole fraction
+pair, which for a pair straddling 1.0 (DRIFT on every layout, RWD DRAG) means
+including `frac = 1` itself. Taking `min`/`max` of the endpoints alone, as the
+sign fix first did, dropped grip-neutral from those bands on every rear-biased
+chassis, and the `hi ≥ lo + 0.03` floor then pushed the truncated band further
+toward oversteer: AWD DRIFT at 45% front showed 0.457–0.487 when its fractions
+only reach 0.430–0.463 (see [HISTORY.md](HISTORY.md)). On a `gap ≥ 0` the delta
+is monotonic and `1·gap` sits strictly between the endpoint deltas, so the
+extra point cannot move any front-biased band.
 
 The `min`/`max` (rather than a fixed `lo=natMechBalance+fracLo*gap`
 assignment) matters for a chassis whose natural balance already sits past
@@ -802,8 +812,8 @@ side of natural. `min`/`max` picks the right delta for each bound
 regardless of `gap`'s sign, so the band keeps scaling correctly there too.
 The GRIP GAP sub-widget (tyre-width suggestions to bring GRIP TARGET into
 range) computes its band the same way — its own copy of the fraction table
-as `_ggFracMap`, but the same `balanceBandDelta` call and the same
-`min`/`max` — so the two widgets cannot disagree on what "in range" means.
+as `_ggFracMap`, but the same `balanceBandRange` call — so the two widgets
+cannot disagree on what "in range" means.
 The fraction table is still duplicated and still has to be edited in both
 places; only the arithmetic is shared.
 

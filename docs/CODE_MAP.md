@@ -89,7 +89,10 @@ the INDEPENDENT bump anchor), `cornerMasses`,
 `naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
 Guide's recommended band — module-level rather than inline because the RANGE
 block and the GRIP GAP sub-widget both call it, and a band they disagreed on
-would make "in range" mean two different things in one panel),
+would make "in range" mean two different things in one panel) and
+`balanceBandRange` (the delta range a fraction pair covers — not just its two
+endpoints, since a negative gap makes the delta V-shaped with its minimum at
+grip-neutral),
 `resolveArbBalTarget`, `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
 takes Hz + rebound/bump ζ + a duration; the chart's own `curveSettle` and
