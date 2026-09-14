@@ -131,13 +131,13 @@ natural mech balance and grip-neutral — the normalisation the Balance Guide's
 `gripTarget + (f − 1)·max(gap, 0.03)`. It was accepted, then rejected once real
 chassis were run through `naturalMechBalanceOf` and `balanceFromRsBal`.
 
-**A negative gap is not rare.** PHYSICS.md describes it as the rare chassis whose
-natural balance already sits past its grip target. On the default chassis geometry
-the gap is negative for every front weight bias below about 50%, and a wide front tyre
-flips it too; a broad grid over layout, weight bias, track widths, tyre sizes, CG
-height and weight found it negative at about half its points. A plain fraction then
-points the wrong way on every mid-engined car, and the floor that fixed the sign gave
-all of them the minimum authority.
+**A negative gap is not rare.** PHYSICS.md described it as the rare chassis whose
+natural balance already sits past its grip target, until the same finding corrected
+it there. The sign flips just under 50% front — 49.51% on the default chassis — and a
+wide front tyre stagger flips it too; a broad grid over layout, weight bias, track
+widths, tyre sizes, CG height and weight found it negative at about half its points.
+A plain fraction then points the wrong way on every mid-engined car, and the floor
+that fixed the sign gave all of them the minimum authority.
 
 **Authority scaled with weight distribution.** Default chassis (3200 lb, track 1.55 /
 1.52 m, 265/35R18 all round, CG 0.45 m) with only front weight bias changed. The last
@@ -160,6 +160,15 @@ Flooring `abs(gap)` instead keeps the proportionality and makes `f = 0` stop mea
 "natural" on rear-biased cars; raising the floor moves the collapse rather than
 removing it. Proportionality to a chassis's own bias *is* the part that does not port,
 so the axis dropped it.
+
+The Balance Guide uses the same fraction and has run into the same fold. Its DRIFT
+overshoot pointed at understeer on rear-biased cars until `balanceBandDelta` anchored
+fractions above 1.0 at grip-neutral — the same anchor this design tried first — which
+made the delta V-shaped, so `balanceBandRange` now has to include grip-neutral
+explicitly. Its fractions at or below 1.0 still rank builds by how much natural
+tendency they cancel rather than by rotation, which is recorded as open in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md). An absolute offset has neither problem, because
+it never multiplies by the chassis's own gap.
 
 ### Rebound ζ rather than settle seconds
 
@@ -556,7 +565,9 @@ quantity the app computes and a sign the inputs determine.
   speed, and is a feature of its own.
 - **Progressive breakaway.** There is no tyre saturation curve — `TIRE_LOAD_SENS` is
   a linear falloff. A DNA can set the levers (`balanceOffset` at or just short of
-  neutral, low `diffExit`) but cannot claim to measure progressiveness. It is a label on an
+  neutral, and little accel lock on the driven axle — `diffExit` toward GRIP on RWD/AWD,
+  but toward ROTATE on FWD, where the slider's balance direction and lock direction run
+  opposite ways) but cannot claim to measure progressiveness. It is a label on an
   archetype, never an axis.
 - **Surface.** Firm bump damping reads planted on smooth tarmac and skittish on
   rough ground ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Deferred with `surface`; when it
