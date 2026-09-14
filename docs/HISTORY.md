@@ -13,6 +13,206 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — the Balance Guide band dropped grip-neutral when a fraction pair straddled 1.0
+
+Introduced by the overshoot fix directly below, found reviewing it the same day.
+
+`balanceBandDelta` made the band delta V-shaped in `frac` on a negative gap, bottoming
+out at `frac = 1` — grip-neutral. The RANGE block and the GRIP GAP widget still built
+each band from `min`/`max` of the two endpoint deltas. That was correct while the delta
+was `frac*gap` and therefore monotonic, but a pair straddling 1.0 now has its low
+extreme *between* its endpoints. Every such pair lost grip-neutral from its band on
+every rear-biased chassis: DRIFT on all three layouts (0.90–1.55, AWD 0.75–1.30) and
+RWD DRAG (0.60–1.05).
+
+The `hi ≥ lo + 0.03` floor made it worse. With `lo` truncated upward, the floor could
+lift `hi` beyond anything the fractions produce, so the band shifted toward oversteer
+rather than only narrowing. Default chassis geometry, `natMechBalance` scale:
+
+| Layout / front bias / build | Before | After |
+|---|---|---|
+| AWD 45% DRIFT | 0.457–0.487 | 0.430–0.463 |
+| AWD 36% DRIFT | 0.382–0.412 | 0.299–0.398 |
+| RWD 45% DRIFT | 0.441–0.490 | 0.430–0.490 |
+| FWD 40% DRIFT | 0.380–0.485 | 0.357–0.485 |
+| RWD 45% DRAG | 0.435–0.474 | 0.430–0.474 |
+
+The entry below gives RWD 45% DRIFT and DRAG as moving to 0.441–0.490 and
+0.435–0.474; those were the truncated bands.
+
+Fixed with `balanceBandRange(fracLo, fracHi, gap)`, which returns the lowest and highest
+delta over the whole pair — the two endpoints plus `frac = 1` when the pair straddles
+it — and which both widgets now call. Checked against the previous `index.html` over
+every layout and build, front bias 30–70% in half-point steps, and three tyre staggers:
+no band moved anywhere `gap ≥ 0`, every change was a negative-gap straddling pair, and
+every new band equals the fraction pair's exact range.
+
+It changed two claims in KNOWN_ISSUES' sub-1-fraction entry, both of which rested on
+the truncated bands. The AWD DRIFT/TRACK inversion covers every rear-biased chassis, not
+only "below about 45%". And FWD/RWD lose their ordering in a strip just under the
+crossover (47.1–49.5% front), where every band is at the 0.03 minimum width and DRIFT
+and TRACK differ by about 0.001 — the truncation had been lifting DRIFT there by
+accident.
+
+The lesson is the one the V-shape paragraph already stated and the code did not act on:
+once a function stops being monotonic, its endpoints stop being its extremes.
+
+## Fixed — DRIFT's overshoot aimed at understeer on every rear-biased chassis
+
+The PRO Balance Guide's RANGE band scales its bounds as a fraction of
+`gap = (1 - natGripBalance) - natMechBalance`, the distance from NATURAL to GRIP
+TARGET. Fractions above 1.0 exist to recommend overshooting *past* grip-neutral
+into sustained rotation — DRIFT at 0.90–1.55 on FWD/RWD, 0.75–1.30 on AWD, and
+RWD DRAG at 0.60–1.05. The band computed those bounds as `frac*gap`, which
+carries the gap's sign. "Past grip-neutral" therefore meant "further toward
+oversteer" only while `gap` was positive; on a negative gap the same
+multiplication carried the overshoot past neutral in the **understeer**
+direction — the exact opposite of what the fractions are for.
+
+Reproduced with the real `naturalMechBalanceOf`/`balanceFromRsBal` lifted out of
+`index.html`, and confirmed against the live widget in a browser at PRO / RWD /
+DRIFT / 45% front bias:
+
+| front bias | gap | NAT | RANGE | grip balance across the band |
+|---|---|---|---|---|
+| 45% | −0.111 | 0.540 | 0.369–0.441 | 0.467–0.511 |
+| 52% | +0.061 | 0.470 | 0.525–0.565 | 0.501–0.525 |
+| 60% | +0.256 | 0.391 | 0.621–0.788 | 0.495–0.552 |
+
+At 45% front the chassis is already oversteer-prone (`natGripBalance` 0.570) and
+the DRIFT band landed mostly on the *understeer* side of neutral. The sharpest
+symptom was that the build table inverted end to end on that chassis: OFFROAD
+0.547–0.565, RALLY 0.534–0.552, STREET 0.527–0.547, TRACK 0.507–0.534, DRAG
+0.501–0.531, DRIFT 0.467–0.511 — the more rotation a build wanted, the less it
+recommended.
+
+Fixed by pulling the band edge into a module-level `balanceBandDelta(frac, gap)`
+that anchors an above-1 fraction's overshoot at grip-neutral and adds
+`(frac-1)*|gap|`, so it points at oversteer under either sign. Fractions at or
+below 1.0 are untouched: those interpolate toward grip-neutral and were already
+direction-correct either way. The helper guards on `gap >= 0` as well as
+`frac <= 1`, redundantly on purpose — it keeps the positive-gap branch on the
+identical expression, verified bit-identical across every layout/build pair from
+49.6% to 75% front bias, so no existing recommendation moved. The RANGE block and
+the GRIP GAP sub-widget both call it rather than each holding their own copy of
+the arithmetic, since the two are supposed to agree on what "in range" means.
+
+`min`/`max` on the two deltas stays necessary after the fix, for a new reason:
+with a negative gap the delta is V-shaped in `frac` with its minimum at
+`frac = 1`, so neither end of a fraction pair is reliably the lower bound.
+
+At RWD 45% front the DRIFT band moves from 0.369–0.441 (grip 0.467–0.511) to
+0.441–0.490 (grip 0.511–0.541), and RWD DRAG from 0.424–0.474 to 0.435–0.474.
+In GRIP balance-target mode the GRIP GAP sub-widget follows: where it previously
+judged grip-neutral already inside the DRIFT band and stayed hidden, it now
+suggests a wider rear tyre (+5mm at 45% front, +10mm at 40%) to bring
+grip-neutral up into the band — the right advice for a drift build on a
+rear-biased car, and a coherence check that the two widgets still agree.
+
+A cosmetic defect in the same block was fixed alongside, and it is the tell that
+nobody had looked at this branch on screen: the RANGE delta caption hard-coded
+its signs as `Δ+{_dlo} → +{_dhi}`, so a negative gap rendered "Δ+-0.17 → +-0.10".
+
+What this fix does **not** resolve is the ordering of the `frac ≤ 1` builds on a
+strongly oversteering chassis, which is a question about what a sub-1 fraction
+means rather than a sign error. It is open in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+## Fixed — "the rare chassis whose natural balance already sits past its own grip target" was not rare
+
+The Balance Guide RANGE gap, `gap = (1 - natGripBalance) - natMechBalance`, was
+described as going negative only for a rare chassis — in
+[PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section, in the code comment beside
+`_fracMap`, and in the resolved `min`/`max` entry further down this file. Measured
+against the real `naturalMechBalanceOf`/`balanceFromRsBal` lifted out of
+`index.html`, the sign turns out to track front weight bias almost exactly and
+flips just under 50% front: 49.51% on `DEF_CH`, 48.39%–51.61% across the track-width
+range, 44.34%–54.71% across tyre stagger, and completely unmoved by CG height or
+total weight. Every mid- and rear-engined car is therefore on the negative side,
+not a rarity — a bias-only sweep from 35% to 65% front is negative at 48.7% of
+its points.
+
+The phrase had propagated to three places from one original claim, which is the
+case CLAUDE.md's "grep the phrase across all of them" habit exists for. All three
+now describe the real distribution, with the measurements recorded in PHYSICS.md
+so the next reader does not have to re-derive them.
+
+The mis-characterisation was load-bearing, not cosmetic: believing the negative
+branch was exotic is why nobody checked what the `fracHi>1` overshoot does there.
+That defect was real, and is fixed in the entry above.
+
+## Fixed — the FWD EXIT hint named the wrong lock direction
+
+The EXIT slider's FWD hint read "Toward GRIP reduces lock … Toward ROTATE
+increases lock for cleaner pivot and less push". Both halves were backwards.
+On FWD the slider is displayed flipped
+(`value={ch.layout==='FWD'?-(dr.diffBiasExit??0):…}`) while `computeDiff`'s
+accel term keeps RWD's sign, so the ROTATE end is *less* front accel lock, not
+more. Probed against the real `computeDiff` (FWD, 60% front, Track/Race):
+
+| EXIT slider | stored `diffBiasExit` | front Accel | `bDiffAccel` |
+|---|---|---|---|
+| −50 (GRIP) | +50 | 28% | −2.35 |
+| 0 | 0 | 20% | −1.68 |
+| +50 (ROTATE) | −50 | 13% | −1.09 |
+
+The slider itself is correct — right is still the oversteer-leaning end, because
+*less* front lock is what frees a FWD car's rotation, and `bDiffAccel` rises
+from −2.35 to −1.09 across that sweep. Only the hint's description of the lock
+was wrong, and it contradicted the `Accel %` readout sitting directly beneath
+it. `tests.js` already asserted the underlying direction ("FWD: higher
+EXIT/ENTRY → more accel lock" on the *stored* value), and the MATCH CHASSIS
+entry below recorded the same measurement from a live check — the hint was
+never checked against either.
+
+Rewritten to mirror the RWD/AWD phrasing: "Toward GRIP increases lock — more
+corner-exit traction, but more push. Toward ROTATE reduces lock for a freer
+pivot and less understeer."
+
+The block comment above the slider was the likelier source of the error — it
+asserted "right = more lock = more rotation-leaning, same as RWD/AWD always
+used", chaining a true claim (right = more rotation-leaning, every layout) to a
+false one (right = more lock, FWD excepted). Corrected to separate the two,
+since that conflation is exactly what the hint encoded. The AWD front-axle EXIT
+hint (PUSH↔NEUTRAL, `diffFrontExitBias`) was checked at the same time and is
+correct: PUSH does increase front accel lock there.
+
+**Lesson:** on FWD, balance direction and lock direction point opposite ways —
+that is the whole reason the UI flip exists. Any copy about this slider has to
+say which of the two it is describing. The `Accel %` readout under the slider
+is the cheapest check available: sweep the slider and read it.
+
+## Fixed — PRESETS.md described the diff-bias *slider* sign as the stored sign
+
+[PRESETS.md](PRESETS.md)'s "Reading the columns" section sent readers to
+[SLIDERS.md](SLIDERS.md) for `diffBiasExit`/`diffBiasEntry` with the gloss
+"positive = oversteer-leaning per the convention documented there". SLIDERS.md's
+convention is the app-wide **right = OVERSTEER** rule for *sliders*, and both of
+these sliders reach it through a sign flip, so the gloss was wrong for the
+stored values the preset table actually lists:
+
+- `dr.diffBiasEntry` stored positive is **STABLE** (understeer-leaning) on every
+  layout — `computeDiff` says so in a comment (`−50=loose, +50=stable`), and the
+  slider negates unconditionally (`value={-(dr.diffBiasEntry??0)}`). The same
+  table's STREET row already read `diffBiasEntry +10 (STABLE-leaning)`, directly
+  contradicting the column note a few lines below it.
+- `dr.diffBiasExit` stored positive is more accel lock on the driven axle, which
+  is oversteer-leaning only on RWD/AWD; the slider flips it for FWD, where the
+  reading is GRIP.
+
+Corrected in place: the column note now describes the stored fields and names
+the flip at each slider, and the preset rows spell the side out per row the way
+the Damping Char column does (RALLY `−15` and DRIFT `−18` as LOOSE-leaning,
+exit sides qualified "on RWD/AWD"). SLIDERS.md's EXIT/ENTRY rows keep their
+correct `Right = OVERSTEER-leaning` reading and now state the stored polarity
+beside it, since PRESETS.md points there.
+
+**Lesson:** "positive = oversteer" is three different claims in this codebase —
+the `bXxx` contributor sign ([FORMULAS.md](FORMULAS.md)), the slider reading
+([SLIDERS.md](SLIDERS.md)), and the stored field. A doc that hands one
+convention off to another doc by reference is where they get conflated. No code
+changed.
+
 ## Changed — factory presets author damping as ζ, and Beginner no longer drops it
 
 STREET, TRACK, MOTORSPT and X COUNTRY stored their damping as Settle Targets
@@ -459,9 +659,9 @@ orphaned.
 The RANGE band (`lo, hi = natMechBalance + fracLo*gap, natMechBalance +
 fracHi*gap`, see `docs/PHYSICS.md`'s Balance Guide RANGE section) assigned
 `fracLo`'s delta to `lo` and `fracHi`'s delta to `hi` unconditionally. That's
-correct while `gap` (NATURAL→GRIP TARGET) is positive, but for the rare
-chassis whose natural mech balance already sits past its own grip-neutral
-point — `gap` negative — multiplying by the larger fraction (`fracHi`)
+correct while `gap` (NATURAL→GRIP TARGET) is positive, but for a chassis
+whose natural mech balance already sits past its own grip-neutral point
+— `gap` negative — multiplying by the larger fraction (`fracHi`)
 produces the *more negative* delta, so the fixed assignment put `lo` above
 `hi`. The existing `hi=Math.max(lo+0.03,...)` floor caught the inversion and
 kept the widget from rendering nonsense, but it also collapsed the
@@ -474,8 +674,18 @@ equal tracks) where `gap≈-0.67`: the old formula gave a 0.30-wide sliver
 (0.332–0.362); the fix gives a properly-scaled 0.20–0.332 band (clamped by
 the 0.20 absolute floor, not the bug). Fixed by taking `min`/`max` of the
 two fraction-scaled deltas before assigning them to `lo`/`hi`, in both the
-RANGE block and its mirrored GRIP GAP sub-widget. The direction was never
-wrong — only the band's width in this one edge case.
+RANGE block and its mirrored GRIP GAP sub-widget. The band's width was the
+only thing this fix changed.
+
+Two claims made in this entry at the time have since been measured and were
+wrong. A negative `gap` is not an edge case — it is every chassis under
+about 50% front weight bias, so the whole mid- and rear-engined half of the
+roster (see [PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section for the
+crossover measurements). And "the direction was never wrong" held only for
+the `fracLo`/`fracHi` ≤ 1 builds this fix was exercised against; for the
+`fracHi>1` builds the direction *was* wrong once `gap` went negative, which
+took `balanceBandDelta` to fix — see the DRIFT overshoot entry near the top
+of this file.
 
 ## Fixed — UI copy sold Butterworth as a settling-time claim (resolved)
 

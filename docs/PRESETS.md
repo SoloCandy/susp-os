@@ -38,11 +38,11 @@ the ratio shown is the one actually applied there.
 
 | # | Name | Build Type | Diff Type | Ride Stiffness | Rear Hz Mult | Damping Char | Notes |
 |---|---|---|---|---|---|---|---|
-| 1 | STREET | street | race | 2.20 Hz | 1.15× | CHARACTER ζ=30.3, bias 0 | Bump ratio 52, ARB AUTO. diffBiasExit −10 (GRIP-leaning), diffBiasEntry +10 (STABLE-leaning) |
-| 2 | TRACK | track | race | 2.50 Hz | 1.05× | CHARACTER ζ=36.6, bias −5 (FRONT) | Bump ratio 58, ARB ROLL @ 1.5°. diffBiasExit +5, diffBiasEntry 0 |
-| 3 | RALLY | rally | rally | 1.55 Hz | 1.05× | CHARACTER ζ=58, bias +5 (REAR) | Bump ratio 38, ARB SHARE @ 8%. diffBiasExit −5, diffBiasEntry −15 |
-| 4 | DRIFT | drift | drift | 1.80 Hz | 1.30× | CHARACTER ζ=60, bias −18 (FRONT) | Bump ratio 40. diffBiasExit +22, diffBiasEntry −18, diffRearAccel 65, diffRearDecel 15 |
-| 5 | MOTORSPT | track | race | 3.20 Hz | 0.92× | CHARACTER ζ=45.8, bias −10 (FRONT) | Bump ratio 64, ARB ROLL @ 0.8°. diffBiasExit +10, diffBiasEntry −5 |
+| 1 | STREET | street | race | 2.20 Hz | 1.15× | CHARACTER ζ=30.3, bias 0 | Bump ratio 52, ARB AUTO. diffBiasExit −10 (GRIP-leaning on RWD/AWD), diffBiasEntry +10 (STABLE-leaning) |
+| 2 | TRACK | track | race | 2.50 Hz | 1.05× | CHARACTER ζ=36.6, bias −5 (FRONT) | Bump ratio 58, ARB ROLL @ 1.5°. diffBiasExit +5 (ROTATE-leaning on RWD/AWD), diffBiasEntry 0 (neutral) |
+| 3 | RALLY | rally | rally | 1.55 Hz | 1.05× | CHARACTER ζ=58, bias +5 (REAR) | Bump ratio 38, ARB SHARE @ 8%. diffBiasExit −5 (GRIP-leaning on RWD/AWD), diffBiasEntry −15 (LOOSE-leaning) |
+| 4 | DRIFT | drift | drift | 1.80 Hz | 1.30× | CHARACTER ζ=60, bias −18 (FRONT) | Bump ratio 40. diffBiasExit +22 (ROTATE-leaning on RWD/AWD), diffBiasEntry −18 (LOOSE-leaning), diffRearAccel 65, diffRearDecel 15 |
+| 5 | MOTORSPT | track | race | 3.20 Hz | 0.92× | CHARACTER ζ=45.8, bias −10 (FRONT) | Bump ratio 64, ARB ROLL @ 0.8°. diffBiasExit +10 (ROTATE-leaning on RWD/AWD), diffBiasEntry −5 (LOOSE-leaning) |
 | 6 | X COUNTRY | offroad | offroad | 0.90 Hz | 1.00× | CHARACTER ζ=40.7, bias −5 (FRONT) | Bump ratio 38, ARB SHARE @ 5% |
 
 > **STREET's diff type is `race`, not `sport`.** It was changed from `sport`
@@ -89,9 +89,32 @@ the ratio shown is the one actually applied there.
   groups' stored numbers look inverted relative to each other — both are
   correct, and all six land where the slider says. See
   [SLIDERS.md](SLIDERS.md).
-- **diffBiasExit / diffBiasEntry** — see [SLIDERS.md](SLIDERS.md)'s EXIT/
-  ENTRY rows for what these values mean directionally (positive =
-  oversteer-leaning per the convention documented there).
+- **diffBiasExit / diffBiasEntry** — the **stored** `dr.*` fields, which are
+  not the slider readings. [SLIDERS.md](SLIDERS.md)'s EXIT/ENTRY rows follow
+  the app-wide **right = OVERSTEER** convention, and both sliders reach it
+  through a sign flip, so the stored sign does *not* mean
+  "positive = oversteer-leaning". The parenthesised side is spelled out per
+  row above for the same reason it is on the damping column — the sign alone
+  is easy to read the wrong way round.
+  - `diffBiasEntry` — stored **positive = more decel lock = STABLE**
+    (understeer-leaning), on every layout. The ENTRY slider is an
+    unconditional negation (`value={-(dr.diffBiasEntry??0)}`,
+    `leftLabel="STABLE"` / `rightLabel="LOOSE"`), exactly like Damping Bias
+    above, so STREET's stored `+10` reads as **−10, STABLE** on the slider.
+    `computeDiff`'s own comment states the stored convention:
+    `// entry intent (−50=loose, +50=stable)`.
+  - `diffBiasExit` — stored **positive = more accel lock on the driven axle**.
+    That is ROTATE (oversteer-leaning) on RWD/AWD, but **GRIP**
+    (understeer-leaning) on FWD, where the extra lock lands on the front axle
+    — see [FORMULAS.md](FORMULAS.md)'s `bDiffAccel` signs. The EXIT slider
+    carries that inversion for display
+    (`value={ch.layout==='FWD'?-(dr.diffBiasExit??0):(dr.diffBiasExit??0)}`),
+    which is why the rows above qualify the side with "on RWD/AWD": the
+    presets store one layout-agnostic number, and which end of the slider it
+    lands on depends on the chassis it is loaded onto. `computeDiff`'s FWD
+    accel term is deliberately the *same* sign as RWD's because the UI flip
+    already carries the inversion — see [HISTORY.md](HISTORY.md)'s MATCH
+    CHASSIS entry before touching either site.
 
 ## Build-type → recommended presets
 

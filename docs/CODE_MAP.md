@@ -89,7 +89,14 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
-`naturalMechBalanceOf`, `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
+`naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
+Guide's recommended band — module-level rather than inline because the RANGE
+block and the GRIP GAP sub-widget both call it, and a band they disagreed on
+would make "in range" mean two different things in one panel) and
+`balanceBandRange` (the delta range a fraction pair covers — not just its two
+endpoints, since a negative gap makes the delta V-shaped with its minimum at
+grip-neutral),
+`resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
 balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
 `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,

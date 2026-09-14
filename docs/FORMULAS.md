@@ -5,8 +5,10 @@ shown in the Handling Balance bar. Convention: **positive = oversteer,
 negative = understeer** for every value below.
 
 > This file exists because hint text and slider labels can drift out of
-> sync with the actual math (this happened once with Damping Bias — the
-> hint said the opposite of what `bDampBias` computes). When in doubt about
+> sync with the actual math. It has happened twice: Damping Bias, whose hint
+> said the opposite of what `bDampBias` computes, and the FWD EXIT hint, which
+> named the wrong lock direction because that slider's balance direction and
+> its lock direction genuinely point opposite ways on FWD. When in doubt about
 > which direction a control pushes handling, check the formula here, not
 > the UI copy.
 

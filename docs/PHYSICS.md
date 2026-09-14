@@ -752,29 +752,84 @@ offset:
 
 ```js
 gap = (1 - natGripBalance) - natMechBalance
-d1, d2 = fracLo*gap, fracHi*gap
-lo, hi = natMechBalance + min(d1,d2), natMechBalance + max(d1,d2)  // clamped to 0.20-0.90
+[dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
+lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.20-0.90, hi ≥ lo + 0.03
+
+balanceBandDelta = (frac, gap) => frac <= 1 || gap >= 0 ? frac*gap
+                                                        : gap + (frac-1)*(-gap)
+balanceBandRange = (fracLo, fracHi, gap) =>
+  min/max of balanceBandDelta at fracLo, at fracHi, and at 1 when fracLo < 1 < fracHi
 ```
 
 `fracLo`/`fracHi` come from a per-layout/build table (`_fracMap` in the
 RANGE block, `index.html`) generally in the 0.3-1.0 range, so the band
 scales with how understeer/oversteer-prone the specific chassis actually
 is instead of recommending a constant push regardless of gap size.
-Fractions can exceed 1.0 (DRIFT) to intentionally recommend overshooting
-past full grip-neutral for sustained rotation.
+Fractions can exceed 1.0 — DRIFT on all three layouts (1.55 on FWD/RWD, 1.30
+on AWD) and RWD DRAG at 1.05 — to intentionally recommend overshooting past
+full grip-neutral for sustained rotation.
+
+`balanceBandDelta` is why those two cases are not the same expression.
+A fraction at or below 1.0 interpolates from natural toward grip-neutral,
+which is a *magnitude* — correct under either sign of `gap`, since it just
+under-corrects whatever the chassis already does. A fraction above 1.0 is a
+*direction*: "past grip-neutral, into rotation". Multiplying it straight
+through as `frac*gap` carries the gap's sign, so on a negative gap the
+overshoot pointed at understeer instead — backwards for the only builds
+that ask for it. Anchoring the overshoot at grip-neutral and adding
+`(frac-1)*|gap|` keeps it aimed at oversteer whatever the sign.
+
+The `gap >= 0` guard is load-bearing, not decoration: the overshoot branch
+spells `|gap|` as `-gap`, which is only the absolute value on the branch
+that runs it. Writing the helper guard-free as
+`frac <= 1 ? frac*gap : gap + (frac-1)*Math.abs(gap)` would be algebraically
+identical — for `gap >= 0` the second form reduces to `frac*gap` — but not
+*bit*-identical, and the two differ by up to one ULP (~1.1e-16 measured).
+Keeping the positive branch on the literal `frac*gap` it has always used
+means no existing band can shift, including across the `.toFixed(2)`
+rounding boundaries the widget displays.
+
+That makes the delta **V-shaped in `frac` on a negative gap**, bottoming out at
+`frac = 1` — grip-neutral. So the band is not simply the two endpoint deltas:
+`balanceBandRange` takes the lowest and highest delta over the whole fraction
+pair, which for a pair straddling 1.0 (DRIFT on every layout, RWD DRAG) means
+including `frac = 1` itself. Taking `min`/`max` of the endpoints alone, as the
+sign fix first did, dropped grip-neutral from those bands on every rear-biased
+chassis, and the `hi ≥ lo + 0.03` floor then pushed the truncated band further
+toward oversteer: AWD DRIFT at 45% front showed 0.457–0.487 when its fractions
+only reach 0.430–0.463 (see [HISTORY.md](HISTORY.md)). On a `gap ≥ 0` the delta
+is monotonic and `1·gap` sits strictly between the endpoint deltas, so the
+extra point cannot move any front-biased band.
 
 The `min`/`max` (rather than a fixed `lo=natMechBalance+fracLo*gap`
-assignment) matters for the rare chassis whose natural balance already
-sits past its own grip target, where `gap` goes negative: multiplying a
-negative gap by the *larger* fraction (`fracHi`) gives the more-negative
-delta, so a fixed assignment put `lo` above `hi` in that case — caught by
-the `hi≥lo+0.03` floor, but that collapsed the whole band to a fixed
+assignment) matters for a chassis whose natural balance already sits past
+its own grip target, where `gap` goes negative: multiplying a negative gap
+by the *larger* fraction (`fracHi`) gives the more-negative delta, so a
+fixed assignment put `lo` above `hi` in that case — caught by the
+`hi≥lo+0.03` floor, but that collapsed the whole band to a fixed
 0.03-wide sliver instead of properly widening on the correct (downward)
 side of natural. `min`/`max` picks the right delta for each bound
 regardless of `gap`'s sign, so the band keeps scaling correctly there too.
 The GRIP GAP sub-widget (tyre-width suggestions to bring GRIP TARGET into
-range) mirrors the same fraction table and `min`/`max` treatment so the
-two widgets agree on what "in range" means.
+range) computes its band the same way — its own copy of the fraction table
+as `_ggFracMap`, but the same `balanceBandRange` call — so the two widgets
+cannot disagree on what "in range" means.
+The fraction table is still duplicated and still has to be edited in both
+places; only the arithmetic is shared.
+
+**A negative `gap` is ordinary, not an edge case.** Its sign tracks front
+weight bias almost exactly. With symmetric tyres and near-equal track
+widths it turns negative below roughly 50% front — 49.51% on `DEF_CH`
+— so every mid- and rear-engined car sits on the negative side, as does
+any chassis a wide front tyre stagger pushes there. Track width moves the
+crossover a point or so either way (51.61% at 1500F/1600R track, 48.39% at
+1600F/1500R); tyre stagger moves it several (44.34% front with 245F/295R,
+54.71% with 295F/245R); CG height and total weight do not move it at all.
+Code reading `gap` must treat both signs as normal inputs. The `fracHi>1`
+overshoot got this wrong until `balanceBandDelta` was introduced (see
+[HISTORY.md](HISTORY.md)); the `frac ≤ 1` build ordering on a strongly
+oversteering chassis is a related open question in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ---
 
