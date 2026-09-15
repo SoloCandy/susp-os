@@ -61,7 +61,8 @@ The source runs top to bottom in this order:
    with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
 3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
    `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
-4. **Persistence primitives** — `mergeDefaults`, `usePersist`.
+4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then the undo / redo
+   core `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
 7. **Tutorial content** — the `TUTORIALS` object and `TutorialPanel`.
@@ -129,7 +130,8 @@ and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
 |---|---|
 | `Hint` | everywhere — the ⓘ affordance |
 | `Field` | numeric inputs across all sections |
-| `FeelSlider` | BEG feel sliders and most INT/PRO sliders |
+| `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
+| `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
 | `Sec` | the nine collapsible sidebar sections (`div.stog` header) |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
@@ -213,7 +215,7 @@ the initialiser against every `open.*` and `tog('...')` use in the source.
 ## Header layout: `headerCompact`
 
 The full header row — brand, IMP/MET, the game-mode dropdown, BEG/INT/PRO, then
-undo / `?` / TERMS / GARAGE — needs roughly 975px once the four divider margins
+`?` / TERMS / GARAGE — needed roughly 975px once the four divider margins
 and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
 cutoff, so between those widths the desktop header used to render and push
 GARAGE and its neighbours off-screen: that row has no wrap and no horizontal
@@ -246,6 +248,53 @@ was tried and rejected there — on wide monitors `minmax(280px,1fr)` grows to
 three or four columns, which breaks the front/rear pairing the layout exists
 for. A fixed two-column template plus the container query is the only way to cap
 it at exactly two without an unwanted `maxWidth` margin cap.
+
+The ↩ undo button used to sit in that row too; it moved to the sidebar toolbar with
+redo, so the row is one button narrower than when 975 was measured. The threshold
+was left at 1000 rather than re-measured — lowering it is safe only after the
+GARAGE edge check above.
+
+---
+
+## Undo / redo
+
+`makeHistory` (module level, `── Undo / redo history ──`) holds two stacks of
+whole-state snapshots `{ch, fe, dr, al, dnaApplied}`. App drives it from the
+`── Undo / redo wiring ──` block. The ↩ / ↪ buttons live in `zone-toolbar` beside
+RESET; Ctrl/⌘+Z undoes, Ctrl/⌘+Shift+Z and Ctrl+Y redo, except while a text field
+has focus (the browser's own text undo wins there).
+
+**Two kinds of setter, and which one to use matters.** `setCh`/`setFe`/`setDr`/
+`setAl` record: every user-facing call site uses them, including `pCh`/`pFe`/…
+and props passed to components. `setChRaw`/`setFeRaw`/`setDrRaw`/`setAlRaw` bypass
+history and are for effects that *derive* state — the mount migrations, RIDE HEIGHT
+→ CG, BEG/INT geometry scaling and mode fallbacks, BOTTOM G, ARB unit conversion on
+`physMode`, the ARB ceiling reclamp — and for the restore itself. An effect that
+used a recording setter would open a step of its own whenever it fires, and would
+empty the redo stack right after an undo.
+
+**Steps.** A discrete action — factory preset LOAD, LOAD CHASSIS/BUILD, share-code
+OVERWRITE, CHECK's import, DNA APPLY, removing the DNA link, RESET of the tune —
+calls `commit(label, fn)` and is exactly one labelled step. Anything else is a
+*burst*: the first recorded change saves the state before it, and the burst ends
+on a window-level `pointerdown`, `pointerup`, `focusout`, or 600 ms without a
+change (not while a pointer is still held). One slider drag is one step; each
+click of a ± nudge button is one step.
+
+**Restores and effects.** A restore writes through the raw setters, then:
+
+- sets `restoringRef`, which the ARB unit-conversion effect and BOTTOM G's RIDE
+  REF. mirror check and skip. The snapshot already holds their output; running
+  them again converts twice. The old undo had exactly that bug (see HISTORY.md).
+  The last effect in App clears the flag — **keep it last**.
+- bumps `restoreTick`, a dependency of the BEG/INT geometry scaling, BEG lock and
+  BEG/INT fallback effects, so a snapshot taken in PRO and restored in BEG or INT
+  is brought back inside that tier. It is declared right after the persisted
+  state because Babel's const→var would read it as `undefined` in those
+  effects' dependency arrays further down.
+
+The UI tier, section open state, units, the DNA editor draft and every garage
+entry are deliberately outside history — see KNOWN_ISSUES.md.
 
 ---
 
@@ -404,6 +453,9 @@ declines to do to the solver's output, which a mirror cannot express — a mirro
 of "return the value unchanged" asserts nothing. If its `slice()` markers stop
 matching after a reorganisation, fix the markers; don't delete the suite.
 
+**`tests-history.js` reads `index.html` too** and tests the shipped `makeHistory`:
+commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap.
+
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
 checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
@@ -430,3 +482,7 @@ non-trivial edit:
    `resolveFeEffective`, `sanitizeTune`, `DEF_FE`/`DEF_DR`, the Damping Bias / EXIT /
    ENTRY slider expressions, or anything under the `── Vehicle DNA ──` banner. Reads
    `index.html` too.
+9. `node tests-history.js` after touching `makeHistory`. It covers the stacks only;
+   the wiring (which setters record, when bursts end, the restore guards) needs
+   the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
+   through all three, and cross a game mode with MAN ARBs.

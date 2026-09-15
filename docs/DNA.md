@@ -493,9 +493,10 @@ The link only drives read-outs. What happens to it:
 | SAVE BUILD / SAVE CAR, and REWRITE of a build | copied onto the entry as `dna` (removed from the entry if there is no link) |
 | LOAD BUILD / LOAD CAR's build | replaced by the entry's `dna`, or cleared if it has none |
 | Factory preset LOAD, LOAD CODE's OVERWRITE with feel or drivetrain ticked, RESET of the tune | cleared |
-| Leaving PRO | a confirm first; SWITCH clears it |
-| ✕ on the sidebar DNA line | cleared, tune untouched |
-| Undo (↩), chassis edits, control edits | unchanged — they show as drift |
+| Leaving PRO | a confirm first; SWITCH clears it (one undo step) |
+| ✕ on the sidebar DNA line | cleared, tune untouched (one undo step) |
+| Undo (↩) / redo (↪) | restored with the tune: the link is part of every history snapshot, so undoing APPLY removes it and redo puts it back |
+| Chassis edits, control edits | unchanged — they show as drift |
 
 ---
 
@@ -513,7 +514,7 @@ The link only drives read-outs. What happens to it:
   - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
     missed (and why), or not expressible. Solved only while the section is open;
   - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
-  - **APPLY**, undoable with ↩ like any load.
+  - **APPLY**, one undo step like any load; ↩ also removes the link, ↪ restores both.
 - **Sidebar DNA line**, above CHASSIS: name, drift count, ✕ to remove the link. The name
   opens the editor. Not a `Sec`.
 - **Sidebar marks**: a dot on the label of each control an axis compiled onto — indigo

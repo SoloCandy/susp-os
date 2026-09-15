@@ -13,6 +13,24 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Documented — what undo / redo does not cover
+
+History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:
+
+- **Garage entries are outside it.** Saving, renaming, tagging, deleting and RESTORE
+  aren't undoable. Undoing a tune edit and losing a saved entry with it would be a
+  surprise, and delete is already behind a two-tap confirm.
+- **The UI tier isn't in it.** Undo can restore a snapshot taken in PRO while you're
+  in BEG or INT. The tier fallbacks re-run, so the tune stays valid for the tier, but
+  a DNA link from that snapshot comes back hidden and reappears — usually drifted — on
+  a return to PRO.
+- **History doesn't survive a reload.** Persisting it would add a storage key, a
+  migration story and stale snapshots after any `DEF_*` change, for little gain.
+- **Each ± nudge click is its own step.** Bursts end on pointerdown, so five clicks
+  are five undos. A drag, or a mouse-wheel run on a focused control, is one.
+
+---
+
 ## Open — Balance Guide RANGE's sub-1 fractions rank builds by correction, not by rotation
 
 The RANGE band scales its deltas with `balanceBandDelta(frac, gap)` (collected

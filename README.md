@@ -42,11 +42,13 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more) — not tied to any tier, available any time you forget what a word means.
 
-A **RESET / CHECK / SHARE** toolbar is pinned to the top of the sidebar, above every tier's inputs, so it's always reachable without scrolling. RESET clears the tune or the tutorials back to defaults (garage saves are untouched). CHECK opens Tune Check, a reverse calculator for reading frequencies and damping ratios back out of existing spring/damper values. SHARE handles share codes and JSON garage backups.
+Every slider's value can be typed as well as dragged, in the number box beside its label.
+
+A **RESET / ↩ / ↪ / CHECK / SHARE** toolbar is pinned to the top of the sidebar, above every tier's inputs, so it's always reachable without scrolling. RESET clears the tune or the tutorials back to defaults (garage saves are untouched). ↩ undoes and ↪ redoes (also Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y, ⌘ on Mac): a slider drag is one step, and a load, APPLY, share-code import or reset is one step each. CHECK opens Tune Check, a reverse calculator for reading frequencies and damping ratios back out of existing spring/damper values. SHARE handles share codes and JSON garage backups.
 
 A **VISUALS** card is pinned to the bottom of the sidebar (collapsible, stays put while the sections above it scroll) and holds every dial/graph in one place, in four independently collapsible groups — **ARB** (the split dial with ROLL/ARB SHARE), **RIDE / DAMPERS** (the spring-Hz dial and the rebound/bump dial), **DYNAMICS** (a damped step-response chart showing how fast each axle settles and whether it overshoots, with a shaded ±10% settle band, a dashed settle-time marker and a first-neutral-crossing ring per trace — the markers are measured off the drawn curve, so the settle line is literally where the trace enters the band), and **SAG** (the sag vs load chart, when RIDE HEIGHT → CG is active) — so they're visible regardless of which input section is currently open, instead of being scattered across ANTI-ROLL BARS/RIDE/DAMPERS/CHASSIS.
 
-A **GARAGE** drawer slides out from the right (button at the top-right of the header, every tier) and holds everything you save. Each entry is a **chassis**, a **build** (feel + diff tune), or a **car** carrying both — a car gives you separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car's chassis with another's tune, and every load is undoable. Entries take notes and your own tags, and derive automatic ones (drivetrain, weight balance, stiffness band, build type) that you can search on directly, alongside filter-by-kind and sort. Every entry has a COPY CODE button to get a share code back out. The six factory presets are pinned read-only at the top. This replaces the old split between a chassis-only GARAGE drawer inside CHASSIS and a tune-only MY BUILDS drawer inside BUILD.
+A **GARAGE** drawer slides out from the right (button at the top-right of the header, every tier) and holds everything you save. Each entry is a **chassis**, a **build** (feel + diff tune), or a **car** carrying both — a car gives you separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car's chassis with another's tune, and every load is undoable and redoable. Entries take notes and your own tags, and derive automatic ones (drivetrain, weight balance, stiffness band, build type) that you can search on directly, alongside filter-by-kind and sort. Every entry has a COPY CODE button to get a share code back out. The six factory presets are pinned read-only at the top. This replaces the old split between a chassis-only GARAGE drawer inside CHASSIS and a tune-only MY BUILDS drawer inside BUILD.
 
 Pasting a share code (SHARE → LOAD CODE) offers two ways in: **OVERWRITE** replaces your current tune, or **TO GARAGE** saves it as a new garage entry without touching what you're working on.
 
@@ -119,6 +121,7 @@ node tests.js          # physics unit tests (mirrored copy — see CODE_MAP.md)
 node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
 node tests-docs.js     # documentation drift checks (reads index.html and docs/)
 node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
+node tests-history.js  # undo / redo history core tests (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

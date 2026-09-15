@@ -13,6 +13,54 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — BEG's Balance slider centres on WEIGHT, not NEUTRAL
+
+Touching BEG's Balance slider switched ARB mode to NEUTRAL, and a Beginner preset load
+did the same. NEUTRAL's centre solves the bar split so the bars *cancel* the springs'
+front/rear bias and total roll stiffness lands on the weight distribution. With springs
+off 50/50 through the rear multiplier, cancelling them needs a lopsided bar split: on a
+50/50 RWD car at 3.30 Hz ×0.96 with AUTO bars, a centred slider labelled NEUTRAL solved
+the front bar to its 1-click floor and the rear to 38.7. The OVERSTEER half then did
+nothing to the bars (still 1 / 39 at +50) because ARB Bias could only push further past a
+floor it was already on; only the UNDERSTEER half moved them, back toward 19 / 19.
+
+The slider now keeps ARB mode on WEIGHT, which BEG already enters with. Its centre is the
+bars split by weight and the springs at whatever MULTIPLIER ratio is set; off centre it
+nudges both toward the requested handling, WEIGHT's ARB Bias (±20 points of bar split)
+and the rear Hz multiplier (±4%), as it already did for the springs. The same car now reads
+18.8 / 19.5 at centre, 26.3 / 11.7 at −50 and 11.3 / 27.3 at +50. Its centre is a little
+more understeer than before (bTot −2.8 against −0.1), because the bars no longer offset
+the springs' front bias. NEUTRAL mode itself
+is unchanged and still selectable at INT/PRO.
+
+---
+
+## Changed — undo rebuilt with redo, and moved to the sidebar toolbar
+
+The old undo was an effect that snapshotted `{ch, fe, dr, al}` 600 ms after changes
+stopped, and popped that list on ↩. It had no notion of an action, and four things were
+wrong with it:
+
+- **A load right after an edit lost the state between them.** Both landed inside one
+  600 ms window and became one snapshot, so ↩ jumped past the pre-load tune.
+- **Undo across a game-mode change could corrupt MAN ARBs.** Restoring a snapshot with a
+  different `gameMode` flipped `physMode`, and the unit-conversion effect converted
+  `arbManF`/`arbManR` again, though the snapshot already held them in the right units.
+- **Undo past a tier switch left PRO modes in BEG/INT.** The fallback effects fire only
+  when `uiMode` changes, and a restore doesn't change it.
+- **Undoing APPLY kept the DNA link**, so the sidebar judged the old tune against a DNA
+  that was no longer applied. DNA.md documented that as intended; it stopped making
+  sense once APPLY became one step.
+
+Its replacement is `makeHistory` plus explicit steps: `commit` for discrete actions,
+coalesced bursts for continuous edits, raw setters for deriving effects, and a
+`restoringRef` / `restoreTick` pair so effects neither double-convert nor skip the tier
+clamp after a restore. Snapshots now carry `dnaApplied`. Redo arrived with it (↪,
+Ctrl/⌘+Shift+Z, Ctrl+Y), both buttons moved from the header to beside RESET, and the
+cap went from 50 to 100 steps. Details in [CODE_MAP.md](CODE_MAP.md#undo--redo).
+
+---
+
 ## Changed — Vehicle DNA's roll axis became ARB share
 
 `rollDegPerG` (ROLL °) was replaced by `arbShare` (SHARE %), and the DNA format moved to
