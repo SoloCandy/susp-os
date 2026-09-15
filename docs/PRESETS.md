@@ -21,9 +21,9 @@ Keeping presets out of the entry list also keeps them out of entry counts, searc
 sort and — most importantly — backup files, where six identical read-only entries
 would ride along in every export and multiply on every restore.
 
-**Beginner mode** additionally forces `arbBalMode:'neutral'` and
+**Beginner mode** additionally forces `arbBalMode:'weight'` and
 `arbMode:'auto'` on preset load (Beginner doesn't expose these mode
-toggles, and its Balance slider's own mechanism assumes NEUTRAL ARB mode —
+toggles, and its Balance slider's own mechanism assumes WEIGHT ARB mode —
 see the Balance row in [SLIDERS.md](SLIDERS.md)), plus `dampCharMode:'zeta'`,
 `dampBalMode:'standard'`, and zeroed `dampingBias` since Beginner's
 Character slider only understands the simple rebound-ζ/bump-ratio model.

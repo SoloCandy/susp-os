@@ -3585,7 +3585,7 @@ const TUTORIALS={
      body:'The right panel shows exact values to enter in the tuning menu, as six cards: Alignment, Anti-Roll Bars, Springs, Dampers, Brakes, and Differential. Alignment, brakes, and the differential are always computed automatically from your other inputs. Amber values mean you\'re near a game limit — soften your inputs slightly if that happens.'},
     {title:'Output Toolbar',
      focus:['toolbar'],
-     body:'Three buttons are pinned at the top of the sidebar. RESET opens a confirm dialog to clear the tune, the tutorials, or both back to defaults; your garage saves are never touched. CHECK opens Tune Check, a reverse calculator: type in spring and damper values from a tune you already have and it reads back the frequencies and damping ratios behind them. SHARE handles moving tunes between devices with a code, and makes or restores a JSON backup of your whole garage.'},
+     body:'The toolbar is pinned at the top of the sidebar. RESET opens a confirm dialog to clear the tune, the tutorials, or both back to defaults; your garage saves are never touched. ↩ and ↪ undo and redo your last changes. CHECK opens Tune Check, a reverse calculator: type in spring and damper values from a tune you already have and it reads back the frequencies and damping ratios behind them. SHARE handles moving tunes between devices with a code, and makes or restores a JSON backup of your whole garage.'},
   ],
   intermediate:[
     {title:'Welcome — Intermediate Mode',
@@ -4765,10 +4765,10 @@ function App(){
     let adjustedFe={...DEF_FE,...s.fe};
     // Hz is already weight-neutral (spring rate = Hz² × cornerMass), so no scaling needed.
     if(uiMode==='beginner'){
-      // Match the Beginner Balance slider's own mechanism (NEUTRAL ARB mode + rearHzMult
+      // Match the Beginner Balance slider's own mechanism (WEIGHT ARB mode + rearHzMult
       // nudge) so the car's achieved balance stays consistent whether or not the user
       // has touched the slider since loading this preset.
-      adjustedFe.arbBalMode='neutral';
+      adjustedFe.arbBalMode='weight';
       adjustedFe.rearHzMode='multiplier';
       adjustedFe.dampCharMode='zeta';
       adjustedFe.dampBalMode='standard';
@@ -5180,6 +5180,11 @@ function App(){
                 <div id="zone-balance" style={dim('balance')}>
                 <FeelSlider label="Balance" value={balVal}
                   onChange={v=>{const c=Math.max(-50,Math.min(50,v));setFe(p=>{
+                    // Centre is WEIGHT's own neutral: bars split by weight distribution, springs
+                    // at whatever MULTIPLIER ratio is set. Moving off centre nudges both toward
+                    // the handling asked for — ARB Bias under WEIGHT (±20 points of bar split at
+                    // the ends) and rearHzMult (±4%). It used to switch to NEUTRAL, whose centre
+                    // solves the bars to cancel the springs and can push them to 0/100.
                     // Nudge rearHzMult incrementally from wherever it already sits (e.g. a
                     // loaded preset's tuned ratio) rather than overwriting it outright, so
                     // touching this slider doesn't erase a preset's Hz character.
@@ -5187,7 +5192,7 @@ function App(){
                     const baseMult=p.rearHzMode==='multiplier'?(p.rearHzMult??1.20):1.20;
                     const nudged=Math.max(0.50,Math.min(3.00,baseMult*(1+(c-prevC)*0.0008)));
                     return{...p,
-                      arbBalMode:'neutral',
+                      arbBalMode:'weight',
                       rearHzMode:'multiplier',
                       arbBias:c,
                       rearHzMult:Math.round(nudged*100)/100};
