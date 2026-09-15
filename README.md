@@ -42,7 +42,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more) — not tied to any tier, available any time you forget what a word means.
 
-Every slider's value can be typed as well as dragged: click the readout beside its label.
+Every slider's value can be typed as well as dragged, in the number box beside its label.
 
 A **RESET / ↩ / ↪ / CHECK / SHARE** toolbar is pinned to the top of the sidebar, above every tier's inputs, so it's always reachable without scrolling. RESET clears the tune or the tutorials back to defaults (garage saves are untouched). ↩ undoes and ↪ redoes (also Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y, ⌘ on Mac): a slider drag is one step, and a load, APPLY, share-code import or reset is one step each. CHECK opens Tune Check, a reverse calculator for reading frequencies and damping ratios back out of existing spring/damper values. SHARE handles share codes and JSON garage backups.
 
