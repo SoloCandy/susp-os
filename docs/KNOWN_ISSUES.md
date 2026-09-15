@@ -324,6 +324,14 @@ plausibility checks, not measured physics:
   typical sports car lands ≈450mm, in the middle of the 400–460mm
   guidance) but that's a single spot-check, not a validated model across
   vehicle classes.
+- The estimate is clamped to the 200–1500mm CG Height range, so the tallest
+  ride heights saturate it. With 35in truck tyres (~445mm radius), ride heights
+  above roughly 41in / 105cm all read 1500mm, and CG stops responding to
+  ride-height edits; sports-car tyres reach the cap only near the 48in / 122cm
+  input limit. The SAG vs LOAD chart and BOTTOM G's still use the full entered
+  ride height. The cap is deliberate: above ~1500mm the inside wheels of a
+  typical-track car unload at around half a g, where `mechBalanceLLT`'s
+  zero-load floor is doing most of the work and its balance output means little.
 - Bottoming risk (and the LOW/MED/HIGH/BOTTOMED badge specifically) is
   still static-vertical-load-only — sag vs. entered ride height at a plain
   g multiplier. The chart's second, fainter line adds *cornering* via the

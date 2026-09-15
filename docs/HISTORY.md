@@ -13,6 +13,23 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Changed — Ride Height F/R raised to 4 ft, CG Height cap to 1500mm
+
+The Ride Height F/R inputs stopped at 24in / 61cm, too low for lifted off-road and
+rally builds. They now go to 48in / 122cm, and `sanitizeTune`'s `rideHeightF/R` clamp
+went from 0.61m to 1.22m to match. The clamp has to move with the inputs: it runs on
+every load and share-code decode, so a stale 0.61 would quietly cut a saved 40in
+ride height back to 24in.
+
+CG Height's 900mm cap went to 1500mm with it. At 900mm the RIDE HEIGHT → CG estimate
+saturated at about 22in of ride height on ordinary tyres, so most of the new range
+changed nothing, and 900mm was already short of lifted trucks. The cap lives in three
+places that must agree: the `cgHeight` clamp in `sanitizeTune`, the `Math.min` in the
+RIDE HEIGHT → CG effect, and the manual CG Height input's `max`. A share code carrying a
+CG height above 900mm decodes to that value now; before, it was clamped to 900mm.
+
+---
+
 ## Changed — BEG's Balance slider centres on WEIGHT, not NEUTRAL
 
 Touching BEG's Balance slider switched ARB mode to NEUTRAL, and a Beginner preset load
