@@ -1482,6 +1482,29 @@ const measureDNA=(ch,tune,fe,dr)=>({
   diffEntry:dr.diffManual||dr.diffType==='sport'?null:dnaNeg(dr.diffBiasEntry??0),
 });
 
+// measureDNA turned into a DNA you can edit and apply — what TUNE CHECK's IMPORT AS DNA button
+// and any future "make a DNA out of this" path go through. Two things a plain reading can't do:
+//   * A setting axis that reads null (the tune is in a mode where that field means something
+//     else) falls back to `from`, the axes already in the editor. Inventing a number the tune
+//     never stated would be worse than leaving the draft's value alone.
+//   * The damper split is converted rather than dropped. dampBias is only defined under SYNC, so
+//     invert settleZetas' front-reference solve — rate(zR)·rHz = rate(zF)·fHz·biasMult with
+//     biasMult = 2^(bias/50) — to get the bias that reproduces THIS tune's front/rear ζ split
+//     whatever mode produced it. That inverts SYNC's own forward formula exactly, except where
+//     rateToZeta clamped an axle at critical damping; the range clamp below absorbs the rest.
+// Everything is clamped to DNA_AXES, so the result is a sanitizeDNA fixed point.
+const dnaReadBack=(ch,fe,dr,tune,from)=>{
+  const m=measureDNA(ch,tune,fe,dr);
+  const rF=dampRate(tune.zetaF),rR=dampRate(tune.zetaR);
+  const biasMult=(rF>0&&rR>0&&tune.fHz>0&&tune.rHz>0)?(rR*tune.rHz)/(rF*tune.fHz):1;
+  return Object.fromEntries(Object.entries(DNA_AXES).map(([k,{min,max,def}])=>{
+    const v=k==='dampBias'?50*Math.log2(biasMult):m[k];
+    return[k,(typeof v==='number'&&isFinite(v))
+      ?Math.max(min,Math.min(max,v))
+      :(from?.[k]??def)];
+  }));
+};
+
 // How far a measured axis may sit from its target and still count as hit. Each allowance is half
 // of one quantisation step of whatever produced the number, so rounding the game imposes is never
 // reported as a miss: sanitizeTune's 0.01 Hz, BeamNG's 500 N/m spring and 100 N/m/s damper grids,
@@ -2844,7 +2867,7 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
   );
 };
 
-const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
+const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialMode})=>{
   // A physical-unit game mode has no click ceiling, so the inputs here take BeamNG's own
   // units — N/m springs and anti-roll rate, N/m/s damping — which also means computeCheck
   // must not divide the damping calibration back out. Seeds differ by orders of magnitude
@@ -2858,23 +2881,41 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
                                      :{rebF:5,rebR:5,bumpF:3,bumpR:3});
   const[ckArb,setCkArb]=useState(phys?{f:40000,r:60000}:{f:20,r:20});
   const[imported,setImported]=useState(false);
+  const[dnaSet,setDnaSet]=useState(false);
+  const flash=set=>{set(true);setTimeout(()=>set(false),2000);};
   const pS=k=>v=>setCkSpr(p=>({...p,[k]:v}));
   const pD=k=>v=>setCkDmp(p=>({...p,[k]:v}));
   const pA=k=>v=>setCkArb(p=>({...p,[k]:v}));
   const masses=useMemo(()=>cornerMasses(ch),[ch]);
   const ck=useMemo(()=>computeCheck(ckSpr,ckDmp,masses,phys?1:DAMPING_CALIBRATION),[ckSpr,ckDmp,masses,phys]);
-  const importDecoded=()=>{
+  // The Damping Bias the decoded front/rear ζ split asks for, before the slider's ±50 clamps it.
+  // Read by decodedFe and shown below when it doesn't fit, because the alternative is handing
+  // back a damper split that is not the one you typed and saying nothing about it.
+  const biasWanted=ck.zRebF>0?Math.round(100*(1-ck.zRebR/ck.zRebF)):0;
+  // The decoded numbers as one fe patch, shared by both buttons below: IMPORT TUNE writes it to
+  // the sidebar, IMPORT AS DNA measures the tune it produces and hands the axes to the DNA
+  // editor. One function so the two can never read the same inputs differently.
+  const decodedFe=prev=>{
     const hzF=Math.max(HZ_MIN,Math.min(HZ_MAX,ck.hF));
     const hzR=Math.max(HZ_MIN,Math.min(HZ_MAX,ck.hR));
     const mult=Math.max(0.5,Math.min(3.0,Math.round((hzR/hzF)*100)/100));
-    const domF=ck.zRebF>=ck.zRebR;
-    const domZ=domF?ck.zRebF:ck.zRebR,otherZ=domF?ck.zRebR:ck.zRebF;
-    const reboundZeta=Math.max(10,Math.min(200,Math.round(domZ)));
-    const ratio=domZ>0?otherZ/domZ:1;
-    const dampingBias=Math.max(-50,Math.min(50,Math.round(domF?200*(1-ratio):-200*(1-ratio))));
-    const domBumpZ=domF?ck.zBmpF:ck.zBmpR;
-    const bumpRatio=Math.max(10,Math.min(100,Math.round(reboundZeta>0?domBumpZ/reboundZeta*100:56)));
-    setFe(p=>({...p,
+    // The FRONT axle is the anchor because the patch below writes rideRef:'front', and STANDARD's
+    // exact-anchor axle follows Ride Reference — so zetaF lands on reboundZeta and the rear is
+    // whatever dampingBias makes of it: zetaR = zetaF·(1 − dampingBias/100). Both halves have to
+    // agree with that one formula. Anchoring instead to whichever axle damps harder (what this
+    // did until the Ride-Reference change landed) puts the rear's ζ on the front, and a bias
+    // scaled 200·(1−ratio) moves the rear twice as far as asked; see docs/HISTORY.md.
+    const reboundZeta=Math.max(10,Math.min(200,Math.round(ck.zRebF)));
+    // ±50 is the slider's range, so a rear axle outside 0.5..1.5× the front's ζ lands at the end
+    // of it rather than on its real split. Nothing in the app can express that spread, so the
+    // card warns instead of pretending.
+    const dampingBias=Math.max(-50,Math.min(50,biasWanted));
+    // Bump anchors on the front for the same reason, and RATIO then gives the rear bump the same
+    // dampingBias split rebound got. A tune whose bump split differs from its rebound split is
+    // therefore not exactly reproducible — one slider drives both — which the DECODED TUNE card's
+    // hint states outright.
+    const bumpRatio=Math.max(10,Math.min(100,Math.round(ck.zRebF>0?ck.zBmpF/ck.zRebF*100:56)));
+    return{...prev,
       rideStiffness:Math.round(hzF*100)/100,
       rideRef:'front',rearHzMode:'multiplier',rearHzMult:mult,
       dampingMode:'ratio',dampCharMode:'zeta',dampBalMode:'standard',
@@ -2884,10 +2925,11 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
       // fe.arbMan* is always roll stiffness; the physical inputs above are BeamNG's linear
       // N/m, so invert k = 2·rs/track² on the way in.
       arbManF:phys?Math.max(0,ckArb.f*ch.trackF*ch.trackF/2):Math.max(1,Math.min(lim.arb,ckArb.f)),
-      arbManR:phys?Math.max(0,ckArb.r*ch.trackR*ch.trackR/2):Math.max(1,Math.min(lim.arb,ckArb.r))}));
-    setImported(true);
-    setTimeout(()=>setImported(false),2000);
+      arbManR:phys?Math.max(0,ckArb.r*ch.trackR*ch.trackR/2):Math.max(1,Math.min(lim.arb,ckArb.r))};
   };
+  const importDecoded=()=>{setFe(decodedFe);flash(setImported);};
+  // Overwrites the DNA editor's draft and nothing else — the sidebar tune is left where it is.
+  const importDecodedDna=()=>{onImportDna(decodedFe);flash(setDnaSet);};
   const probeMasses=useMemo(()=>cornerMasses(ch),[ch]);
   const probeRateF=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.front/LB_IN_TO_NM,[probeHz,probeMasses]);
   const probeRateR=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.rear /LB_IN_TO_NM,[probeHz,probeMasses]);
@@ -2918,8 +2960,10 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
                 <div style={{marginBottom:8}}>Bring in a tune you don't have a share code for — copied off a screenshot, a forum post, or read straight from the game's values — by matching its raw spring/damper/ARB numbers here.</div>
                 <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>ENTER</div>
                 <div style={{marginBottom:8}}>Fill in the cards below with those raw values. Vehicle Mass stays synced with the sidebar; the rest are the tune's numbers as-is.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT</div>
-                <div>DECODED TUNE shows the closest match in this app's own Hz + ζ model. IMPORT? overwrites your current RIDE, DAMPERS, and ANTI-ROLL BARS settings — review them afterward, since the conversion is a best-effort approximation, not exact.</div>
+                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT TUNE</div>
+                <div style={{marginBottom:8}}>Keeps the numbers. DECODED TUNE is how the app reads them in its own Hz + ζ model; IMPORT TUNE writes that onto this car, replacing its RIDE, DAMPERS and ANTI-ROLL BARS. It comes back close rather than exact, so review those sections afterward.</div>
+                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT AS DNA <span style={{color:'#475569'}}>· PRO</span></div>
+                <div>Keeps the handling. IMPORT AS DNA reads the decoded tune back as handling targets and loads them into the GARAGE DNA editor — this car doesn't change. APPLY it here, or on another car to carry the handling across.</div>
               </div>
             </Card>
             <Card title="VEHICLE MASS" hint="Synced with the CHASSIS Weight and Front Weight Bias fields in the sidebar — editing either place updates both.">
@@ -2968,7 +3012,7 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
               ))}
             </Card>
             <Card title="DECODED TUNE" accent
-              hint={`Best-effort import — the app's feel model uses a front Hz + rear multiplier and a rebound ζ + bias, so an exact front/rear damping split may not be reproduced precisely. ARB ${phys?'roll stiffness values are':'clicks are'} set directly (switches ANTI-ROLL BARS to MAN mode). Check the RIDE, DAMPERS, and ANTI-ROLL BARS sections after importing.`}>
+              hint={`The app reads these as a front Hz plus rear multiplier, and a front rebound ζ plus one Damping Bias. That bias sets both the rebound and bump splits and stops at ±50, so some damper splits land close rather than exact. IMPORT TUNE sets the ARB ${phys?'roll stiffness':'clicks'} directly (ANTI-ROLL BARS switches to MAN); IMPORT AS DNA turns them into ARB share and balance targets.`}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
                 <Readout label="Hz FRONT" value={ck.hF} unit="Hz"/>
                 <Readout label="Hz REAR" value={ck.hR} unit="Hz"/>
@@ -2979,8 +3023,23 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,initialMode})=>{
               <Stat label="Bump ratio rear"     value={ck.zBmpR} unit="%" decimals={1}/>
               <Stat label="ARB front" value={ckArb.f} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
               <Stat label="ARB rear"  value={ckArb.r} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
-              <button className={`tbtn${imported?' saved':''}`} style={{width:'100%',marginTop:8,fontSize:10}}
-                onClick={importDecoded}>{imported?'IMPORTED ✓':'IMPORT?'}</button>
+              {Math.abs(biasWanted)>50&&<div style={{fontSize:9,color:'#f59e0b',marginTop:6,letterSpacing:0.3,lineHeight:1.5}}>
+                This split needs a Damping Bias of {biasWanted>0?'+':''}{biasWanted}, past the slider's ±50.
+                The front axle is matched and the rear lands as close as the slider reaches.</div>}
+              <div style={{display:'flex',gap:4,marginTop:8}}>
+                {/* Each label names where the decode lands, since that is the only thing that
+                    differs between them. No trailing ? — elsewhere in the app that marks a second
+                    click (SURE?), and both of these act on the first one. */}
+                <button className={`tbtn${imported?' saved':''}`} style={{flex:1,fontSize:10}}
+                  title="Overwrites this car's RIDE, DAMPERS and ANTI-ROLL BARS with these numbers. Review them afterward — the conversion is a close match, not an exact one."
+                  onClick={importDecoded}>{imported?'IMPORTED ✓':'IMPORT TUNE'}</button>
+                <button className={`tbtn${dnaSet?' saved':''}`} disabled={!onImportDna}
+                  style={{flex:1,fontSize:10,opacity:onImportDna?1:0.35}}
+                  title={onImportDna
+                    ?"Reads this tune back as a handling DNA and replaces the GARAGE editor's draft. This car's own settings are left alone — edit the axes there, then APPLY, or carry the DNA onto another car."
+                    :'Vehicle DNA is PRO only — switch tier to use it.'}
+                  onClick={importDecodedDna}>{dnaSet?'DNA SET ✓':'IMPORT AS DNA'}</button>
+              </div>
             </Card>
           </div>}
           {ckMode==='probe'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:10,marginBottom:10}}>
@@ -4486,6 +4545,18 @@ function App(){
       setDnaStore({...dnaStore,applied:{name:dnaName,axes:r.dna.axes,achieved:r.measured}});
     });
   };
+  // TUNE CHECK's IMPORT AS DNA button. Runs the decoded fe through the same funnel every other
+  // read takes, then reads the result back as axis targets. Not a commit: the undo snapshot
+  // carries the APPLIED link, never the editor's draft, and nothing on the car changes here. The
+  // draft loses its `ref`, so the editor shows a fresh DNA, not "edited from" whatever was loaded.
+  const dnaFromDecoded=mkFe=>{
+    const nfe=mkFe(fe);
+    const t=computeTune(ch,feelToPhysics(ch,resolveFeEffective(ch,nfe)),nfe.gameMode??DEF_FE.gameMode);
+    setDnaStore({...dnaStore,draft:{...dnaDraft,name:'DECODED TUNE',
+      axes:dnaReadBack(ch,nfe,dr,t,dnaDraft.axes)}});
+    setOpen(p=>({...p,dnaOpen:true}));
+    setGaragePanelOpen(true);
+  };
   // A mark on a sidebar control a DNA set: indigo while it still reads as applied, amber once it
   // has drifted (edited, or the chassis changed under it).
   const dnaDot=k=>{
@@ -4883,7 +4954,8 @@ function App(){
   const effZoom=isPhone?1:uiZoom;
   return(
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
-      {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} metricUnits={metricUnits} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))} initialMode={checkerInitMode}/>}
+      {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} metricUnits={metricUnits} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
+        onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
       {showGlossary&&<GlossaryModal onClose={()=>setShowGlossary(false)}/>}
       {showResetModal&&(
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}

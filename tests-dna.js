@@ -43,9 +43,9 @@ const M = new Function(
   slice('const DNA_ARCHETYPES=', 'const Hint=') + '\n' +
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
-  'sanitizeDNA,compileDNA,measureDNA,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
+  'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'resolveArbBalTarget,gripNeutralOf,naturalMechBalanceOf,balanceFromRsBal,sanitizeTune,' +
-  'computeTune,feelToPhysics};'
+  'computeTune,feelToPhysics,PHYS_SNAP};'
 )();
 
 let pass = 0, fail = 0;
@@ -331,6 +331,83 @@ t('share hit ⇔ !shareClamped, balance hit ⇔ !mechBalClamped, !dampingClamped
     n++;
   }
   assert(n > 1000, `only ${n} cases ran`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+section('dnaReadBack — a tune turned back into a DNA');
+
+t('a compiled tune reads back as the DNA that produced it', () => {
+  let n = 0;
+  for (const mode of MODES) for (const over of Object.values(FIXTURES)) for (const layout of LAYOUTS)
+  for (const a of M.DNA_ARCHETYPES) {
+    // A race diff, so both diff axes are expressible — the sport-diff case is its own test below.
+    const ch = chOf({ ...over, layout }), dr = drOf({ diffType: 'race' });
+    const e = M.dnaEvaluate(ch, feOf(mode), dr, a.axes);
+    const back = M.dnaReadBack(ch, e.fe, e.dr, e.tune, null);
+    // The outcome axes may legitimately miss on a limited chassis — what must hold is that the
+    // read-back is measureDNA's reading clamped into the axis range, which the section above
+    // already ties to the app's own flags. (A tune can sit outside a range no target can name:
+    // a chassis whose grip-neutral is far off can read a balanceOffset past ±0.20.)
+    for (const k of OUTCOME) {
+      const { min, max } = M.DNA_AXES[k];
+      near(back[k], Math.max(min, Math.min(max, e.measured[k])), 1e-9, `${mode}/${layout}/${a.name} ${k}`);
+    }
+    // The diff axes come straight off dr and must be exact.
+    for (const k of ['diffExit', 'diffEntry']) near(back[k], a.axes[k], 1e-12, `${mode}/${layout}/${a.name} ${k}`);
+    // dampBias is the one that has to survive a trip out through the zetas and back. It reads ζ
+    // off the ROUNDED damper values, so it carries the game's damper quantisation: the same half
+    // step dnaTolerances allows reboundZeta, propagated through 50·log2(rateR·rHz / rateF·fHz).
+    const dHalf = mode === 'beamng' ? M.PHYS_SNAP.damp / 2 : 0.05;
+    const tolBias = 50 / Math.LN2 * (dHalf / e.tune.rebF + dHalf / e.tune.rebR) + 1e-6;
+    near(back.dampBias, a.axes.dampBias, tolBias, `${mode}/${layout}/${a.name} dampBias`);
+    n++;
+  }
+  assert(n > 200, `only ${n} cases ran`);
+});
+
+t('dampBias inverts the ζ split whatever damper-balance mode set it', () => {
+  // STANDARD holds the same front ζ as SYNC under a FRONT reference but swings the rear its own
+  // way, so the read-back has to derive the bias from the zetas, not copy the stored field.
+  for (const mode of MODES) for (const bias of [-40, -15, 0, 15, 40]) {
+    const ch = chOf({}), dr = drOf();
+    const fe = feOf(mode, { rideRef: 'front', rideStiffMode: 'hz', rideStiffness: 2.2,
+      rearHzMode: 'multiplier', rearHzMult: 1.1, dampCharMode: 'zeta', reboundZeta: 70,
+      dampingMode: 'ratio', bumpRatio: 56, dampBalMode: 'standard', dampingBias: bias });
+    const tune = M.computeTune(ch, M.feelToPhysics(ch, M.resolveFeEffective(ch, fe)), mode);
+    assert(M.measureDNA(ch, tune, fe, dr).dampBias === null, 'STANDARD should read null');
+    const back = M.dnaReadBack(ch, fe, dr, tune, null);
+    // Re-compile the read-back: under SYNC it must reproduce this tune's own front/rear ζ split.
+    const e = M.dnaEvaluate(ch, fe, dr, back);
+    near(e.tune.zetaR / e.tune.zetaF, tune.zetaR / tune.zetaF, 0.01, `${mode} bias ${bias} split`);
+  }
+});
+
+t('an axis the tune cannot express keeps the value it was given', () => {
+  const ch = chOf({}), fe = feOf('horizon');
+  // diffManual makes both diff axes inexpressible; sport makes ENTRY alone inexpressible.
+  for (const [dr, blind] of [[drOf({ diffManual: true }), ['diffExit', 'diffEntry']],
+                             [drOf({ diffType: 'sport' }), ['diffEntry']]]) {
+    const tune = M.computeTune(ch, M.feelToPhysics(ch, M.resolveFeEffective(ch, fe)), 'horizon');
+    const from = { ...M.DNA_ARCHETYPES[3].axes, diffExit: 33, diffEntry: -21 };
+    const back = M.dnaReadBack(ch, fe, dr, tune, from);
+    for (const k of blind) assert(back[k] === from[k], `${k} should have kept ${from[k]}, got ${back[k]}`);
+    for (const k of ['diffExit', 'diffEntry'].filter(x => !blind.includes(x)))
+      assert(back[k] === M.measureDNA(ch, tune, fe, dr)[k], `${k} should have been read, not carried`);
+    // dampBias is never carried: it is derived from the zetas, so it has a value even here,
+    // where measureDNA reads null because this tune is not in SYNC.
+    assert(M.measureDNA(ch, tune, fe, dr).dampBias === null && back.dampBias !== from.dampBias,
+      `dampBias should have been derived, got ${back.dampBias}`);
+  }
+});
+
+t('the result is always a sanitizeDNA fixed point', () => {
+  for (const mode of MODES) for (const over of Object.values(FIXTURES)) {
+    const ch = chOf(over), dr = drOf();
+    const e = M.dnaEvaluate(ch, feOf(mode), dr, randomDNA().axes);
+    const back = M.dnaReadBack(ch, e.fe, e.dr, e.tune, null);
+    const s = M.sanitizeDNA({ v: 2, name: 'x', axes: back, keep: M.DNA_YIELDABLE }).axes;
+    for (const k of Object.keys(M.DNA_AXES)) assert(s[k] === back[k], `${mode} ${k}: ${back[k]} → ${s[k]}`);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

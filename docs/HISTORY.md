@@ -13,6 +13,44 @@ reintroduce this”. Newest first, matching the order they were written in.
 
 ---
 
+## Fixed — TUNE CHECK's tune import handed back a damper split that wasn't the one typed
+
+`importDecoded` anchored `reboundZeta` to whichever axle damped *harder* and wrote
+`dampingBias` as `200 · (1 − ratio)`. Both halves were right once. The patch has always
+set `rideRef:'front'`, and STANDARD's exact-anchor axle used to follow the Damping Bias
+slider's *sign*, so the dominant axle really was the anchor. When that changed — the
+anchor now follows Ride Reference, see the comment on the STANDARD branch in
+`feelToPhysics` — the decode was not updated with it, and the scale factor was never
+right for `zetaR = zetaF · (1 − dampingBias/100)` either.
+
+Measured on the shipped code, default chassis, 400/300 lb/in springs:
+
+| typed | imported |
+|---|---|
+| rebound 6 / 4 | 6 / 3 — the rear 25% too soft, because the bias moved it twice as far as asked |
+| rebound 4 / 6 | 7.2 / 9 — both wrong, because the rear's ζ was written onto the front anchor |
+
+The front-dominant case was a quiet 25% error. The rear-dominant case put the rear
+axle's damping ratio on the front axle and scaled from there, so nothing about the
+result described the tune that was entered. Neither showed a warning: the numbers just
+came out different from the ones on screen, and the card's "best-effort approximation"
+hint made that look expected.
+
+Now the front axle is the anchor to match `rideRef:'front'`, the bias is
+`100 · (1 − ζR/ζF)`, and bump ratio reads off the front too. 6/4 round-trips exactly.
+
+Two limits that remain are the model's, not bugs, and both are documented rather than
+hidden: one Damping Bias slider drives the rebound *and* bump splits, so a tune whose
+bump split differs from its rebound split cannot be reproduced exactly; and the slider's
+±50 stops at a rear ζ of 0.5–1.5× the front, so a wider split now says so in the
+DECODED TUNE card instead of silently landing somewhere else. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+Found while factoring `importDecoded` into the `decodedFe` patch that TUNE CHECK's new
+IMPORT AS DNA button shares, which is how the round-trip came to be checked at all.
+
+---
+
 ## Changed — Ride Height F/R raised to 4 ft, CG Height cap to 1500mm
 
 The Ride Height F/R inputs stopped at 24in / 61cm, too low for lifted off-road and
@@ -738,7 +776,7 @@ the exact imported ARB clicks, but MAN was PRO-only — its toggle button was
 hidden below PRO, and a downgrade `useEffect` (keyed on `[uiMode]`) reset it
 back to `'auto'` whenever *leaving* PRO. That effect only fires on a tier
 *change*, so a user already on BEG or INT who opened TUNE CHECK and hit
-IMPORT? never triggered it: `arbMode` stuck on `'man'` with no visible
+its import button (IMPORT? then, IMPORT TUNE now) never triggered it: `arbMode` stuck on `'man'` with no visible
 indicator, no editing UI at BEG (its ANTI-ROLL BARS card is read-only), and —
 since MAN bypasses the budget/split solve entirely — the FEEL section's
 Balance slider silently stopped moving ARB balance at all, despite its own
