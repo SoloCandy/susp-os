@@ -446,6 +446,45 @@ relies on.
 A `null` renders as **mode differs**, not as a number. A setting axis read under
 different modes would compare two quantities that merely share a name.
 
+### Reading a tune back as a DNA
+
+`dnaReadBack(ch, fe, dr, tune, from)` turns a measurement into a DNA you can edit and
+apply. TUNE CHECK's **IMPORT AS DNA** button is its first caller; anything else that wants
+make a DNA out of a tune should go through it rather than calling `measureDNA` and
+patching the holes itself.
+
+It differs from a plain reading in exactly two places, because a DNA has no room for a
+`null`:
+
+- **An axis that reads `null` falls back to `from`**, the axes already in the editor.
+  A tune in MANUAL DIFF says nothing about `diffExit`; inventing a number it never
+  stated would be worse than leaving the draft's value where it was. The editor still
+  shows the axis as *not expressible with this diff* on the chassis in front of it.
+- **`dampBias` is converted, never dropped.** The axis is only defined under SYNC, so a
+  tune in STANDARD or NEUTRAL would otherwise lose its whole front/rear damper split.
+  Instead the bias is recovered from the zetas by inverting `settleZetas`'
+  front-reference solve:
+
+  ```
+  rate(ζR) · rHz = rate(ζF) · fHz · biasMult      biasMult = 2 ^ (dampBias / 50)
+  ⇒  dampBias = 50 · log2( rate(ζR) · rHz / (rate(ζF) · fHz) )
+  ```
+
+  `rate` is `dampRate`, the same piecewise decay rate SYNC itself uses, so this inverts
+  SYNC's own forward formula exactly. It asks the axis's real question — *what bias
+  reproduces this front/rear ζ split* — rather than copying a stored field that means
+  something else in whichever mode wrote it.
+
+Everything is then clamped into `DNA_AXES`, so the result is a `sanitizeDNA` fixed
+point. Two things that clamp are worth knowing rather than treating as bugs: a chassis
+whose grip-neutral sits far from its tune can measure a `balanceOffset` past ±0.20, and
+an axle `rateToZeta` pinned at critical damping cannot be inverted exactly.
+
+`tune.zetaF`/`zetaR` are back-calculated from the **rounded** damper values, so a
+read-back carries the game's damper quantisation — the same half-step `dnaTolerances`
+allows `reboundZeta`, propagated through the log above. On a Forza tune with small
+damper clicks that is a few tenths of a bias point.
+
 ---
 
 ## Storage and transport
@@ -515,6 +554,17 @@ The link only drives read-outs. What happens to it:
     missed (and why), or not expressible. Solved only while the section is open;
   - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
   - **APPLY**, one undo step like any load; ↩ also removes the link, ↪ restores both.
+- **TUNE CHECK → DECODE → IMPORT AS DNA** (`CheckerModal`, `onImportDna`). Next to
+  IMPORT TUNE, and the other half of the same decision: IMPORT TUNE keeps the *numbers*
+  — it overwrites RIDE, DAMPERS and ANTI-ROLL BARS — while IMPORT AS DNA keeps the
+  *handling*, overwriting the
+  editor's draft and leaving the car alone. Both build from one `decodedFe` patch, so
+  they can never read the same inputs differently. The draft arrives named DECODED TUNE
+  with no `ref`, so the editor shows a fresh DNA rather than "edited from" whatever was
+  loaded; `keep` is carried over, since a tune has nothing to say about rank. It opens
+  the GARAGE drawer and the DNA section, and is **not** a commit — the undo snapshot
+  carries the applied link, never the draft, and nothing on the car has changed. Below
+  PRO the button is disabled with a title saying why.
 - **Sidebar DNA line**, above CHASSIS: name, drift count, ✕ to remove the link. The name
   opens the editor. Not a `Sec`.
 - **Sidebar marks**: a dot on the label of each control an axis compiled onto — indigo
@@ -654,7 +704,13 @@ does — a mirror could not catch a compiler that drifted from the solver it dri
 6. **Resolver.** Each conflict — pitch band, bars at their ceiling for the share target,
    damper ceiling, damper floor, bar authority for balance — gives way in `keep` order
    both ways round; an out-of-range balance target is never chased.
-7. **Invariants**, over every archetype and a seeded fuzz set on every fixture and game
+7. **Read-back.** A compiled tune read back by `dnaReadBack` returns the DNA that
+   produced it: outcome axes match `measureDNA` clamped to their ranges, diff axes
+   exactly, and `dampBias` within the damper quantisation propagated through the log.
+   The bias inverts the ζ split even when STANDARD wrote it and `measureDNA` reads
+   `null`; an inexpressible axis keeps the value it was handed; the result is always a
+   `sanitizeDNA` fixed point.
+8. **Invariants**, over every archetype and a seeded fuzz set on every fixture and game
    mode: moves stay within the cap and the axis ranges; no axis moves to save a
    less-protected one; nothing ranked above every moved axis is broken; every axis off
    its target was moved or reported; every outcome miss has a cause; resolved tunes

@@ -113,14 +113,16 @@ everything else, the last three each in its own `useMemo`.
 
 **Vehicle DNA core** (see [DNA.md](DNA.md)): `sanitizeDNA` normalises a DNA;
 `compileDNA` turns its axes into an `fe`/`dr` patch; `measureDNA` reads the axes back
-off any tune; `dnaTolerances` sizes a hit from the game's quantisation;
+off any tune and `dnaReadBack` turns that reading into a DNA you can edit (it converts
+the damper split instead of dropping it, and falls back for an axis the tune cannot
+express); `dnaTolerances` sizes a hit from the game's quantisation;
 `dnaEvaluate` runs one compile through exactly App's chain; `applyDNA` compiles and
 resolves conflicts in the DNA's `keep` order. Constants: `DNA_AXES`, `DNA_YIELDABLE`,
 `DNA_MAX_MOVES`. Presentation: `DNA_AXIS_UI`, `dnaFmt`, `DNA_MODE_FIELDS`. In `App`,
 `dnaStore` (`suspos_dna_v1`), `dnaRef`, `dnaPreview`, `dnaLink`, `dnaApply`, `dnaSave`,
-`dnaLoadSaved`, `dnaUnlink`, `dnaDot`, `garageEntries`/`dnaEntries`
+`dnaLoadSaved`, `dnaUnlink`, `dnaFromDecoded`, `dnaDot`, `garageEntries`/`dnaEntries`
 and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
-`visDna` card and the tier warning.
+`visDna` card, the tier warning and TUNE CHECK's IMPORT AS DNA button.
 
 ---
 
@@ -142,7 +144,7 @@ and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
 | `SpringDial`, `ArbDial`, `DampingDial` | the pinned VISUALS card — its ARB and RIDE/DAMPERS groups. The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
 | `HandlingVerdict` | expanded handling-balance panel only |
 | `EntryCard` | one garage entry inside the GARAGE drawer |
-| `CheckerModal` | TUNE CHECK (DECODE / MEASURE) |
+| `CheckerModal` | TUNE CHECK (DECODE / MEASURE). DECODE's two buttons share one `decodedFe` patch: IMPORT TUNE writes it to the tune, IMPORT AS DNA (PRO, `onImportDna`) reads it back into the DNA editor. `decodedFe` anchors ζ and bump on the **front** axle because it writes `rideRef:'front'` and STANDARD's exact-anchor axle follows Ride Reference — the two have to move together, and once didn't ([HISTORY.md](HISTORY.md)) |
 | `GlossaryModal` | glossary lookup |
 | the data modal | SHARE / LOAD CODE / BACKUP / RESTORE (inline in `App`, not a component) |
 | `TutorialPanel` | the guided tours |
@@ -480,8 +482,8 @@ non-trivial edit:
    `index.html`, so it needs no mirroring either.
 8. `node tests-dna.js` after touching `feelToPhysics`, `computeTune`,
    `resolveFeEffective`, `sanitizeTune`, `DEF_FE`/`DEF_DR`, the Damping Bias / EXIT /
-   ENTRY slider expressions, or anything under the `── Vehicle DNA ──` banner. Reads
-   `index.html` too.
+   ENTRY slider expressions, `settleZetas`/`dampRate` (which `dnaReadBack` inverts), or
+   anything under the `── Vehicle DNA ──` banner. Reads `index.html` too.
 9. `node tests-history.js` after touching `makeHistory`. It covers the stacks only;
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo

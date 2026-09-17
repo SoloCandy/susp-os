@@ -164,6 +164,30 @@ carry alignment at all. That is a feature-sized change, not a doc fix. Recorded 
 [CODEC.md](CODEC.md) and [PERSISTENCE.md](PERSISTENCE.md) so it is at least no
 longer silent.
 
+## Documented — TUNE CHECK cannot reproduce every front/rear damper split
+
+Found while fixing the decode's anchoring (see [HISTORY.md](HISTORY.md)), kept as-is
+because both limits are the feel model's, not the decoder's.
+
+DECODE's IMPORT TUNE writes one `dampingBias`, and that single number has to carry two
+things the entered tune states separately:
+
+- **Rebound and bump share it.** Under RATIO, bump ζ is a percentage of rebound ζ and
+  the same bias splits both axles. A tune whose bump split differs from its rebound
+  split — say rebound 6/4 with bump 4/3 — reproduces the rebound exactly and lands the
+  rear bump a little off. There is no second slider to put the difference on.
+- **±50 bounds the spread.** `zetaR = zetaF · (1 − dampingBias/100)`, so the slider
+  reaches a rear ζ of 0.5–1.5× the front. A real tune can sit well outside that; a
+  decoded 3/9 rebound split asks for a bias of −261.
+
+**Why it stays.** Widening the bias range would change what every existing tune's
+Damping Bias slider means, for a case the app's own solver never produces — the DNA
+compiler, the presets and the balance modes all work inside ±50. The honest fix was to
+stop hiding it: the DECODED TUNE card now names the bias the split asked for and says
+the front is matched while the rear lands as close as the slider reaches. Anyone who
+needs the exact split can type it into the DAMPERS section afterward, which the card
+already tells them to review.
+
 ## Documented — RESPONSE's damping terms saturate above ζ 115%
 
 Found during a physics review, kept as-is, written down so the next audit doesn't
