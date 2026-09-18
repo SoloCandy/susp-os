@@ -494,6 +494,15 @@ const balanceBandRange=(fracLo,fracHi,gap)=>{
   if(fracLo<1&&fracHi>1)ds.push(balanceBandDelta(1,gap));
   return[Math.min(...ds),Math.max(...ds)];
 };
+// Per-layout/build fraction pair for the Balance Guide RANGE band and the GRIP GAP widget.
+// One table so the two widgets cannot disagree on what "in range" means. Fractions >1
+// (DRIFT, RWD DRAG) overshoot past grip-neutral on purpose — see docs/PHYSICS.md.
+const BALANCE_BAND_FRACS={
+  FWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.45,0.80]},
+  RWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.60,1.05]},
+  AWD:{street:[0.30,0.55],track:[0.45,0.80],drift:[0.75,1.30],rally:[0.25,0.45],offroad:[0.12,0.28],drag:[0.35,0.65]},
+};
+const balanceBandFracs=(layout,build)=>((BALANCE_BAND_FRACS[layout]??BALANCE_BAND_FRACS.RWD)[build])??[0.55,0.95];
 const feelToPhysics=(ch,fe)=>{
   let frontHz=rsToHz(fe.rideStiffness);
   const rearHzMode=fe.rearHzMode??'flatRide';
@@ -5698,14 +5707,8 @@ function App(){
               // RANGE is a fraction of the NATURAL→GRIP TARGET gap, not a flat delta, so the
               // band scales with how biased this particular chassis actually is. Fractions >1
               // (DRIFT) overshoot past grip-neutral on purpose. See docs/PHYSICS.md's "Balance
-              // Guide RANGE" — and keep this table in step with _ggFracMap in the GRIP GAP block
-              // below, which duplicates it so the two widgets agree on what "in range" means.
-              const _fracMap={
-                FWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.45,0.80]},
-                RWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.60,1.05]},
-                AWD:{street:[0.30,0.55],track:[0.45,0.80],drift:[0.75,1.30],rally:[0.25,0.45],offroad:[0.12,0.28],drag:[0.35,0.65]},
-              };
-              const[_fracLo,_fracHi]=((_fracMap[_layout]??_fracMap.RWD)[_build])??[0.55,0.95];
+              // Guide RANGE". The fraction table is BALANCE_BAND_FRACS, shared with GRIP GAP below.
+              const[_fracLo,_fracHi]=balanceBandFracs(_layout,_build);
               const _gap=(1-natGripBalance)-natMechBalance;
               // balanceBandDelta, not a bare _frac*_gap: it keeps the >1 fractions' overshoot
               // pointed at oversteer when _gap is negative. A negative _gap is ordinary — any
@@ -5722,7 +5725,8 @@ function App(){
               const _dfmt=v=>(v>=0?'+':'')+v.toFixed(2);
               const _lo=Math.max(0.20,Math.min(0.87,natMechBalance+_dlo));
               const _hi=Math.max(_lo+0.03,Math.min(0.90,natMechBalance+_dhi));
-              const _MIN=0.20,_RNG=0.70;
+              // Strip spans 0.10–0.90 so 0.50 (even roll stiffness) sits in the middle.
+              const _MIN=0.10,_RNG=0.80;
               const _pct=v=>Math.max(0,Math.min(100,(v-_MIN)/_RNG*100));
               const _hasMechTarget=((fe.arbMode??'auto')!=='man'&&((fe.arbBalMode??'weight')==='mech'||(fe.arbBalMode??'weight')==='coSolve'))
                 ||(fe.rearHzMode??'flatRide')==='mech';
@@ -5750,10 +5754,10 @@ function App(){
                     <div style={{position:'relative',height:22,marginBottom:3}}>
                       <div style={{position:'absolute',top:9,left:0,right:0,height:6,background:'#0f172a',borderRadius:3}}/>
                       <div style={{position:'absolute',top:9,left:`${_pct(_lo)}%`,width:`${_pct(_hi)-_pct(_lo)}%`,height:6,background:'#14532d',borderRadius:2}}/>
-                      {[0.25,0.35,0.45,0.55,0.65,0.75,0.85].map(v=>(
+                      {[0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85].map(v=>(
                         <div key={v} style={{position:'absolute',top:9,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:6,background:'#2d5a72'}}/>
                       ))}
-                      {[0.30,0.40,0.50,0.60,0.70,0.80].map(v=>(
+                      {[0.20,0.30,0.40,0.50,0.60,0.70,0.80].map(v=>(
                         <div key={v} style={{position:'absolute',top:6,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:12,background:'#3a6b84'}}/>
                       ))}
                       <div style={{position:'absolute',top:4,left:`${_pct(natMechBalance)}%`,transform:'translateX(-50%)',width:3,height:14,background:'#94a3b8',borderRadius:1}}/>
@@ -5766,7 +5770,7 @@ function App(){
                     </div>);
                   })()}
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',marginBottom:7}}>
-                    <span>0.20</span>
+                    <span>0.10</span>
                     <span style={{color:'#64748b',letterSpacing:0.5}}>NAT {natMechBalance.toFixed(2)}</span>
                     <span>0.90</span>
                   </div>
@@ -5808,7 +5812,8 @@ function App(){
                       const _dabs=Math.abs(_d);
                       const _dstr=(_d>=0?'+':'')+_d.toFixed(2);
                       const _ddir=_dabs<0.015?'≈nat':_d>0?'OS':'US';
-                      const _dcol=_dabs<0.015?'#94a3b8':_d>0?'#60a5fa':'#f59e0b';
+                      // Same direction colours as the marker (_tc): orange = oversteer side, blue = understeer side.
+                      const _dcol=_dabs<0.015?'#94a3b8':_d>0?'#f97316':'#60a5fa';
                       return(
                         <span style={{textAlign:'right',display:'flex',flexDirection:'column',alignItems:'flex-end',gap:1}}>
                           <span style={{fontFamily:'var(--font-mono)',fontSize:15,color:_tc,fontWeight:600}}>
@@ -5843,12 +5848,7 @@ function App(){
               // Mirrors the RANGE band above: same fraction-of-(NATURAL→GRIP TARGET-gap) math,
               // so the two widgets agree on what "in range" means. See the RANGE block for the
               // rationale on gap-scaling instead of a flat delta.
-              const _ggFracMap={
-                FWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.45,0.80]},
-                RWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.60,1.05]},
-                AWD:{street:[0.30,0.55],track:[0.45,0.80],drift:[0.75,1.30],rally:[0.25,0.45],offroad:[0.12,0.28],drag:[0.35,0.65]},
-              };
-              const[_ggFracLo,_ggFracHi]=((_ggFracMap[ch.layout??'RWD']??_ggFracMap.RWD)[dr.buildType??'track'])??[0.55,0.95];
+              const[_ggFracLo,_ggFracHi]=balanceBandFracs(ch.layout??'RWD',dr.buildType??'track');
               const _ggNeutral=1-natGripBalance;
               const _ggBaseGap=_ggNeutral-nm;
               // balanceBandRange for the same reasons as the RANGE block above, and via the same

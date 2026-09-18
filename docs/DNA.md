@@ -122,7 +122,7 @@ a resolver move made for the old chassis no longer fits the new one.
 
 The first design stored balance as a fraction `f` of the gap between the chassis's
 natural mech balance and grip-neutral — the normalisation the Balance Guide's
-`_fracMap` uses — anchored at grip-neutral with a floor:
+`BALANCE_BAND_FRACS` uses — anchored at grip-neutral with a floor:
 `gripTarget + (f − 1)·max(gap, 0.03)`. It was accepted, then rejected once real
 chassis were run through `naturalMechBalanceOf` and `balanceFromRsBal`.
 
@@ -586,7 +586,7 @@ even when the DNA sits outside it.
 ## Archetypes (seed values)
 
 **These are hypotheses to test in-game, not calibration.** Seeded from the factory
-presets and `_fracMap`'s RWD bands. An archetype ships at the midpoint of each range
+presets and `BALANCE_BAND_FRACS`'s RWD bands. An archetype ships at the midpoint of each range
 unless testing says otherwise; `arbShare` is a single measured value, not a range.
 
 Unconfirmed values do not block implementation. `DNA_ARCHETYPES` is data, and a
@@ -613,7 +613,7 @@ values converted to slider convention per [Sign conventions](#sign-conventions)
 (stored `diffBiasEntry −15` reads +15 LOOSE), and GT3's `dampBias` is MOTORSPT's. The
 other damping and diff seeds are judgement calls with no preset behind them.
 
-The balance seeds are the earlier gap-fraction ranges (from `_fracMap`'s RWD bands:
+The balance seeds are the earlier gap-fraction ranges (from `BALANCE_BAND_FRACS`'s RWD bands:
 rally 0.30–0.55, track 0.55–0.95, drift 0.90–1.55) converted at the default chassis,
 whose gap is 0.061, and rounded to 0.005. They are small because that chassis is
 nearly balanced to begin with, and several sit inside the resolver's own 0.01

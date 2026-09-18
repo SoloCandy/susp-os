@@ -761,8 +761,8 @@ balanceBandRange = (fracLo, fracHi, gap) =>
   min/max of balanceBandDelta at fracLo, at fracHi, and at 1 when fracLo < 1 < fracHi
 ```
 
-`fracLo`/`fracHi` come from a per-layout/build table (`_fracMap` in the
-RANGE block, `index.html`) generally in the 0.3-1.0 range, so the band
+`fracLo`/`fracHi` come from a per-layout/build table (`BALANCE_BAND_FRACS`,
+read through `balanceBandFracs(layout, build)` in `index.html`) generally in the 0.3-1.0 range, so the band
 scales with how understeer/oversteer-prone the specific chassis actually
 is instead of recommending a constant push regardless of gap size.
 Fractions can exceed 1.0 — DRIFT on all three layouts (1.55 on FWD/RWD, 1.30
@@ -811,11 +811,9 @@ fixed assignment put `lo` above `hi` in that case — caught by the
 side of natural. `min`/`max` picks the right delta for each bound
 regardless of `gap`'s sign, so the band keeps scaling correctly there too.
 The GRIP GAP sub-widget (tyre-width suggestions to bring GRIP TARGET into
-range) computes its band the same way — its own copy of the fraction table
-as `_ggFracMap`, but the same `balanceBandRange` call — so the two widgets
-cannot disagree on what "in range" means.
-The fraction table is still duplicated and still has to be edited in both
-places; only the arithmetic is shared.
+range) computes its band the same way — the same `balanceBandFracs` lookup
+and the same `balanceBandRange` call — so the two widgets cannot disagree on
+what "in range" means.
 
 **A negative `gap` is ordinary, not an edge case.** Its sign tracks front
 weight bias almost exactly. With symmetric tyres and near-equal track

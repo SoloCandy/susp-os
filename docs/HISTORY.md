@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Balance Guide strip recentred on 0.50, Δ colours matched to the marker
+
+The strip ran 0.20–0.90, so its midpoint was 0.55 and an even roll-stiffness split
+sat left of centre. It now runs 0.10–0.90 with 0.50 in the middle. Only the drawn
+axis moved; the RANGE band's own 0.20–0.90 clamp is unchanged.
+
+The CURRENT/TARGET Δ line coloured oversteer blue and understeer amber, while the
+marker above it coloured above-range (oversteer side) orange and below-range blue —
+an above-range value showed an orange marker over a blue "OS". The Δ line now uses
+the marker's colours: orange for OS, blue for US.
+
+The per-build fraction table, which the RANGE and GRIP GAP blocks each carried a
+copy of (`_fracMap` / `_ggFracMap`), is now one `BALANCE_BAND_FRACS` read through
+`balanceBandFracs`. Values unchanged.
+
 ---
 
 ## Fixed — TUNE CHECK's tune import handed back a damper split that wasn't the one typed
