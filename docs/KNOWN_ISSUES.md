@@ -467,3 +467,53 @@ and the suspension card hint both state the lever-arm assumption and tell the us
 scale by (track/arm)² if they know the geometry. They read *"cause unresolved"* until
 this research landed; they no longer do, and need no further wording change before the
 deferred fix.
+
+---
+
+## Open — code review findings (2026-09-18)
+
+Found in a full review of `index.html`. Items marked *reproduced* were run against the
+real solver/codec in Node; the rest are from reading the code. None is fixed yet.
+
+- **Cross-game loads re-convert MAN ARB values** *(reproduced)*. The `physMode` effect in
+  `App` converts `arbManF`/`arbManR` whenever the click/physical flag flips, but LOAD CODE
+  OVERWRITE and LOAD BUILD already bring values in the new mode's units. A Horizon MAN code
+  (20 clicks) loaded in BeamNG becomes 0 → 1 click; a BeamNG build (48000 N·m/rad) loaded in
+  Horizon becomes ≈27.7M. Only undo restores are exempt (`restoringRef`). Fix: convert in the
+  game-mode selector's `onChange`, not in an effect that can't tell a switch from a load.
+- **`sanitizeTune` clamps `arbManF`/`arbManR` to 1–65 in every game mode** *(reproduced)*.
+  In BeamNG these are roll stiffness, so a shared MAN tune at 48000/30000 arrives as 65/65
+  and both ARB outputs read 0 N/m. TO GARAGE stores the same clamped values.
+- **ROLL ° button seeds a 0° target** *(reproduced)*. It reads `physics.arbTargetRoll`, which
+  `feelToPhysics` sets to 0 unless already in ROLL mode; the 0.3 floor then maxes the bars
+  (default car 22.2/21.3 → 65/65). Should seed from `tune.rollDeg`.
+- **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
+  so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
+- **RESTORE skips saved DNAs by default.** After parsing a file, `setRestoreSel` sets only
+  chassis/build/car; the DNA checkbox goes uncontrolled and unticked, and a DNA-only backup
+  keeps RESTORE disabled until ticked by hand.
+- **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
+  to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
+  arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
+- **HandlingVerdict damping tip is backwards.** It says "Damping Bias toward positive" to add
+  front rebound, but the slider's positive side is REAR.
+- **"NaN% ARB" when both bars solve to 0** *(reproduced)*. The ARB row's `% ARB` meta has no
+  zero guard; TRACK preset in BeamNG shows it on both suspension cards.
+- **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
+  oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
+  rear-biased and amber for front-biased.
+- **DAMPERS summary mixes pre- and post-solve ζ** *(reproduced)*. REB, BUMP and AVG ζ read
+  `physics.zeta*`; SETTLE, MEAS and the output cards read `tune.zeta*`. They diverge under
+  CO-SOLVE + SYNC/NEUTRAL, BeamNG snapping, and Forza damper clamping (90% shown vs 85.9%
+  exported on a 12000 lb Motorsport car).
+- **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
+  allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
+- **IMPORT AS DNA takes diff axes from the live car.** `dnaFromDecoded` passes the live `dr`,
+  so `diffExit`/`diffEntry` overwrite the draft's values although the decoded tune has no
+  diff data — against `dnaReadBack`'s keep-`from` rule.
+- **Balance Mode hint shows a literal "%%"** ("raw weight %%"), from a printf-style escape in
+  a template literal.
+- **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
+  successful cancel.
+- **Stale `~index.html:NNNN` references** in the FWD diff-polarity comments (in `computeDiff`
+  and at the EXIT slider) now point at `sanitizeTune` and `feelToPhysics`.
