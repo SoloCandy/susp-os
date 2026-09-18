@@ -2124,3 +2124,15 @@ Fixed by comparing both sides against the card's own measured natural height
 instead of a flat 180px minimum — if neither side can actually fit the
 content, centre it (full near-viewport-height budget) rather than hug a side
 that's merely the less-cramped of two bad options.
+
+## ARB NEUTRAL gains an EQUAL ROLL method
+
+NEUTRAL's only behaviour was to split the bars *against* the springs until the
+balance bar cancelled (`bAb = -bSp`), which on a lopsided spring split pushes
+the bars hard the other way. A new **Neutral Method** toggle (`fe.arbNeutralEqual`,
+codec id 67, default off = the old CANCEL behaviour so existing codes are
+unchanged) adds **EQUAL ROLL**: the ARB budget is split in the springs' own
+proportion, `rF = rsSpR/rsSp` (+ ARB Bias × 0.01), so `rsAbF/rsSpF = rsAbR/rsSpR`
+and each axle's bar carries the same share of that axle's roll stiffness. The
+bars then stiffen roll without moving the springs' balance. No budget expansion
+is needed. The ARB readout shows each axle's ARB roll %.

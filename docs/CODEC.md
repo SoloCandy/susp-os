@@ -85,8 +85,9 @@ future version might not carry.
 | 64 | fe | rideBottomG | raw number |
 | 65 | ch | rideHeightF | raw number |
 | 66 | ch | rideHeightR | raw number |
+| 67 | fe | arbNeutralEqual | bool |
 
-**Next available id: 67.**
+**Next available id: 68.**
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
