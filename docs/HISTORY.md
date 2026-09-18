@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — DAMPERS summary gains AVG ζ and a measured settle row
+
+The summary showed rebound ζ, bump ζ and the analytic settle time, which
+sees rebound ζ only. Setting rebound to 59% read as "at the settle optimum"
+while the car, with softer bump, behaved closer to 47%. Two rows now sit
+under SETTLE: **AVG ζ**, the per-axle bump/rebound mean, and **MEAS**, the
+bump-aware settle measured off the DYNAMICS trace.
+
+SETTLE itself is unchanged, for the reason in the entry on the DYNAMICS
+settle marker below: SETTLE TIME mode back-solves against it. MEAS is
+shown *beside* it rather than replacing it. The chart's window fit and
+`curveSettle` moved to a top-level `measureSettle` so the chart and the row
+cannot drift apart.
+
 ## Changed — Balance Guide strip recentred on 0.50, Δ colours matched to the marker
 
 The strip ran 0.20–0.90, so its midpoint was 0.55 and an even roll-stiffness split

@@ -101,9 +101,12 @@ grip-neutral),
 balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
 `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
-takes Hz + rebound/bump ζ + a duration; the chart's own `curveSettle` and
-`firstCrossing` read the settle time and neutral crossing back off those
-points rather than from `tune.settleF`/`settleR`), `resolveCoSolveSpringShare`
+takes Hz + rebound/bump ζ + a duration), `measureSettle` (the ±10%-band
+settle time measured off `computeOscillation`'s trace via `curveSettle`,
+with the two-pass window fit — shared by the DYNAMICS chart's dashed markers
+and the DAMPERS summary's MEAS row so both quote the same number; the chart's
+own `firstCrossing` reads the neutral crossing off the same points),
+`resolveCoSolveSpringShare`
 (CO-SOLVE's Auto Spring Share search — shared by `feelToPhysics`'s Kcs
 pre-inversion and `computeTune`'s `effectiveRHz` solve so both agree on the
 same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.

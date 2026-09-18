@@ -317,6 +317,30 @@ const computeOscillation=(hz,zetaReb100,zetaBump100,durationSec,nPts=300)=>{
   }
   return pts;
 };
+// ±10%-band settle time measured off computeOscillation's trace (last band exit, interpolated).
+// Unlike settleTimeFromZeta it sees bump ζ, because the trace alternates rebound/bump by velocity
+// sign. Shared by the DYNAMICS chart (dashed markers) and the DAMPERS summary's MEASURED row so
+// the two quote the same number. estF/estR are the analytic settle figures, used only to size
+// the window: nPts is fixed, so dt — and with it the Euler trace — depends on window length, and
+// the final measurement is taken from the final points so it matches the polyline drawn.
+const SETTLE_ENV=0.1;
+const curveSettle=pts=>{
+  let i=pts.length-1;                          // trace starts at x=1, so i lands >=0
+  while(i>0&&Math.abs(pts[i].x)<SETTLE_ENV)i--;
+  if(i>=pts.length-1)return null;              // still ringing at the window edge
+  const a=pts[i],b=pts[i+1];
+  return a.t+(b.t-a.t)*((Math.abs(a.x)-SETTLE_ENV)/(Math.abs(a.x)-Math.abs(b.x)));
+};
+const measureSettle=(fHz,fReb,fBmp,rHz,rReb,rBmp,estF,estR)=>{
+  const fitDur=s=>Math.min(4,Math.max(1.5,s*1.8));
+  const probeDur=fitDur(Math.max(estF??2,estR??2));
+  const probeF=computeOscillation(fHz,fReb,fBmp,probeDur);
+  const probeR=computeOscillation(rHz,rReb,rBmp,probeDur);
+  const durSec=fitDur(Math.max(curveSettle(probeF)??probeDur,curveSettle(probeR)??probeDur));
+  const frontPts=durSec===probeDur?probeF:computeOscillation(fHz,fReb,fBmp,durSec);
+  const rearPts =durSec===probeDur?probeR:computeOscillation(rHz,rReb,rBmp,durSec);
+  return{durSec,frontPts,rearPts,fSettle:curveSettle(frontPts),rSettle:curveSettle(rearPts)};
+};
 // Shared ref: given avgHz = (fHz+rHz)/2 and the flat-ride constraint, solve fHz.
 // Must invert the SAME relationship flatRideRearHz uses, so this moved from a 2t to a
 // single-offset derivation alongside it. Substituting rHz = 1/(1/fHz − t):
@@ -6604,6 +6628,35 @@ function App(){
                            :<>{val(`${tune.settleF.toFixed(2)}s`)}</>}
                     <span style={{fontSize:10,color:col,letterSpacing:1,marginLeft:biased?4:6}}>{cat}</span>
                   </div>
+                  {/* AVG ζ: bump/rebound mean — an asymmetric damper removes about as much
+                      energy per cycle as a symmetric one at the average, so this is how damped
+                      the car is overall. Informational only and deliberately uncoloured: whether
+                      softer bump helps or hurts depends on surface (KNOWN_ISSUES, bump damping in
+                      the RESPONSE bar), so it must not read as a verdict. */}
+                  <div style={{display:'flex',alignItems:'center',marginTop:2}}
+                       title="Average of bump and rebound ζ — roughly how damped the car is overall once bump and rebound differ. An approximation: it hides which stroke comes first.">
+                    {lbl('AVG ζ')}
+                    {biased?<>{val(`≈${Math.round((physics.zetaF+physics.bumpZetaF)/2)}%`)}<div style={{flex:1}}/>{val(`≈${Math.round((physics.zetaR+physics.bumpZetaR)/2)}%`)}</>
+                           :<>{val(`≈${Math.round((physics.zetaF+physics.bumpZetaF)/2)}%`)}</>}
+                  </div>
+                  {(()=>{
+                    // MEASURED: the DYNAMICS chart's bump-aware settle, beside the analytic
+                    // SETTLE above. SETTLE stays analytic because SETTLE TIME mode back-solves
+                    // against it (type 0.55s, read 0.55s); see HISTORY.
+                    const m=measureSettle(tune.fHz,tune.zetaF??physics.zetaF,tune.bumpZetaF??physics.bumpZetaF,
+                                          tune.rHz,tune.zetaR??physics.zetaR,tune.bumpZetaR??physics.bumpZetaR,
+                                          tune.settleF,tune.settleR);
+                    const fmt=s=>s!=null?`${s.toFixed(2)}s`:`>${m.durSec.toFixed(2)}s`;
+                    const split=biased||m.fSettle==null||m.rSettle==null||Math.abs(m.fSettle-m.rSettle)>=0.01;
+                    return(
+                      <div style={{display:'flex',alignItems:'center',marginTop:2}}
+                           title="Settle time measured off the DYNAMICS trace, which alternates bump and rebound damping. SETTLE above uses rebound ζ alone, so the two differ; SETTLE is what SETTLE TIME mode targets.">
+                        {lbl('MEAS')}
+                        {split?<>{val(fmt(m.fSettle))}<div style={{flex:1}}/>{val(fmt(m.rSettle))}</>
+                              :<>{val(fmt(m.fSettle))}</>}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
@@ -6799,26 +6852,10 @@ function App(){
                 // neutral ring, it steps rather than sliding as ζ rises, and the quickest settle
                 // is not at critical damping. docs/PHYSICS.md carries the derivation, the exact
                 // figures either side of the step, and the textbook cross-check.
-                const SETTLE_ENV=0.1;
-                const curveSettle=pts=>{
-                  let i=pts.length-1;                          // trace starts at x=1, so i lands >=0
-                  while(i>0&&Math.abs(pts[i].x)<SETTLE_ENV)i--;
-                  if(i>=pts.length-1)return null;              // still ringing at the window edge
-                  const a=pts[i],b=pts[i+1];
-                  return a.t+(b.t-a.t)*((Math.abs(a.x)-SETTLE_ENV)/(Math.abs(a.x)-Math.abs(b.x)));
-                };
-                // Two-pass window fit: size it from the analytic estimate, measure the curve,
-                // then re-size and re-integrate. nPts is fixed, so dt — and with it the Euler
-                // trace — depends on window length; taking the final measurement from the final
-                // points keeps the dashed line consistent with the polyline actually drawn.
-                const fitDur=s=>Math.min(4,Math.max(1.5,s*1.8));
-                const probeDur=fitDur(Math.max(tune.settleF??2,tune.settleR??2));
-                const probeF=computeOscillation(tune.fHz,fReb,fBmp,probeDur);
-                const probeR=computeOscillation(tune.rHz,rReb,rBmp,probeDur);
-                const durSec=fitDur(Math.max(curveSettle(probeF)??probeDur,curveSettle(probeR)??probeDur));
-                const frontPts=durSec===probeDur?probeF:computeOscillation(tune.fHz,fReb,fBmp,durSec);
-                const rearPts =durSec===probeDur?probeR:computeOscillation(tune.rHz,rReb,rBmp,durSec);
-                const fSettle=curveSettle(frontPts),rSettle=curveSettle(rearPts);
+                // Window fit, trace and measurement all live in measureSettle, shared with the
+                // DAMPERS summary's MEASURED row so the two can never disagree.
+                const{durSec,frontPts,rearPts,fSettle,rSettle}=
+                  measureSettle(tune.fHz,fReb,fBmp,tune.rHz,rReb,rBmp,tune.settleF,tune.settleR);
                 const W=280,H=80,midY=40,yScale=32,xScale=W/durSec;
                 const toPolyPts=pts=>pts.map(p=>`${(p.t*xScale).toFixed(1)},${(midY-p.x*yScale).toFixed(1)}`).join(' ');
                 // null = still outside the band at the window edge; pin the line there so it

@@ -429,13 +429,23 @@ right but not the amplitude (0.977s vs 1.009s at ζ=200%).
 That is acceptable for what it feeds — a per-axle spec figure, and the
 SETTLE TIME back-solve, which only has to invert *consistently* — but it is
 why the VISUALS DYNAMICS chart does **not** use it for its dashed settle
-markers. That chart measures its own `curveSettle` off the plotted
-`computeOscillation` points (last sample pair straddling |x|=0.1,
+markers. That chart measures settle with `measureSettle` (`curveSettle`
+over the plotted `computeOscillation` points) (last sample pair straddling |x|=0.1,
 interpolated), which lands within ~1-2% of the closed-form answer and also
 picks up the rebound/bump ζ alternation `settleTimeFromZeta` cannot see —
 it takes rebound ζ only. So the chart's readout sits **above** the DAMPERS
 figure past ζ≈79% and below it under that; both are correct for what they
 measure, and the chart's hint says so.
+
+The DAMPERS summary shows both side by side: **SETTLE** is the analytic
+figure (what SETTLE TIME mode targets), **MEAS** is `measureSettle`'s
+bump-aware figure, identical to the chart's. Beside them, **AVG ζ** is
+`(rebound ζ + bump ζ)/2` per axle — an asymmetric damper removes roughly as
+much energy per cycle as a symmetric one at the mean, so it approximates how
+damped the car is overall. It is informational and uncoloured on purpose: it
+hides which stroke comes first, and whether softer bump helps depends on
+surface (see KNOWN_ISSUES on bump damping in the RESPONSE bar), so it must
+not read as a verdict. Rebound ζ 59% at Bump Ratio 60% reads ≈47%, not 59%.
 
 ### "Critical damping is the fastest settle" is true of the envelope only
 
