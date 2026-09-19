@@ -173,6 +173,10 @@ const KMH_PER_MPH=1.60934;
 const NMM_PER_LBIN=LB_IN_TO_NM/1000;
 const ARB_RS_SCALE=240;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
+// ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
+// roll angle the springs alone would give — 7% per degree. One definition for every solver
+// (feelToPhysics, resolveCoSolveSpringShare, computeTune) so the share each one assumes agrees.
+const autoArbShare=springRollDeg=>Math.max(5,Math.min(50,springRollDeg*7))/100;
 const DAMPING_CALIBRATION=0.00135;
 // Mech-balance model (tyre load sensitivity). See mechBalanceLLT.
 const TIRE_LOAD_SENS=0.15;   // grip falloff per unit Fz/Fz_ref (tyre load sensitivity)
@@ -621,7 +625,7 @@ const feelToPhysics=(ch,fe)=>{
             const _rsSp=(Math.pow(_estF*2*Math.PI,2)*m_m.front*ch.trackF*ch.trackF
                         +Math.pow(_estR*2*Math.PI,2)*m_m.rear*ch.trackR*ch.trackR)/2;
             const _nRoll=_rsSp>0?(ch.weight/KG_TO_LB*9.81*(ch.cgHeight-rollCenterHeight(ch))/_rsSp)*(180/Math.PI):5;
-            _p_m=Math.max(5,Math.min(50,_nRoll*7))/100;
+            _p_m=autoArbShare(_nRoll);
             const _eff=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
             const _R=_eff/(1-_eff);
             const _mult=Math.sqrt(_R*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
@@ -714,7 +718,7 @@ const feelToPhysics=(ch,fe)=>{
             const _rsSp=(Math.pow(_fHz*2*Math.PI,2)*m_m.front*ch.trackF*ch.trackF
                         +Math.pow(_rHz*2*Math.PI,2)*m_m.rear*ch.trackR*ch.trackR)/2;
             const _nRoll=_rsSp>0?(ch.weight/KG_TO_LB*9.81*(ch.cgHeight-rollCenterHeight(ch))/_rsSp)*(180/Math.PI):5;
-            _p_m=Math.max(5,Math.min(50,_nRoll*7))/100;
+            _p_m=autoArbShare(_nRoll);
             const _eff=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
             const _R=_eff/(1-_eff);
             const _mult=Math.sqrt(_R*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
@@ -930,7 +934,7 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
       const rsSpF_s=(wrFN_s*ch.trackF*ch.trackF)/2, rsSpRs=(wrRN_s*ch.trackR*ch.trackR)/2;
       const rsSp_s=rsSpF_s+rsSpRs;
       const nRoll=rsSp_s>0?(_rm/rsSp_s)*(180/Math.PI):5;
-      const autoSh=Math.max(5,Math.min(50,nRoll*7))/100;
+      const autoSh=autoArbShare(nRoll);
       const sh=arbMode==='share'?arbShareMan/100:autoSh;
       const budget_s=arbMode==='roll'?Math.max(0,_rsTotTgt-rsSp_s)
         :arbMode==='basic'?_basicBudget
@@ -1090,10 +1094,10 @@ const computeTune=(ch,phys,gameMode)=>{
   const rollMoment=totalKg*9.81*rollArm;                       // N·m at 1g
   const rsTotalTarget=rollMoment/(arbTargetRoll*(Math.PI/180)); // N·m/rad (used in roll mode)
   const naturalRollDeg=(rsSp>0)?((rollMoment/rsSp)*(180/Math.PI)):5;
-  const autoShareTarget=Math.max(5,Math.min(50,naturalRollDeg*7));
+  const autoShareTarget=autoArbShare(naturalRollDeg);
   const shareTarget=arbMode==='share'
     ? arbShareMan/100
-    : autoShareTarget/100;             // auto uses natural-roll-derived share
+    : autoShareTarget;                 // auto uses natural-roll-derived share
   let rsAbBudget=arbMode==='roll'
     ? rsTotalTarget-rsSpF-rsSpR        // roll mode: invert roll equation as before
     : arbMode==='basic'

@@ -89,7 +89,9 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 (Damping Balance Mode's front/rear split — `balModeZetas` is the by-mode
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
-`rollCenterHeight`, `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
+`rollCenterHeight`, `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
+total roll stiffness — one definition shared by `feelToPhysics`,
+`resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
 Guide's recommended band — module-level rather than inline because the RANGE
 block and the GRIP GAP sub-widget both call it, and a band they disagreed on

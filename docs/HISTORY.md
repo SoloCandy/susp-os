@@ -2136,3 +2136,13 @@ proportion, `rF = rsSpR/rsSp` (+ ARB Bias × 0.01), so `rsAbF/rsSpF = rsAbR/rsSp
 and each axle's bar carries the same share of that axle's roll stiffness. The
 bars then stiffen roll without moving the springs' balance. No budget expansion
 is needed. The ARB readout shows each axle's ARB roll %.
+
+## ARB AUTO share formula consolidated into `autoArbShare`
+
+ARB Stiffness Mode AUTO's bar share (`clamp(5, 50, 7 × spring-only roll°) / 100`)
+was written out four times: twice in `feelToPhysics`'s MECH pre-inversion, once in
+`resolveCoSolveSpringShare`'s spring-share search and once in `computeTune`. Each
+copy has to agree with `computeTune`, or the Hz a solver chose would assume a
+different ARB share from the one the tune actually applies. All four now call one
+module-level `autoArbShare(springRollDeg)`. No output changes. The 7 %/° slope and
+the 5–50 % clamp are still uncalibrated round numbers.
