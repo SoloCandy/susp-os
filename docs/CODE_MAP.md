@@ -89,7 +89,10 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 (Damping Balance Mode's front/rear split — `balModeZetas` is the by-mode
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
-`rollCenterHeight`, `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
+`rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
+its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
+`rollMomentOf`, `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
+fallback, and the tyre-width mech-balance correction), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
 `resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance

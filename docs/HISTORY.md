@@ -2146,3 +2146,23 @@ copy has to agree with `computeTune`, or the Hz a solver chose would assume a
 different ARB share from the one the tune actually applies. All four now call one
 module-level `autoArbShare(springRollDeg)`. No output changes. The 7 %/° slope and
 the 5–50 % clamp are still uncalibrated round numbers.
+
+## Shared physics helpers replace repeated inline formulas
+
+Three formulas were written out inline across `feelToPhysics`,
+`resolveCoSolveSpringShare`, `computeTune` and the UI's chassis analysis. Each now
+has one definition:
+
+- `axleRollStiffness(hz, mass, track)`: `(2πf)²·m·t²/2`, one axle's spring roll
+  stiffness.
+- `rollMomentOf(ch)`: roll moment at 1 g.
+- `tyreWidths(ch)` / `tireCorrOf(ch)`: tyre section widths with the 265 mm
+  fallback, and the tyre-width mech-balance correction.
+
+No output changes: `feelToPhysics` + `computeTune` gave identical results before
+and after across every ARB mode, balance mode, game and several chassis, and the
+rendered page text matched. The measured-balance offset
+(`naturalMechBalanceOf(ch) − geometric estimate`) was deliberately left inline.
+Each site computes its geometric estimate a different way (`A/(1+A)` against
+`r/(f+r)`), so one helper would change the floating-point results, and wrapping
+only the subtraction would add nothing.
