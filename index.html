@@ -569,8 +569,9 @@ const mechSpringSplit=(ch,fe,arbBalModeEarly,hzPairFor)=>{
   };
   let p=0;
   if(arbBalModeEarly==='weight'||arbBalModeEarly==='manual'){
-    if((fe.arbMode??'auto')==='share') p=Math.max(0,Math.min(0.99,(fe.arbShareMan??20)/100));
-    else if((fe.arbMode??'auto')==='auto'){
+    const arbMode=fe.arbMode??'auto';
+    if(arbMode==='share') p=Math.max(0,Math.min(0.99,(fe.arbShareMan??20)/100));
+    else if(arbMode==='auto'){
       // Two-pass: the first pass assumes the caller's no-ratio Hz; the second uses the
       // corrected Hz so the auto share assumed here matches what computeTune will settle on.
       let hz=hzPairFor(null);
@@ -4675,6 +4676,7 @@ function App(){
   // Anything keyed off a ceiling (warnings, "/ N" suffixes, context badges, the ARB dial,
   // BASIC stiffness mode, MAN click entry) has to null-check or hide under this.
   const physMode=isPhysical(fe.gameMode);
+  const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
   // Crossing between a click-scale mode and a physical-unit one changes what two stored
   // values MEAN, so they are migrated on the transition itself — not reconciled from the
   // current solve, which would be circular (tune.arbF is computed FROM arbMan*).
@@ -4713,7 +4715,7 @@ function App(){
   // but a value valid under the old ceiling can exceed the new one, and nothing else reclamps
   // it (computeTune clamps the OUTPUT, leaving the displayed field stale). See docs/HISTORY.md.
   useEffect(()=>{
-    if(physMode||lim?.arb==null||(fe.arbMode??'auto')!=='man')return;
+    if(physMode||lim?.arb==null||arbMode!=='man')return;
     setFeRaw(p=>{
       if((p.arbMode??'auto')!=='man')return p;
       const cf=Math.min(p.arbManF??20,lim.arb),cr=Math.min(p.arbManR??20,lim.arb);
@@ -5679,7 +5681,7 @@ function App(){
           {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')}
             onReset={()=>setFe(p=>({...p,arbBalTarget:DEF_FE.arbBalTarget,arbBalTargetMode:DEF_FE.arbBalTargetMode,arbBalDelta:DEF_FE.arbBalDelta}))}>
             {(()=>{
-              const _hasMechTarget=((fe.arbMode??'auto')!=='man'&&((fe.arbBalMode??'weight')==='mech'||(fe.arbBalMode??'weight')==='coSolve'))
+              const _hasMechTarget=(arbMode!=='man'&&((fe.arbBalMode??'weight')==='mech'||(fe.arbBalMode??'weight')==='coSolve'))
                 ||(fe.rearHzMode??'flatRide')==='mech';
               if(!_hasMechTarget)return(
                 <div style={{fontSize:11,color:'#64748b',lineHeight:1.5,background:'#0a0f1a',
@@ -5737,7 +5739,7 @@ function App(){
               // Strip spans 0.10–0.90 so 0.50 (even roll stiffness) sits in the middle.
               const _MIN=0.10,_RNG=0.80;
               const _pct=v=>Math.max(0,Math.min(100,(v-_MIN)/_RNG*100));
-              const _hasMechTarget=((fe.arbMode??'auto')!=='man'&&((fe.arbBalMode??'weight')==='mech'||(fe.arbBalMode??'weight')==='coSolve'))
+              const _hasMechTarget=(arbMode!=='man'&&((fe.arbBalMode??'weight')==='mech'||(fe.arbBalMode??'weight')==='coSolve'))
                 ||(fe.rearHzMode??'flatRide')==='mech';
               const _cur=_hasMechTarget?(feEffective.arbBalTarget??natMechBalance):tune.mechBalance;
               const _curLabel=_hasMechTarget?'TARGET':'CURRENT';
@@ -6006,21 +6008,21 @@ function App(){
               <span style={{fontSize:12,color:'#94a3b8'}}>Stiffness Mode</span>
               <Hint text={`AUTO derives ARB stiffness from the car's natural roll tendency — heavier, taller, softer cars get more ARB contribution.${physMode?'':' BASIC sets an overall stiffness level directly (0% ≈ softest, 100% ≈ stiffest bars the game allows) — like SHARE %, but the level doesn’t scale with spring rate.'} ROLL ° targets a specific body roll angle. SHARE % directly sets ARBs as a fraction of total roll stiffness. MAN sets front/rear ARB ${physMode?'roll stiffness':'clicks'} directly for calibration testing — bypasses the budget/split system entirely, so Balance Mode is hidden while this is active.`}/>
               <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
-                <button className={`tog${(fe.arbMode??'auto')==='auto'?' on':''}`}
+                <button className={`tog${arbMode==='auto'?' on':''}`}
                   onClick={()=>pFe('arbMode')('auto')}>AUTO</button>
                 {/* BASIC maps 0–100% onto 1..lim.arb clicks, so it is meaningless without a
                     ceiling. Hidden rather than given an invented physical range — AUTO, ROLL °
                     and SHARE % all still work unchanged. Switching into a physical mode while
                     BASIC is selected falls back to AUTO below. */}
-                {!physMode&&<button className={`tog${(fe.arbMode??'auto')==='basic'?' on':''}`}
+                {!physMode&&<button className={`tog${arbMode==='basic'?' on':''}`}
                   onClick={()=>pFe('arbMode')('basic')}>BASIC</button>}
-                <button className={`tog${(fe.arbMode??'auto')==='roll'?' on':''}`}
+                <button className={`tog${arbMode==='roll'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,arbMode:'roll',
                     arbTargetRollMan:Math.round(physics.arbTargetRoll*10)/10}))}>ROLL °</button>
-                <button className={`tog${(fe.arbMode??'auto')==='share'?' on':''}`}
+                <button className={`tog${arbMode==='share'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,arbMode:'share',
                     arbShareMan:Math.round(tune.arbShare)}))}>SHARE %</button>
-                <button className={`tog${(fe.arbMode??'auto')==='man'?' on':''}`}
+                <button className={`tog${arbMode==='man'?' on':''}`}
                   onClick={()=>{
                     const arbF=Math.round(tune.arbF*10)/10;
                     const arbR=Math.round(tune.arbR*10)/10;
@@ -6028,19 +6030,19 @@ function App(){
                   }}>MAN</button>
               </div>
             </div>
-            {(fe.arbMode??'auto')==='basic'&&!physMode&&
+            {arbMode==='basic'&&!physMode&&
               <Field label="ARB Stiffness" value={fe.arbBasicMan??50} onChange={pFe('arbBasicMan')}
                 min={0} max={100} step={1} unit="%"
                 hint={`Overall ARB stiffness level, roughly 0% ≈ 1 click to 100% ≈ ${lim.arb} clicks (this game mode's limit) per axle at a neutral front/rear split. Unlike SHARE %, this doesn't scale with spring rate — moving the springs won't change the target level. Balance Mode still splits it front/rear, and unequal track widths mean the actual clicks per side won't land exactly on the stated percentage.`}/>}
-            {(fe.arbMode??'auto')==='roll'&&
+            {arbMode==='roll'&&
               <Field label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
                 min={0.3} max={5.0} step={0.1} unit="° @ 1g"
                 hint="Body roll the anti-roll bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars that let the suspension articulate over terrain."/>}
-            {(fe.arbMode??'auto')==='share'&&
+            {arbMode==='share'&&
               <Field label={<>{dnaDot('arbShare')}ARB Share</>} value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
                 min={0} max={80} step={0.5} unit="%"
                 hint="Fraction of total roll stiffness supplied by ARBs. 0% = springs handle all roll resistance. 20–30% is typical sport. Higher = stiffer bars relative to springs, more abrupt load transfer."/>}
-            {(fe.arbMode??'auto')==='man'&&
+            {arbMode==='man'&&
               <div style={{display:'flex',gap:6,marginBottom:10}}>
                 {/* max tracks lim.arb, not a hardcoded 65 — MOTORSPORT caps ARBs at 40 and
                     computeTune clamps to lim.arb, so a fixed 65 let you type values that were
@@ -6064,7 +6066,7 @@ function App(){
                       :`${side} ARB clicks, entered directly. This game mode's limit is ${lim.arb} clicks per axle.`}/>;
                 })}
               </div>}
-            {uiMode!=='beginner'&&(fe.arbMode??'auto')!=='man'&&<div style={{marginBottom:10,marginTop:4}}>
+            {uiMode!=='beginner'&&arbMode!=='man'&&<div style={{marginBottom:10,marginTop:4}}>
               <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                 Balance Mode
                 <Hint text={`WEIGHT splits front/rear ARB from the car's weight distribution, adjusted by the ARB Bias slider. NEUTRAL either cancels the springs' contribution to the balance bar (CANCEL) or splits the bars in the springs' own proportion so every axle carries the same ARB roll % (EQUAL ROLL) — ARB Bias nudges away from either point.${uiMode==='pro'?' CHASSIS works like WEIGHT but is anchored to the car’s actual natural mech balance (track-width-corrected geometry, or your MEASURE NAT BAL reading when set) instead of raw weight %% — use this once you’ve customised geometry or measured in-game. MECH solves the ARB split to hit the Mech Balance Target exactly. CO-SOLVE co-solves rear spring Hz and ARB split together.':''}`}/>
@@ -6788,7 +6790,7 @@ function App(){
                   <div style={{padding:'0 4px'}}>
                     <svg width="100%" height="24" viewBox="0 0 100 24" style={{overflow:'visible'}}>
                       <line x1="5" y1="20" x2="95" y2="20" stroke="#1e293b" strokeWidth="2" strokeLinecap="round"/>
-                      {(fe.arbMode??'auto')==='roll'&&(
+                      {arbMode==='roll'&&(
                         <g transform={`rotate(${-Math.min(tune.rollTarget*4,25)} 50 20)`}>
                           <line x1="15" y1="14" x2="85" y2="14" stroke="#3b82f6" strokeWidth="1.5"
                             strokeDasharray="3 2" opacity="0.4" strokeLinecap="round"/>
@@ -7118,13 +7120,13 @@ function App(){
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f9731633'}}>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{(fe.arbMode??'auto')==='share'
+              achieved {tune.mechBalance.toFixed(2)}.{arbMode==='share'
                 ?((fe.arbBalMode??'weight')==='coSolve'&&fe.springShareAuto!==false
                   ?' ARB Share % limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
                   :(fe.arbBalMode??'weight')==='coSolve'
                   ?' ARB Share % limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Share % to give the bars more range.'
                   :' ARB Share % limits the total ARB budget — raise ARB Share % to give the bars more range.')
-                :(fe.arbMode??'auto')==='basic'
+                :arbMode==='basic'
                 ?((fe.arbBalMode??'weight')==='coSolve'&&fe.springShareAuto!==false
                   ?' ARB Stiffness limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
                   :(fe.arbBalMode??'weight')==='coSolve'
@@ -7376,13 +7378,13 @@ function App(){
             </>));
             if(tune.mechBalClamped)warnings.push(warnBox('mechbal','#f97316',<>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{(fe.arbMode??'auto')==='share'
+              achieved {tune.mechBalance.toFixed(2)}.{arbMode==='share'
                 ?((fe.arbBalMode??'weight')==='coSolve'&&fe.springShareAuto!==false
                   ?' ARB Share % limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
                   :(fe.arbBalMode??'weight')==='coSolve'
                   ?' ARB Share % limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Share % to give the bars more range.'
                   :' ARB Share % limits the total ARB budget — raise ARB Share % to give the bars more range.')
-                :(fe.arbMode??'auto')==='basic'
+                :arbMode==='basic'
                 ?((fe.arbBalMode??'weight')==='coSolve'&&fe.springShareAuto!==false
                   ?' ARB Stiffness limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
                   :(fe.arbBalMode??'weight')==='coSolve'
