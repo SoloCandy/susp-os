@@ -540,6 +540,52 @@ const BALANCE_BAND_FRACS={
   AWD:{street:[0.30,0.55],track:[0.45,0.80],drift:[0.75,1.30],rally:[0.25,0.45],offroad:[0.12,0.28],drag:[0.35,0.65]},
 };
 const balanceBandFracs=(layout,build)=>((BALANCE_BAND_FRACS[layout]??BALANCE_BAND_FRACS.RWD)[build])??[0.55,0.95];
+// Rear Hz Mode MECH (outside CO-SOLVE): the part both Ride Reference paths of feelToPhysics
+// share. Converts the absolute ARB Balance target into a physical spring rsBalance target,
+// works out how much of it weight/manual-split ARBs will dilute (share p), and returns the
+// rear/front Hz ratio the springs need. hzPairFor(mult) gives the front/rear Hz the caller
+// would assume for a trial ratio (null = before any ratio is known), so AUTO's share can be
+// estimated from the same Hz the caller will actually produce. MAN ARB's closed-form solves
+// differ per path (average-Hz vs fixed reference axle) and stay with the callers.
+const mechSpringSplit=(ch,fe,arbBalModeEarly,hzPairFor)=>{
+  const m_m=cornerMasses(ch);
+  const arbBalTgt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
+  // Weight ARBs sit at the natural balance ratio and dilute the spring correction.
+  // Solve springs to a higher ratio so combined (springs + weight ARBs) still hits rsBalTgt:
+  //   combined = (1-p)*b_sp + p*rsBalNat = rsBalTgt  →  b_sp = (rsBalTgt - p*rsBalNat)/(1-p)
+  // Roll-stiffness fractions are width-independent (width is a grip effect, not stiffness).
+  const V=m_m.front*ch.trackF*ch.trackF,W=m_m.rear*ch.trackR*ch.trackR;
+  const rsBalNat=W/(V+W);
+  // arbBalTgt is the absolute display target (same role as CO-SOLVE's abt) — convert it to
+  // a physical rsBalance target the same way: pre-compensate tyre-width and MEASURE NAT BAL
+  // calibration offsets so a target sitting exactly on NAT collapses back to rsBalNat and
+  // needs no spring correction. See resolveCoSolveSpringShare for the full rationale.
+  const natOffset=naturalMechBalanceOf(ch)-rsBalNat;
+  const rsBalTgt=Math.max(0.05,Math.min(0.95,arbBalTgt-tireCorrOf(ch)-natOffset));
+  const multFor=p=>{
+    const eff=p>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-p*rsBalNat)/(1-p))):rsBalTgt;
+    const R=eff/(1-eff);
+    return Math.sqrt(R*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
+  };
+  let p=0;
+  if(arbBalModeEarly==='weight'||arbBalModeEarly==='manual'){
+    if((fe.arbMode??'auto')==='share') p=Math.max(0,Math.min(0.99,(fe.arbShareMan??20)/100));
+    else if((fe.arbMode??'auto')==='auto'){
+      // Two-pass: the first pass assumes the caller's no-ratio Hz; the second uses the
+      // corrected Hz so the auto share assumed here matches what computeTune will settle on.
+      let hz=hzPairFor(null);
+      for(let i=0;i<2;i++){
+        const rsSp=axleRollStiffness(hz[0],m_m.front,ch.trackF)+axleRollStiffness(hz[1],m_m.rear,ch.trackR);
+        p=autoArbShare(rsSp>0?(rollMomentOf(ch)/rsSp)*(180/Math.PI):5);
+        hz=hzPairFor(multFor(p));
+      }
+    }
+    // roll and basic modes: ARB budget is absolute (roll-moment-based or a direct click
+    // target respectively), not a share fraction of spring stiffness — p stays 0
+  }
+  return{V,W,rsBalTgt,mult:multFor(p)};
+};
+
 const feelToPhysics=(ch,fe)=>{
   let frontHz=rsToHz(fe.rideStiffness);
   const rearHzMode=fe.rearHzMode??'flatRide';
@@ -606,49 +652,15 @@ const feelToPhysics=(ch,fe)=>{
       const _sp=splitAvgHz(avgHz,mult);
       frontHz=_sp.fHz;rearHz=_sp.rHz;rearHzClamped=_sp.clamped;
     } else if(rearHzMode==='mech'&&arbBalModeEarly!=='coSolve'){
-      const m_m=cornerMasses(ch);
-      const arbBalTgt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
-      // Weight ARBs sit at the natural balance ratio and dilute the spring correction.
-      // Solve springs to a higher ratio so combined (springs + weight ARBs) still hits rsBalTgt:
-      //   combined = (1-p)*b_sp + p*rsBalNat = rsBalTgt  →  b_sp = (rsBalTgt - p*rsBalNat)/(1-p)
-      // Roll-stiffness fractions are width-independent (width is a grip effect, not stiffness).
-      const _V_m=m_m.front*ch.trackF*ch.trackF,_W_m=m_m.rear*ch.trackR*ch.trackR;
-      const _rsBalNat_m=_W_m/(_V_m+_W_m);
-      // arbBalTgt is the absolute display target (same role as CO-SOLVE's abt) — convert it to
-      // a physical rsBalance target the same way: pre-compensate tyre-width and MEASURE NAT BAL
-      // calibration offsets so a target sitting exactly on NAT collapses back to _rsBalNat_m and
-      // needs no spring correction. See resolveCoSolveSpringShare for the full rationale.
-      const tireCorr_m=tireCorrOf(ch);
-      const natOffset_m=naturalMechBalanceOf(ch)-_rsBalNat_m;
-      const rsBalTgt=Math.max(0.05,Math.min(0.95,arbBalTgt-tireCorr_m-natOffset_m));         // arbBalTarget is the rsBalance target
-      let _p_m=0;
-      if(arbBalModeEarly==='weight'||arbBalModeEarly==='manual'){
-        if((fe.arbMode??'auto')==='share') _p_m=Math.max(0,Math.min(0.99,(fe.arbShareMan??20)/100));
-        else if((fe.arbMode??'auto')==='auto'){
-          // Two-pass: first pass uses avgHz as proxy; second uses corrected Hz so the
-          // auto share assumed here matches what computeTune will settle on.
-          let _estF=avgHz,_estR=avgHz;
-          for(let _i=0;_i<2;_i++){
-            const _rsSp=axleRollStiffness(_estF,m_m.front,ch.trackF)+axleRollStiffness(_estR,m_m.rear,ch.trackR);
-            const _nRoll=_rsSp>0?(rollMomentOf(ch)/_rsSp)*(180/Math.PI):5;
-            _p_m=autoArbShare(_nRoll);
-            const _eff=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
-            const _R=_eff/(1-_eff);
-            const _mult=Math.sqrt(_R*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
-            _estF=Math.max(HZ_MIN,2*avgHz/(1+_mult));
-            _estR=Math.max(HZ_MIN,Math.min(HZ_MAX,2*avgHz*_mult/(1+_mult)));
-          }
-        }
-        // roll and basic modes: ARB budget is absolute (roll-moment-based or a direct click
-        // target respectively), not a share fraction of spring stiffness — _p_m stays 0
-      }
+      const mech=mechSpringSplit(ch,fe,arbBalModeEarly,mult=>mult==null?[avgHz,avgHz]
+        :[Math.max(HZ_MIN,2*avgHz/(1+mult)),Math.max(HZ_MIN,Math.min(HZ_MAX,2*avgHz*mult/(1+mult)))]);
       let _manSolved_sh=false;
       if(arbBalModeEarly==='man'){
         const rsAbF_m=(fe.arbManF??20)*ARB_RS_SCALE*ch.trackF*ch.trackF;
         const rsAbR_m=(fe.arbManR??20)*ARB_RS_SCALE*ch.trackR*ch.trackR;
-        const T=rsBalTgt,C0=2*Math.pow(2*Math.PI*avgHz,2);
+        const T=mech.rsBalTgt,C0=2*Math.pow(2*Math.PI*avgHz,2);
         const P=(1-T)*rsAbR_m-T*rsAbF_m;
-        const alpha=C0*_W_m*(1-T)+P,beta=2*P,gamma=P-T*_V_m*C0;
+        const alpha=C0*mech.W*(1-T)+P,beta=2*P,gamma=P-T*mech.V*C0;
         const disc=beta*beta-4*alpha*gamma;
         if(disc>=0&&Math.abs(alpha)>1e-10){
           const mult_man=(-beta+Math.sqrt(disc))/(2*alpha);
@@ -660,10 +672,7 @@ const feelToPhysics=(ch,fe)=>{
         }
       }
       if(!_manSolved_sh){
-        const _effRsBal_m=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
-        const R_m=_effRsBal_m/(1-_effRsBal_m);
-        const mult_m=Math.sqrt(R_m*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
-        const _sp=splitAvgHz(avgHz,mult_m);
+        const _sp=splitAvgHz(avgHz,mech.mult);
         frontHz=_sp.fHz;rearHz=_sp.rHz;rearHzClamped=_sp.clamped;
       }
     } else if(rearHzMode==='shared'){
@@ -695,57 +704,26 @@ const feelToPhysics=(ch,fe)=>{
       secondaryHz=Math.max(HZ_MIN,Math.min(HZ_MAX,raw));
       secondaryHzClamped=false;
     } else if(rearHzMode==='mech'&&arbBalModeEarly!=='coSolve'){
-      const m_m=cornerMasses(ch);
-      const arbBalTgt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
-      // Weight ARBs sit at the natural balance ratio and dilute the spring correction.
-      // Solve springs to a higher ratio so combined (springs + weight ARBs) still hits rsBalTgt:
-      //   combined = (1-p)*b_sp + p*rsBalNat = rsBalTgt  →  b_sp = (rsBalTgt - p*rsBalNat)/(1-p)
-      // Roll-stiffness fractions are width-independent (width is a grip effect, not stiffness).
-      const _V_m=m_m.front*ch.trackF*ch.trackF,_W_m=m_m.rear*ch.trackR*ch.trackR;
-      const _rsBalNat_m=_W_m/(_V_m+_W_m);
-      // arbBalTgt is the absolute display target (same role as CO-SOLVE's abt) — convert it to
-      // a physical rsBalance target the same way: pre-compensate tyre-width and MEASURE NAT BAL
-      // calibration offsets so a target sitting exactly on NAT collapses back to _rsBalNat_m and
-      // needs no spring correction. See resolveCoSolveSpringShare for the full rationale.
-      const tireCorr_m=tireCorrOf(ch);
-      const natOffset_m=naturalMechBalanceOf(ch)-_rsBalNat_m;
-      const rsBalTgt=Math.max(0.05,Math.min(0.95,arbBalTgt-tireCorr_m-natOffset_m));         // arbBalTarget is the rsBalance target
-      let _p_m=0;
-      if(arbBalModeEarly==='weight'||arbBalModeEarly==='manual'){
-        if((fe.arbMode??'auto')==='share') _p_m=Math.max(0,Math.min(0.99,(fe.arbShareMan??20)/100));
-        else if((fe.arbMode??'auto')==='auto'){
-          // Two-pass: first pass uses primaryHz for both axles; second uses corrected secondary
-          // so the auto share assumed here matches what computeTune will settle on.
-          let _estSec=primaryHz;
-          for(let _i=0;_i<2;_i++){
-            const _fHz=rideRef==='rear'?_estSec:primaryHz;
-            const _rHz=rideRef==='rear'?primaryHz:_estSec;
-            const _rsSp=axleRollStiffness(_fHz,m_m.front,ch.trackF)+axleRollStiffness(_rHz,m_m.rear,ch.trackR);
-            const _nRoll=_rsSp>0?(rollMomentOf(ch)/_rsSp)*(180/Math.PI):5;
-            _p_m=autoArbShare(_nRoll);
-            const _eff=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
-            const _R=_eff/(1-_eff);
-            const _mult=Math.sqrt(_R*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
-            _estSec=Math.max(HZ_MIN,Math.min(HZ_MAX,rideRef==='front'?primaryHz*_mult:primaryHz/_mult));
-          }
-        }
-        // roll and basic modes: ARB budget is absolute (roll-moment-based or a direct click
-        // target respectively), not a share fraction of spring stiffness — _p_m stays 0
-      }
+      const mech=mechSpringSplit(ch,fe,arbBalModeEarly,mult=>{
+        const sec=mult==null?primaryHz
+          :Math.max(HZ_MIN,Math.min(HZ_MAX,rideRef==='front'?primaryHz*mult:primaryHz/mult));
+        return rideRef==='rear'?[sec,primaryHz]:[primaryHz,sec];
+      });
       let _manSolved_fr=false;
       if(arbBalModeEarly==='man'){
+        const m_m=cornerMasses(ch);
         const rsAbF_m=(fe.arbManF??20)*ARB_RS_SCALE*ch.trackF*ch.trackF;
         const rsAbR_m=(fe.arbManR??20)*ARB_RS_SCALE*ch.trackR*ch.trackR;
-        const T=rsBalTgt;
+        const T=mech.rsBalTgt;
         let mult_man=null;
         if(rideRef==='front'){
           const Sf=axleRollStiffness(primaryHz,m_m.front,ch.trackF);
           const numer=T*(Sf+rsAbF_m)-(1-T)*rsAbR_m;
-          const denom=Sf*(1-T)*(_W_m/_V_m);
+          const denom=Sf*(1-T)*(mech.W/mech.V);
           if(numer>0&&denom>0) mult_man=Math.sqrt(numer/denom);
         } else {
           const Sr=axleRollStiffness(primaryHz,m_m.rear,ch.trackR);
-          const numer=Sr*(_V_m/_W_m)*T;
+          const numer=Sr*(mech.V/mech.W)*T;
           const denom=Sr*(1-T)-(T*rsAbF_m-(1-T)*rsAbR_m);
           if(numer>0&&denom>0) mult_man=Math.sqrt(numer/denom);
         }
@@ -757,10 +735,7 @@ const feelToPhysics=(ch,fe)=>{
         }
       }
       if(!_manSolved_fr){
-        const _effRsBal_m=_p_m>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-_p_m*_rsBalNat_m)/(1-_p_m))):rsBalTgt;
-        const R_m=_effRsBal_m/(1-_effRsBal_m);
-        const mult_m=Math.sqrt(R_m*m_m.front*ch.trackF*ch.trackF/(m_m.rear*ch.trackR*ch.trackR));
-        const raw_m=rideRef==='front'?primaryHz*mult_m:primaryHz/mult_m;
+        const raw_m=rideRef==='front'?primaryHz*mech.mult:primaryHz/mech.mult;
         secondaryHz=Math.max(HZ_MIN,Math.min(HZ_MAX,raw_m));
         secondaryHzClamped=raw_m<HZ_MIN||raw_m>HZ_MAX;
       }

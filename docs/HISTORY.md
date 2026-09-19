@@ -2166,3 +2166,19 @@ rendered page text matched. The measured-balance offset
 Each site computes its geometric estimate a different way (`A/(1+A)` against
 `r/(f+r)`), so one helper would change the floating-point results, and wrapping
 only the subtraction would add nothing.
+
+## `feelToPhysics`'s two MECH blocks share `mechSpringSplit`
+
+Rear Hz Mode MECH (outside CO-SOLVE) had two near-copies of about 60 lines each:
+one for the SHARED ride reference (average Hz) and one for FRONT/REAR (a fixed
+reference axle). They differed only in which front/rear Hz they assumed while
+estimating AUTO's ARB share, and in how they turned the final ratio into Hz. The
+common part (converting the target to a physical rsBalance, the ARB-share dilution
+with its two-pass AUTO estimate, and the resulting Hz ratio) is now
+`mechSpringSplit(ch, fe, arbBalModeEarly, hzPairFor)`. Each caller passes its own
+Hz estimate through `hzPairFor`. MAN ARB's closed-form solves stay with the
+callers, because the two paths solve different equations.
+
+No output changes: identical `feelToPhysics` + `computeTune` results across
+145,152 combinations, including every Rear Hz Mode × Ride Reference × ARB mode ×
+balance mode.
