@@ -2202,3 +2202,19 @@ changes today; it now names the same constant so a future caller passing a raw
 Also mechanical, no behaviour change: `clampHz` replaces 15 inline
 `Math.max(HZ_MIN,Math.min(HZ_MAX,…))` clamps, and `App` reads `arbBalMode` once
 instead of repeating `fe.arbBalMode??'weight'` 25 times.
+
+## `clampBalTarget`, and three more per-scope mode locals
+
+Mechanical, no behaviour change: `clampBalTarget` replaces the five inline
+`Math.max(0.20,Math.min(0.90,…))` Balance Target clamps (`sanitizeTune` still
+clamps the stored *delta* against its own shifted band, so it is not one of them),
+and `App` reads `rearHzMode` and `dampingMode` once each instead of repeating
+their defaults 9 and 4 times. Sites reading a different object — `p.` inside state
+updaters, `physics.dampingMode`, a garage entry's `e.fe` — keep their own
+defaults.
+
+Worth recording for the next mechanical rename: replacing `(fe.rearHzMode??'flatRide')`
+by text produced `returnrearHzMode` at one site where the expression followed
+`return` with no space. Every Node suite still passed — they exercise the physics
+entry points, not JSX — and the app failed to load in the browser. Text-level
+edits inside the JSX need a browser load, not just green tests.

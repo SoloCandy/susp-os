@@ -255,9 +255,12 @@ const naturalMechBalanceOf=ch=>{
   const mc=cornerMasses(ch);
   return mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
 };
+// The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
+// so the band is stated once. sanitizeTune clamps the STORED delta instead (0.20-nat..0.90-nat).
+const clampBalTarget=v=>Math.max(0.20,Math.min(0.90,v));
 const resolveArbBalTarget=(ch,fe)=>fe.arbBalTarget==null
   ?MECH_BALANCE_TARGET
-  :Math.max(0.20,Math.min(0.90,naturalMechBalanceOf(ch)+fe.arbBalTarget));
+  :clampBalTarget(naturalMechBalanceOf(ch)+fe.arbBalTarget);
 // Grip-neutral mech balance: the mech balance that cancels this chassis's natural at-limit grip
 // tendency (the Balance Guide's GRIP TARGET). GRIP mode's Balance Offset and Vehicle DNA's
 // balanceOffset axis are both measured from here.
@@ -268,7 +271,7 @@ const gripNeutralOf=ch=>1-balanceFromRsBal(ch,naturalMechBalanceOf(ch));
 // physics engine and every downstream display read. It was inline in App until Vehicle DNA's
 // compiler needed the identical resolution — keep one copy, not two (docs/DNA.md).
 const resolveFeEffective=(ch,fe)=>(fe.arbBalTargetMode??'manual')==='grip'
-  ?{...fe,arbBalTarget:Math.max(0.20,Math.min(0.90,gripNeutralOf(ch)+(fe.arbBalDelta??0)))}
+  ?{...fe,arbBalTarget:clampBalTarget(gripNeutralOf(ch)+(fe.arbBalDelta??0))}
   :{...fe,arbBalTarget:resolveArbBalTarget(ch,fe)};
 // Is anything actually solving toward the Balance Target? MECH/CO-SOLVE ARB balance modes do,
 // and Rear Hz Mode MECH does even under MAN ARB stiffness (it still aims spring Hz at the
@@ -561,7 +564,7 @@ const balanceBandFracs=(layout,build)=>((BALANCE_BAND_FRACS[layout]??BALANCE_BAN
 // differ per path (average-Hz vs fixed reference axle) and stay with the callers.
 const mechSpringSplit=(ch,fe,arbBalModeEarly,hzPairFor)=>{
   const m_m=cornerMasses(ch);
-  const arbBalTgt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
+  const arbBalTgt=clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET);
   // Weight ARBs sit at the natural balance ratio and dilute the spring correction.
   // Solve springs to a higher ratio so combined (springs + weight ARBs) still hits rsBalTgt:
   //   combined = (1-p)*b_sp + p*rsBalNat = rsBalTgt  →  b_sp = (rsBalTgt - p*rsBalNat)/(1-p)
@@ -612,7 +615,7 @@ const feelToPhysics=(ch,fe)=>{
   // Invert it so slider controls the user's chosen reference axle.
   if(arbBalModeEarly==='coSolve'&&uiRideRef!=='front'){
     const mc=cornerMasses(ch);
-    const abt=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
+    const abt=clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET);
     // Match computeTune: subtract the same tyre-width correction so Kcs is consistent.
     const tireCorr=tireCorrOf(ch);
     const A=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF); // natural rear/front roll-stiffness ratio (no width)
@@ -881,7 +884,7 @@ const feelToPhysics=(ch,fe)=>{
     : 0;
   const arbShareMan=Math.max(0,Math.min(80,fe.arbShareMan??15));
   const arbBasicMan=Math.max(0,Math.min(100,fe.arbBasicMan??50));
-  const arbBalTarget=Math.max(0.20,Math.min(0.90,fe.arbBalTarget??MECH_BALANCE_TARGET));
+  const arbBalTarget=clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET);
   const arbBalMode=ARB_BAL_MODE_DEC.includes(fe.arbBalMode)?fe.arbBalMode:'weight';
   const springShare=Math.max(0,Math.min(100,fe.springShare??50));
   // coSolve overrides rearHz in computeTune via effectiveRHz; flat-ride fallthrough can
@@ -4689,6 +4692,8 @@ function App(){
   const physMode=isPhysical(fe.gameMode);
   const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
   const arbBalMode=fe.arbBalMode??'weight'; // ARB Balance Mode, likewise
+  const rearHzMode=fe.rearHzMode??'flatRide';
+  const dampingMode=fe.dampingMode??'ratio';
   // Crossing between a click-scale mode and a physical-unit one changes what two stored
   // values MEAN, so they are migrated on the transition itself — not reconciled from the
   // current solve, which would be circular (tune.arbF is computed FROM arbMan*).
@@ -4825,7 +4830,7 @@ function App(){
     const hasMechTarget=hasBalTargetSolve(feEffective);
     // resolveFeEffective always resolves arbBalTarget to a number, so the fallback is unreachable —
     // it matches the solvers' MECH_BALANCE_TARGET rather than a second, different default.
-    const targetBal=hasMechTarget?Math.max(0.20,Math.min(0.90,feEffective.arbBalTarget??MECH_BALANCE_TARGET)):0.50;
+    const targetBal=hasMechTarget?clampBalTarget(feEffective.arbBalTarget??MECH_BALANCE_TARGET):0.50;
     // REACH: find track-width changes that bring natural rsBalance toward target.
     // Tyre width affects grip capacity (shown via CHASSIS BAL physical display) but NOT
     // roll-stiffness fraction, so REACH shows track-only recommendations.
@@ -6276,17 +6281,17 @@ function App(){
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>Hz MODE<Hint text="How the secondary axle frequency is derived. MULTIPLIER: a fixed ratio of the anchored axle Hz. MECH: derived from the mech balance target — PRO only. FLAT RIDE: the mathematically ideal pitch-cancelling ratio for a target speed. INDEPENDENT: set manually, free of the other axle. SHARED: (RIDE REF. SHARED + STIFFNESS BOTTOM G's only) solves both axles to bottom out at the identical g instead of holding a fixed Hz ratio. Hidden in CO-SOLVE — rear Hz is solved automatically."/></span>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:`repeat(${btnCount},1fr)`,gap:3,marginBottom:10}}>
-                  <button className={`tog${(fe.rearHzMode??'flatRide')==='multiplier'?' on':''}`}
+                  <button className={`tog${rearHzMode==='multiplier'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'multiplier',
                       rearHzMult:Math.round(physics.rearHz/physics.frontHz*100)/100}))}>MULTIPLIER</button>
-                  {uiMode==='pro'&&<button className={`tog${(fe.rearHzMode??'flatRide')==='mech'?' on':''}`}
+                  {uiMode==='pro'&&<button className={`tog${rearHzMode==='mech'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'mech'}))}>MECH</button>}
-                  <button className={`tog${(fe.rearHzMode??'flatRide')==='flatRide'?' on':''}`}
+                  <button className={`tog${rearHzMode==='flatRide'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'flatRide'}))}>FLAT RIDE</button>
-                  {!isShared&&<button className={`tog${(fe.rearHzMode??'flatRide')==='independent'?' on':''}`}
+                  {!isShared&&<button className={`tog${rearHzMode==='independent'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'independent',
                       rearHzMan:Math.round((physics.rideRef==='rear'?physics.frontHz:physics.rearHz)*100)/100}))}>INDEPENDENT</button>}
-                  {showSharedG&&<button className={`tog${(fe.rearHzMode??'flatRide')==='shared'?' on':''}`}
+                  {showSharedG&&<button className={`tog${rearHzMode==='shared'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'shared'}))}>SHARED</button>}
                 </div>
               </>;
@@ -6303,7 +6308,7 @@ function App(){
               // (lower OFF/CITY position), not to abandon flat ride. See docs/PHYSICS.md.
               const flatRideRatio=tune.fHz>0?tune.rHz/tune.fHz:1;
               const flatRideRatioHigh=flatRideRatio>1.25;
-              return(fe.rearHzMode??'flatRide')==='flatRide'
+              return rearHzMode==='flatRide'
               ? <>
                 <FeelSlider label="Target Speed" value={240-fe.targetSpeed}
                   onChange={v=>pFe('targetSpeed')(240-v)} min={40} max={180} step={5}
@@ -6331,7 +6336,7 @@ function App(){
                   Stiffness to bring it back in range.
                 </div>}
                 </>
-            : (fe.rearHzMode??'flatRide')==='multiplier'
+            : rearHzMode==='multiplier'
               ? <FeelSlider
                   label={<>{rRef==='front'&&dnaDot('pitchRatio')}{isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}</>}
                   value={fe.rearHzMult??1.20}
@@ -6345,7 +6350,7 @@ function App(){
                     :rRef==='rear'
                     ?"Front Hz as a fraction of rear Hz. ÷1.20 = front is 83% of rear stiffness. Useful when you want the front consistently softer."
                     :"Rear Hz as a multiple of front Hz. ×1.00 = matched. ×1.20 is a typical starting point for most builds."}/>
-            : (fe.rearHzMode??'flatRide')==='mech'
+            : rearHzMode==='mech'
               ? <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,
                              padding:'6px 10px',marginBottom:6}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
@@ -6374,7 +6379,7 @@ function App(){
                     {' '}{isShared?'Avg Stiffness slider shifts both together.':'Set target in ARB section above.'}
                   </div>
                 </div>
-            : (fe.rearHzMode??'flatRide')==='shared'
+            : rearHzMode==='shared'
               ? (()=>{
                   const rhF_mm=(ch.rideHeightF??0.13)*1000,rhR_mm=(ch.rideHeightR??0.12)*1000;
                   const gF=rhF_mm*Math.pow(2*Math.PI*physics.frontHz,2)/9810;
@@ -6503,14 +6508,14 @@ function App(){
             {/* bump ratio / independent toggle */}
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:8}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP MODE</span>
-              <Hint text={(fe.dampingMode??'ratio')==='independent'
+              <Hint text={dampingMode==='independent'
                 ?"INDEPENDENT: set bump ζ directly, decoupled from rebound. Use this when you want a specific bump/rebound combination the ratio can't express — e.g. soft bump with firm rebound."
                 :"BUMP RATIO: set bump damping as a percentage of rebound ζ — the app derives the bump ζ from that ratio, so the two strokes stay linked as rebound changes."}/>
             </div>
             <div style={{display:'flex',gap:3,marginBottom:10}}>
-              <button className={`tog${(fe.dampingMode??'ratio')==='ratio'?' on':''}`}
+              <button className={`tog${dampingMode==='ratio'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampingMode:'ratio'}))}>BUMP RATIO</button>
-              <button className={`tog${(fe.dampingMode??'ratio')==='independent'?' on':''}`}
+              <button className={`tog${dampingMode==='independent'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampingMode:'independent',
                   // Seed the typed anchor from whichever axle the active Damping Balance Mode
                   // anchors, so RATIO→INDEPENDENT lands on the tune already on screen instead
@@ -6525,7 +6530,7 @@ function App(){
                     :physics.rideRef==='shared'?(physics.bumpZetaF+physics.bumpZetaR)/2
                     :physics.bumpZetaF)))}))}>INDEPENDENT</button>
             </div>
-            {(fe.dampingMode??'ratio')==='ratio'
+            {dampingMode==='ratio'
               ? <FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
                   onChange={pFe('bumpRatio')} min={10} max={100} step={1}
                   leftLabel="10%" rightLabel="100%"

@@ -91,7 +91,8 @@ dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
-`rollMomentOf`, `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
+`rollMomentOf`, `clampBalTarget` (the Balance Target's stored 0.20..0.90 band;
+`sanitizeTune` clamps the stored DELTA instead), `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
 REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
 solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
