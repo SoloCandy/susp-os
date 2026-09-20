@@ -4694,6 +4694,8 @@ function App(){
   const arbBalMode=fe.arbBalMode??'weight'; // ARB Balance Mode, likewise
   const rearHzMode=fe.rearHzMode??'flatRide';
   const dampingMode=fe.dampingMode??'ratio';
+  const dampCharMode=fe.dampCharMode??'zeta';
+  const dampBalMode=fe.dampBalMode??'standard';
   // Crossing between a click-scale mode and a physical-unit one changes what two stored
   // values MEAN, so they are migrated on the transition itself — not reconciled from the
   // current solve, which would be circular (tune.arbF is computed FROM arbMan*).
@@ -6462,18 +6464,18 @@ function App(){
             {uiMode!=='beginner'&&<>
               <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REBOUND MODE</span>
-                <Hint text={(fe.dampCharMode??'zeta')==='settle'
+                <Hint text={dampCharMode==='settle'
                   ?"SETTLE TIME: set a target settle time in seconds. The app back-calculates the rebound ζ needed to hit that time on the ride-reference axle. How that value reaches the other axle is set by DAMPING BALANCE MODE below — SYNC derives the other axle's own ζ from its own spring frequency to match the same time exactly; STANDARD/NEUTRAL split differently, so only the reference axle is guaranteed to hit the target."
                   :"CHARACTER: set rebound damping directly as a ζ (damping ratio) percentage. Full manual control — you pick the value, the app doesn't back-solve anything."}/>
               </div>
               <div style={{display:'flex',gap:3,marginBottom:8}}>
-                <button className={`tog${(fe.dampCharMode??'zeta')==='zeta'?' on':''}`}
+                <button className={`tog${dampCharMode==='zeta'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampCharMode:'zeta'}))}>CHARACTER</button>
-                <button className={`tog${(fe.dampCharMode??'zeta')==='settle'?' on':''}`}
+                <button className={`tog${dampCharMode==='settle'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampCharMode:'settle'}))}>SETTLE TIME</button>
               </div>
             </>}
-            {(fe.dampCharMode??'zeta')==='settle'
+            {dampCharMode==='settle'
               ? <FeelSlider label="Settle Target" value={fe.settleTarget??0.80}
                   onChange={pFe('settleTarget')} min={0.10} max={1.50} step={0.01}
                   leftLabel="0.10s" rightLabel="1.50s"
@@ -6584,26 +6586,24 @@ function App(){
               <Hint text="Independent of REBOUND MODE above — REBOUND MODE decides how the anchor ζ is obtained (typed directly under CHARACTER, back-solved from a target time under SETTLE TIME); this decides how that single value becomes a front/rear split. STANDARD biases it directly by percentage — simplest, ignores any front/rear Hz difference. SYNC solves so front and rear finish settling at the same time (Hz-aware, ignores corner mass). NEUTRAL solves so both axles push the same actual damping force (Hz- and corner-mass-aware) — the most physically 'fair' baseline, useful when Sync's equal timing still leaves one end feeling harsher than the other. Under SETTLE TIME, only the axle REBOUND MODE anchors to is guaranteed to hit your target time exactly — the other axle's real time is whatever this mode's split produces, shown honestly in the readout below even when it isn't equal. The Damping Bias slider below works in all three modes and never resets when you switch between them — only the formula interpreting it changes."/>
             </div>
             <div style={{display:'flex',gap:3,marginBottom:8}}>
-              <button className={`tog${(fe.dampBalMode??'standard')==='standard'?' on':''}`}
+              <button className={`tog${dampBalMode==='standard'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampBalMode:'standard'}))}>STANDARD</button>
-              <button className={`tog${(fe.dampBalMode??'standard')==='sync'?' on':''}`}
+              <button className={`tog${dampBalMode==='sync'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampBalMode:'sync'}))}>SYNC</button>
-              <button className={`tog${(fe.dampBalMode??'standard')==='neutral'?' on':''}`}
+              <button className={`tog${dampBalMode==='neutral'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampBalMode:'neutral'}))}>NEUTRAL</button>
             </div>
             {(()=>{
-              const charMode=fe.dampCharMode??'zeta';
-              const balMode=fe.dampBalMode??'standard';
-              const timeBased=charMode==='settle'||balMode==='sync';
-              const anchor=charMode==='settle'?'the Settle Target':'Rebound ζ';
-              const hint=balMode==='sync'
+              const timeBased=dampCharMode==='settle'||dampBalMode==='sync';
+              const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
+              const hint=dampBalMode==='sync'
                 ?`SYNC: biases settle time between front and rear. At centre (0), front and rear damp out in equal time regardless of any Hz difference between them (anchored to ${anchor}). Left (FRONT) makes the front settle faster. Right (REAR) makes the rear settle faster. The bias scales as 2× at ±50.`
-                :balMode==='neutral'
+                :dampBalMode==='neutral'
                 ?`NEUTRAL: biases actual damping force between front and rear. At centre (0), both axles push the same physical force — accounts for Hz and corner mass, not just a raw ζ split (anchored to ${anchor}). Left (FRONT) shifts force toward the front. Right (REAR) shifts it toward the rear. The bias scales as 2× at ±50.`
                 :`Biases damping around whichever axle is your Ride Reference — that axle holds the base ζ (anchored to ${anchor}); the other axle swings up to 50% at ±50, firmer one way and softer the other. Whichever axle ends up relatively firmer keeps more grip: firmer front leans understeer/stable, firmer rear leans oversteer/loose. SHARED splits the swing across both axles instead of pinning one.`;
               const readout=timeBased
                 ? (Math.abs(tune.settleF-tune.settleR)<0.01?'EQUAL':`F ${tune.settleF.toFixed(2)}s | ${tune.settleR.toFixed(2)}s R`)
-                : balMode==='neutral'
+                : dampBalMode==='neutral'
                 ? (()=>{
                     const mF=(ch.weight/KG_TO_LB)*(ch.frontBias/100)/2,mR=(ch.weight/KG_TO_LB)*(1-ch.frontBias/100)/2;
                     const fF=physics.zetaF*mF*tune.fHz,fR=physics.zetaR*mR*tune.rHz;

@@ -2218,3 +2218,11 @@ by text produced `returnrearHzMode` at one site where the expression followed
 `return` with no space. Every Node suite still passed — they exercise the physics
 entry points, not JSX — and the app failed to load in the browser. Text-level
 edits inside the JSX need a browser load, not just green tests.
+
+## Damper mode locals hoisted to `App`
+
+The last of the per-scope mode locals: `App` reads `dampCharMode` and
+`dampBalMode` once instead of repeating `fe.dampCharMode??'zeta'` (4 sites) and
+`fe.dampBalMode??'standard'` (3). The damping-bias hint block kept its own copies
+under the shorter names `charMode`/`balMode`; it now uses the hoisted ones.
+Mechanical, no behaviour change.
