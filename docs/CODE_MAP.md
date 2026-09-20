@@ -91,7 +91,10 @@ dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
-`rollMomentOf`, `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
+`rollMomentOf`, `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
+REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
+solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
+Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
 conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
 fallback, and the tyre-width mech-balance correction), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of

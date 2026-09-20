@@ -2182,3 +2182,23 @@ callers, because the two paths solve different equations.
 No output changes: identical `feelToPhysics` + `computeTune` results across
 145,152 combinations, including every Rear Hz Mode × Ride Reference × ARB mode ×
 balance mode.
+
+## One `hasBalTargetSolve`, and a second Balance Target default removed
+
+"Is anything solving toward the Balance Target?" was written inline three times —
+once in the chassis recommendations off `feEffective`, twice in the Balance Target
+panel off `fe`, with the `arbBalMode` default spelled out in some copies but not
+others. HISTORY already records a fix to this predicate's MAN-ARB exception that
+reached only some copies. It is now `hasBalTargetSolve(fe)`, verified to agree with
+all three originals across every arbMode × arbBalMode × rearHzMode combination,
+undefined included.
+
+The chassis recommendations also fell back to `arbBalTarget ?? 0.55` where every
+solver falls back to `MECH_BALANCE_TARGET` (0.60). `resolveFeEffective` always
+resolves `arbBalTarget` to a number, so the branch is unreachable and nothing
+changes today; it now names the same constant so a future caller passing a raw
+`fe` cannot aim the recommendations at a different balance from the solve.
+
+Also mechanical, no behaviour change: `clampHz` replaces 15 inline
+`Math.max(HZ_MIN,Math.min(HZ_MAX,…))` clamps, and `App` reads `arbBalMode` once
+instead of repeating `fe.arbBalMode??'weight'` 25 times.
