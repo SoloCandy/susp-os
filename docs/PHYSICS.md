@@ -249,6 +249,12 @@ damper**, so an inboard spring must be stiffer by `1/mr²` to give the same whee
 rate. `ch.motionRatioF`/`motionRatioR` (PRO CHASSIS, physical modes only, default
 1.0) apply that correction.
 
+`ch.arbMotionRatioF`/`arbMotionRatioR` (same range, same default) do the same job
+for the anti-roll bar, whose arm is the drop link rather than the spring mount:
+`k = 2·rs / (track · mr)²`. At the default 1.0 the bar is assumed to act at the
+wheels, which is why the untouched output reads low — see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the research behind the figure.
+
 It is applied **at the display layer and deliberately not in `computeTune`**. Hz,
 roll stiffness, mech balance and every handling-balance figure are wheel-rate
 quantities and must not move when a motion ratio is entered — only the number you

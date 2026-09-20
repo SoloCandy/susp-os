@@ -144,6 +144,33 @@ t('motion ratio never reaches the physics — Hz and balance are wheel-rate quan
                    'mechBalance', 'bTot', 'arbShare', 'rollDeg'])
     near(a[k], b[k], 1e-12, `${k} moved when a motion ratio was set`);
 });
+t('ARB motion ratio never reaches the physics either', () => {
+  const a = solve({}, {}, 'beamng').tune;
+  const b = solve({ arbMotionRatioF: 0.45, arbMotionRatioR: 0.62 }, {}, 'beamng').tune;
+  for (const k of ['springF', 'springR', 'rebF', 'bumpR', 'arbF', 'arbR', 'fHz', 'rHz',
+                   'mechBalance', 'bTot', 'arbShare', 'rollDeg'])
+    near(a[k], b[k], 1e-12, `${k} moved when an ARB motion ratio was set`);
+});
+t('ARB motion ratio scales the printed N/m by 1/mr², per axle', () => {
+  const lim = M.GAME_LIMITS.beamng, rs = 12000, track = 1.55;
+  near(M.arbOut(rs, lim, track, 1).value, M.arbOut(rs, lim, track).value, 1e-12,
+       'default must match an omitted ratio');
+  const plain = M.arbOut(rs, lim, track, 1).value, scaled = M.arbOut(rs, lim, track, 0.45).value;
+  near(scaled / plain, 1 / M.mrDiv(0.45), 0.02, 'scaling is 1/mr² up to the 1000 N/m snap');
+});
+t('ARB display and MAN-mode entry invert each other exactly', () => {
+  // The two conversions live apart (arbOut vs the MAN field / TUNE CHECK import). An
+  // asymmetry between them made a spring value round-trip to a different tune once.
+  const lim = M.GAME_LIMITS.beamng;
+  for (const track of [1.40, 1.55, 1.82])
+    for (const mr of [1, 0.45, 0.2, 1.5])
+      for (const rs of [4000, 12000, 45000, 120000]) {
+        const shown = M.arbOut(rs, lim, track, mr).value;
+        const stored = shown * track * track * M.mrDiv(mr) / 2;   // what MAN entry stores
+        near(M.arbOut(stored, lim, track, mr).value, shown, 1e-9,
+             `round-trip drifted at track ${track}, mr ${mr}, rs ${rs}`);
+      }
+});
 t('motion ratio is inert in the Forza modes', () => {
   const o = M.springOut(400, 'horizon', false, 0.5);
   near(o.value, 400, 1e-12, 'lb/in output ignores mr');

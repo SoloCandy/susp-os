@@ -1699,10 +1699,10 @@ const dampOut=(v,lim,mr=1)=>lim.damping==null
 // yet, but not because the question is open: BeamNG specifies the rate at the bar's
 // own lever rather than at the wheel, so a real inboard bar needs a higher number by
 // (track/arm)². BeamNG exposes no arm length and the coefficient convention is still
-// unsettled, so that divisor has to come from the user — see KNOWN_ISSUES' deferred
-// ARB Motion Ratio F/R input, which is where the term belongs when it lands.
-const arbOut=(v,lim,track=1.55)=>lim.arb==null
-  ? {value:roundTo(2*v/(track*track),1000),unit:'N/m',decimals:0}
+// unsettled, so the divisor comes from the user as ARB Motion Ratio F/R (arm/track, default
+// 1.0 = the old acts-at-the-wheel assumption). See docs/KNOWN_ISSUES.md for the research.
+const arbOut=(v,lim,track=1.55,mr=1)=>lim.arb==null
+  ? {value:roundTo(2*v/(track*track*mrDiv(mr)),1000),unit:'N/m',decimals:0}
   : {value:v,unit:`/ ${lim.arb}`,decimals:1};
 const warnOver=(v,ceiling)=>ceiling==null?false:v>ceiling*0.88;
 // "how close to the game's ceiling" — meaningless without one, so callers in physical
@@ -1995,7 +1995,13 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               // what Forza displays, so these are inert in the Forza modes and only affect
               // physical-unit output (rate/mr²). They are display-only by design — nothing
               // in the physics reads them, see the note at springOut.
-              motionRatioF:1.0,motionRatioR:1.0};
+              motionRatioF:1.0,motionRatioR:1.0,
+              // ARB drop-link arm as a fraction of track. The solver works in roll stiffness;
+              // BeamNG's ARB slider sets the rate at the bar's own lever, so a bar attaching
+              // inboard needs a higher N/m by (track/arm)². SEPARATE from motionRatioF/R — the
+              // spring mount and the drop link are independent geometry. 1.0 = the old
+              // acts-at-the-wheel assumption, so an untouched tune's output is unchanged.
+              arbMotionRatioF:1.0,arbMotionRatioR:1.0};
 const DEF_FE={rideStiffness:1.75,arbBias:0,dampingBias:0,dampBalMode:'standard',targetSpeed:70,gameMode:'horizon',
               dampingMode:'ratio',reboundZeta:70,bumpRatio:56,bumpZeta:39,dampCharMode:'zeta',settleTarget:0.80,
               arbMode:'auto',arbTargetRollMan:1.8,arbShareMan:15,arbBasicMan:50,
@@ -2955,9 +2961,10 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
       arbBalMode:'manual',
       arbMode:'man',
       // fe.arbMan* is always roll stiffness; the physical inputs above are BeamNG's linear
-      // N/m, so invert k = 2·rs/track² on the way in.
-      arbManF:phys?Math.max(0,ckArb.f*ch.trackF*ch.trackF/2):Math.max(1,Math.min(lim.arb,ckArb.f)),
-      arbManR:phys?Math.max(0,ckArb.r*ch.trackR*ch.trackR/2):Math.max(1,Math.min(lim.arb,ckArb.r))};
+      // N/m, so invert k = 2·rs/(track·mr)² on the way in — the same ARB Motion Ratio the
+      // output card and MAN entry use, or an imported tune reads back at a different rate.
+      arbManF:phys?Math.max(0,ckArb.f*ch.trackF*ch.trackF*mrDiv(ch.arbMotionRatioF)/2):Math.max(1,Math.min(lim.arb,ckArb.f)),
+      arbManR:phys?Math.max(0,ckArb.r*ch.trackR*ch.trackR*mrDiv(ch.arbMotionRatioR)/2):Math.max(1,Math.min(lim.arb,ckArb.r))};
   };
   const importDecoded=()=>{setFe(decodedFe);flash(setImported);};
   // Overwrites the DNA editor's draft and nothing else — the sidebar tune is left where it is.
@@ -3299,6 +3306,8 @@ const CODEC_FIELDS=[
   // (57 is arbBasicMan, declared above out of numeric order.)
   {id:58,group:'ch',key:'motionRatioF'},
   {id:59,group:'ch',key:'motionRatioR'},
+  {id:68,group:'ch',key:'arbMotionRatioF'},
+  {id:69,group:'ch',key:'arbMotionRatioR'},
   // 60/61: measured natural balance calibration. group:'ch' — travels with the chassis,
   // same reasoning as motionRatioF/R. Unlike useRideHeightCG (whose resulting cgHeight
   // already travels via id 4), arbBalTarget/arbBalDelta store DELTAS from
@@ -3398,6 +3407,8 @@ const sanitizeTune=({ch,fe,dr})=>{
       // scale the displayed rate toward infinity.
       motionRatioF: cl(ch?.motionRatioF,    0.2,  1.5,  DEF_CH.motionRatioF),
       motionRatioR: cl(ch?.motionRatioR,    0.2,  1.5,  DEF_CH.motionRatioR),
+      arbMotionRatioF: cl(ch?.arbMotionRatioF, 0.2, 1.5, DEF_CH.arbMotionRatioF),
+      arbMotionRatioR: cl(ch?.arbMotionRatioR, 0.2, 1.5, DEF_CH.arbMotionRatioR),
   };
   // arbBalTarget is a delta from naturalMechBalanceOf(sch) (see id 40 in docs/CODEC.md) —
   // clamp it to the same range the live Field allows (0.20-0.90 absolute), not a flat
@@ -5446,6 +5457,15 @@ function App(){
                   hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel. 1.0 = direct-acting (strut on the hub). Lower means the spring sits inboard on a control arm and must be stiffer to give the same wheel rate — the output is divided by the ratio squared, so 0.7 raises it by about double. BeamNG's sliders act at the spring, so this is what makes the numbers match; it does not change Hz, roll stiffness, or handling balance. Leave at 1.0 unless you know the car's geometry.`}/>
               ))}
             </div>}
+            {/* ARB drop link, not the spring mount — separate geometry, separate field. Only the
+                ARB N/m output and MAN-mode entry read it; nothing in the solve does. */}
+            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+              {[['F','arbMotionRatioF','Front'],['R','arbMotionRatioR','Rear']].map(([ax,key,side])=>(
+                <Field key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
+                  onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
+                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track — where the drop link attaches, not where the spring does. 1.0 assumes the bar acts at the wheels, which makes the N/m read low; a typical inboard link is around 0.4–0.5, which raises the printed rate by (1/ratio)². Display and entry only: the roll stiffness this app solves, the balance bar and Hz are unchanged.`}/>
+              ))}
+            </div>}
             </>}
             <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:8,flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>CG Height Source</span>
@@ -6069,7 +6089,10 @@ function App(){
                   const key=ax==='F'?'arbManF':'arbManR';
                   const side=ax==='F'?'Front':'Rear';
                   const track=ax==='F'?ch.trackF:ch.trackR;
-                  const toLin=rs=>2*rs/(track*track), toRs=k=>k*track*track/2;
+                  // Same (track·mr)² term as arbOut — display and entry must invert each other
+                  // exactly, or a value round-trips to a different tune (see docs/HISTORY.md).
+                  const amr=mrDiv(ax==='F'?ch.arbMotionRatioF:ch.arbMotionRatioR);
+                  const toLin=rs=>2*rs/(track*track*amr), toRs=k=>k*track*track*amr/2;
                   const stored=fe[key]??(physMode?12000:20);
                   return <Field key={ax} label={`ARB ${ax}`}
                     value={physMode?Math.round(toLin(stored)):stored}
@@ -6792,8 +6815,8 @@ function App(){
                       a percentage-of-max; ArbDial hides its warning bands under `physical`. */}
                   <ArbDial arbF={tune.arbF} arbR={tune.arbR}
                     arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
-                    dispF={arbOut(tune.arbF,lim,ch.trackF).value}
-                    dispR={arbOut(tune.arbR,lim,ch.trackR).value}
+                    dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF).value}
+                    dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR).value}
                     rsAbF={tune.rsAbF} rsAbR={tune.rsAbR}
                     natBal={natMechBalance} target={feEffective.arbBalTarget} rideRef={physics.rideRef}/>
                 </div>
@@ -7100,17 +7123,19 @@ function App(){
           <Card title="ANTI-ROLL BARS" accent
             headerRight={`ROLL ${tune.rollDeg.toFixed(1)}°`}
             hint={physMode
-              ?"Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/track², which assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES."
+              ?"Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/(track·ARB Motion Ratio)², which at ratio 1.0 assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES."
               :"Click values to enter in the ARB tuning menu. Roll angle and ARB share are shown in the ANTI-ROLL BARS section of inputs. Amber warn when above 88% of the game limit."}>
 
-            {physMode&&<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,marginBottom:6}}>
-              Reads ~4–6× soft: this assumes the bar acts at the wheels, but BeamNG sets
-              the rate at the bar's own lever. Scale up by (track/arm)² if you know it.
+            {physMode&&(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1&&
+            <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,marginBottom:6}}>
+              Reads ~4–6× soft: at ARB Motion Ratio 1.0 this assumes the bar acts at the
+              wheels, but BeamNG sets the rate at the bar's own lever. Set the ratio in
+              CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry.
             </div>}
             <RowGroup style={{marginBottom:0}}>
-              {[['Front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,'front'],
-                ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear']].map(([lbl,v,rsAb,rsSp,track,side])=>{
-                const o=arbOut(v,lim,track);
+              {[['Front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,'front',ch.arbMotionRatioF],
+                ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear',ch.arbMotionRatioR]].map(([lbl,v,rsAb,rsSp,track,side,arbMr])=>{
+                const o=arbOut(v,lim,track,arbMr);
                 const c=arbCtx(v,lim.arb);
                 return <OutRow key={lbl} label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.arb)} unit={o.unit}
@@ -7420,8 +7445,8 @@ function App(){
             // Per-axle suspension rows — same arbOut/springOut/dampOut/arbCtx/hzCtx/warnOver
             // functions the Forza cards above call, just assembled into row-prop objects
             // instead of inline OutRows, since SuspensionCard merges three subsystems into one.
-            const buildArbRow=(side,v,rsAb,rsSp,track)=>{
-              const o=arbOut(v,lim,track);
+            const buildArbRow=(side,v,rsAb,rsSp,track,arbMr)=>{
+              const o=arbOut(v,lim,track,arbMr);
               const c=arbCtx(v,lim.arb);
               return {label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
                 note:c?c[0]:null,noteColor:c?c[1]:undefined,
@@ -7443,15 +7468,17 @@ function App(){
             const springPctF=Math.round(tune.rsSpF/(tune.rsSpF+tune.rsAbF)*100);
             const springPctR=Math.round(tune.rsSpR/(tune.rsSpR+tune.rsAbR)*100);
             const suspHint="Anti-Roll Spring Rate, Spring Rate, and Rebound/Bump Damping in N/m / N/m/s, matching BeamNG's sliders — divided by motion ratio squared if you set one. Spring badge shows frequency category (SOFT/ROAD/FIRM/RACE); damping notes flag over/underdamped. The settle figure beside each damper is the quick ζ-only estimate — it cannot see bump damping, so the DYNAMICS chart, which measures its drawn curve, may read differently. Anti-Roll reads soft — see the note under that row.";
-            const arbCaveat="Reads ~4–6× soft: this assumes the bar acts at the wheels, but BeamNG sets the rate at the bar's own lever. Scale up by (track/arm)² if you know it.";
+            const arbCaveat=(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1
+              ?"Reads ~4–6× soft: at ARB Motion Ratio 1.0 this assumes the bar acts at the wheels, but BeamNG sets the rate at the bar's own lever. Set the ratio in CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry."
+              :null;
 
             const frontSuspension=<SuspensionCard side="FRONT" hint={suspHint} arbCaveat={arbCaveat}
-              arbRow={buildArbRow('front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF)}
+              arbRow={buildArbRow('front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,ch.arbMotionRatioF)}
               springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,tune.fHz,springPctF)}
               dampRebRow={buildDampRow('Rebound',tune.rebF,tune.zetaF,ch.motionRatioF,tune.settleF,true)}
               dampBumpRow={buildDampRow('Bump',tune.bumpF,tune.bumpZetaF,ch.motionRatioF,null,false)}/>;
             const rearSuspension=<SuspensionCard side="REAR" hint={suspHint} arbCaveat={arbCaveat}
-              arbRow={buildArbRow('rear',tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR)}
+              arbRow={buildArbRow('rear',tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,ch.arbMotionRatioR)}
               springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,tune.rHz,springPctR)}
               dampRebRow={buildDampRow('Rebound',tune.rebR,tune.zetaR,ch.motionRatioR,tune.settleR,true)}
               dampBumpRow={buildDampRow('Bump',tune.bumpR,tune.bumpZetaR,ch.motionRatioR,null,false)}/>;

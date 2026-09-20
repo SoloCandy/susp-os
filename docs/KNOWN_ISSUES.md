@@ -383,7 +383,7 @@ longer does, since `useMeasuredNatBal`/`measuredNatBal` are now codec ids
 value feeding a *delta*-based target. Ride-height CG's exclusion stands on
 its own merits, unaffected by that change.)
 
-## Open — BeamNG anti-roll output reads soft; cause identified (wrong lever arm), fix deferred
+## Resolved — BeamNG anti-roll output reads soft; ARB Motion Ratio input added
 
 The BEAMNG mode converts the solver's roll stiffness to BeamNG's linear
 Anti-Roll Spring Rate by inverting `rs = k·track²/2`, the same relationship the
@@ -391,9 +391,12 @@ spring side uses. On the default chassis that yields ≈10,300 / 9,800 N/m front
 rear. A stock vehicle's own defaults, read off the tuning menu, were **40,000 /
 60,000 N/m** — roughly 4–6× stiffer.
 
-This entry originally listed three candidate causes with none established. That
-research is now done: **one is eliminated, one is confirmed as the cause, and one
-is weakened.** The gap itself is still open — nothing in the app has changed.
+This entry originally listed three candidate causes with none established. The
+research settled it — **one eliminated, one confirmed as the cause, one weakened**
+— and the specified fix has since landed as the **ARB Motion Ratio F / R** chassis
+input. The research below is kept because it is the whole argument for why the
+input exists and why no constant was invented; the two genuine unknowns it names
+are still unknown, and are now the user's to supply rather than the app's to guess.
 
 ### 1. `ARB_RS_SCALE` doesn't transfer from Forza — ELIMINATED
 
@@ -437,36 +440,42 @@ vehicle, but no longer the leading explanation.
 - **The arm length for any given vehicle** — BeamNG does not expose it, and it
   differs per vehicle and per axle, exactly like the spring motion ratio.
 
-### Deferred fix (specified, not implemented)
+### The fix, as implemented
 
-An **ARB Motion Ratio F/R** chassis input, defaulting to **1.0** so today's output
-is unchanged and no constant is invented, applied as:
+`ch.arbMotionRatioF`/`arbMotionRatioR` (PRO CHASSIS, physical modes only, range
+0.20–1.50, default **1.0** so an untouched tune's output is unchanged and no
+constant is invented), applied through the existing `mrDiv()` helper as:
 
 ```
 k = 2·rs / (track² · mr²)
 ```
 
-reusing the existing `mrDiv()` helper next to `springOut` in `index.html`.
+Both constraints the specification set were met:
 
-Two constraints for whoever implements it:
+- Applied at **every** N/m ↔ roll-stiffness site — `arbOut` (the ARB rows and the
+  dial), MAN-mode entry, and the TUNE CHECK import. Display and entry were checked
+  to invert each other exactly across track widths, ratios and rates, because an
+  asymmetry between them caused a real bug during the spring motion-ratio work.
+- A **separate** field from `motionRatioF`/`motionRatioR`, on codec ids 68/69.
 
-- It must be applied at **every** N/m ↔ roll-stiffness site — the ARB output card,
-  MAN-mode entry, and the Tune Check ARB inputs. An asymmetry between the display
-  and entry conversions caused a real bug during the spring motion-ratio work.
-- It must be a **separate** field from `motionRatioF`/`motionRatioR`. The spring
-  mount and the ARB drop link are independent geometry; reusing the spring value
-  would be wrong.
+Like the spring motion ratio it is display-only: nothing in `computeTune` reads it,
+so Hz, roll stiffness, mech balance and the handling-balance figures do not move
+when it is set. At 0.45 on the default chassis the front bar prints 49,000 N/m
+instead of 10,000 — a 4.9× correction, inside the 4–6× the sampled vehicle showed.
+
+The amber caveat under the ARB rows now appears **only while both ratios are 1.0**,
+and points at the input instead of telling the user to scale the number by hand.
 
 **No fudge factor has been applied** — inventing a multiplier to close the gap is
 exactly what the physical-unit approach exists to avoid, and one sampled vehicle is
-not a calibration. A second and third vehicle would confirm the arm-ratio range and
-settle the coefficient question.
+not a calibration. The default stays at 1.0 for that reason: the app still ships the
+unscaled number and lets a user who knows their geometry supply the arm ratio. A
+second and third vehicle would confirm the arm-ratio range and settle the
+coefficient question (`K = k·arm²` vs `2·k·arm²`), which the input does not decide.
 
-**The in-app caveats already name this cause.** The amber banner under the ARB rows
-and the suspension card hint both state the lever-arm assumption and tell the user to
-scale by (track/arm)² if they know the geometry. They read *"cause unresolved"* until
-this research landed; they no longer do, and need no further wording change before the
-deferred fix.
+**The in-app caveats now name the input.** The amber banner under the ARB rows and
+the suspension card hint state the lever-arm assumption, name ARB Motion Ratio and
+suggest a typical 0.4–0.5, and both disappear once either ratio is moved off 1.0.
 
 ---
 

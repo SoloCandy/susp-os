@@ -86,8 +86,10 @@ future version might not carry.
 | 65 | ch | rideHeightF | raw number |
 | 66 | ch | rideHeightR | raw number |
 | 67 | fe | arbNeutralEqual | bool |
+| 68 | ch | arbMotionRatioF | raw number |
+| 69 | ch | arbMotionRatioR | raw number |
 
-**Next available id: 68.**
+**Next available id: 70.**
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
@@ -95,6 +97,14 @@ vertical-g bottom-out load factor, alternative to entering Hz directly — see
 intentionally a *stored target*: it's meant to actively re-solve
 `rideStiffness` (id 7) against whatever chassis it's applied to, not just
 describe how the sender arrived at their number.
+
+Ids 68/69 (`arbMotionRatioF`/`arbMotionRatioR`) are the anti-roll bar's drop-link
+arm as a fraction of track. They are deliberately separate from the spring/damper
+motion ratio (ids 58/59): the spring mount and the drop link are independent
+geometry, so one value cannot stand for both. Like ids 58/59 they are display-only
+— they scale the N/m the ARB rows print and the MAN-mode entry that inverts it, and
+never reach the solve — so a code carrying them describes the same tune to a
+recipient whose own ratio differs, just printed against their geometry.
 
 Ids 65/66 (`rideHeightF`/`rideHeightR`) are `group:'ch'` — see the
 semantic-changes note below for why they moved from excluded to codec fields.

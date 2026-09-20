@@ -2226,3 +2226,28 @@ The last of the per-scope mode locals: `App` reads `dampCharMode` and
 `fe.dampBalMode??'standard'` (3). The damping-bias hint block kept its own copies
 under the shorter names `charMode`/`balMode`; it now uses the hoisted ones.
 Mechanical, no behaviour change.
+
+## ARB Motion Ratio F / R
+
+BEAMNG's anti-roll output read ~4–6× soft because `arbOut` inverted
+`rs = k·track²/2`, which assumes the bar acts at the wheels; a real drop link
+attaches inboard, so the N/m needed is larger by `(track/arm)²`. KNOWN_ISSUES had
+the research and a specified-but-unimplemented fix. It is now
+`ch.arbMotionRatioF`/`arbMotionRatioR` (PRO CHASSIS, physical modes only,
+0.20–1.50, default 1.0, codec ids 68/69), applied as `k = 2·rs/(track·mr)²` through
+the existing `mrDiv`.
+
+Display-only, exactly like the spring motion ratio: `computeTune` never reads it,
+so Hz, roll stiffness, mech balance and the handling-balance figures do not move.
+Verified — solver output identical across 145,152 mode combinations, and the ARB
+rows' "% roll" / "% ARB" metas unchanged while the printed N/m moved.
+
+Applied at all three N/m ↔ roll-stiffness boundaries, which must agree or a value
+will not round-trip: `arbOut`, MAN-mode entry, and the TUNE CHECK import. Display
+and entry were checked to invert each other exactly across track widths, ratios and
+rates — the asymmetry that caused a real bug during the spring motion-ratio work.
+
+The amber "reads soft" caveat under the ARB rows and on the suspension cards now
+shows only while both ratios are 1.0, and names the input rather than telling the
+user to scale by hand. The default stays 1.0: the app still ships the unscaled
+number rather than inventing a multiplier from one sampled vehicle.

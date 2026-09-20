@@ -408,6 +408,14 @@ oversight: Hz, roll stiffness and the balance model are wheel-rate quantities an
 must not move when a motion ratio is entered. A grep for these keys inside
 `computeTune` will correctly find nothing.
 
+**`ch.arbMotionRatioF` / `arbMotionRatioR`** — the same arrangement for the ARB
+drop link, and equally absent from `computeTune`. Read at exactly three places,
+which must stay in agreement or a value will not round-trip: `arbOut` (the N/m the
+ARB rows and the dial print), the MAN-mode entry field that inverts it, and the
+TUNE CHECK import that converts a pasted N/m back to roll stiffness. Separate from
+`motionRatioF`/`motionRatioR` on purpose — spring mount and drop link are
+independent geometry.
+
 **`ARB_UTIL_REF`** — looks like a fourth game limit but is not a ceiling and
 nothing clamps to it. It is only CO-SOLVE's utilisation denominator when the game
 mode has none, and it cancels between the two sides of that comparison except at
