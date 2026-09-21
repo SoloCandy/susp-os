@@ -44,6 +44,14 @@ The TERMS glossary is a separate, non-sequential reference and is not covered he
   *current* tier from step 1.
 - **Seen is marked on open, not on finish.** Closing with ✕ on step 1 still counts,
   which is what unlocks the next tier (below).
+- **Quick start or full tour.** The beginner guide's first card (`pathChoice`) offers
+  QUICK START and FULL TOUR. FULL TOUR is plain NEXT. QUICK START sets `tutQuick`
+  and restarts at step 1 of the `quick:true` steps; the progress bar and `n / total`
+  count that path, and its DONE card adds that `?` replays the full tour. `openTut`
+  always resets `tutQuick`, so `?` opens the full tour (or offers RESUME for it). The
+  quick path doesn't write `suspos_tutorial_step_v1` — its step index counts the
+  filtered path, so saving it would resume the full tour at the wrong step. Both paths close through
+  `closeTutEnd`, so the complexity popup and `tutSeen` behave the same.
 
 ### Tier gating
 
@@ -153,7 +161,9 @@ Each step is an object in its guide's array:
 | `focus` | yes (may be `null`) | Array of zone keys to spotlight. `null` = info step, nothing spotlit. |
 | `sidebar` | no | `'open'` or `'close'` forces the sidebar. |
 | `units` | no | `true` embeds the units picker. |
-| `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Factory Presets, Ride Stiffness, Balance. |
+| `quick` | no | `true` puts the step on the QUICK START path. `tutSteps(mode, quick)` filters on it — the quick path is a view over the same array, never a copy. |
+| `pathChoice` | no | `true` swaps NEXT for QUICK START / FULL TOUR on this card. |
+| `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Load a Preset, Ride Stiffness, Balance. |
 
 ### What a step does to the page
 
@@ -204,21 +214,21 @@ every step title of its guide, in order.
 
 ### Beginner <!--@tutorial beginner-->
 
-| # | Title | Spotlight | Sidebar | Covers |
-|---|---|---|---|---|
-| 1 | Welcome to SUSP.OS | — | close | What the app does; ☰ opens the sidebar. |
-| 2 | Choose Your Units | — | | Embedded units picker; match Forza's spring units. |
-| 3 | Getting Around | — | | Header buttons desktop vs phone, undo/redo, number boxes, ⓘ hints. |
-| 4 | Layout & Build Type | `layout-build`, `build-type` | | Drive layout and build type and what they drive. |
-| 5 | Weight & Front Bias | `weight` | | Take them from the car selection screen. |
-| 6 | Factory Presets | `garage` | close | GARAGE → FACTORY presets, ★ match, loads are undoable. |
-| 7 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR. |
-| 8 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. |
-| 9 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. |
-| 10 | Character | `character` | | STABLE ↔ AGILE damping feel. |
-| 11 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. |
-| 12 | Reading the Results | `output` | | The six result cards; amber = near a game limit. |
-| 13 | Output Toolbar | `toolbar` | | RESET, ↩ / ↪, DNA, CHECK, SHARE. |
+| # | Title | Spotlight | Sidebar | Covers | Quick |
+|---|---|---|---|---|---|
+| 1 | Welcome to SUSP.OS | — | close | What the app does; a working tune comes first, refinement after. | |
+| 2 | Choose Your Units | — | | Embedded units picker; match Forza's spring units. | ✓ |
+| 3 | Load a Preset | `garage` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. | ✓ |
+| 4 | Getting Around | `toolbar` | | ☰ sidebar, ↩ / ↪ and keyboard undo, ⓘ hints. | |
+| 5 | Layout & Build Type | `layout-build`, `build-type` | | Drive layout and build type and what they drive. | |
+| 6 | Weight & Front Bias | `weight` | | Take them from the car selection screen. | |
+| 7 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
+| 8 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
+| 9 | Character | `character` | | STABLE ↔ AGILE damping feel. | |
+| 10 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. | |
+| 11 | Reading the Results | `output` | | The six result cards; amber = near a game limit. | ✓ |
+| 12 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. | |
+| 13 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. | |
 
 ### Intermediate <!--@tutorial intermediate-->
 

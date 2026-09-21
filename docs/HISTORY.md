@@ -20,6 +20,26 @@ that unlocks them; the redirected guide's first card says why it opened; and the
 complexity popup after BEG/INT names the tier that just unlocked. The gating rules
 themselves are unchanged.
 
+## Changed — the beginner guide loads a preset at step 3 and keeps every step short
+
+Results used to appear only at step 12 of 13, so a new user read eleven steps about
+inputs with an empty results panel. "Load a Preset" is now step 3, straight after
+units, and every later step refines a tune that is already on screen. "Saving Your
+Own" moved to the end, where there is something worth saving.
+
+"Getting Around" (~160 words, `focus:null`, which dimmed the whole page) is cut to ☰,
+undo/redo and ⓘ and now spotlights `toolbar`; header-button detail is left to the ⓘ
+hints. "Output Toolbar" drops ↩ / ↪, now covered earlier. No step exceeds about 70
+words, so no step's text triggers ▼ SCROLL FOR MORE. The "Load any FACTORY preset"
+task moved with the preset step.
+
+## Changed — the beginner guide offers a QUICK START path
+
+The beginner guide's first card now offers QUICK START (Units, Factory Presets,
+Balance, Reading the Results) beside FULL TOUR. The quick path is the `quick:true`
+steps of `TUTORIALS.beginner` filtered by `tutSteps`, not a second array, so it
+can't drift from the full tour. It closes through `closeTutEnd` like the full tour.
+
 ## Changed — tier guides can resume where they were left
 
 The current step used to be session state, so a reload lost it and `?` always
