@@ -3222,8 +3222,16 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
               :!ch.useMeasuredNatBal?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Set MEAS. NAT BAL first. This reading is measured against it, on the same springs.</div>
               :<>
                 <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,marginBottom:8}}>
-                  Same springs as NAT BAL SETUP. Set each pair of bars in Forza and type the Mech Balance it shows.
-                  Forza scales its ARB slider per car; this finds how stiff one click is on this one.</div>
+                  Forza scales its ARB slider differently on every car. This finds how much one click is worth on this one,
+                  so bar-driven balance lands where the game shows it.
+                  <ol style={{margin:'6px 0 0',paddingLeft:18}}>
+                    <li>In Forza, keep the springs from NAT BAL SETUP above. Don't touch springs, ride height or tyres between readings.</li>
+                    <li>Set front ARB {1} and rear ARB {arbProbeHi}. Type the Mech Balance Forza shows into the first box, then press Enter.</li>
+                    <li>Swap them: front {arbProbeHi}, rear {1}. Type that reading into the second box.</li>
+                    <li>Once both are in, Click scale updates. Press APPLY. It's saved with this car's chassis.</li>
+                  </ol>
+                  <div style={{marginTop:6}}>Type exactly what Forza displays (two decimals). Both readings are needed; the scale is their average.
+                  RESET goes back to the default. If you change MEAS. NAT BAL later, re-measure this too.</div></div>
                 {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]].map(([k,f,r,val,set,sc])=>(
                   <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                     <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>

@@ -26,6 +26,8 @@ Now:
 - The glossary adds Tyre Compliance and ARB Scale.
 - MECH and CO-SOLVE say they aim at the balance Forza displays.
 
+The ARB SCALE SETUP card itself also got numbered steps. They cover which bars to set, which box each reading goes in, that both readings are needed before APPLY works, and to re-measure after changing MEAS. NAT BAL.
+
 Text only. Every new step reuses an existing focus id.
 
 ## Changed — the balance display counts the tyres in series; ARB click scale 540
