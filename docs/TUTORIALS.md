@@ -60,10 +60,11 @@ Leaving PRO while a Vehicle DNA is applied first asks for confirmation
 
 ### Balance guide
 
-Opened by `openBalTut()` from the Handling Balance bar's header tap — only on the
-tap that *expands* it, and only while `balTutSeen` is false. On desktop that is
-expanding the detail panel; on phones it is the tap that reveals the full bar
-stack. It is never opened by `?`. It runs alongside a tier guide's state rather
+Opened automatically by `openBalTut()` from the Handling Balance bar's header tap
+— only on the tap that *expands* it, and only while `balTutSeen` is false. On
+desktop that is expanding the detail panel; on phones it is the tap that reveals
+the full bar stack. It can be replayed at any time from the **? GUIDE** button in
+the expanded panel. The header `?` never opens it. It runs alongside a tier guide's state rather
 than replacing it (`balTutOpen` / `balTutStep` are separate from `tutMode` /
 `tutStep`), and it does not dim the page.
 
@@ -269,7 +270,8 @@ RESET (⟲) with **Tutorials** ticked sets all three tier flags and
 prerequisite guides are opened again. It does not open a guide by itself, and
 does not move you out of the tier you're in: the auto-open effect runs on a
 *tier change*, so each tier guide reappears the next time you switch into its
-tier, and the balance guide the next time the Handling Balance bar is expanded.
+tier, and the balance guide the next time the Handling Balance bar is expanded
+(its **? GUIDE** button replays it without a reset).
 
 ---
 
