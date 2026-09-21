@@ -11,6 +11,13 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the beginner guide offers a QUICK START path
+
+The beginner guide's first card now offers QUICK START (Units, Factory Presets,
+Balance, Reading the Results) beside FULL TOUR. The quick path is the `quick:true`
+steps of `TUTORIALS.beginner` filtered by `tutSteps`, not a second array, so it
+can't drift from the full tour. It closes through `closeTutEnd` like the full tour.
+
 ## Changed — tier guides can resume where they were left
 
 The current step used to be session state, so a reload lost it and `?` always
