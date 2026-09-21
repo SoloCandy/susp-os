@@ -3084,10 +3084,10 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                  display:'flex',alignItems:'center',justifyContent:'center'}}
          onClick={onClose}>
       <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,
-                   width:660,maxWidth:'calc(100vw - 20px)',maxHeight:'88vh',overflow:'auto'}}
+                   width:660,maxWidth:'calc(100vw - 20px)',maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden'}}
            onClick={e=>e.stopPropagation()}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                     padding:'8px 14px',borderBottom:'1px solid #1e293b'}}>
+                     padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
           <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>TUNE CHECK</span>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
             <button className="tbtn" style={{fontSize:9,color:ckMode==='decode'?'#e2e8f0':'#475569'}}
@@ -3098,7 +3098,7 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                                              cursor:'pointer',fontSize:17,lineHeight:1}}>✕</button>
           </div>
         </div>
-        <div style={{padding:14}}>
+        <div style={{padding:14,flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
           {ckMode==='decode'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:10,marginBottom:10}}>
             <Card title="HOW TO USE">
               <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
@@ -3302,7 +3302,7 @@ const GlossaryModal=({onClose})=>{
                     border:'1px solid #1e293b',borderRadius:2,color:'#e2e8f0',
                     fontFamily:'var(--font-mono)',fontSize:13,padding:'7px 9px',outline:'none'}}/>
         </div>
-        <div style={{overflow:'auto',padding:'10px 14px 16px'}}>
+        <div style={{overflow:'auto',padding:'10px 14px 16px',flex:1,minHeight:0,overscrollBehavior:'contain'}}>
           {filtered.length===0&&
             <div style={{fontSize:12,color:'#475569',textAlign:'center',padding:'20px 0'}}>
               No terms match "{q}".
@@ -5188,16 +5188,17 @@ function App(){
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
              onClick={()=>setShowDnaModal(false)}>
           <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,width:420,maxWidth:'calc(100vw - 20px)',
-                       maxHeight:'88vh',overflow:'auto',fontFamily:'var(--font-mono)'}}
+                       maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:'var(--font-mono)'}}
                onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                         padding:'8px 14px',borderBottom:'1px solid #1e293b'}}>
+                         padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
               <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>VEHICLE DNA
                 {uiMode!=='pro'&&<span style={{fontSize:8,color:'#818cf8',letterSpacing:1,marginLeft:8}}>PRO</span>}</span>
               <button onClick={()=>setShowDnaModal(false)} aria-label="Close" style={{background:'none',border:'none',color:'#94a3b8',
                 cursor:'pointer',fontSize:14}}>✕</button>
             </div>
-            <div style={{padding:'10px 14px 14px'}}>
+            {/* Header stays put; only this body scrolls. */}
+            <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
                 {uiMode!=='pro'&&<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>
                   Switch to PRO to build a tune from a handling DNA.</div>}
                 {dnaPreview&&(()=>{
@@ -7934,8 +7935,10 @@ function App(){
                  onClick={e=>{if(e.target===e.currentTarget)close();}}>
               <div style={{background:'#0f172a',border:'1px solid #334155',borderRadius:4,
                            padding:'20px 22px',width:280,fontFamily:'var(--font-mono)',
-                           boxShadow:'0 8px 40px #000d'}}>
-                <div style={{fontSize:11,letterSpacing:2,color:'#94a3b8',marginBottom:12}}>SHARE</div>
+                           boxShadow:'0 8px 40px #000d',maxHeight:'88vh',display:'flex',flexDirection:'column'}}>
+                <div style={{fontSize:11,letterSpacing:2,color:'#94a3b8',marginBottom:12,flexShrink:0}}>SHARE</div>
+                {/* Title stays put; only this body scrolls. */}
+                <div style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
                 {/* mode selector */}
                 <div style={{position:'relative',marginBottom:14}}>
                   <select value={dataMode} onChange={e=>{setDataMode(e.target.value);setShareCopied(false);setImportErr('');setRestoreData(null);setRestoreErr('');}}
@@ -8148,6 +8151,7 @@ function App(){
                     </div>
                   </>)}
                 </>)}
+              </div>
               </div>
             </div>
             );
