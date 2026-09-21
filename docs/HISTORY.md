@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — tutorial leftovers found on the phone walkthrough
+
+- Three steps were long enough to need scrolling or fill a phone screen: INT
+  "Corner Exit & Entry" and "ARB Stiffness & Balance Mode", PRO "Mech Balance
+  Target". Trimmed; none scrolls at 375×812.
+- Both "Reading the Results" steps said "the right panel", which is not where the
+  results are on a phone. Now "the results panel".
+- The beginner tour ends on a garage step, and the garage overlay stayed open
+  behind the complexity popup. `closeTut` now closes it when the closing step
+  spotlights `garage`.
+
 ## Fixed — on phones the tutorial card covered the control it pointed at
 
 Sidebar targets always placed the card "just right of the sidebar", clamped to the

@@ -197,7 +197,9 @@ When a tier guide's step changes, an effect on `[tutMode, tutStep]`:
    a step doesn't point at it.
 3. **Opens the GARAGE overlay if `focus` includes `garage`, and closes it
    otherwise** — an assignment, not a conditional, so the full-height overlay
-   doesn't hide the results for later steps.
+   doesn't hide the results for later steps. Closing a guide on a garage step
+   (✕ or DONE, via `closeTut`) closes the overlay too — the beginner tour ends on
+   one.
 4. **Sets the sidebar**: an explicit `sidebar` wins; otherwise a step with a focus
    opens it, unless the focus includes `output` or `balance-bar`, which close it so
    the results panel is unobstructed. `focus:null` steps without `sidebar` leave it
