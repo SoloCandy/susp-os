@@ -40,7 +40,7 @@ const M = new Function(
   slice('const KG_TO_LB=', 'const arbCtx=') +
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,cornerMasses,isPhysical,' +
-  'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP};'
+  'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale};'
 )();
 
 let pass = 0, fail = 0;
@@ -340,6 +340,41 @@ t('a measured natural balance is not double-counted with the tyre-width correcti
   // Square tyres: no tyre term, so the same measurement must also read back unchanged.
   near(solve({ ...ch, tyreF: '355/20/18', tyreR: '355/25/18' }, fe, 'horizon').tune.mechBalance,
     0.65, 0.003, 'square-tyre anchor');
+});
+
+console.log('\n── MEASURE ARB ──');
+const ARB_CAL = { weight: 2950, frontBias: 65, trackF: 1.553, trackR: 1.561, tyreF: '235/35R19',
+  tyreR: '235/35R19', useMeasuredNatBal: true, measuredNatBal: 0.38 };
+const ARB_CAL_FE = { rideStiffness: 2.5, rearHzMode: 'multiplier', rearHzMult: 1.0, rideRef: 'shared', arbMode: 'man' };
+t('no measured scale falls back to ARB_RS_SCALE; a measured one is used and clamped', () => {
+  if (M.arbScaleOf(M.DEF_CH) !== M.ARB_RS_SCALE) throw new Error('default scale');
+  if (M.arbScaleOf({ useMeasuredArbScale: true, measuredArbScale: 340 }) !== 340) throw new Error('measured');
+  if (M.arbScaleOf({ useMeasuredArbScale: false, measuredArbScale: 340 }) !== M.ARB_RS_SCALE) throw new Error('flag off');
+  if (M.arbScaleOf({ useMeasuredArbScale: true, measuredArbScale: 5000 }) !== 800) throw new Error('clamp');
+});
+t('solveArbScale recovers the scale the model used, from either bar direction', () => {
+  // Round trip through computeTune: solve the balance a known scale produces, then ask the
+  // solver which scale gives that balance. Catches a wrong formula or a missed offset term.
+  for (const scale of [200, 285, 340])
+    for (const [f, r] of [[1, 46], [46, 1], [14, 51]]) {
+      const ch = { ...ARB_CAL, useMeasuredArbScale: true, measuredArbScale: scale };
+      const bal = solve(ch, { ...ARB_CAL_FE, arbManF: f, arbManR: r }, 'horizon').tune.mechBalance;
+      near(M.solveArbScale(ch, 2.5, f, r, bal), scale, 1e-6, `scale ${scale} bars ${f}/${r}`);
+    }
+});
+t('solveArbScale matches the in-game Scirocco R readings (fitted ~339)', () => {
+  const a = M.solveArbScale(ARB_CAL, 2.5, 14, 51, 0.47), b = M.solveArbScale(ARB_CAL, 2.5, 62, 3, 0.31);
+  near((a + b) / 2, 354, 0.05, 'averaged rear/front-biased scale');
+});
+t('solveArbScale rejects a reading on the wrong side of natural', () => {
+  // Rear bars can only move balance rearward; a reading below natural has no positive solution.
+  if (M.solveArbScale(ARB_CAL, 2.5, 1, 46, 0.30) !== null) throw new Error('expected null');
+});
+t('a measured scale changes AUTO clicks inversely and leaves roll stiffness alone', () => {
+  const r1 = solve(ARB_CAL, { rideStiffness: 2.5 }, 'horizon').tune;
+  const r2 = solve({ ...ARB_CAL, useMeasuredArbScale: true, measuredArbScale: 2 * M.ARB_RS_SCALE }, { rideStiffness: 2.5 }, 'horizon').tune;
+  near(r2.arbR, r1.arbR / 2, 0.05, 'rear clicks halve');
+  near(r2.rsAbR, r1.rsAbR, 0.02, 'rear roll stiffness');
 });
 
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);

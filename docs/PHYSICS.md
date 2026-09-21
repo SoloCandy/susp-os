@@ -17,7 +17,7 @@ Key empirical constants calibrated from real Forza data:
 
 | Constant | Value | Description |
 |---|---|---|
-| `ARB_RS_SCALE` | 240 | Maps ARB click → roll stiffness (N·m/rad) |
+| `ARB_RS_SCALE` | 285 | Default ARB click → roll stiffness per m² of track (N·m/rad). Per-car override via MEASURE ARB — see [ARB click scale](#arb-click-scale-measure-arb) |
 | `DAMPING_CALIBRATION` | 0.00135 | Maps damper click → critical damping coefficient. Empirically validated via SimHub telemetry: Forza uses lbf/ft/s internally, not N/mm/s — the ×1.35 correction factor confirmed by comparing suspension settling behaviour under baseline vs corrected damper values |
 | `TIRE_LOAD_SENS` | 0.15 | Grip falloff per unit Fz/Fz_ref — the tyre load sensitivity that lets roll stiffness shift balance |
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
@@ -57,14 +57,41 @@ displays. The calculator's prediction includes tyre-width correction via
 For **asymmetric tyres** (different widths front/rear), the correction
 typically brings error down to **±0.02**.
 
-For **symmetric tyres** (same width front/rear), a small residual offset
-remains (**±0.01 to ±0.04**, larger for extreme setups with very soft springs
-+ high ARBs). This is not an `ARB_RS_SCALE` error — springs contribute 88%+ of
-total roll stiffness, so scaling adjustments have negligible effect on the
-mechBalance ratio. The residual reflects Forza's incorporation of minor
-load-sensitivity and motion-ratio effects not captured in the simplified
-roll-stiffness-only model. Use **MAN mode** to directly input your real
-in-game ARB values and verify the calculator against Forza's actual reading.
+For **symmetric tyres** (same width front/rear), the geometric natural balance
+reads 0.017–0.028 below Forza on the three test cars; MEASURE NAT BAL removes
+that per car. Away from natural, the bars' contribution depends on the click
+scale, which Forza sets per car — see below.
+
+### ARB click scale (MEASURE ARB)
+
+One Forza ARB click adds `arbScaleOf(ch)·track²` of roll stiffness per axle.
+`arbScaleOf` returns `ch.measuredArbScale` when MEASURE ARB is set, else
+`ARB_RS_SCALE`.
+
+The constant was 240. In-game measurement on the three test cars at 2.50 Hz,
+equal springs, MEASURE NAT BAL on and MAN bars swept front- and rear-biased,
+fitted best single scales of about **310 (MX-5 Cup), 258 (Ultima Evo) and 339
+(Scirocco R)**. The Ultima's and Scirocco's within-noise ranges (234–283 and
+306–374) do not overlap, so no single constant fits every car inside Forza's
+2-decimal readout: Forza normalises the 1–N slider per car. 285 is the
+compromise default. Fitting front and rear scales separately gave ratios of
+0.91, 1.14 and 1.08, all within noise of 1, so the front/rear split and the
+`track²` weighting hold; only the magnitude varies by car.
+
+MEASURE ARB (TUNE CHECK's measure mode, beside NAT BAL SETUP) finds the
+per-car value. On the NAT BAL springs, the user sets the bars to `1 / H`
+then `H / 1` (`H` = 70% of the ARB ceiling) and types Forza's mech balance
+for each. `solveArbScale` takes each reading back to roll-stiffness space
+(minus `tireCorr` and `natOffset`, which is why MEASURE NAT BAL must be set
+first) and solves the balance equation for the scale in closed form. The two
+results are averaged: one 2-decimal reading moves the answer by several
+percent, and swapping the bars cancels any front/rear bias. Readings that
+give no scale between 100 and 800 are rejected.
+
+Changing the scale moves clicks, not stiffness: AUTO, SHARE, ROLL and the
+balance solves ask for the same roll stiffness and print fewer or more clicks.
+MAN clicks are taken as typed, so their stiffness, roll angle and balance
+change instead.
 
 The physical at-limit tendency (**GRIP BIAS**) is derived separately from a
 lateral-load-transfer model — see [Mech balance grip model](#mech-balance-grip-model-mechbalancelltbalancefromrsbal)
@@ -636,7 +663,7 @@ frequency (dispatch lives in `feelToPhysics`):
   ARB utilisation. Both are expressed in the same currency so the
   comparison is meaningful — spring utilisation is the incremental rear
   roll-stiffness the spring correction is carrying (relative to its `S=0`
-  baseline), converted through the same `ARB_RS_SCALE·track²` relationship
+  baseline), converted through the same `arbScaleOf(ch)·track²` relationship
   real ARB clicks use, then scaled 0..1 against `lim.arb`: "how many ARB
   clicks would this same physical correction have cost, had bars done it
   instead." ARB utilisation is the heavier bar's clicks against `lim.arb`,

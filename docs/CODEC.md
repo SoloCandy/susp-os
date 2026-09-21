@@ -88,8 +88,10 @@ future version might not carry.
 | 67 | fe | arbNeutralEqual | bool |
 | 68 | ch | arbMotionRatioF | raw number |
 | 69 | ch | arbMotionRatioR | raw number |
+| 70 | ch | useMeasuredArbScale | bool |
+| 71 | ch | measuredArbScale | raw number |
 
-**Next available id: 70.**
+**Next available id: 72.**
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
@@ -124,6 +126,11 @@ travel, a receiver decoding with `useMeasuredNatBal` defaulted to `false`
 silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
 actually tuned toward. See the semantic-change note below.
+
+Ids 70/71 (`useMeasuredArbScale`/`measuredArbScale`) are `group:'ch'` like
+60/61: a calibration of this car's Forza ARB slider. A shared build's ARB clicks
+only mean the sender's stiffness against the sender's scale, so it travels with
+the chassis.
 
 ## Retired — never reuse
 

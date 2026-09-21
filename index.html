@@ -171,7 +171,16 @@ const KMH_PER_MPH=1.60934;
 // resolved entry in docs/HISTORY.md.) Physical-unit game modes don't use this at all:
 // BeamNG's slider is N/m, so it converts with LB_IN_TO_NM directly.
 const NMM_PER_LBIN=LB_IN_TO_NM/1000;
-const ARB_RS_SCALE=240;
+// Forza ARB click → roll stiffness per m² of track (N·m/rad). 240 until in-game measurement on
+// three cars (MX-5 Cup, Ultima Evo, Scirocco R) found best fits of ~310, ~258 and ~339: Forza
+// normalises its 1–N slider per car, so no one value fits every car within its 2dp readout.
+// 285 is the compromise default; MEASURE ARB (ch.measuredArbScale, read via arbScaleOf)
+// replaces it per car. See docs/PHYSICS.md.
+const ARB_RS_SCALE=285;
+// The click scale for this chassis: the MEASURE ARB reading when one is set, else the default.
+const arbScaleOf=ch=>ch.useMeasuredArbScale&&ch.measuredArbScale!=null
+  ?Math.max(ARB_SCALE_MIN,Math.min(ARB_SCALE_MAX,ch.measuredArbScale)):ARB_RS_SCALE;
+const ARB_SCALE_MIN=100,ARB_SCALE_MAX=800;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
 // ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
 // roll angle the springs alone would give — 7% per degree. One definition for every solver
@@ -264,6 +273,21 @@ const natOffsetOf=ch=>{
   const mc=cornerMasses(ch);
   const geom=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
   return naturalMechBalanceOf(ch)-geom-tireCorrOf(ch);
+};
+// MEASURE ARB: the click scale that makes the model read what Forza displayed with bars f/r at
+// equal springs of hz. Solves rsBal = (spR+r·s·tR²)/(spF+spR+f·s·tF²+r·s·tR²) for s, where the
+// reading is first taken back to rsBalance space the same way mechBalance is built (tireCorr +
+// natOffset), so it needs MEASURE NAT BAL set on the same springs. null when the reading doesn't
+// move the balance the way the bars must (no solution, or one outside ARB_SCALE_MIN..MAX).
+const solveArbScale=(ch,hz,f,r,reading)=>{
+  const mc=cornerMasses(ch);
+  const spF=axleRollStiffness(hz,mc.front,ch.trackF),spR=axleRollStiffness(hz,mc.rear,ch.trackR);
+  const T=reading-tireCorrOf(ch)-natOffsetOf(ch);
+  const qF=f*ch.trackF*ch.trackF,qR=r*ch.trackR*ch.trackR;
+  const den=T*(qF+qR)-qR;
+  if(Math.abs(den)<1e-12)return null;
+  const sc=(spR-T*(spF+spR))/den;
+  return sc>=ARB_SCALE_MIN&&sc<=ARB_SCALE_MAX?sc:null;
 };
 // The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
 // so the band is stated once. sanitizeTune clamps the STORED delta instead (0.20-nat..0.90-nat).
@@ -681,8 +705,8 @@ const feelToPhysics=(ch,fe)=>{
         :[Math.max(HZ_MIN,2*avgHz/(1+mult)),clampHz(2*avgHz*mult/(1+mult))]);
       let _manSolved_sh=false;
       if(arbBalModeEarly==='man'){
-        const rsAbF_m=(fe.arbManF??20)*ARB_RS_SCALE*ch.trackF*ch.trackF;
-        const rsAbR_m=(fe.arbManR??20)*ARB_RS_SCALE*ch.trackR*ch.trackR;
+        const rsAbF_m=(fe.arbManF??20)*arbScaleOf(ch)*ch.trackF*ch.trackF;
+        const rsAbR_m=(fe.arbManR??20)*arbScaleOf(ch)*ch.trackR*ch.trackR;
         const T=mech.rsBalTgt,C0=2*Math.pow(2*Math.PI*avgHz,2);
         const P=(1-T)*rsAbR_m-T*rsAbF_m;
         const alpha=C0*mech.W*(1-T)+P,beta=2*P,gamma=P-T*mech.V*C0;
@@ -737,8 +761,8 @@ const feelToPhysics=(ch,fe)=>{
       let _manSolved_fr=false;
       if(arbBalModeEarly==='man'){
         const m_m=cornerMasses(ch);
-        const rsAbF_m=(fe.arbManF??20)*ARB_RS_SCALE*ch.trackF*ch.trackF;
-        const rsAbR_m=(fe.arbManR??20)*ARB_RS_SCALE*ch.trackR*ch.trackR;
+        const rsAbF_m=(fe.arbManF??20)*arbScaleOf(ch)*ch.trackF*ch.trackF;
+        const rsAbR_m=(fe.arbManR??20)*arbScaleOf(ch)*ch.trackR*ch.trackR;
         const T=mech.rsBalTgt;
         let mult_man=null;
         if(rideRef==='front'){
@@ -927,12 +951,12 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
     // See computeTune's prior inline version (moved here unchanged) for the full derivation.
     const _rm=rollMomentOf(ch);
     const _rsTotTgt=_rm/(arbTargetRoll*(Math.PI/180));
-    const _basicBudget=ARB_RS_SCALE*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+(utilRef-1)*arbBasicMan/100);
+    const _basicBudget=arbScaleOf(ch)*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+(utilRef-1)*arbBasicMan/100);
     const simUtil=(sVal)=>{
       const R_sp_s=Math.max(0.001,Math.min(0.999,R_baseline+sVal*(targetRsBalance-R_baseline)));
       const rsSpR_s=R_sp_s*rsSpF_cs/(1-R_sp_s);
       const eRHz=clampHz(Math.sqrt(2*rsSpR_s/(m.rear*ch.trackR*ch.trackR))/(2*Math.PI));
-      const spUtil=Math.min(1,Math.abs(rsSpR_s-rsSpR_base)/(ARB_RS_SCALE*ch.trackR*ch.trackR*utilRef));
+      const spUtil=Math.min(1,Math.abs(rsSpR_s-rsSpR_base)/(arbScaleOf(ch)*ch.trackR*ch.trackR*utilRef));
       const rsSpF_s=axleRollStiffness(fHz,m.front,ch.trackF), rsSpRs=axleRollStiffness(eRHz,m.rear,ch.trackR);
       const rsSp_s=rsSpF_s+rsSpRs;
       const nRoll=rsSp_s>0?(_rm/rsSp_s)*(180/Math.PI):5;
@@ -945,8 +969,8 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
       const _mTgt=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset));
       const _K=_mTgt/(1-_mTgt);
       const rF_s=Math.max(0,Math.min(1,(_K*(rsSpF_s+budget_s)-rsSpRs)/(budget_s*(1+_K))));
-      const abF_s=budget_s*(1-rF_s)/(ARB_RS_SCALE*ch.trackF*ch.trackF);
-      const abR_s=budget_s*rF_s/(ARB_RS_SCALE*ch.trackR*ch.trackR);
+      const abF_s=budget_s*(1-rF_s)/(arbScaleOf(ch)*ch.trackF*ch.trackF);
+      const abR_s=budget_s*rF_s/(arbScaleOf(ch)*ch.trackR*ch.trackR);
       const abUtil=Math.max(abF_s,abR_s)/utilRef;
       // abUtil only measures how close ARB sits to the CEILING. A lopsided split can also want
       // an axle near zero, which clk() later floors up to the game's 1-click minimum — real,
@@ -1099,7 +1123,7 @@ const computeTune=(ch,phys,gameMode)=>{
   let rsAbBudget=arbMode==='roll'
     ? rsTotalTarget-rsSpF-rsSpR        // roll mode: invert roll equation as before
     : arbMode==='basic'
-    ? ARB_RS_SCALE*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+((lim.arb??ARB_UTIL_REF)-1)*arbBasicMan/100) // basic: direct click target, unlinked from spring stiffness (ceiling-defined — BASIC is hidden in physical modes)
+    ? arbScaleOf(ch)*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+((lim.arb??ARB_UTIL_REF)-1)*arbBasicMan/100) // basic: direct click target, unlinked from spring stiffness (ceiling-defined — BASIC is hidden in physical modes)
     : rsSp*(shareTarget/(1-shareTarget)); // auto + share: target a fraction directly
   let rF=arbBalance/100;
   let _rsBalK=null;
@@ -1170,7 +1194,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // only a floor at zero, since a negative budget would be nonsense either way.
   const clk=physUnits
     ? rs=>Math.max(0,rs)
-    : (rs,track)=>{const v=Math.min(lim.arb,Math.max(1,rs/(ARB_RS_SCALE*track*track)));return Math.round(v*10)/10;};
+    : (rs,track)=>{const v=Math.min(lim.arb,Math.max(1,rs/(arbScaleOf(ch)*track*track)));return Math.round(v*10)/10;};
   let arbF,arbR;
   if(arbMode==='man'){
     // Manual mode: use user-input ARB values directly (Stiffness Mode MAN — bypasses the
@@ -1201,8 +1225,8 @@ const computeTune=(ch,phys,gameMode)=>{
   // arbF/arbR already ARE the roll stiffness, so the snap is the only step needed. For
   // identical inputs a physical mode still reports slightly different mechBalance/bTot/arbShare
   // than Forza, because the two games quantise on different grids. That is correct, not drift.
-  const rsAbF=physUnits?arbF:arbF*ARB_RS_SCALE*ch.trackF*ch.trackF;
-  const rsAbR=physUnits?arbR:arbR*ARB_RS_SCALE*ch.trackR*ch.trackR;
+  const rsAbF=physUnits?arbF:arbF*arbScaleOf(ch)*ch.trackF*ch.trackF;
+  const rsAbR=physUnits?arbR:arbR*arbScaleOf(ch)*ch.trackR*ch.trackR;
   const rsTotal=rsSpF+rsSpR+rsAbF+rsAbR;
   const rollDeg=rsTotal>0?rollMoment/rsTotal*(180/Math.PI):0;
   const rollClamped=arbMode==='roll'&&Math.abs(rollDeg-arbTargetRoll)>0.05;
@@ -1212,7 +1236,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // spring grid), with a 0.5-point floor: on a soft car with small bars one BeamNG grid step alone
   // moves the share by more than a point.
   const arbShareOut=rsTotal>0?(rsAbF+rsAbR)/rsTotal*100:0;
-  const halfArbStep=track=>physUnits?(PHYS_SNAP.arb/2)*track*track/2:0.05*ARB_RS_SCALE*track*track;
+  const halfArbStep=track=>physUnits?(PHYS_SNAP.arb/2)*track*track/2:0.05*arbScaleOf(ch)*track*track;
   const arbShareTol=rsTotal>0
     ?Math.max(0.5,100*(1-arbShareOut/100)*(halfArbStep(ch.trackF)+halfArbStep(ch.trackR))/rsTotal):0.5;
   const shareClamped=arbMode==='share'&&Math.abs(arbShareOut-arbShareMan)>arbShareTol;
@@ -1999,6 +2023,7 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               trackF:1.55,trackR:1.52,
               tyreF:'265/35R18',tyreR:'265/35R18',
               useMeasuredNatBal:false,measuredNatBal:null,layout:'RWD',
+              useMeasuredArbScale:false,measuredArbScale:null,
               useRideHeightCG:true,rideHeightF:0.13,rideHeightR:0.12,
               // Spring/damper travel per unit wheel travel. 1.0 = direct-acting, which is
               // what Forza displays, so these are inert in the Forza modes and only affect
@@ -2923,6 +2948,9 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
   const phys=lim.damping==null;
   const[ckMode,setCkMode]=useState(initialMode??'decode');
   const[probeHz,setProbeHz]=useState(2.5);
+  // MEASURE ARB: Forza's mech balance with the bars rear-biased (A) and front-biased (B).
+  const[arbReadA,setArbReadA]=useState(null);
+  const[arbReadB,setArbReadB]=useState(null);
   const[ckSpr,setCkSpr]=useState(phys?{f:70000/LB_IN_TO_NM,r:200000/LB_IN_TO_NM}:{f:400,r:300});
   const[ckDmp,setCkDmp]=useState(phys?{rebF:16000,rebR:10000,bumpF:6000,bumpR:4000}
                                      :{rebF:5,rebR:5,bumpF:3,bumpR:3});
@@ -2981,6 +3009,13 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
   const probeMasses=useMemo(()=>cornerMasses(ch),[ch]);
   const probeRateF=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.front/LB_IN_TO_NM,[probeHz,probeMasses]);
   const probeRateR=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.rear /LB_IN_TO_NM,[probeHz,probeMasses]);
+  // MEASURE ARB's two setups: one bar at 70% of the ceiling, the other at 1, then swapped.
+  // Each reading solves for a scale on its own; they are averaged because a single 2dp reading
+  // moves the answer by several percent, and the swap cancels any front/rear bias in the model.
+  const arbProbeHi=lim?.arb?Math.round(0.7*lim.arb):null;
+  const arbScaleA=arbProbeHi&&arbReadA!=null?solveArbScale(ch,probeHz,1,arbProbeHi,arbReadA):null;
+  const arbScaleB=arbProbeHi&&arbReadB!=null?solveArbScale(ch,probeHz,arbProbeHi,1,arbReadB):null;
+  const arbScaleNew=arbScaleA!=null&&arbScaleB!=null?(arbScaleA+arbScaleB)/2:null;
   return(
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:999,
                  display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -3123,6 +3158,37 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                   onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value)}))}
                   style={{width:'100%'}}/>
               </div>
+            </Card>
+            <Card title="ARB SCALE SETUP" accent>
+              {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
+              :!ch.useMeasuredNatBal?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Set MEAS. NAT BAL first. This reading is measured against it, on the same springs.</div>
+              :<>
+                <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,marginBottom:8}}>
+                  Same springs as NAT BAL SETUP. Set each pair of bars in Forza and type the Mech Balance it shows.
+                  Forza scales its ARB slider per car; this finds how stiff one click is on this one.</div>
+                {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]].map(([k,f,r,val,set,sc])=>(
+                  <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>
+                    <span style={{display:'flex',alignItems:'center',gap:6}}>
+                      {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
+                      <NumBox value={val??NaN} min={0.05} max={0.95} dp={2} label={`Mech balance with ARB ${f} / ${r}`} onCommit={set}/>
+                    </span>
+                  </div>))}
+                {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
+                  <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
+                    That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</div>}
+                <Stat label="Click scale" value={arbScaleNew??arbScaleOf(ch)} unit="" decimals={0}/>
+                <div style={{display:'flex',gap:4,marginTop:8}}>
+                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
+                    title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbScale:true,measuredArbScale:Math.round(arbScaleNew)}))}>APPLY</button>
+                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:ch.useMeasuredArbScale?1:0.35}} disabled={!ch.useMeasuredArbScale}
+                    title={`Go back to the default click scale (${ARB_RS_SCALE}).`}
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbScale:false,measuredArbScale:null}))}>RESET</button>
+                </div>
+                <div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6}}>
+                  {ch.useMeasuredArbScale?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}</div>
+              </>}
             </Card>
           </div>}
         </div>
@@ -3340,6 +3406,10 @@ const CODEC_FIELDS=[
   {id:65,group:'ch',key:'rideHeightF'},
   {id:66,group:'ch',key:'rideHeightR'},
   {id:67,group:'fe',key:'arbNeutralEqual',bool:true},
+  // 70/71: MEASURE ARB's per-car click scale. group:'ch' — a calibration of this car's
+  // Forza slider, and a shared build's ARB clicks only mean the same stiffness against it.
+  {id:70,group:'ch',key:'useMeasuredArbScale',bool:true},
+  {id:71,group:'ch',key:'measuredArbScale'},
   // Retired ids — never reuse: none yet (dead fields removed pre-v1 never had an id).
 ];
 const codecFieldDefault=f=>f.tyre?f.def:DEF_GROUPS[f.group][f.key];
@@ -3412,6 +3482,8 @@ const sanitizeTune=({ch,fe,dr})=>{
       // instead of silently falling back to geometry — see docs/CODEC.md id 60/61.
       useMeasuredNatBal: !!(ch?.useMeasuredNatBal),
       measuredNatBal:    ch?.useMeasuredNatBal&&ch?.measuredNatBal!=null?cl(ch.measuredNatBal,0.10,0.90,null):null,
+      useMeasuredArbScale: !!(ch?.useMeasuredArbScale),
+      measuredArbScale:  ch?.useMeasuredArbScale&&ch?.measuredArbScale!=null?cl(ch.measuredArbScale,ARB_SCALE_MIN,ARB_SCALE_MAX,null):null,
       // Floor at 0.2 rather than 0: mrDiv squares this, so a near-zero ratio would
       // scale the displayed rate toward infinity.
       motionRatioF: cl(ch?.motionRatioF,    0.2,  1.5,  DEF_CH.motionRatioF),
@@ -4721,7 +4793,7 @@ function App(){
   // current solve, which would be circular (tune.arbF is computed FROM arbMan*).
   //
   //  - arbMan{F,R} carry ARB clicks in Forza and N·m/rad in physical modes. The two are
-  //    related by exactly ARB_RS_SCALE·track², the same relationship clk() uses, so the
+  //    related by exactly arbScaleOf(ch)·track², the same relationship clk() uses, so the
   //    conversion is lossless in both directions and preserves what the user actually meant.
   //    Without it, 21.4 clicks would be read as 21.4 N·m/rad — near-zero roll stiffness.
   //  - BASIC is a percentage of the click ceiling, so it has no meaning without one and its
@@ -4738,7 +4810,7 @@ function App(){
     // A restore that crosses the click/physical boundary brings its arbManF/arbManR already in
     // the right units — converting them again is the bug the old undo had.
     if(was===physMode||restoringRef.current)return;
-    const kF=ARB_RS_SCALE*ch.trackF*ch.trackF,kR=ARB_RS_SCALE*ch.trackR*ch.trackR;
+    const kF=arbScaleOf(ch)*ch.trackF*ch.trackF,kR=arbScaleOf(ch)*ch.trackR*ch.trackR;
     setFeRaw(p=>{
       const next={...p};
       if(physMode&&(p.arbMode??'auto')==='basic')next.arbMode='auto';

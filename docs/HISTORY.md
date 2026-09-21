@@ -11,6 +11,23 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — ARB click scale raised to 285, and MEASURE ARB added
+
+`ARB_RS_SCALE` was 240, described as validated across three cars. That check
+had only compared balance near the natural point, where springs dominate and the
+bars barely register. A sweep with MAN bars on the same three cars (front- and
+rear-biased, equal springs, MEASURE NAT BAL on) found the bars shift Forza's
+balance by up to 0.12, and fitted scales of about 310, 258 and 339. The
+Ultima's and Scirocco's within-noise ranges don't overlap, so no single value
+can be right for every car. The default moved to 285, which roughly halves the
+error on the MX-5 and Scirocco and barely changes the Ultima. MEASURE ARB
+(`ch.measuredArbScale`, codec ids 70/71) sets the scale per car from two
+in-game readings.
+
+Existing builds: for the same target, the solved modes now print about 16% fewer
+clicks. MAN builds keep their clicks, so their roll stiffness, roll angle and
+balance readout change instead.
+
 ## Fixed — MEASURE NAT BAL counted the tyre-width correction twice
 
 With MEASURE NAT BAL on, every solve site set
