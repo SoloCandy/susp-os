@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the beginner guide loads a preset at step 3 and keeps every step short
+
+Results used to appear only at step 12 of 13, so a new user read eleven steps about
+inputs with an empty results panel. "Load a Preset" is now step 3, straight after
+units, and every later step refines a tune that is already on screen. "Saving Your
+Own" moved to the end, where there is something worth saving.
+
+"Getting Around" (~160 words, `focus:null`, which dimmed the whole page) is cut to ☰,
+undo/redo and ⓘ and now spotlights `toolbar`; header-button detail is left to the ⓘ
+hints. "Output Toolbar" drops ↩ / ↪, now covered earlier. No step exceeds about 70
+words, so no step's text triggers ▼ SCROLL FOR MORE. The "Load any FACTORY preset"
+task moved with the preset step.
+
 ## Changed — the beginner guide offers a QUICK START path
 
 The beginner guide's first card now offers QUICK START (Units, Factory Presets,
