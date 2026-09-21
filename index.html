@@ -4135,7 +4135,7 @@ const UnitsPicker=({units,setUnits})=>(<>
   ))}
 </>);
 
-const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState})=>{
+const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice})=>{
   const steps=tutSteps(mode,quick);
   const total=steps.length;
   const t=steps[step];
@@ -4334,6 +4334,10 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         ))}
       </div>
       <div style={{position:'relative',flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>
+        {notice&&step===0&&(
+          <div style={{fontSize:11,color:'#fbbf24',border:'1px solid #78350f',background:'#1c1206',
+                       borderRadius:2,padding:'6px 8px',margin:'0 0 8px',lineHeight:1.5}}>🔒 {notice}</div>
+        )}
         <div ref={bodyRef} onScroll={checkOverflow}
              style={{fontSize:11,color:'#94a3b8',lineHeight:1.65,margin:'0 0 10px',
                  overflowY:'auto',flex:1,minHeight:0,
@@ -4537,10 +4541,17 @@ function App(){
     if(tutMode&&tutMode!=='balance'&&!tutQuick&&(tutProgress?.[tutMode]??0)!==tutStep)
       setTutProgress(p=>({...p,[tutMode]:tutStep}));
   },[tutMode,tutStep,tutQuick]); // eslint-disable-line
-  const closeTut=()=>setTutMode(null);
-  // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier)
+  // One-shot note on the guide's first card explaining a locked-tier redirect; cleared on close
+  const[tutNotice,setTutNotice]=useState(null);
+  const closeTut=()=>{setTutMode(null);setTutNotice(null);};
+  // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier).
+  // showComplexity holds the tier that guide unlocks, so the popup can name it.
   const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:0}));closeTutEnd();};
-  const closeTutEnd=()=>{if(tutMode==='beginner'||tutMode==='intermediate')setShowComplexity(true);closeTut();};
+  const closeTutEnd=()=>{
+    if(tutMode==='beginner')setShowComplexity('intermediate');
+    else if(tutMode==='intermediate')setShowComplexity('pro');
+    closeTut();
+  };
   // Gating: INT requires BEG completion, PRO requires INT completion
   const canAccessMode=m=>{
     if(m==='beginner')return true;
@@ -4548,6 +4559,8 @@ function App(){
     if(m==='pro')return tutSeen.intermediate;
     return false;
   };
+  const TIER_LABEL={beginner:'BEG',intermediate:'INT',pro:'PRO'};
+  const lockTitle=m=>canAccessMode(m)?undefined:`Unlocks after you open the ${m==='pro'?'INT':'BEG'} guide`;
   const tryAccessMode=m=>{
     if(canAccessMode(m)){
       setUiMode(m);
@@ -4556,6 +4569,7 @@ function App(){
       const needed=m==='intermediate'?'beginner':'intermediate';
       setUiMode(needed);
       openTut(needed);
+      setTutNotice(`${TIER_LABEL[m]} unlocks once you've seen the ${TIER_LABEL[needed]} guide.`);
     }
   };
   // Leaving PRO rewrites the modes a DNA compiles into (see the BEG/INT fallback effects), so ask
@@ -5499,7 +5513,7 @@ function App(){
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
         onClose={closeTutEnd}
         onDone={finishTut}
-        zoom={effZoom} units={units} setUnits={setUnits} appState={fe}/>}
+        zoom={effZoom} units={units} setUnits={setUnits} appState={fe} notice={tutNotice}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
         onPrev={()=>setBalTutStep(s=>Math.max(s-1,0))}
@@ -5532,6 +5546,11 @@ function App(){
               <span style={{padding:'3px 8px',border:'1px solid #1e293b',borderRadius:2,
                 fontSize:11,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>?</span>
             </div>
+            {typeof showComplexity==='string'&&(
+              <div style={{fontSize:11,color:'#4ade80',lineHeight:1.6,marginBottom:10}}>
+                🔓 {TIER_LABEL[showComplexity]} unlocked — {showComplexity==='pro'?'every control is now available':'more controls are now available'}.
+              </div>
+            )}
             <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.7,marginBottom:14}}>
               Choose how much of the app to show. <span style={{color:'#e2e8f0'}}>BEG</span> is the best starting point — fewer controls, guided outputs.
               Press <span style={{color:'#e2e8f0',fontFamily:'var(--font-mono)'}}>?</span> at any time to open a step-by-step tutorial.
@@ -5576,8 +5595,9 @@ function App(){
               </select>
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
               {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([mode,label])=>(
-                <button key={mode} className={`tbtn${uiMode===mode?' on':''}`}
-                  onClick={()=>requestMode(mode)} style={{fontSize:11}}>{label}</button>
+                <button key={mode} className={`tbtn${uiMode===mode?' on':''}`} title={lockTitle(mode)}
+                  onClick={()=>requestMode(mode)} style={{fontSize:11,...(canAccessMode(mode)?{}:{opacity:0.45})}}>
+                  {canAccessMode(mode)?label:<>🔒 {label}</>}</button>
               ))}
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
             </>}
@@ -5595,9 +5615,9 @@ function App(){
           <div style={{display:'flex',gap:4,padding:'0 14px 8px'}}>
             {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([mode,label])=>(
               <button key={mode} className={`tbtn${uiMode===mode?' on':''}`}
-                onClick={()=>requestMode(mode)}
-                style={{flex:1,fontSize:11,padding:'7px 0',textAlign:'center'}}>
-                {label}
+                onClick={()=>requestMode(mode)} title={lockTitle(mode)}
+                style={{flex:1,fontSize:11,padding:'7px 0',textAlign:'center',...(canAccessMode(mode)?{}:{opacity:0.45})}}>
+                {canAccessMode(mode)?label:<>🔒 {label}</>}
               </button>
             ))}
           </div>

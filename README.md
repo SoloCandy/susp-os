@@ -52,6 +52,8 @@ A **GARAGE** drawer slides out from the right (button at the top-right of the he
 
 Pasting a share code (SHARE → LOAD CODE) offers two ways in: **OVERWRITE** replaces your current tune, or **TO GARAGE** saves it as a new garage entry without touching what you're working on.
 
+INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
+
 | Tier | Surface |
 |---|---|
 | **BEG** | <ul><li>Layout, build type (Street / Track / Drift / Rally / Offroad / Drag), weight, and front bias, plus three feel sliders (Ride Stiffness, Balance, Character)</li><li>Factory presets in the GARAGE drawer give build-appropriate starting points, with ★ marking the one matching your build type</li><li>ARB balance is set automatically for your layout and build type</li><li>Full GARAGE access — saving a chassis means not retyping weight and bias every time you switch cars</li></ul> |
