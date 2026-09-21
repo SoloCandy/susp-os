@@ -47,6 +47,24 @@ What changed:
 - `tests-dna.js`'s FrontHeavy pitch-rescue scenario moved from balance offset 0
   to −0.10: with springs 0.7× as effective, offset 0 was out of reach at any pitch.
 
+**If this needs reverting.** It is one commit (`d22d813`, "Model the tyres in series
+in Forza's balance display"), tests and docs included, independent of the MEASURE
+NAT BAL double-count fix and the MEASURE ARB commit before it, which stay. What a
+revert does to data:
+
+- Saved chassis carrying `measuredArbClick`/`measuredNatBalHz`: the reverted
+  `sanitizeTune` doesn't know them and drops them. MEASURE ARB is lost (re-measure
+  under the old model); the nat bal reading itself is kept.
+- Share codes made after this carry ids 72–74: the reverted decoder skips them as
+  unknown ids. Mark 72–74 **retired** in CODEC.md then, since codes in the wild
+  carry them — they must never be reused for anything else.
+- Ids 70/71 come back with the meaning they always had (the pre-tyre click scale),
+  so old codes and saves work again. That is restoring the original field, not
+  reusing an id, so the never-reuse rule isn't broken — but move them out of the
+  Retired list.
+- Undoing only the scale while keeping the tyre model is not a partial revert:
+  540 is fitted under the tyre term, and 285 without it double-counts the tyre.
+
 ## Changed — ARB click scale raised to 285, and MEASURE ARB added
 
 `ARB_RS_SCALE` was 240, described as validated across three cars. That check
