@@ -81,7 +81,8 @@ guide. The point is to send the user to the tier buttons as they leave a tour.
 ## The card (`TutorialPanel`)
 
 Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
-tier guides only — `units` / `setUnits` for the units step.
+tier guides only — `units` / `setUnits` for the units step and `appState` (the
+live `fe`) for step tasks.
 
 - **Header**: `{label} GUIDE · n / total`, the step title, and ✕. For tier guides
   ✕ and DONE ✓ share one handler (`closeTutEnd`), so closing early has the same
@@ -91,6 +92,13 @@ tier guides only — `units` / `setUnits` for the units step.
   term / definition pairs (the same treatment as the TERMS modal). A step with
   `units:true` appends the `UnitsPicker` — the same control the UNITS modal uses,
   so a choice made here is the real setting.
+- **Task**: a step with `task` appends a `TRY IT ·` line with a ○ marker. When the
+  step opens, `appState` is snapshotted; whenever it changes, `task.check(appState,
+  snapshot)` runs, and once it returns true the marker latches to ✓ (green) for the
+  rest of that step. Returning to a step re-snapshots and resets it. A throwing
+  check counts as not done. The task never gates NEXT — it is a nudge, and the
+  spotlit zone is already clickable (see `dim()`), so the user acts in place. The
+  balance guide passes no `appState`, so tasks there would never tick.
 - **Buttons**: ← PREV from step 2 on; NEXT → until the last step, then DONE ✓.
   DONE calls `onDone` if given (tier guides: `closeTutEnd`), otherwise `onClose`
   (balance guide).
@@ -132,6 +140,7 @@ Each step is an object in its guide's array:
 | `focus` | yes (may be `null`) | Array of zone keys to spotlight. `null` = info step, nothing spotlit. |
 | `sidebar` | no | `'open'` or `'close'` forces the sidebar. |
 | `units` | no | `true` embeds the units picker. |
+| `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Factory Presets, Ride Stiffness, Balance. |
 
 ### What a step does to the page
 
