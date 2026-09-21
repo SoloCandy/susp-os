@@ -4490,8 +4490,8 @@ function App(){
     if(!step0?.sidebar)setSidebarOpen(true);
   };
   const closeTut=()=>setTutMode(null);
-  // Called only when user clicks DONE on the last step of the beginner guide
-  const closeTutDone=()=>{if(tutMode==='beginner'||tutMode==='intermediate')setShowComplexity(true);closeTut();};
+  // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier)
+  const closeTutEnd=()=>{if(tutMode==='beginner'||tutMode==='intermediate')setShowComplexity(true);closeTut();};
   // Gating: INT requires BEG completion, PRO requires INT completion
   const canAccessMode=m=>{
     if(m==='beginner')return true;
@@ -5239,7 +5239,7 @@ function App(){
       setAl({...DEF_AL});
       dnaUnlink();
     });
-    if(resetOpts.tutorials)setTutSeen({beginner:false,intermediate:false,pro:false});
+    if(resetOpts.tutorials){setTutSeen({beginner:false,intermediate:false,pro:false});setBalTutSeen(false);}
     setShowResetModal(false);
     setResetOpts({tune:true,tutorials:false});
   };
@@ -5430,8 +5430,8 @@ function App(){
       {tutMode&&<TutorialPanel mode={tutMode} step={tutStep}
         onNext={()=>setTutStep(s=>Math.min(s+1,(TUTORIALS[tutMode]?.length??1)-1))}
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
-        onClose={closeTut}
-        onDone={closeTutDone}
+        onClose={closeTutEnd}
+        onDone={closeTutEnd}
         zoom={effZoom} units={units} setUnits={setUnits}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}

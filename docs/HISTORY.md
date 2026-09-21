@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
+
+The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on
+DONE ✓ at the end of the beginner or intermediate guide, so anyone who closed a
+guide with ✕ never saw where the tier buttons were. ✕ and DONE now share one
+handler, `closeTutEnd`; PRO and the balance guide still don't show the popup.
+
+RESET with Tutorials ticked now also clears `suspos_baltut_seen_v1`. It previously
+left it set, so the Handling Balance guide could never be seen again after a reset.
+
 ## Changed — Damping Balance Mode is now STANDARD / SYNC, with SYNC sub-modes
 
 NEUTRAL moved under SYNC, which now reveals TIME SYNC / HYBRID / EQUAL FORCE. The old

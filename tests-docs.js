@@ -463,6 +463,46 @@ check('index.html doc pointers resolve to real files', () => {
   return problems.length === 0 || `index.html points at missing doc(s): ${[...new Set(problems)].join(', ')}`;
 });
 
+// ── tutorials ───────────────────────────────────────────────────────────────
+section('tutorials');
+
+// Step titles per guide, read off the TUTORIALS object. Guide headers sit at two-space
+// indent (`  beginner:[`); each title is the first quoted string after `title:`.
+const TUT_GUIDES = (() => {
+  const body = objectBody('TUTORIALS');
+  const heads = [...body.matchAll(/^  (\w+):\[/gm)];
+  const out = {};
+  heads.forEach((h, i) => {
+    const seg = body.slice(h.index, i + 1 < heads.length ? heads[i + 1].index : body.length);
+    out[h[1]] = [...seg.matchAll(/title:'((?:[^'\\]|\\.)*)'/g)].map(m => m[1].replace(/\\'/g, "'"));
+  });
+  return out;
+})();
+
+check('TUTORIALS.md catalogues every guide, step titles in order', () => {
+  const md = doc['TUTORIALS.md'];
+  if (!md) return 'docs/TUTORIALS.md missing';
+  const problems = [];
+  for (const [guide, titles] of Object.entries(TUT_GUIDES)) {
+    const at = md.indexOf(`<!--@tutorial ${guide}-->`);
+    if (at < 0) { problems.push(`no <!--@tutorial ${guide}--> table`); continue; }
+    const next = md.indexOf('\n#', at);
+    const seg = md.slice(at, next < 0 ? md.length : next);
+    const rows = [...seg.matchAll(/^\|\s*\d+\s*\|\s*([^|]+?)\s*\|/gm)].map(m => m[1]);
+    if (rows.join('\n') !== titles.join('\n'))
+      problems.push(`${guide}: doc [${rows.join(' / ')}] vs code [${titles.join(' / ')}]`);
+  }
+  return problems.length === 0 || problems.join('; ');
+});
+
+check('every tutorial focus key names a real zone- id', () => {
+  const zones = new Set([...SRC.matchAll(/id="zone-([\w-]+)"/g)].map(m => m[1]));
+  const bad = new Set();
+  for (const m of objectBody('TUTORIALS').matchAll(/focus:\[([^\]]*)\]/g))
+    for (const k of m[1].matchAll(/'([\w-]+)'/g)) if (!zones.has(k[1])) bad.add(k[1]);
+  return bad.size === 0 || `focus keys with no zone: ${[...bad].join(', ')}`;
+});
+
 // ── report ──────────────────────────────────────────────────────────────────
 console.log(`\n${pass + fail} checks: ${pass} passed, ${fail} failed`);
 if (fail) {

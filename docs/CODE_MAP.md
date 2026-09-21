@@ -65,7 +65,7 @@ The source runs top to bottom in this order:
    core `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
-7. **Tutorial content** — the `TUTORIALS` object and `TutorialPanel`.
+7. **Tutorial content** — the `TUTORIALS` object and `TutorialPanel`. Documented in [TUTORIALS.md](TUTORIALS.md).
 8. **`App()`** — all remaining state, the derived `useMemo` chain, and the
    entire sidebar + output JSX.
 9. **Bootstrap** — the Babel/eval block described above.
