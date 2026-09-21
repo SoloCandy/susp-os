@@ -427,8 +427,11 @@ Damping Balance Mode then does the exact same split from that one number:
   for the range where it actually diverges.
 - **`forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)`** — `wF,wR =
   mF·fHz, mR·rHz`. Holds actual damping force equal (force ∝ `ζ·m·Hz`, see
-  `solveDampRaw` above). Used by NEUTRAL, under either REBOUND MODE.
+  `solveDampRaw` above). Used by EQUAL FORCE (stored as `neutral`), under either REBOUND MODE.
   Corrects for corner-mass asymmetry that SYNC ignores.
+- **HYBRID** (SYNC sub-mode) — `balModeZetas` averages the `settleZetas` and
+  `forceZetas` results per axle. Both hold the anchor axle at `refZeta`, so
+  the mean does too.
 - **STANDARD** doesn't call either — it biases `baseZeta` directly by
   percentage, independent of Hz or mass entirely, under either REBOUND MODE.
   The ride-reference axle (`rideRef`) holds `baseZeta` exactly regardless of
@@ -453,7 +456,7 @@ on BUMP MODE:
   ζ, so scaling both `zetaF` and `zetaR` by `bumpRatioVal/100` carries
   whatever split the balance mode already solved straight onto bump.
 - **INDEPENDENT** has no such link — the typed `fe.bumpZeta` is an anchor
-  in its own right, not a function of rebound. So under SYNC/NEUTRAL it is
+  in its own right, not a function of rebound. So under the SYNC methods it is
   run through the *same solver a second time*, with the typed value as
   `refZeta` and the same `biasMult`. `balModeZetas(mode, …)` exists for
   exactly this: it picks `forceZetas` or `settleZetas` by mode, so the two
@@ -556,7 +559,7 @@ Two consequences worth keeping in view, neither of them addressed here:
   against the real response an aggressive target would be better served
   near ζ≈59% than at 100%. See [HISTORY.md](HISTORY.md).
 
-`computeTune` re-runs whichever of SYNC/NEUTRAL is active a second time
+`computeTune` re-runs whichever SYNC method is active a second time
 after CO-SOLVE resolves `effectiveRHz`, so the settle-time or force split
 matches the *post*-CO-SOLVE rear Hz rather than the pre-solve value
 `feelToPhysics` saw. It runs under **either** REBOUND MODE, including

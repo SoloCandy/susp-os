@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Damping Balance Mode is now STANDARD / SYNC, with SYNC sub-modes
+
+NEUTRAL moved under SYNC, which now reveals TIME SYNC / HYBRID / EQUAL FORCE. The old
+SYNC is now labelled TIME SYNC and the old NEUTRAL is EQUAL FORCE. HYBRID is new: the
+per-axle mean of the TIME SYNC and EQUAL FORCE ζ solves. Stored values are unchanged
+(`sync` = TIME SYNC, `neutral` = EQUAL FORCE, still index 2); `hybrid` takes codec index 3, so old codes
+decode as before.
+
 ## Changed — Vehicle DNA moved out of GARAGE into its own modal
 
 The DNA editor and MY DNA left the GARAGE drawer for a modal opened by a DNA button in

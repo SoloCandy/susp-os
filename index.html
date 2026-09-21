@@ -551,9 +551,16 @@ const forceZetas=(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>balancedZetas(rideRef
 // "anchor refZeta at the ride-reference axle, derive the other so <metric> matches" — so the
 // anchor is a parameter, and the same call splits the rebound anchor and (in INDEPENDENT bump
 // mode) the typed bump anchor. Callers still clamp the result; this returns it unclamped.
-const balModeZetas=(mode,rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>mode==='neutral'
-  ? forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)
-  : settleZetas(rideRef,fHz,rHz,refZeta,biasMult);
+// HYBRID (a SYNC sub-mode) is the per-axle arithmetic mean of the SYNC and NEUTRAL solves —
+// halfway between equal settle time and equal damping force. Both parents hold the anchor axle
+// at refZeta, so the mean does too.
+const balModeZetas=(mode,rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>{
+  if(mode==='neutral')return forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult);
+  const s=settleZetas(rideRef,fHz,rHz,refZeta,biasMult);
+  if(mode!=='hybrid')return s;
+  const f=forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult);
+  return{zF:(s.zF+f.zF)/2,zR:(s.zR+f.zR)/2};
+};
 
 // ── Mech balance — steady-state US/OS from physics ───────────────────────────
 // Derived from lateral-load-transfer distribution (set by the front/rear roll-
@@ -863,7 +870,8 @@ const feelToPhysics=(ch,fe)=>{
     }
   }
   const dampingMode=fe.dampingMode??'ratio';
-  // Damping Balance Mode — mirrors ARB Balance Mode's WEIGHT/NEUTRAL split. STANDARD biases
+  // Damping Balance Mode — top level is STANDARD or SYNC; SYNC then picks a sub-mode stored
+  // directly in dampBalMode: 'sync' (TIME SYNC), 'hybrid' (mean of the two), 'neutral'. STANDARD biases
   // the anchor ζ directly by percentage (Hz-agnostic). SYNC (formerly the "Settle Sync" toggle)
   // solves so both axles finish settling at the same time (Hz-aware, ignores corner mass).
   // NEUTRAL solves so both axles push the same actual damping FORCE (Hz- and mass-aware) —
@@ -871,7 +879,7 @@ const feelToPhysics=(ch,fe)=>{
   // formula interpreting it changes, so switching modes never resets or jumps the slider.
   // This is independent of REBOUND MODE (below), which only decides how the anchor ζ itself
   // is obtained — the two compose freely, not one dictating the other.
-  const dampBalMode=['standard','sync','neutral'].includes(fe.dampBalMode)?fe.dampBalMode:'standard';
+  const dampBalMode=['standard','sync','hybrid','neutral'].includes(fe.dampBalMode)?fe.dampBalMode:'standard';
   // REBOUND MODE: CHARACTER types the anchor ζ directly (Rebound ζ slider). SETTLE TIME instead
   // back-solves it from an absolute target time at the ride-reference axle's Hz — see baseZeta
   // below. Whichever axle Damping Balance Mode treats as "the anchor" (rideRef for SYNC/NEUTRAL;
@@ -906,7 +914,7 @@ const feelToPhysics=(ch,fe)=>{
   bumpZeta=dampingMode==='ratio'
     ? Math.max(10,Math.min(baseZeta,baseZeta*bumpRatioVal/100))
     : Math.max(10,Math.min(115,fe.bumpZeta??39));
-  if(dampBalMode==='sync'||dampBalMode==='neutral'){
+  if(dampBalMode!=='standard'){
     const{zF,zR}=balModeZetas(dampBalMode,uiRideRef,dampMasses.front,frontHz,dampMasses.rear,rearHz,baseZeta,biasMult);
     zetaF=Math.max(10,Math.min(200,zF));
     zetaR=Math.max(10,Math.min(200,zR));
@@ -1080,7 +1088,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // under SETTLE TIME too (effectiveRHz can shift there just as it does in CHARACTER mode), and
   // must anchor to baseZeta — the settle-target back-solved anchor — not the raw reboundZeta
   // slider value, or the settle-time guarantee this recompute exists for breaks under SETTLE.
-  if(phys.dampBalMode==='sync'||phys.dampBalMode==='neutral'){
+  if(phys.dampBalMode!=='standard'){
     const biasMult=Math.pow(2,-(phys.dampingBias??0)/50);
     const bumpRatioVal=phys.bumpRatioVal??56,bumpZ=phys.bumpZeta??39,ratio=phys.dampingMode==='ratio';
     const{zF,zR}=balModeZetas(phys.dampBalMode,phys.rideRef,m.front,fHz,m.rear,effectiveRHz,phys.baseZeta,biasMult);
@@ -3380,8 +3388,8 @@ const ARB_BAL_MODE_DEC=['weight','mech','coSolve','man','neutral','chassis','man
 // button, so switching Stiffness Mode away from MAN doesn't look like the user chose WEIGHT.
 const RIDE_REF_ENC={'front':0,'rear':1,'shared':2};
 const RIDE_REF_DEC=['front','rear','shared'];
-const DAMP_BAL_MODE_ENC={'standard':0,'sync':1,'neutral':2};
-const DAMP_BAL_MODE_DEC=['standard','sync','neutral'];
+const DAMP_BAL_MODE_ENC={'standard':0,'sync':1,'neutral':2,'hybrid':3};
+const DAMP_BAL_MODE_DEC=['standard','sync','neutral','hybrid']; // UI: sync = TIME SYNC, neutral = EQUAL FORCE, hybrid = HYBRID — all SYNC sub-modes; indices are permanent
 // Settle Sync (boolean settleMode + its own settleBias field) → dampBalMode + the unified
 // dampingBias. Shared by every path that can hand the app a raw, possibly-legacy fe object:
 // sanitizeTune (LOAD CODE), the one-time persisted-state migration effect, and garageLoadBuild
@@ -4049,7 +4057,10 @@ const GLOSSARY=[
     {term:'Rebound',def:'Damping resistance as the suspension extends — the wheel dropping back down after being compressed. Controls how fast the wheel returns to full extension after a bump or during weight transfer.'},
     {term:'Bump (Compression)',def:'Damping resistance as the suspension compresses — the wheel moving up into a bump or under load transfer. Usually softer than rebound; Bump Ratio expresses it as a percentage of the rebound value.'},
     {term:'Settle Time',def:'Seconds until the suspension is back inside ±10% of ride height after a disturbance and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. Two readouts use the name: the DAMPERS rows show a quick estimate from rebound ζ and spring frequency alone, while the DYNAMICS chart measures its drawn curve, so it also sees your bump damping. They can differ — the chart is the one describing the trace beside it.'},
-    {term:'Damping Balance Mode',def:'Sets how the Damping Bias slider splits rebound/bump ζ front to rear — independent of REBOUND MODE, which only decides how the anchor ζ is obtained (typed under CHARACTER, back-solved from a target time under SETTLE TIME). STANDARD biases the anchor directly by percentage. SYNC solves so both axles finish settling at the same time. NEUTRAL solves so both axles push the same actual damping force (accounts for corner mass as well as Hz) — mirrors ARB Balance Mode’s WEIGHT/NEUTRAL pattern. The slider itself never resets when you switch modes.'},
+    {term:'Damping Balance Mode',def:'Sets how the Damping Bias slider splits rebound/bump ζ front to rear — independent of REBOUND MODE, which only decides how the anchor ζ is obtained (typed under CHARACTER, back-solved from a target time under SETTLE TIME). STANDARD biases the anchor directly by percentage. SYNC derives the other axle from its own Hz, using one of three Sync Methods: TIME SYNC, HYBRID or EQUAL FORCE. The slider itself never resets when you switch modes.'},
+    {term:'TIME SYNC (Sync Method)',def:'Solves the front/rear damping split so both axles finish settling at the same time. Hz-aware, but ignores corner mass.'},
+    {term:'EQUAL FORCE (Sync Method)',def:'Solves the front/rear damping split so both axles push the same actual damping force. Accounts for corner mass as well as Hz — useful when TIME SYNC’s equal timing still leaves one end feeling harsher.'},
+    {term:'HYBRID (Sync Method)',def:'Each axle’s damping sits halfway between the TIME SYNC and EQUAL FORCE solutions — close to equal settle time and close to equal damping force, without fully committing to either.'},
   ]},
   {group:'Roll & Anti-Roll Bars',terms:[
     {term:'Roll Stiffness',def:"Total resistance to body lean in a corner, supplied by springs and ARBs together. How it's split front-to-rear — not its total amount — is what determines understeer/oversteer tendency."},
@@ -6848,7 +6859,7 @@ function App(){
               <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REBOUND MODE</span>
                 <Hint text={dampCharMode==='settle'
-                  ?"SETTLE TIME: set a target settle time in seconds. The app back-calculates the rebound ζ needed to hit that time on the ride-reference axle. How that value reaches the other axle is set by DAMPING BALANCE MODE below — SYNC derives the other axle's own ζ from its own spring frequency to match the same time exactly; STANDARD/NEUTRAL split differently, so only the reference axle is guaranteed to hit the target."
+                  ?"SETTLE TIME: set a target settle time in seconds. The app back-calculates the rebound ζ needed to hit that time on the ride-reference axle. How that value reaches the other axle is set by DAMPING BALANCE MODE below — TIME SYNC derives the other axle's own ζ from its own spring frequency to match the same time exactly; STANDARD, HYBRID and EQUAL FORCE split differently, so only the reference axle is guaranteed to hit the target."
                   :"CHARACTER: set rebound damping directly as a ζ (damping ratio) percentage. Full manual control — you pick the value, the app doesn't back-solve anything."}/>
               </div>
               <div style={{display:'flex',gap:3,marginBottom:8}}>
@@ -6946,7 +6957,7 @@ function App(){
                     // Report what the axles actually run, not the raw typed number. Every
                     // Damping Balance Mode turns this into a front/rear pair, so the typed
                     // value is one axle's ζ at best (STANDARD, at the ride-reference axle) and
-                    // neither axle's under SYNC/NEUTRAL, which diverge on Hz and mass even at
+                    // neither axle's under SYNC/EQUAL FORCE, which diverge on Hz and mass even at
                     // bias 0. Mirrors the RATIO readout, which likewise shows resulting ζ.
                     const bF=physics.bumpZetaF,bR=physics.bumpZetaR;
                     const split=Math.abs(bF-bR)>0.5;
@@ -6966,33 +6977,57 @@ function App(){
                   box={{unit:'%'}}/>}
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE</span>
-              <Hint text="Independent of REBOUND MODE above — REBOUND MODE decides how the anchor ζ is obtained (typed directly under CHARACTER, back-solved from a target time under SETTLE TIME); this decides how that single value becomes a front/rear split. STANDARD biases it directly by percentage — simplest, ignores any front/rear Hz difference. SYNC solves so front and rear finish settling at the same time (Hz-aware, ignores corner mass). NEUTRAL solves so both axles push the same actual damping force (Hz- and corner-mass-aware) — the most physically 'fair' baseline, useful when Sync's equal timing still leaves one end feeling harsher than the other. Under SETTLE TIME, only the axle REBOUND MODE anchors to is guaranteed to hit your target time exactly — the other axle's real time is whatever this mode's split produces, shown honestly in the readout below even when it isn't equal. The Damping Bias slider below works in all three modes and never resets when you switch between them — only the formula interpreting it changes."/>
+              <Hint text="Independent of REBOUND MODE above — REBOUND MODE decides how the anchor ζ is obtained (typed directly under CHARACTER, back-solved from a target time under SETTLE TIME); this decides how that single value becomes a front/rear split. STANDARD biases it directly by percentage — simplest, ignores any front/rear Hz difference. SYNC derives the other axle from its own Hz, then offers three methods: TIME SYNC (equal settle time, ignores corner mass), EQUAL FORCE (equal actual damping force, Hz- and corner-mass-aware), and HYBRID (halfway between them). Under SETTLE TIME, only the axle REBOUND MODE anchors to is guaranteed to hit your target time exactly — the other axle's real time is whatever this mode's split produces, shown honestly in the readout below even when it isn't equal. The Damping Bias slider below works in every mode and never resets when you switch between them — only the formula interpreting it changes."/>
             </div>
             <div style={{display:'flex',gap:3,marginBottom:8}}>
               <button className={`tog${dampBalMode==='standard'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampBalMode:'standard'}))}>STANDARD</button>
-              <button className={`tog${dampBalMode==='sync'?' on':''}`}
-                onClick={()=>setFe(p=>({...p,dampBalMode:'sync'}))}>SYNC</button>
-              <button className={`tog${dampBalMode==='neutral'?' on':''}`}
-                onClick={()=>setFe(p=>({...p,dampBalMode:'neutral'}))}>NEUTRAL</button>
+              <button className={`tog${dampBalMode!=='standard'?' on':''}`}
+                onClick={()=>setFe(p=>({...p,dampBalMode:p.dampBalMode&&p.dampBalMode!=='standard'?p.dampBalMode:'sync'}))}>SYNC</button>
             </div>
+            {dampBalMode!=='standard'&&<>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SYNC METHOD</span>
+                <Hint text="TIME SYNC: front and rear finish settling at the same time (Hz-aware, ignores corner mass). EQUAL FORCE: both axles push the same actual damping force (Hz- and corner-mass-aware) — useful when equal timing still leaves one end feeling harsher. HYBRID: halfway between the two, per axle."/>
+              </div>
+              <div style={{display:'flex',gap:3,marginBottom:8}}>
+                {[['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE']].map(([k,l])=>
+                  <button key={k} className={`tog${dampBalMode===k?' on':''}`}
+                    onClick={()=>setFe(p=>({...p,dampBalMode:k}))}>{l}</button>)}
+              </div>
+            </>}
             {(()=>{
               const timeBased=dampCharMode==='settle'||dampBalMode==='sync';
               const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
               const hint=dampBalMode==='sync'
-                ?`SYNC: biases settle time between front and rear. At centre (0), front and rear damp out in equal time regardless of any Hz difference between them (anchored to ${anchor}). Left (FRONT) makes the front settle faster. Right (REAR) makes the rear settle faster. The bias scales as 2× at ±50.`
+                ?`TIME SYNC: biases settle time between front and rear. At centre (0), front and rear damp out in equal time regardless of any Hz difference between them (anchored to ${anchor}). Left (FRONT) makes the front settle faster. Right (REAR) makes the rear settle faster. The bias scales as 2× at ±50.`
+                :dampBalMode==='hybrid'
+                ?`HYBRID: at centre (0), each axle's ζ sits halfway between the TIME SYNC (equal settle time) and EQUAL FORCE (equal damping force) solutions (anchored to ${anchor}). Left (FRONT) firms the front. Right (REAR) firms the rear. The bias scales as 2× at ±50.`
                 :dampBalMode==='neutral'
-                ?`NEUTRAL: biases actual damping force between front and rear. At centre (0), both axles push the same physical force — accounts for Hz and corner mass, not just a raw ζ split (anchored to ${anchor}). Left (FRONT) shifts force toward the front. Right (REAR) shifts it toward the rear. The bias scales as 2× at ±50.`
+                ?`EQUAL FORCE: biases actual damping force between front and rear. At centre (0), both axles push the same physical force — accounts for Hz and corner mass, not just a raw ζ split (anchored to ${anchor}). Left (FRONT) shifts force toward the front. Right (REAR) shifts it toward the rear. The bias scales as 2× at ±50.`
                 :`Biases damping around whichever axle is your Ride Reference — that axle holds the base ζ (anchored to ${anchor}); the other axle swings up to 50% at ±50, firmer one way and softer the other. Whichever axle ends up relatively firmer keeps more grip: firmer front leans understeer/stable, firmer rear leans oversteer/loose. SHARED splits the swing across both axles instead of pinning one.`;
-              const readout=timeBased
-                ? (Math.abs(tune.settleF-tune.settleR)<0.01?'EQUAL':`F ${tune.settleF.toFixed(2)}s | ${tune.settleR.toFixed(2)}s R`)
-                : dampBalMode==='neutral'
+              const settleTxt=Math.abs(tune.settleF-tune.settleR)<0.01?'EQUAL':`F ${tune.settleF.toFixed(2)}s | ${tune.settleR.toFixed(2)}s R`;
+              const forceTxt=(()=>{
+                const mF=(ch.weight/KG_TO_LB)*(ch.frontBias/100)/2,mR=(ch.weight/KG_TO_LB)*(1-ch.frontBias/100)/2;
+                const fF=physics.zetaF*mF*tune.fHz,fR=physics.zetaR*mR*tune.rHz;
+                const tot=fF+fR,fP=tot>0?Math.round(fF/tot*100):50;
+                return Math.abs(fP-50)<1?'EQUAL':`F ${fP} | ${100-fP} R`;
+              })();
+              // HYBRID sits between equal time and equal force. Settle time already has its own
+              // row in the summary table just below, and the label + value row is too narrow for
+              // both, so the readout carries the force split (the half TIME SYNC's readout lacks),
+              // plus a short TIME EQ flag when the settle times do land equal (same 0.01 s test
+              // as settleTxt). Kept terse — anything longer truncates the Damping Bias label.
+              const readout=dampBalMode==='hybrid'
                 ? (()=>{
-                    const mF=(ch.weight/KG_TO_LB)*(ch.frontBias/100)/2,mR=(ch.weight/KG_TO_LB)*(1-ch.frontBias/100)/2;
-                    const fF=physics.zetaF*mF*tune.fHz,fR=physics.zetaR*mR*tune.rHz;
-                    const tot=fF+fR,fP=tot>0?Math.round(fF/tot*100):50;
-                    return Math.abs(fP-50)<1?'EQUAL':`F ${fP} | ${100-fP} R`;
+                    const timeEq=settleTxt==='EQUAL',forceEq=forceTxt==='EQUAL';
+                    const f=forceTxt.replace(/^F (\d+) \| (\d+) R$/,'$1/$2');
+                    return timeEq&&forceEq?'EQUAL':timeEq?`TIME EQ · F ${f}`:`FORCE ${forceEq?'EQUAL':f}`;
                   })()
+                : timeBased
+                ? settleTxt
+                : dampBalMode==='neutral'
+                ? forceTxt
                 : (()=>{const tot=physics.zetaF+physics.zetaR;const fP=tot>0?Math.round(physics.zetaF/tot*100):50;return`F ${fP} | ${100-fP} R`;})();
               return(
                 <FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}

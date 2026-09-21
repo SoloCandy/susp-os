@@ -45,7 +45,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'resolveArbBalTarget,gripNeutralOf,naturalMechBalanceOf,balanceFromRsBal,sanitizeTune,' +
-  'computeTune,feelToPhysics,PHYS_SNAP};'
+  'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
 
 let pass = 0, fail = 0;
@@ -596,6 +596,34 @@ t('applyDNA stays interactive (worst case under 50 ms)', () => {
   }
   assert(worst < 50, `worst ${worst.toFixed(1)} ms`);
 });
+
+section('Damping Balance Mode — HYBRID (SYNC sub-mode)');
+// Lives here because this suite runs the app's real feelToPhysics/sanitizeTune, not a mirror.
+{
+  const ch = { ...M.DEF_CH, frontBias: 58 };               // unequal corner mass → SYNC ≠ NEUTRAL
+  const z = (mode, over = {}) => M.feelToPhysics(ch, M.resolveFeEffective(ch,
+    feOf('horizon', { dampBalMode: mode, rearHzMode: 'multiplier', rearHzMult: 1.1, ...over })));
+  for (const [bias, bump] of [[0, 'ratio'], [20, 'ratio'], [-30, 'independent']]) {
+    const o = { dampingBias: bias, dampingMode: bump };
+    const s = z('sync', o), n = z('neutral', o), h = z('hybrid', o);
+    t(`HYBRID is the per-axle mean of TIME SYNC and EQUAL FORCE (bias ${bias}, ${bump})`, () => {
+      assert(Math.abs(s.zetaR - n.zetaR) > 0.5, 'fixture no longer separates SYNC from NEUTRAL');
+      for (const k of ['zetaF', 'zetaR', 'bumpZetaF', 'bumpZetaR'])
+        near(h[k], (s[k] + n[k]) / 2, 1e-9, k);
+    });
+  }
+  t('HYBRID holds the ride-reference axle at the anchor ζ', () => {
+    const h = z('hybrid', { rideRef: 'front', reboundZeta: 70 });
+    near(h.zetaF, h.baseZeta, 1e-9, 'zetaF');
+  });
+  t('HYBRID survives the share-code enum and sanitizeTune', () => {
+    assert(M.DAMP_BAL_MODE_DEC[M.DAMP_BAL_MODE_ENC.hybrid] === 'hybrid', 'enum round-trip');
+    for (const [k, i] of [['standard', 0], ['sync', 1], ['neutral', 2]])
+      assert(M.DAMP_BAL_MODE_ENC[k] === i, `${k} index moved — ids are permanent`);
+    const out = M.sanitizeTune({ ch, fe: feOf('horizon', { dampBalMode: 'hybrid' }), dr: M.DEF_DR });
+    assert(out.fe.dampBalMode === 'hybrid', `sanitizeTune rewrote it to ${out.fe.dampBalMode}`);
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed`);

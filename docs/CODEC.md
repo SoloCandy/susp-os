@@ -190,7 +190,7 @@ undocumented.
 | `ARB_MODE_DEC` | 0 `auto` · 1 `roll` · 2 `share` · 3 `auto` · 4 `man` · 5 `basic` |
 | `ARB_BAL_MODE_DEC` | 0 `weight` · 1 `mech` · 2 `coSolve` · 3 `man` · 4 `neutral` · 5 `chassis` · 6 `manual` |
 | `RIDE_REF_DEC` | 0 `front` · 1 `rear` · 2 `shared` |
-| `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` |
+| `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` · 3 `hybrid` (UI: SYNC → TIME SYNC (`sync`) / EQUAL FORCE (`neutral`) / HYBRID) |
 | `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
 | `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
 
