@@ -2335,7 +2335,7 @@ const Hint=({text})=>{
 // The unit label beside a `.num` box. Field and every readout that embeds a `.num` share it, so
 // all typed-entry boxes read the same: CHASSIS's weight, the Hz fields, BOTTOM G, FeelSlider's.
 const NUM_UNIT_STYLE={fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'};
-const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false})=>{
+const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false})=>{
   const mid=logMid??Math.sqrt(min*max);
   const valToT=v=>{
     if(!logScale)return(v-min)/(max-min);
@@ -2391,8 +2391,10 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
   },[min,max,step,logScale]);
   return(
     <div style={{marginBottom:10,minWidth:0}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-        <span style={{fontSize:12,color:'#9ca3af',minWidth:0,overflow:'hidden',
+      {/* `stacked` puts the box under its label, for paired F/R fields sharing a row. */}
+      <div style={stacked?{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:3,marginBottom:3}
+                         :{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+        <span style={{fontSize:12,color:'#9ca3af',minWidth:0,maxWidth:'100%',overflow:'hidden',
                       textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:6}}>
           {label}{hint&&<Hint text={hint}/>}
         </span>
@@ -5937,9 +5939,9 @@ function App(){
               hint="Distance between front and rear axles in millimetres. Used by the flat-ride formula to match rear spring frequency to your target speed, and by the brake balance calculation. Still needed in MEASURED mode — only track widths are skipped there. Typical cars: 2400–2900 mm."/>
             {!ch.useMeasuredNatBal&&
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              <Field noSlider label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+              <Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
                 hint="Distance between left and right wheels at the front. Typical: 1400–1800 mm. Wider = more roll resistance."/>
-              <Field noSlider label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+              <Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
                 hint="Distance between left and right wheels at the rear. Typical: 1400–1800 mm. Often slightly wider than front."/>
             </div>}
             {/* Physical-unit modes only. Forza's tuning screen shows wheel rate, which is what
@@ -5979,11 +5981,11 @@ function App(){
               const unitLbl=mLen?'cm':'in';
               return(<>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                  <Field noSlider label="Ride Height F" value={Math.round((ch.rideHeightF*1000/inMm)*10)/10}
+                  <Field noSlider stacked label="Ride Height F" value={Math.round((ch.rideHeightF*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightF')((v*inMm)/1000)}
                     min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
                     hint={`Front ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}). Used with tyre radius to estimate CG height, and to gauge bottoming risk from natural sag.`}/>
-                  <Field noSlider label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
+                  <Field noSlider stacked label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightR')((v*inMm)/1000)}
                     min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
                     hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`}/>
