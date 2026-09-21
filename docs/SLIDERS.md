@@ -23,14 +23,16 @@ the rear % (20–80) though the slider is centred on 50. A typed value is clampe
 ranges below but not snapped to the slider's step.
 
 **Measured values are number boxes, not sliders.** Where a control stands for a
-real quantity you read off the car or type into the game (Weight, Front Weight
-Bias, Wheelbase, Track Width, Ride Height, CG Height, Motion Ratios, Bottom-Out g,
-Target Speed, ARB F/R in MAN, the MANUAL diff locks and Center Split, MANUAL
-camber/toe/caster, and the calibration fields), `Field`/`FeelSlider` get
-`noSlider` and show only the box. Tuning-intent controls keep their slider:
-the BEG trio, ARB Bias/Stiffness/Share, Mech Balance Target, Balance Offset,
-the spring Hz sliders, every damper slider, EXIT/ENTRY/POWER SPLIT, Nudge
-Strength and the DNA axes. The tables below still list ranges for both kinds.
+real quantity you read off the car or type into the game (Weight, Wheelbase,
+Track Width, Ride Height, CG Height, Motion Ratios, ARB F/R in MAN, the MANUAL
+diff locks and Center Split, MANUAL camber/toe/caster, and the calibration
+fields apart from MEAS. NAT BAL), `Field` gets `noSlider` and shows only the
+box. Paired F/R boxes (Track Width, Ride Height, Motion Ratio, ARB Motion
+Ratio) also get `stacked`, which puts the box under its label. Everything
+else keeps its slider: the BEG trio, Front Weight Bias, ARB
+Bias/Stiffness/Share, Mech Balance Target, Balance Offset, the spring Hz
+sliders, Bottom-Out g, Target Speed, every damper slider, EXIT/ENTRY/POWER
+SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still list ranges for both kinds.
 
 > Keep this in sync with `index.html` whenever a slider's range, mechanism,
 > or tier gating changes — see the note in `CLAUDE.md` about reviewing docs

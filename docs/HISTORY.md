@@ -16,8 +16,9 @@ reintroduce this”. Newest first, matching the order they were written in.
 A slider suits a value you choose by feel. It doesn't suit one you read off a spec
 sheet or the game's tuning screen: nobody drags to find 3,200 lb. `Field` and
 `FeelSlider` gained a `noSlider` prop that keeps the number box (typing, wheel
-stepping, clamping) and drops the range input. The standalone MEAS. NAT BAL range
-went the same way. Stored values, codec and `sanitizeTune` are untouched. The list
+stepping, clamping) and drops the range input. Front Weight Bias, MEAS. NAT BAL,
+Target Speed and Bottom-Out g lost theirs too at first, then got them back:
+each is a value you move along to try, not one you copy down. Stored values, codec and `sanitizeTune` are untouched. The list
 of which controls are which is in [SLIDERS.md](SLIDERS.md).
 
 ## Changed — slider − / + nudge buttons removed

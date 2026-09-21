@@ -3149,7 +3149,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                 onChange={mMass?v=>setCh(p=>({...p,weight:v*KG_TO_LB})):v=>setCh(p=>({...p,weight:v}))}
                 min={mMass?45:100} max={mMass?8165:18000} step={1}
                 unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}/>
-              <Field noSlider label="Front Bias" value={ch.frontBias} onChange={v=>setCh(p=>({...p,frontBias:v}))} min={30} max={70} step={1} unit="%"/>
+              <Field label="Front Bias" value={ch.frontBias} onChange={v=>setCh(p=>({...p,frontBias:v}))} min={30} max={70} step={1} unit="%"/>
               <Stat label="Corner mass front" value={masses.front} unit="kg"/>
               <Stat label="Corner mass rear" value={masses.rear} unit="kg"/>
             </Card>
@@ -3248,6 +3248,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz}))}/>
                   </span>
                 </div>
+                <input type="range" className="sli" min={0.30} max={0.90} step={0.01}
+                  value={ch.measuredNatBal??0.50}
+                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz}))}
+                  style={{width:'100%'}}/>
               </div>
             </Card>
             <Card title="ARB SCALE SETUP" accent>
@@ -5764,7 +5768,7 @@ function App(){
                   min={mMass?45:100} max={mMass?8165:18000} step={1}
                   unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
                   hint="Total vehicle weight. Find this on the car's stat page."/>
-                <Field noSlider label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')}
+                <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')}
                   min={30} max={70} step={1} unit="%"
                   hint="Percentage of total weight on the front axle. Shown on the car selection screen. 50% = perfect balance."/>
                 </div>
@@ -5870,7 +5874,7 @@ function App(){
               hint={mMass
                 ?"Total vehicle weight in kg. Find this on the car's stat page. Affects spring rates, damper forces, and ARB stiffness directly."
                 :"Total vehicle weight in pounds. Find this on the car's stat page. Affects spring rates, damper forces, and ARB stiffness directly."}/>
-            <Field noSlider label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
+            <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
               hint="Percentage of total weight on the front axle. Shown on the car selection screen. 50% = perfect balance. Most front-engined cars are 52–58% front."/>
             {(()=>{
               if(uiMode!=='pro')return null;
@@ -6771,7 +6775,7 @@ function App(){
                 </div>;
                 })()}
                 {(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?
-                <FeelSlider noSlider
+                <FeelSlider
                   label={rRef==='rear'?'Rear Bottom-Out':rRef==='shared'?'Avg Bottom-Out':'Front Bottom-Out'}
                   value={primaryBottomG}
                   onChange={v=>setFe(p=>({...p,rideStiffness:hzToRs(bottomGToHz(v)),rideBottomG:v}))}
@@ -6835,7 +6839,7 @@ function App(){
               const flatRideRatioHigh=flatRideRatio>1.25;
               return rearHzMode==='flatRide'
               ? <>
-                <FeelSlider noSlider label="Target Speed" value={240-fe.targetSpeed}
+                <FeelSlider label="Target Speed" value={240-fe.targetSpeed}
                   onChange={v=>pFe('targetSpeed')(240-v)} min={40} max={180} step={5}
                   leftLabel="OFF" rightLabel="CITY"
                   // The slider runs inverted (240 − speed); the box shows and takes the speed itself,
