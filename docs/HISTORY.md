@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — on phones the tutorial card covered the control it pointed at
+
+Sidebar targets always placed the card "just right of the sidebar", clamped to the
+screen edge. On a phone the sidebar is nearly full-width, so the clamp dropped the
+card straight on top of the spotlit control — for most beginner steps, including
+the Balance step whose TRY IT asks the user to drag that slider. The card also
+anchored only to `focus[0]`, so a two-zone step (Layout & Build Type) covered its
+second zone. The side placement now needs the whole card to fit beside the sidebar;
+otherwise the card goes above or below the target, anchored to all focus zones
+together. A sidebar section taller than the screen pins the card to the bottom edge
+rather than centring it over the section's middle.
+
 ## Changed — tutorial tier gating is now explained
 
 INT and PRO were locked until the previous tier's guide had been opened, but nothing

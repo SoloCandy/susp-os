@@ -131,18 +131,24 @@ live `fe`) for step tasks, and `notice` for the locked-tier redirect message
 
 ### Positioning
 
-The card anchors to the element `zone-{focus[0]}` (the balance guide always
-anchors to `zone-balance-bar`). Measurements are divided by the app's CSS zoom,
-and use `visualViewport` height so the iOS toolbar doesn't push it off-screen.
+The card anchors to the bounding box of every zone in `focus` together (the
+balance guide always anchors to `zone-balance-bar`), so a step spotlighting two
+stacked controls doesn't get its card placed over the second one. The sidebar
+scroll below still uses `focus[0]`. Measurements are divided by the app's CSS
+zoom, and use `visualViewport` height so the iOS toolbar doesn't push it off-screen.
 
-- **Target in the left half (sidebar)**: the sidebar is first scrolled so the
-  target is visible (instant, not smooth — a smooth scroll would still be moving
-  when the card measures). The card floats just right of the sidebar, vertically
-  centred on the target and clamped on-screen, with a left-pointing arrow.
-- **Target in the right half (results, balance bar, garage)**: the card goes above
-  or below the target, whichever has more room, with an up/down arrow. If neither
-  side can fit the card's natural height (e.g. `zone-output`, which fills the
-  panel), it falls back to centred.
+- **Target in the left half (sidebar), with room beside the sidebar**: the sidebar
+  is first scrolled so the target is visible (instant, not smooth — a smooth scroll
+  would still be moving when the card measures). The card floats just right of the
+  sidebar, vertically centred on the target and clamped on-screen, with a
+  left-pointing arrow. "Room" means the full `CARD_W` fits right of the sidebar.
+- **Target in the right half (results, balance bar, garage), or a sidebar target
+  with no room beside the sidebar (phones)**: the card goes above or below the
+  target, whichever has more room, with an up/down arrow. If neither side can fit
+  the card's natural height, a right-half target (e.g. `zone-output`, which fills
+  the panel) falls back to centred; a sidebar target (a section taller than the
+  screen) is pinned to the bottom edge with no arrow, so the section header and
+  first controls stay visible.
 - **No focus, or a zero-size target** (collapsed sidebar): centred, no arrow.
 
 Positioning re-runs on window and visual-viewport resize.

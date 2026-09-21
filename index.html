@@ -4187,9 +4187,15 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     }
     const measure=()=>{
       if(!el){setPos(null);return;}
-      const raw=el.getBoundingClientRect();
+      // Anchor to every spotlit zone, not just the first — a step spotlighting two
+      // stacked controls would otherwise place the card over the second one.
+      const keys=mode==='balance'?['balance-bar']:(t?.focus??[focusKey]);
+      const rects=keys.map(k=>document.getElementById('zone-'+k)?.getBoundingClientRect())
+        .filter(b=>b&&(b.width||b.height));
       // Hidden element (sidebar collapsed on desktop) → centre card
-      if(raw.width===0&&raw.height===0){setPos(null);return;}
+      if(!rects.length){setPos(null);return;}
+      const raw={top:Math.min(...rects.map(b=>b.top)),bottom:Math.max(...rects.map(b=>b.bottom)),
+        left:Math.min(...rects.map(b=>b.left)),right:Math.max(...rects.map(b=>b.right))};
       // getBoundingClientRect() returns visual (viewport) pixels, but position:fixed
       // coordinates inside a CSS-zoomed container are in zoomed units (divide by zoom).
       const r={top:raw.top/zoom,bottom:raw.bottom/zoom,left:raw.left/zoom,right:raw.right/zoom};
@@ -4198,7 +4204,12 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       const vh=((window.visualViewport&&window.visualViewport.height)||window.innerHeight)/zoom;
       const midY=(r.top+r.bottom)/2;
       const midX=(r.left+r.right)/2;
-      if(midX<vw/2){
+      // Beside the sidebar only when the card fits there. On phones the sidebar is
+      // nearly full-width, so the clamp below would drop the card on top of the very
+      // control it points at — fall through to above/below placement instead.
+      const sbEl=document.querySelector('.sidebar-scroll');
+      const sbRight=sbEl?sbEl.getBoundingClientRect().right/zoom:r.right;
+      if(midX<vw/2&&sbRight+10+CARD_W<=vw-8){
         // LEFT panel: float card just past the sidebar's right edge, sized to its
         // actual content rather than a fixed offset from the target's midpoint —
         // a target sitting low in a long sidebar section (e.g. a tall BALANCE
@@ -4207,9 +4218,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         // screen has plenty of. Ceiling is near-full viewport height; the card
         // then only takes what its own content actually needs, centred on the
         // target and clamped to stay fully on-screen.
-        const sidebar=document.querySelector('.sidebar-scroll');
-        const sbRight=sidebar?sidebar.getBoundingClientRect().right/zoom:r.right;
-        const left=Math.min(sbRight+10,vw-CARD_W-8);
+        const left=sbRight+10;
         const maxH=Math.max(140,vh-16);
         const rawCardH=cardRef.current?.getBoundingClientRect().height;
         const cardH=Math.min(rawCardH?rawCardH/zoom:maxH,maxH);
@@ -4217,7 +4226,8 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         const arrowOff=Math.max(16,Math.min(cardH-16,midY-top));
         setPos({top,left,arrowDir:'left',arrowOff,maxH});
       } else {
-        // RIGHT panel (output, balance-bar): float the card above or below the
+        // RIGHT panel (output, balance-bar), or a sidebar target with no room beside
+        // the sidebar (phones): float the card above or below the
         // element, whichever side has more room — hugging its actual rendered
         // height rather than filling all available space on that side, but a
         // target sitting near the top of the viewport (little room above, most
@@ -4246,7 +4256,19 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         // whenever neither side can actually fit what the card needs.
         const MIN_USABLE=180;
         const need=naturalH?Math.min(naturalH,vh-24):MIN_USABLE;
-        if(availH<MIN_USABLE||availH<need){ setPos(null); return; }
+        if(availH<MIN_USABLE||availH<need){
+          // A sidebar section taller than the screen (phones): no side is free, and
+          // centring covers the middle of it. Pin to the bottom edge instead so the
+          // section header and its first controls — where the sidebar scroll put
+          // them — stay in view.
+          if(midX<vw/2){
+            const maxH=Math.max(140,vh-24);
+            const cardH=Math.min(naturalH??maxH,maxH);
+            setPos({top:vh-cardH-8,left:Math.max(8,(vw-CARD_W)/2),arrowDir:'none',maxH});
+            return;
+          }
+          setPos(null); return;
+        }
         const maxH=Math.max(140,Math.min(availH,vh-24));
         const cardH=Math.min(naturalH??maxH,maxH);
         const top=below?Math.min(vh-cardH-8,r.bottom+GAP):Math.max(8,r.top-cardH-GAP);
@@ -4294,7 +4316,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     :{...cardBase,top:'50%',left:'50%',transform:'translate(-50%,-50%)'};
 
   const arrow=(()=>{
-    if(!pos)return null;
+    if(!pos||pos.arrowDir==='none')return null;
     const base={position:'absolute',width:0,height:0};
     if(pos.arrowDir==='left') return(<>
       <div style={{...base,left:-8,top:pos.arrowOff-8,
