@@ -79,7 +79,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .num{width:80px;background:transparent;border:1px solid transparent;border-radius:2px;
      color:#e2e8f0;font-family:var(--font-mono);font-size:16px;padding:1px 2px;
      outline:none;text-align:right;transition:border-color .12s,background .12s}
-.num:hover{border-color:#1e293b}
+.num:hover,.num.empty{border-color:#1e293b}
 .num:focus{border-color:#e2e8f033;background:#0a0f1a}
 .sli{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:1.5px;
      outline:none;margin-top:6px;cursor:pointer;display:block;border:none;padding:10px 0;
@@ -2333,7 +2333,7 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
 // blur commits clamped to min/max, Escape cancels. A draft left unedited never commits, so
 // focusing and leaving can't nudge a value. While it's focused and unedited it follows the value,
 // so the slider's own wheel stepping stays visible in the box.
-const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false})=>{
+const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder})=>{
   const fmt=v=>{
     if(!Number.isFinite(v))return'';
     const raw=String(parseFloat(v.toFixed(6)));
@@ -2354,7 +2354,8 @@ const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false})=>{
   };
   return(
     <span style={{display:'flex',alignItems:'center',gap:3}}>
-      <input type="number" className="num" aria-label={label} min={min} max={max} disabled={disabled}
+      {/* An empty box has no text to show where it is, so it keeps its border (.num.empty). */}
+      <input type="number" className={`num${Number.isFinite(value)?"":" empty"}`} aria-label={label} min={min} max={max} disabled={disabled} placeholder={placeholder}
         step={dp>0?Number((1/10**dp).toFixed(dp)):1}
         value={draft??fmt(value)}
         onFocus={e=>{const t=fmt(value);openedRef.current=t;setDraft(t);e.target.select();}}
@@ -3171,7 +3172,7 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                     <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>
                     <span style={{display:'flex',alignItems:'center',gap:6}}>
                       {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
-                      <NumBox value={val??NaN} min={0.05} max={0.95} dp={2} label={`Mech balance with ARB ${f} / ${r}`} onCommit={set}/>
+                      <NumBox value={val??NaN} placeholder="0.00" min={0.05} max={0.95} dp={2} label={`Mech balance with ARB ${f} / ${r}`} onCommit={set}/>
                     </span>
                   </div>))}
                 {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&

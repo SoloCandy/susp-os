@@ -150,7 +150,7 @@ and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
 |---|---|
 | `Hint` | everywhere — the ⓘ affordance |
 | `Field` | numeric inputs across all sections |
-| `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
+| `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) keeps a visible border (`.num.empty`) and shows `placeholder`, since the box is otherwise borderless until hover. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
 | `Sec` | the nine collapsible sidebar sections (`div.stog` header) |
