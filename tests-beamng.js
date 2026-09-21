@@ -39,7 +39,7 @@ const M = new Function(
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
   slice('const KG_TO_LB=', 'const arbCtx=') +
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
-  'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,cornerMasses,isPhysical,' +
+  'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
   'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale};'
 )();
@@ -75,11 +75,12 @@ t('the Forza modes are not physical', () => {
   if (M.isPhysical('horizon') || M.isPhysical('motorsport'))
     throw new Error('a click-scale mode must not report physical');
 });
-t('NMM_PER_LBIN converts lb/in to N/mm correctly', () => {
-  // Was LB_IN_TO_NM/100 (10x high) for a long time — see the resolved KNOWN_ISSUES entry.
-  // Asserted against SI from first principles, not against the app's own constants, so a
-  // regression in either LB_IN_TO_NM or the divisor is caught.
-  near(M.NMM_PER_LBIN, 4.4482216152605 / 25.4, 1e-6, 'N/mm per lb/in');
+t('NMM_PER_LBIN matches Forza "N/mm" (10x true N/mm), KGFMM_PER_LBIN is Forza kgf/mm (also 10x)', () => {
+  // Forza's metric spring label is N/mm but its number is N/cm — verified in-game
+  // (1903.7 shown vs 190.4 true N/mm). See docs/HISTORY.md before "fixing" this to /1000.
+  // Asserted from first principles, not the app's own constants.
+  near(M.NMM_PER_LBIN, 10 * 4.4482216152605 / 25.4, 1e-6, 'Forza N/mm per lb/in');
+  near(M.KGFMM_PER_LBIN, 10 * 0.45359237 / 25.4, 1e-9, 'kgf/mm per lb/in');
 });
 
 console.log('\n── output units (verified against BeamNG\'s own sliders) ──');
@@ -96,12 +97,14 @@ t('springs come out in N/m, not N/mm, snapped to the slider grid', () => {
   if (Math.abs(o.value - raw) > M.PHYS_SNAP.spring / 2) throw new Error('snapped to the wrong grid point');
   if (o.value < 10000) throw new Error(`${o.value} looks like N/mm, not N/m`);
 });
-t('the IMP/MET path is untouched by the physical branch', () => {
-  if (M.springOut(400, 'horizon', false).unit !== 'lb/in') throw new Error('IMP changed');
-  if (M.springOut(400, 'horizon', true).unit !== 'N/mm') throw new Error('MET changed');
+t('the Forza spring-unit paths are untouched by the physical branch', () => {
+  if (M.springOut(400, 'horizon', M.springUnit('lbin')).unit !== 'lb/in') throw new Error('lb/in changed');
+  if (M.springOut(400, 'horizon', M.springUnit('nmm')).unit !== 'N/mm') throw new Error('N/mm changed');
+  if (M.springOut(400, 'horizon', M.springUnit('kgfmm')).unit !== 'kgf/mm') throw new Error('kgf/mm changed');
   // Absolute, not `400 * M.NMM_PER_LBIN` — comparing the function against the same
   // constant it uses passes under any value and would pin nothing.
-  near(M.springOut(400, 'horizon', true).value, 70.05, 1e-3, 'MET value in N/mm');
+  near(M.springOut(400, 'horizon', M.springUnit('nmm')).value, 700.5, 1e-2, 'Forza N/mm value');
+  near(M.springOut(400, 'horizon', M.springUnit('kgfmm')).value, 71.43, 1e-2, 'kgf/mm value');
 });
 t('damping is labelled N/m/s, BeamNG\'s spelling of N·s/m', () => {
   const o = M.dampOut(5000, M.GAME_LIMITS.beamng);

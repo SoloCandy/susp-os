@@ -165,12 +165,23 @@ const {useState,useMemo,useRef,useEffect,useLayoutEffect,useReducer}=React;
 
 const KG_TO_LB=2.204622622,LB_IN_TO_NM=175.126790921,MPH_TO_MS=0.44704,IN_TO_MM=25.4;
 const KMH_PER_MPH=1.60934;
-// N/mm per lb/in, for the IMP/MET display toggle. LB_IN_TO_NM is N/m per lb/in despite
-// the name, and N/m → N/mm is a divide by 1000: 1 lbf/in = 4.4482 N / 25.4 mm = 0.175127.
-// (This was /100 for a long time, making every metric spring readout 10× high — see the
-// resolved entry in docs/HISTORY.md.) Physical-unit game modes don't use this at all:
-// BeamNG's slider is N/m, so it converts with LB_IN_TO_NM directly.
-const NMM_PER_LBIN=LB_IN_TO_NM/1000;
+// Forza's "N/mm" per lb/in, for the UNITS modal's spring choice. FORZA'S METRIC SPRING LABEL IS
+// 10× TRUE N/mm: the number it shows is really N/cm (1 lbf/in = 1.75127). Verified in-game —
+// a spring the app showed as 190.4 true N/mm, Forza displayed as 1903.7 "N/mm". The app
+// mirrors the game's number so it can be typed straight in, so the divisor is 100, not the
+// physically-correct 1000. Do not "fix" it to 1000 again — see docs/HISTORY.md.
+// Physical-unit game modes don't use this at all: BeamNG's slider is N/m (LB_IN_TO_NM).
+const NMM_PER_LBIN=LB_IN_TO_NM/100;
+// Forza's "kgf/mm" per lb/in. Same quirk as its N/mm: the number is 10× true kgf/mm
+// (really kgf/cm) — confirmed in-game. Mirrors the game, so do not drop the ×10.
+const KGFMM_PER_LBIN=10/KG_TO_LB/IN_TO_MM;
+// Spring display units for the Forza modes: factor from lb/in, label, decimals, input step.
+const SPRING_UNITS={
+  lbin:{f:1,label:'lb/in',dp:0,step:1},
+  nmm:{f:NMM_PER_LBIN,label:'N/mm',dp:1,step:0.1},
+  kgfmm:{f:KGFMM_PER_LBIN,label:'kgf/mm',dp:1,step:0.1},
+};
+const springUnit=k=>SPRING_UNITS[k]??SPRING_UNITS.lbin;
 // Forza ARB click → roll stiffness per m² of track (N·m/rad), at the suspension (before the tyre —
 // see TYRE_HZ). Fitted to an in-game MAN bar sweep on three cars under the tyre-series model:
 // ~579 (MX-5 Cup), ~438 (Ultima Evo), ~626 (Scirocco R). Forza normalises its 1–N slider per car,
@@ -1773,7 +1784,7 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
 //   Bump/Rebound Damping   N/m/s   (identical to N·s/m; this is BeamNG's spelling)
 //   Anti-Roll Spring Rate  N/m     (a LINEAR rate, not torsional N·m/rad — see arbOut)
 // LB_IN_TO_NM is already N/m per lb/in, so physical modes need no separate constant —
-// NMM_PER_LBIN is the IMP/MET display toggle's N/mm conversion and is unrelated here.
+// NMM_PER_LBIN is the UNITS modal's N/mm conversion and is unrelated here.
 //
 // MOTION RATIO is applied here, at the display layer, and deliberately not inside the balance
 // model: Hz, roll stiffness and every balance figure are wheel-rate quantities and must not
@@ -1783,9 +1794,9 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
 // re-application of a snap already performed upstream — kept deliberately, because it is the
 // last thing standing between a raw coefficient and the UI, and the paths that do not run
 // through computeTune (TUNE CHECK, the ARB MAN field's own round-trip) still land here.
-const springOut=(lbIn,gameMode,metric,mr=1)=>isPhysical(gameMode)
+const springOut=(lbIn,gameMode,su,mr=1)=>isPhysical(gameMode)
   ? {value:roundTo(lbIn*LB_IN_TO_NM/mrDiv(mr),500),unit:'N/m',decimals:0}
-  : {value:metric?lbIn*NMM_PER_LBIN:lbIn,unit:metric?'N/mm':'lb/in',decimals:metric?1:0};
+  : {value:lbIn*su.f,unit:su.label,decimals:su.dp};
 const dampOut=(v,lim,mr=1)=>lim.damping==null
   ? {value:roundTo(v/mrDiv(mr),100),unit:'N/m/s',decimals:0}
   : {value:v,unit:`/ ${lim.damping}`,decimals:1};
@@ -2029,8 +2040,27 @@ const autoTagsOf=e=>{
   return out;
 };
 
+// ── units ──
+// Per-category display units, chosen in the UNITS modal. Replaced the single IMP/MET
+// toggle (suspos_units_v1, a boolean), which is still read once as the default for
+// suspos_units_v2 so an existing metric user starts all-metric. BeamNG springs, dampers
+// and ARBs ignore the spring choice — they are always N/m, BeamNG's own unit.
+const UNIT_GROUPS=[
+  {k:'mass',label:'Weight',opts:[['lb','lb'],['kg','kg']]},
+  {k:'spring',label:'Spring rate',opts:[['lbin','lb/in'],['nmm','N/mm'],['kgfmm','kgf/mm']],
+   note:"Pick whichever Forza is set to. Forza's N/mm and kgf/mm are both 10× the true unit, as the game shows them. BeamNG is always N/m."},
+  {k:'length',label:'Ride height',opts:[['in','in'],['cm','cm']]},
+  {k:'speed',label:'Speed',opts:[['mph','mph'],['kmh','km/h']]},
+];
+const UNITS_IMP={mass:'lb',spring:'lbin',length:'in',speed:'mph'};
+const UNITS_MET={mass:'kg',spring:'nmm',length:'cm',speed:'kmh'};
+const legacyUnits=()=>{
+  try{return JSON.parse(localStorage.getItem('suspos_units_v1'))===true?UNITS_MET:UNITS_IMP;}
+  catch(e){return UNITS_IMP;}
+};
+
 // Summary line. Takes metricUnits because the old garage card hardcoded imperial and
-// ignored the IMP/MET toggle entirely. Wheelbase stays in metres in both unit systems,
+// ignored the units setting entirely. Wheelbase stays in metres in both unit systems,
 // matching how it's displayed everywhere else in the app.
 const entrySummary=(e,metric)=>{
   if(e?.dna&&!e.ch&&!e.fe&&!e.dr){
@@ -3002,7 +3032,8 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
   );
 };
 
-const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialMode})=>{
+const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=>{
+  const mMass=units.mass==='kg',su=springUnit(units.spring);
   // A physical-unit game mode has no click ceiling, so the inputs here take BeamNG's own
   // units — N/m springs and anti-roll rate, N/m/s damping — which also means computeCheck
   // must not divide the damping calibration back out. Seeds differ by orders of magnitude
@@ -3114,10 +3145,10 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
             </Card>
             <Card title="VEHICLE MASS" hint="Synced with the CHASSIS Weight and Front Weight Bias fields in the sidebar — editing either place updates both.">
               <Field label="Weight"
-                value={metricUnits?ch.weight/KG_TO_LB:ch.weight}
-                onChange={metricUnits?v=>setCh(p=>({...p,weight:v*KG_TO_LB})):v=>setCh(p=>({...p,weight:v}))}
-                min={metricUnits?45:100} max={metricUnits?8165:18000} step={1}
-                unit={metricUnits?'kg':'lb'} logScale={true} logMid={metricUnits?2722:6000}/>
+                value={mMass?ch.weight/KG_TO_LB:ch.weight}
+                onChange={mMass?v=>setCh(p=>({...p,weight:v*KG_TO_LB})):v=>setCh(p=>({...p,weight:v}))}
+                min={mMass?45:100} max={mMass?8165:18000} step={1}
+                unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}/>
               <Field label="Front Bias" value={ch.frontBias} onChange={v=>setCh(p=>({...p,frontBias:v}))} min={30} max={70} step={1} unit="%"/>
               <Stat label="Corner mass front" value={masses.front} unit="kg"/>
               <Stat label="Corner mass rear" value={masses.rear} unit="kg"/>
@@ -3132,21 +3163,22 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
               ))}
             </Card>
             <Card title="SPRING INPUTS">
-              {/* Physical modes always take N/m regardless of the IMP/MET toggle, because that
+              {/* Physical modes always take N/m regardless of the UNITS spring choice, because that
                   is the unit BeamNG's slider and this mode's SPRINGS card both use — asking
                   for lb/in here while printing N/m there would break the round-trip.
                   LB_IN_TO_NM is N/m per lb/in; NMM_PER_LBIN is the MET toggle's N/mm.
                   One `conv` drives value/onChange/min/max so the round-trip stays symmetric.
-                  N/mm values are ~10× smaller than N/m ones, so MET carries a decimal and a
-                  0.1 step — at whole numbers each step would be ~5.7 lb/in of resolution. */}
+                  MET carries a decimal and a 0.1 step to match Forza's own "N/mm" readout
+                  (which is 10× true N/mm — see NMM_PER_LBIN). */}
               {[['Spring Rate Front','f'],['Spring Rate Rear','r']].map(([lbl,k])=>{
-                const conv=phys?LB_IN_TO_NM:NMM_PER_LBIN;
-                const converted=phys||metricUnits;
+                const conv=phys?LB_IN_TO_NM:su.f;
+                const dp=phys?0:su.dp;
+                const converted=conv!==1;
                 return <Field key={k} label={lbl}
-                  value={converted?(phys?Math.round(ckSpr[k]*conv):+(ckSpr[k]*conv).toFixed(1)):ckSpr[k]}
+                  value={converted?+(ckSpr[k]*conv).toFixed(dp):ckSpr[k]}
                   onChange={converted?v=>pS(k)(v/conv):pS(k)}
-                  min={converted?Math.round(50*conv):50} max={converted?Math.round(2500*conv):2500}
-                  step={phys?100:(metricUnits?0.1:1)} unit={converted?(phys?'N/m':'N/mm'):'lb/in'}/>;
+                  min={+(50*conv).toFixed(dp)} max={+(2500*conv).toFixed(dp)}
+                  step={phys?100:su.step} unit={phys?'N/m':su.label}/>;
               })}
             </Card>
             <Card title="DAMPING INPUTS">
@@ -3203,8 +3235,8 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
               <Field label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"/>
               <Stat label="Corner mass front" value={probeMasses.front} unit="kg" decimals={1}/>
               <Stat label="Corner mass rear"  value={probeMasses.rear}  unit="kg" decimals={1}/>
-              <Stat label="Spring front" value={metricUnits?probeRateF*NMM_PER_LBIN:probeRateF} unit={metricUnits?'N/mm':'lb/in'} decimals={1}/>
-              <Stat label="Spring rear"  value={metricUnits?probeRateR*NMM_PER_LBIN:probeRateR} unit={metricUnits?'N/mm':'lb/in'} decimals={1}/>
+              <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
+              <Stat label="Spring rear"  value={probeRateR*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
               <Stat label="ARB front" value={1} unit=""/>
               <Stat label="ARB rear"  value={1} unit=""/>
               <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1e293b'}}>
@@ -3830,7 +3862,7 @@ const TUTORIALS={
      body:'SUSP.OS calculates suspension values from your car\'s stats and a handling target — you set what kind of car and how you want it to feel, the app solves the numbers. Tap the ☰ button to open the setup sidebar. This guide walks through the basics, then the results panel on the right.'},
     {title:'Getting Around',
      focus:null,
-     body:'The ☰ button opens and closes the setup sidebar — results update live on the right as you type. On desktop the header carries IMP/MET units, HORIZON/MOTORSPORT game title, and the BEG/INT/PRO complexity buttons, then ? to reopen this guide, TERMS for the glossary, and GARAGE for your saves. Undo ↩ and redo ↪ sit beside RESET at the top of the sidebar, and Ctrl+Z / Ctrl+Shift+Z (⌘ on Mac) work too. On phones the BEG/INT/PRO row sits under the title, and the units and game title toggles move to the top of the sidebar. Every slider has a number box beside it for typing an exact value. The small ⓘ next to almost every label is a hint — hover it on desktop, or tap it on mobile, for a plain-language explanation of what that control does and which way it shifts your handling balance.'},
+     body:'The ☰ button opens and closes the setup sidebar — results update live on the right as you type. On desktop the header carries a UNITS button (choose lb/kg, lb/in, N/mm or kgf/mm, in/cm and mph/km/h separately), HORIZON/MOTORSPORT game title, and the BEG/INT/PRO complexity buttons, then ? to reopen this guide, TERMS for the glossary, and GARAGE for your saves. Undo ↩ and redo ↪ sit beside RESET at the top of the sidebar, and Ctrl+Z / Ctrl+Shift+Z (⌘ on Mac) work too. On phones the BEG/INT/PRO row sits under the title, and the UNITS button and game title toggle move to the top of the sidebar. Every slider has a number box beside it for typing an exact value. The small ⓘ next to almost every label is a hint — hover it on desktop, or tap it on mobile, for a plain-language explanation of what that control does and which way it shifts your handling balance.'},
     {title:'Layout & Build Type',
      focus:['layout-build','build-type'],
      body:'Tell the app what you\'re working with. Drive layout (FWD / RWD / AWD) sets which wheels get power and affects how the differential recommendation is calculated. Build type (Street / Track / Drift / Rally / Offroad / Drag) shifts alignment targets, brake balance, and differential tuning toward your intended use.'},
@@ -4000,7 +4032,7 @@ const TUTORIALS={
 const GLOSSARY=[
   {group:'Ride & Springs',terms:[
     {term:'Hz (Ride Frequency)',def:'How many times per second a corner would bounce if pushed down and released. Higher Hz = stiffer spring, faster response, more control at the cost of compliance. Street cars usually run 1.0–1.8 Hz (the app\'s SOFT and ROAD bands); track cars 1.8–2.6 Hz (FIRM into RACE).'},
-    {term:'Spring Rate (lb/in or N/mm)',def:"The force needed to compress a spring by one unit of travel. SUSP.OS derives it from your Ride Stiffness (Hz) target and each axle's corner mass — you don't set it directly."},
+    {term:'Spring Rate (lb/in, N/mm or kgf/mm)',def:"The force needed to compress a spring by one unit of travel. SUSP.OS derives it from your Ride Stiffness (Hz) target and each axle's corner mass — you don't set it directly."},
     {term:'Flat Ride',def:"A rear Hz set slightly higher than front so a bump hits the rear axle just as the front axle's response is finishing, cancelling pitch (nose-dive/squat) at a chosen target speed. One of three ways to set the secondary axle's Hz, alongside MULTIPLIER (fixed ratio) and INDEPENDENT (manual)."},
     {term:'Corner Mass',def:"The weight resting on one wheel — total weight split by front/rear bias, then by two for each side. Drives spring rate and damping calculations, since a heavier corner needs more force to move the same amount."},
     {term:'Sag',def:"How far the suspension compresses under the car's own static weight, before any cornering or bumps. Softer springs sag more. The SAG vs LOAD chart in the VISUALS card plots it against increasing vertical load so you can see how much travel is left."},
@@ -4298,7 +4330,9 @@ function App(){
   const setFe=v=>{recordChange();setFeRaw(v);};
   const setDr=v=>{recordChange();setDrRaw(v);};
   const setAl=v=>{recordChange();setAlRaw(v);};
-  const[metricUnits,setMetricUnits]=usePersist('suspos_units_v1',false);
+  const[units,setUnits]=usePersist('suspos_units_v2',legacyUnits());
+  const mMass=units.mass==='kg',mSpring=springUnit(units.spring),mLen=units.length==='cm',mSpeed=units.speed==='kmh';
+  const[showUnits,setShowUnits]=useState(false);
   const[saves]=usePersist('suspos_saves_v9',PRESET_SAVES); // read-only: legacy slots, source for one-time MY BUILDS migration
   const[uiMode,setUiMode]=usePersist('suspos_uimode_v1','beginner');
   // Read-only since the header zoom buttons were removed — the persisted value is still
@@ -4712,7 +4746,7 @@ function App(){
   },[]);
 
   const cm=useMemo(()=>cornerMasses(ch),[ch]);
-  const dispMass=kg=>metricUnits?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
+  const dispMass=kg=>mMass?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
   const natGripBalance=balanceFromRsBal(ch,naturalMechBalanceOf(ch));
   // The single TARGET/GRIP resolution funnel — see resolveFeEffective.
   const feEffective=resolveFeEffective(ch,fe);
@@ -5179,11 +5213,48 @@ function App(){
   const effZoom=isPhone?1:uiZoom;
   return(
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
-      {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} metricUnits={metricUnits} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
+      {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} units={units} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
       {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records
           the link the sidebar marks and the VISUALS match card read. Opened from the sidebar
           toolbar; below PRO the modal still opens so the feature is discoverable. */}
+      {/* UNITS modal — per-category display units (see UNIT_GROUPS). Opened from the
+          header's UNITS button, or the sidebar's on a compact header. */}
+      {showUnits&&(
+        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+             onClick={()=>setShowUnits(false)}>
+          <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,width:360,maxWidth:'calc(100vw - 20px)',
+                       maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:'var(--font-mono)'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                         padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
+              <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>UNITS</span>
+              <button onClick={()=>setShowUnits(false)} aria-label="Close" style={{background:'none',border:'none',color:'#94a3b8',
+                cursor:'pointer',fontSize:14}}>✕</button>
+            </div>
+            <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
+              <div style={{display:'flex',gap:4,marginBottom:12}}>
+                <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_IMP)}>ALL IMPERIAL</button>
+                <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_MET)}>ALL METRIC</button>
+              </div>
+              {UNIT_GROUPS.map(g=>(
+                <div key={g.k} style={{marginBottom:10}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                    <span style={{fontSize:11,color:'#cbd5e1'}}>{g.label}</span>
+                    <div style={{display:'flex',gap:3}}>
+                      {g.opts.map(([v,lbl])=>(
+                        <button key={v} className={`tbtn${units[g.k]===v?' on':''}`} style={{fontSize:11,minWidth:52}}
+                          onClick={()=>setUnits({...units,[g.k]:v})}>{lbl}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {g.note&&<div style={{fontSize:9,color:'#475569',marginTop:3}}>{g.note}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {showDnaModal&&(
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
              onClick={()=>setShowDnaModal(false)}>
@@ -5239,7 +5310,7 @@ function App(){
                              NO SAVED DNA<div style={{fontSize:9,marginTop:6,letterSpacing:0}}>
                                Set the sliders below, name it above, then save.</div></div>
                           :dnaEntries.map(e=>(
-                             <EntryCard key={e.id} entry={e} metricUnits={metricUnits} allTags={allTags}
+                             <EntryCard key={e.id} entry={e} metricUnits={mMass} allTags={allTags}
                                onLoadDna={dnaLoadSaved}
                                onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
                                onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
@@ -5407,10 +5478,7 @@ function App(){
           </div>
           <div style={{display:'flex',gap:3,alignItems:'center'}}>
             {!headerCompact&&<>
-              <button className={`tbtn${!metricUnits?' on':''}`}
-                onClick={()=>setMetricUnits(false)} style={{fontSize:11}}>IMP</button>
-              <button className={`tbtn${metricUnits?' on':''}`}
-                onClick={()=>setMetricUnits(true)} style={{fontSize:11}}>MET</button>
+              <button className="tbtn" onClick={()=>setShowUnits(true)} style={{fontSize:11}}>UNITS</button>
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
               <select className="gmsel" value={fe.gameMode}
                 onChange={e=>pFe('gameMode')(e.target.value)}>
@@ -5502,10 +5570,7 @@ function App(){
           {headerCompact&&(
             <div style={{display:'flex',gap:4,alignItems:'center',padding:'8px 12px',
                          borderBottom:'1px solid #0f172a',flexShrink:0}}>
-              <button className={`tbtn${!metricUnits?' on':''}`}
-                onClick={()=>setMetricUnits(false)} style={{fontSize:11}}>IMP</button>
-              <button className={`tbtn${metricUnits?' on':''}`}
-                onClick={()=>setMetricUnits(true)} style={{fontSize:11}}>MET</button>
+              <button className="tbtn" onClick={()=>setShowUnits(true)} style={{fontSize:11}}>UNITS</button>
               <div style={{width:1,height:14,background:'#1e293b',margin:'0 2px'}}/>
               <select className="gmsel" value={fe.gameMode}
                 onChange={e=>pFe('gameMode')(e.target.value)}>
@@ -5544,10 +5609,10 @@ function App(){
                 </div>
                 <div id="zone-weight" style={dim('weight')}>
                 <Field label="Weight"
-                  value={metricUnits?ch.weight/KG_TO_LB:ch.weight}
-                  onChange={metricUnits?v=>pCh('weight')(v*KG_TO_LB):pCh('weight')}
-                  min={metricUnits?45:100} max={metricUnits?8165:18000} step={1}
-                  unit={metricUnits?'kg':'lb'} logScale={true} logMid={metricUnits?2722:6000}
+                  value={mMass?ch.weight/KG_TO_LB:ch.weight}
+                  onChange={mMass?v=>pCh('weight')(v*KG_TO_LB):pCh('weight')}
+                  min={mMass?45:100} max={mMass?8165:18000} step={1}
+                  unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
                   hint="Total vehicle weight. Find this on the car's stat page."/>
                 <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')}
                   min={30} max={70} step={1} unit="%"
@@ -5561,7 +5626,7 @@ function App(){
                   return <div style={{fontSize:9,color:'#f59e0b',letterSpacing:0.3,
                     padding:'4px 8px',background:'#0a0f1a',
                     border:'1px solid #f5a62333',borderRadius:2,margin:'4px 0 6px',lineHeight:1.7}}>
-                    {!weightOk&&<span>{metricUnits?Math.round(ch.weight/KG_TO_LB)+'kg':ch.weight+'lb'} is outside the typical Forza range ({metricUnits?'725–2950 kg':'1600–6500 lb'}). Double-check the car stat screen.</span>}
+                    {!weightOk&&<span>{mMass?Math.round(ch.weight/KG_TO_LB)+'kg':ch.weight+'lb'} is outside the typical Forza range ({mMass?'725–2950 kg':'1600–6500 lb'}). Double-check the car stat screen.</span>}
                     {!weightOk&&!biasOk&&' '}
                     {!biasOk&&<span>{ch.frontBias}% front bias is unusual for {ch.layout??'RWD'} — typical is {bLo}–{bHi}%.</span>}
                   </div>;
@@ -5648,11 +5713,11 @@ function App(){
               options={[{value:'FWD',label:'FWD'},{value:'RWD',label:'RWD'},{value:'AWD',label:'AWD'}]}
               hint={HINT_LAYOUT}/>
             <Field label="Weight"
-              value={metricUnits?ch.weight/KG_TO_LB:ch.weight}
-              onChange={metricUnits?v=>pCh('weight')(v*KG_TO_LB):pCh('weight')}
-              min={metricUnits?45:100} max={metricUnits?8165:18000} step={1}
-              unit={metricUnits?'kg':'lb'} logScale={true} logMid={metricUnits?2722:6000}
-              hint={metricUnits
+              value={mMass?ch.weight/KG_TO_LB:ch.weight}
+              onChange={mMass?v=>pCh('weight')(v*KG_TO_LB):pCh('weight')}
+              min={mMass?45:100} max={mMass?8165:18000} step={1}
+              unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
+              hint={mMass
                 ?"Total vehicle weight in kg. Find this on the car's stat page. Affects spring rates, damper forces, and ARB stiffness directly."
                 :"Total vehicle weight in pounds. Find this on the car's stat page. Affects spring rates, damper forces, and ARB stiffness directly."}/>
             <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
@@ -5762,17 +5827,17 @@ function App(){
             {ch.useRideHeightCG?(()=>{
               const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
               const tyresOk=pF?.radius!=null&&pR?.radius!=null;
-              const inMm=metricUnits?10:IN_TO_MM; // display unit → mm: cm ×10, in ×25.4
-              const unitLbl=metricUnits?'cm':'in';
+              const inMm=mLen?10:IN_TO_MM; // display unit → mm: cm ×10, in ×25.4
+              const unitLbl=mLen?'cm':'in';
               return(<>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
                   <Field label="Ride Height F" value={Math.round((ch.rideHeightF*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightF')((v*inMm)/1000)}
-                    min={metricUnits?1.3:0.5} max={metricUnits?122:48} step={metricUnits?0.5:0.1} unit={unitLbl}
+                    min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
                     hint={`Front ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}). Used with tyre radius to estimate CG height, and to gauge bottoming risk from natural sag.`}/>
                   <Field label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightR')((v*inMm)/1000)}
-                    min={metricUnits?1.3:0.5} max={metricUnits?122:48} step={metricUnits?0.5:0.1} unit={unitLbl}
+                    min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
                     hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`}/>
                 </div>
                 <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
@@ -6626,11 +6691,11 @@ function App(){
                   // The slider runs inverted (240 − speed); the box shows and takes the speed itself,
                   // in the display unit, and stores whole mph inside sanitizeTune's 60–200.
                   box={{
-                    value:metricUnits?Math.round(fe.targetSpeed*KMH_PER_MPH):fe.targetSpeed,
-                    onCommit:v=>pFe('targetSpeed')(Math.max(60,Math.min(200,Math.round(metricUnits?v/KMH_PER_MPH:v)))),
-                    min:metricUnits?Math.round(60*KMH_PER_MPH):60,
-                    max:metricUnits?Math.round(200*KMH_PER_MPH):200,
-                    dp:0,unit:metricUnits?'km/h':'mph'}}
+                    value:mSpeed?Math.round(fe.targetSpeed*KMH_PER_MPH):fe.targetSpeed,
+                    onCommit:v=>pFe('targetSpeed')(Math.max(60,Math.min(200,Math.round(mSpeed?v/KMH_PER_MPH:v)))),
+                    min:mSpeed?Math.round(60*KMH_PER_MPH):60,
+                    max:mSpeed?Math.round(200*KMH_PER_MPH):200,
+                    dp:0,unit:mSpeed?'km/h':'mph'}}
                   // Resulting Hz is in the FRONT/REAR strip below; flag only OFF and a clamp.
                   readout={[fe.targetSpeed>=200&&'OFF',physics.rearHzClamped&&'⚠'].filter(Boolean).join(' ')||null}
                   hint={isShared
@@ -6745,13 +6810,13 @@ function App(){
                   mode whose card says N/m. */}
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPR F</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#9ca3af'}}>
-                {(()=>{const o=springOut(tune.springF,fe.gameMode,metricUnits,ch.motionRatioF);
+                {(()=>{const o=springOut(tune.springF,fe.gameMode,mSpring,ch.motionRatioF);
                   return `${o.value.toFixed(o.decimals)} ${o.unit}`;})()}
               </span>
               <div style={{flex:1,height:1,background:'#1e293b'}}/>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPR R</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#9ca3af'}}>
-                {(()=>{const o=springOut(tune.springR,fe.gameMode,metricUnits,ch.motionRatioR);
+                {(()=>{const o=springOut(tune.springR,fe.gameMode,mSpring,ch.motionRatioR);
                   return `${o.value.toFixed(o.decimals)} ${o.unit}`;})()}
               </span>
             </div>
@@ -7285,7 +7350,7 @@ function App(){
                 const plotW=W-padL-padR,plotH=H-padT-padB;
                 const xS=g_=>padL+(g_/gMax)*plotW;
                 const yS=mm=>padT+plotH-(mm/yMax)*plotH;
-                const toDisp=mm=>metricUnits?mm/10:mm/IN_TO_MM;
+                const toDisp=mm=>mLen?mm/10:mm/IN_TO_MM;
                 const gEndF=Math.min(gMax,yMax/sagF),gEndR=Math.min(gMax,yMax/sagR);
                 const gEndOutF=Math.min(gMax,sagF+dSagF*gMax<=yMax||dSagF<=0?gMax:(yMax-sagF)/dSagF);
                 const gEndOutR=Math.min(gMax,sagR+dSagR*gMax<=yMax||dSagR<=0?gMax:(yMax-sagR)/dSagR);
@@ -7313,7 +7378,7 @@ function App(){
                           <text x={xS(g_)} y={H-padB+13} fontSize={8} fill="#475569" textAnchor="middle" fontFamily="var(--font-mono)">{g_}g</text>
                         </g>
                       ))}
-                      <text x={2} y={padT+4} fontSize={8} fill="#475569" fontFamily="var(--font-mono)">{Math.round(toDisp(yMax))}{metricUnits?'cm':'in'}</text>
+                      <text x={2} y={padT+4} fontSize={8} fill="#475569" fontFamily="var(--font-mono)">{Math.round(toDisp(yMax))}{mLen?'cm':'in'}</text>
                       <text x={2} y={H-padB} fontSize={8} fill="#475569" fontFamily="var(--font-mono)">0</text>
                       {/* bump-stop zone: real springs go progressive well before metal-to-metal
                           contact — shade the top 12% of each axle's travel as a reminder that
@@ -7326,10 +7391,10 @@ function App(){
                       <line x1={padL} y1={yS(rhR)} x2={W-padR} y2={yS(rhR)} stroke={COL_R} strokeWidth={1} strokeDasharray="3,2" opacity={0.6}/>
                       {/* left-side value labels: bottom-out ride height and 1g sag point, front in
                           column 1 and rear in column 2, so front/rear never overlap each other */}
-                      <text x={1} y={yS(rhF)+2.5} fontSize={7} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(rhF).toFixed(metricUnits?1:2)}</text>
-                      <text x={22} y={yS(rhR)+2.5} fontSize={7} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(rhR).toFixed(metricUnits?1:2)}</text>
-                      {gMax>=1&&<text x={1} y={yS(sagF)+2.5} fontSize={7} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(sagF).toFixed(metricUnits?1:2)}</text>}
-                      {gMax>=1&&<text x={22} y={yS(sagR)+2.5} fontSize={7} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(sagR).toFixed(metricUnits?1:2)}</text>}
+                      <text x={1} y={yS(rhF)+2.5} fontSize={7} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(rhF).toFixed(mLen?1:2)}</text>
+                      <text x={22} y={yS(rhR)+2.5} fontSize={7} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(rhR).toFixed(mLen?1:2)}</text>
+                      {gMax>=1&&<text x={1} y={yS(sagF)+2.5} fontSize={7} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(sagF).toFixed(mLen?1:2)}</text>}
+                      {gMax>=1&&<text x={22} y={yS(sagR)+2.5} fontSize={7} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(sagR).toFixed(mLen?1:2)}</text>}
                       {/* outside-wheel-under-cornering-load diagonals (LLT model) */}
                       <line x1={xS(0)} y1={yS(sagF)} x2={xS(gEndOutF)} y2={yS(sagF+dSagF*gEndOutF)} stroke={COL_F} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
                       <line x1={xS(0)} y1={yS(sagR)} x2={xS(gEndOutR)} y2={yS(sagR+dSagR*gEndOutR)} stroke={COL_R} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
@@ -7473,7 +7538,7 @@ function App(){
               return(
                 <RowGroup style={{marginBottom:0}}>
                   {rows.map(([lbl,spring,mr,hz,pct,side])=>{
-                    const o=springOut(spring,fe.gameMode,metricUnits,mr);
+                    const o=springOut(spring,fe.gameMode,mSpring,mr);
                     const c=hzCtx(hz);
                     return <OutRow key={lbl} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
                       note={c?c[0]:null} noteColor={c?c[1]:undefined}
@@ -7738,7 +7803,7 @@ function App(){
                 meta:[`${Math.round(rsAb/(rsSp+rsAb)*100)}% roll`,`${Math.round(rsAb/(tune.rsAbF+tune.rsAbR)*100)}% ARB`]};
             };
             const buildSpringRow=(side,spring,mr,hz,pct)=>{
-              const o=springOut(spring,fe.gameMode,metricUnits,mr);
+              const o=springOut(spring,fe.gameMode,mSpring,mr);
               const c=hzCtx(hz);
               return {label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
                 note:c?c[0]:null,noteColor:c?c[1]:undefined,meta:[`${pct}% roll`,`${hz.toFixed(2)} Hz`]};
@@ -8626,7 +8691,7 @@ function App(){
                           onClick={()=>setGarageUI(u=>({...u,filter:'all'}))}>SHOW ALL</button></div></>}
                  </div>
                 :garageList.map(e=>(
-                   <EntryCard key={e.id} entry={e} metricUnits={metricUnits} allTags={allTags}
+                   <EntryCard key={e.id} entry={e} metricUnits={mMass} allTags={allTags}
                      onLoadChassis={garageLoadChassis} onLoadBuild={garageLoadBuild}
                      onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
                      onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>

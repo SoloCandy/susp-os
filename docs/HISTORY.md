@@ -1893,7 +1893,27 @@ cases (it's always the reference axle) and that the 8 CO-SOLVE fixtures are
 byte-identical (CO-SOLVE overrides `effectiveRHz` regardless of `rearHzMode`) — the
 diff is fully explained by the intended default change, not a leak elsewhere.
 
-## Fixed — `NMM_PER_LBIN` was 10× too high, so every MET-mode spring readout was wrong (resolved)
+## Changed — IMP/MET toggle replaced by a UNITS modal
+
+The header's IMP/MET pair (and its compact-header copy in the sidebar) is now one
+UNITS button opening a modal that sets weight (lb/kg), spring rate (lb/in /
+Forza N/mm / kgf/mm), ride height (in/cm) and speed (mph/km/h) independently, with ALL
+IMPERIAL / ALL METRIC shortcuts. Stored as `suspos_units_v2`; the old boolean
+`suspos_units_v1` is read once so metric users start all-metric.
+
+## Reverted — `NMM_PER_LBIN` back to `/100` to match Forza's metric spring readout
+
+The `/1000` "fix" below was physically correct and wrong for the job. Forza's
+metric spring field is labelled N/mm but shows **10× true N/mm** (the number is
+really N/cm). Metric audit in-game: Forza showed **1903.7 N/mm** for a spring the
+app printed as **190.4 N/mm** — exactly 10×. The app exists to produce numbers
+typed straight into the game, so the MET readout now mirrors Forza's label again.
+Forza's kgf/mm has the same 10× quirk (confirmed in-game), so the kgf/mm
+option added in the UNITS modal mirrors it too.
+Tune Check keeps its one decimal / 0.1 step, which matches Forza's own display.
+BeamNG (N/m) is unaffected.
+
+## Superseded — `NMM_PER_LBIN` was 10× too high, so every MET-mode spring readout was wrong
 
 `NMM_PER_LBIN` was defined as `LB_IN_TO_NM/100`. `LB_IN_TO_NM` is **N/m** per
 lb/in (175.127 — the name is misleading), and N/m → N/mm is a divide by

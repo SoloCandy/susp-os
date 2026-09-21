@@ -241,7 +241,7 @@ the initialiser against every `open.*` and `tog('...')` use in the source.
 
 ## Header layout: `headerCompact`
 
-The full header row — brand, IMP/MET, the game-mode dropdown, BEG/INT/PRO, then
+The full header row — brand, UNITS, the game-mode dropdown, BEG/INT/PRO, then
 `?` / TERMS / GARAGE — needed roughly 975px once the four divider margins
 and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
 cutoff, so between those widths the desktop header used to render and push
@@ -332,7 +332,7 @@ All keys are namespaced `suspos_`. Versions are per-key; see
 requires it — the stale key is simply ignored).
 
 `suspos_ch_v8`, `suspos_fe_v8`, `suspos_dr_v8`, `suspos_al_v2`,
-`suspos_units_v1`, `suspos_uimode_v1`, `suspos_zoom_v1` (read-only now),
+`suspos_units_v2` (+ `suspos_units_v1`, read-only), `suspos_uimode_v1`, `suspos_zoom_v1` (read-only now),
 `suspos_tutorial_seen_v1`, `suspos_baltut_seen_v1`, `suspos_onboard_v1`,
 `suspos_garage_v2`, `suspos_garage_ui_v1`.
 

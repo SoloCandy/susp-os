@@ -14,7 +14,8 @@ examples of that).
 | `suspos_fe_v8` | Feel/tune state (`fe`) — ride stiffness + its input mode (`rideStiffMode` HZ/BOTTOM G's, `rideBottomG` target), Hz mode + ride reference, ARB modes, damping, balance targets | `DEF_FE` |
 | `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields | `DEF_DR` |
 | `suspos_al_v2` | Alignment state (`al`) — mode (build/mech/grip/manual), nudgeStrength, manual camber/toe/caster, and the legacy `alignManual` flag (still read as a fallback for old saves — see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_AL` |
-| `suspos_units_v1` | Metric vs imperial display toggle | `false` (imperial) |
+| `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
+| `suspos_units_v1` | Legacy IMP/MET boolean — **read-only**, seeds the `_v2` default once | `false` (imperial) |
 | `suspos_saves_v9` | Legacy preset save slots — **read-only**, first link in the migration chain below | `PRESET_SAVES` |
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |
 | `suspos_zoom_v1` | Desktop UI zoom level — **read-only** since the header zoom buttons were removed in favour of browser zoom. A previously-set value is still honoured; nothing writes it any more | `1.1` |
