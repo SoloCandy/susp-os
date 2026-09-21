@@ -444,6 +444,14 @@ no room above or below, so `measure()` falls through to `setPos(null)` and centr
 the card, which then draws over the drawer (card z700, drawer z200). Verified, not
 assumed. The fallback stays as a cheap defensive branch.
 
+**The mobile sidebar stays mounted when closed** — below 768px the drawer keeps
+`display:flex` and hides at `translateX(-100%)` + `visibility:hidden` (visibility is
+delayed on close). Switching it back to a `display:none` toggle looks like a tidy
+simplification, but a transform can't animate out of `display:none`, so the slide
+would stop working. Two things depend on it: `TutorialPanel.measure()` drops rects
+with `right<=0` (otherwise it would anchor the card to the parked drawer), and it
+measures a second time at 260ms, after the .2s slide.
+
 ---
 
 ## Intentionally absent — do not add back

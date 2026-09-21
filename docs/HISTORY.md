@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed / changed — mobile sidebar drawer
+
+- The drawer popped in and out instead of sliding: its `display` toggled to `none`,
+  and a transform can't animate out of that. It now stays mounted and hides with
+  `visibility`, and the backdrop fades with it (see CODE_MAP's
+  intentionally-retained legacy section).
+- The width was a fixed 300px, which left a 20px backdrop strip on a 320px phone.
+  It's now 88% of the screen, capped at 360px.
+- A leftward swipe on the drawer (over 60px, mostly horizontal) closes it. A touch
+  that starts on an `input`, `select` or `textarea` is ignored. Without that,
+  dragging a slider thumb left closed the drawer mid-drag.
+- Phones only: the pinned VISUALS footer hides while a sidebar field has focus
+  (keyboard up), and its scroll area is capped at 32vh instead of 50vh, so the
+  controls keep their height.
+
 ## Fixed — tutorial leftovers found on the phone walkthrough
 
 - Three steps were long enough to need scrolling or fill a phone screen: INT
@@ -107,7 +122,7 @@ still collapses MY DNA inside the modal. Saved DNAs are unchanged garage entries
 ## Changed — sidebar RESET became an icon
 
 The toolbar's RESET button now shows a red ⟲ (aria-label and tooltip unchanged)
-to free width in `zone-toolbar` for another button. On the 300px touch sidebar the
+to free width in `zone-toolbar` for another button. On the (then 300px) touch sidebar the
 row was already wrapping; the word label was the easiest width to reclaim.
 
 ## Changed — a measured ARB scale is flagged when MEAS. NAT BAL moves

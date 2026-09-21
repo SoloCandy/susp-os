@@ -4191,8 +4191,9 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       // stacked controls would otherwise place the card over the second one.
       const keys=mode==='balance'?['balance-bar']:(t?.focus??[focusKey]);
       const rects=keys.map(k=>document.getElementById('zone-'+k)?.getBoundingClientRect())
-        .filter(b=>b&&(b.width||b.height));
-      // Hidden element (sidebar collapsed on desktop) → centre card
+        .filter(b=>b&&(b.width||b.height)&&b.right>0);
+      // Hidden element (sidebar collapsed on desktop, or the mobile drawer parked off-screen
+      // at translateX(-100%) — it stays mounted there so it can slide) → centre card
       if(!rects.length){setPos(null);return;}
       const raw={top:Math.min(...rects.map(b=>b.top)),bottom:Math.max(...rects.map(b=>b.bottom)),
         left:Math.min(...rects.map(b=>b.left)),right:Math.max(...rects.map(b=>b.right))};
@@ -4279,9 +4280,11 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     };
     // Slight delay lets the accordion open/collapse reflow settle before we measure
     const tid=setTimeout(measure,60);
+    // Again once the mobile drawer's .2s slide has finished — at 60ms it is still moving.
+    const tid2=setTimeout(measure,260);
     window.addEventListener('resize',measure);
     if(window.visualViewport)window.visualViewport.addEventListener('resize',measure);
-    return()=>{clearTimeout(tid);window.removeEventListener('resize',measure);
+    return()=>{clearTimeout(tid);clearTimeout(tid2);window.removeEventListener('resize',measure);
       if(window.visualViewport)window.visualViewport.removeEventListener('resize',measure);};
   },[focusKey,step]); // eslint-disable-line
 
@@ -4695,6 +4698,10 @@ function App(){
   // Initialised once from the launch width so resizes/address-bar jiggle don't reset it.
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
+  // Phone: true while a sidebar text field/select has focus (keyboard up) — hides the pinned
+  // VISUALS footer so the scrolling controls keep their height.
+  const[sbTyping,setSbTyping]=useState(false);
+  const swipeRef=useRef(null);
   useEffect(()=>{
     const preload=document.getElementById('pre-load');
     if(preload)preload.style.display='none';
@@ -4762,7 +4769,9 @@ function App(){
   },[uiMode,restoreTick]); // eslint-disable-line
 
   // sidebar grows with the display: 300px baseline, up to 440px at very wide screens.
-  const sidebarWidth=isMobile?300:Math.min(440,Math.max(340,Math.floor(windowWidth*0.25)));
+  // Mobile: 88% of the screen capped at 360, so small phones keep a tappable backdrop strip
+  // and large phones get the room.
+  const sidebarWidth=isMobile?Math.min(360,Math.floor(windowWidth*0.88)):Math.min(440,Math.max(340,Math.floor(windowWidth*0.25)));
 
   // Below this width the units / game-mode / tier groups move out of header row 1 and into
   // header row 2 and the top of the sidebar. THREE gate sites read this flag and must stay in
@@ -5651,27 +5660,50 @@ function App(){
       <div style={{display:'flex',flex:1,overflow:'hidden',position:'relative'}}>
 
         {/* BACKDROP — mobile only, closes sidebar on tap */}
-        {sidebarOpen&&isMobile&&
+        {/* Always mounted on mobile so it can fade; pointer-events off while closed. */}
+        {isMobile&&
           <div onClick={()=>setSidebarOpen(false)}
-               style={{position:'absolute',inset:0,background:'#00000088',zIndex:150}}/>}
+               style={{position:'absolute',inset:0,background:'#00000088',zIndex:150,
+                       opacity:sidebarOpen?1:0,pointerEvents:sidebarOpen?'auto':'none',
+                       transition:'opacity .2s ease'}}/>}
 
         {/* SIDEBAR — outer wrapper handles width/positioning; the pinned TOOLBAR header,
             scrollable content, and the pinned VISUALS footer are separate children so the
-            header/footer never scroll away. */}
-        <div style={{width:sidebarWidth,flexShrink:0,transition:'width .2s ease',
+            header/footer never scroll away.
+            Mobile: stays display:flex when closed and hides by transform + visibility, because
+            a display:none toggle kills the slide transition. visibility is delayed on close
+            (transition .2s step) so the drawer is still visible while it slides out, and it
+            keeps a closed drawer out of the tab order. A leftward swipe closes it. */}
+        <div
+          onFocus={isPhone?e=>{if(e.target.matches('input,select,textarea'))setSbTyping(true);}:undefined}
+          onBlur={isPhone?()=>setTimeout(()=>{ // deferred: hopping field-to-field shouldn't flash VISUALS back
+            if(!document.activeElement?.matches?.('input,select,textarea'))setSbTyping(false);},0):undefined}
+          onTouchStart={isMobile?e=>{
+            // Not from a control: dragging a range thumb left is a slider move, and a drag in a
+            // text field is a text selection — neither may close the drawer.
+            if(e.target.closest('input,select,textarea')){swipeRef.current=null;return;}
+            const t=e.touches[0];swipeRef.current={x:t.clientX,y:t.clientY,done:false};}:undefined}
+          onTouchMove={isMobile?e=>{
+            const s=swipeRef.current;if(!s||s.done)return;
+            const t=e.touches[0],dx=t.clientX-s.x,dy=t.clientY-s.y;
+            if(Math.abs(dy)>30&&Math.abs(dy)>Math.abs(dx)){s.done=true;return;} // a scroll, not a swipe
+            if(dx<-60&&Math.abs(dx)>Math.abs(dy)*1.5){s.done=true;setSidebarOpen(false);}
+          }:undefined}
+          style={{width:sidebarWidth,flexShrink:0,transition:'width .2s ease',
           borderRight:'1px solid #0f172a',background:'#020617',
-          display:sidebarOpen?'flex':'none',flexDirection:'column',
+          display:(sidebarOpen||isMobile)?'flex':'none',flexDirection:'column',
           ...(isMobile?{
             position:'absolute',top:0,left:0,bottom:0,zIndex:200,
             transform:sidebarOpen?'translateX(0)':'translateX(-100%)',
-            transition:'transform .2s ease',
+            visibility:sidebarOpen?'visible':'hidden',
+            transition:sidebarOpen?'transform .2s ease':'transform .2s ease, visibility 0s linear .2s',
             boxShadow:sidebarOpen?'4px 0 24px #000000cc':'none',
           }:{})
         }}>
 
         {/* PINNED — TOOLBAR (reset, check, share) */}
         <div id="zone-toolbar" style={{flexShrink:0,borderBottom:'1px solid #0f172a',background:'#020617',...dim('toolbar')}}>
-          <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:isMobile?'6px 8px':'6px 12px'}}>{/* 8px on the 300px phone sidebar keeps ⟲ ↩ ↪ DNA CHECK SHARE on one row */}
+          <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:isMobile?'6px 8px':'6px 12px'}}>{/* 8px on the narrowest (282px, 320px-phone) sidebar keeps ⟲ ↩ ↪ DNA CHECK SHARE on one row */}
             <button className="tbtn" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}} aria-label="Reset"
               title="Reset tune or tutorials to defaults (saves not affected)">⟲</button>
             <button className="tbtn undo-btn" style={{fontSize:11}}
@@ -7276,9 +7308,9 @@ function App(){
             here stay visible regardless of which input section is currently open. BEG mode has
             its own simplified panel with no ARB/RIDE/DAMPERS sections for these dials to relate
             to, so VISUALS stays hidden there. */}
-        {uiMode!=='beginner'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
+        {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')}>
-            <div style={{maxHeight:'50vh',overflowY:'auto',overscrollBehavior:'contain'}}>
+            <div style={{maxHeight:isPhone?'32vh':'50vh',overflowY:'auto',overscrollBehavior:'contain'}}>
               {dnaLink&&<>
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
