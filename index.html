@@ -47,7 +47,6 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
   body{overflow:auto}
   .tog{padding:9px 0;min-height:40px}
   .tbtn{padding:11px 14px;min-height:40px}
-  .nudge-btn{display:inline-flex!important}
 }
 @media(max-width:480px){
   /* Fluid number inputs so a label + two fields don't overflow a ~375px row.
@@ -128,8 +127,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .ru{font-size:9px;color:#6b7280;margin-top:1px}
 .sr{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;
     border-bottom:1px solid #0f172a;font-size:11px}
-.nudge-btn{display:none;width:26px;height:26px;align-items:center;justify-content:center;
-    cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 .sl{color:#9ca3af}.sv{color:#9ca3af;font-size:12px}.su{font-size:10px;color:#6b7280;margin-left:3px}
 </style>
 </head>
@@ -2400,10 +2397,6 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
           {label}{hint&&<Hint text={hint}/>}
         </span>
         <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
-          <button type="button" className="nudge-btn" onClick={()=>stepBy(-1)}
-            style={{border:'1px solid #1e293b',background:'#0a0f1a',color:'#9ca3af',
-                    borderRadius:2,fontFamily:'var(--font-mono)',fontSize:14,lineHeight:1,
-                    WebkitTapHighlightColor:'transparent'}}>&#8722;</button>
           <input ref={numRef} type="number" className="num" min={min} max={max} step={logScale?1:step}
             value={focused?draft:value}
             onFocus={()=>setDraft(String(value))}
@@ -2411,10 +2404,6 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
             onBlur={commit}
             onKeyDown={e=>{if(e.key==='Enter')e.target.blur();}}/>
           {unit&&<span style={NUM_UNIT_STYLE}>{unit}</span>}
-          <button type="button" className="nudge-btn" onClick={()=>stepBy(1)}
-            style={{border:'1px solid #1e293b',background:'#0a0f1a',color:'#9ca3af',
-                    borderRadius:2,fontFamily:'var(--font-mono)',fontSize:14,lineHeight:1,
-                    WebkitTapHighlightColor:'transparent'}}>&#43;</button>
         </div>
       </div>
       <input ref={sliRef} type="range" className="sli" min={0} max={1} step={0.0001}

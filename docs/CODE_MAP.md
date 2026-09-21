@@ -305,8 +305,8 @@ OVERWRITE, CHECK's import, DNA APPLY, removing the DNA link, RESET of the tune â
 calls `commit(label, fn)` and is exactly one labelled step. Anything else is a
 *burst*: the first recorded change saves the state before it, and the burst ends
 on a window-level `pointerdown`, `pointerup`, `focusout`, or 600 ms without a
-change (not while a pointer is still held). One slider drag is one step; each
-click of a Â± nudge button is one step.
+change (not while a pointer is still held). One slider drag is one step, and so
+is a mouse-wheel run on a focused control.
 
 **Restores and effects.** A restore writes through the raw setters, then:
 

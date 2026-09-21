@@ -26,8 +26,6 @@ History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:
   a return to PRO.
 - **History doesn't survive a reload.** Persisting it would add a storage key, a
   migration story and stale snapshots after any `DEF_*` change, for little gain.
-- **Each ± nudge click is its own step.** Bursts end on pointerdown, so five clicks
-  are five undos. A drag, or a mouse-wheel run on a focused control, is one.
 
 ---
 

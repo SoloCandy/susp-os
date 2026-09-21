@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — slider − / + nudge buttons removed
+
+On touch screens (768px and narrower) every slider row had a − and + button either
+side of its number field that stepped the value by one. Useful when they were added,
+but they crowded the row and broke its alignment. Removed. `stepBy` stays because
+the mouse wheel on a focused number field or slider still uses it; touch users drag
+the slider or type a value.
+
 ## Fixed / changed — mobile sidebar drawer
 
 - The drawer popped in and out instead of sliding: its `display` toggled to `none`,
