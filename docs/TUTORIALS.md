@@ -48,7 +48,9 @@ The TERMS glossary is a separate, non-sequential reference and is not covered he
   QUICK START and FULL TOUR. FULL TOUR is plain NEXT. QUICK START sets `tutQuick`
   and restarts at step 1 of the `quick:true` steps; the progress bar and `n / total`
   count that path, and its DONE card adds that `?` replays the full tour. `openTut`
-  always resets `tutQuick`, so `?` opens the full tour. Both paths close through
+  always resets `tutQuick`, so `?` opens the full tour (or offers RESUME for it). The
+  quick path doesn't write `suspos_tutorial_step_v1` — its step index counts the
+  filtered path, so saving it would resume the full tour at the wrong step. Both paths close through
   `closeTutEnd`, so the complexity popup and `tutSeen` behave the same.
 
 ### Tier gating
@@ -87,7 +89,8 @@ guide. The point is to send the user to the tier buttons as they leave a tour.
 ## The card (`TutorialPanel`)
 
 Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
-tier guides only — `units` / `setUnits` for the units step.
+tier guides only — `units` / `setUnits` for the units step and `appState` (the
+live `fe`) for step tasks.
 
 - **Header**: `{label} GUIDE · n / total`, the step title, and ✕. For tier guides
   ✕ and DONE ✓ share one handler (`closeTutEnd`), so closing early has the same
@@ -97,6 +100,13 @@ tier guides only — `units` / `setUnits` for the units step.
   term / definition pairs (the same treatment as the TERMS modal). A step with
   `units:true` appends the `UnitsPicker` — the same control the UNITS modal uses,
   so a choice made here is the real setting.
+- **Task**: a step with `task` appends a `TRY IT ·` line with a ○ marker. When the
+  step opens, `appState` is snapshotted; whenever it changes, `task.check(appState,
+  snapshot)` runs, and once it returns true the marker latches to ✓ (green) for the
+  rest of that step. Returning to a step re-snapshots and resets it. A throwing
+  check counts as not done. The task never gates NEXT — it is a nudge, and the
+  spotlit zone is already clickable (see `dim()`), so the user acts in place. The
+  balance guide passes no `appState`, so tasks there would never tick.
 - **Buttons**: ← PREV from step 2 on; NEXT → until the last step, then DONE ✓.
   DONE calls `onDone` if given (tier guides: `closeTutEnd`), otherwise `onClose`
   (balance guide).
@@ -140,6 +150,7 @@ Each step is an object in its guide's array:
 | `units` | no | `true` embeds the units picker. |
 | `quick` | no | `true` puts the step on the QUICK START path. `tutSteps(mode, quick)` filters on it — the quick path is a view over the same array, never a copy. |
 | `pathChoice` | no | `true` swaps NEXT for QUICK START / FULL TOUR on this card. |
+| `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Factory Presets, Ride Stiffness, Balance. |
 
 ### What a step does to the page
 
@@ -267,14 +278,22 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 | Key | Holds |
 |---|---|
 | `suspos_tutorial_seen_v1` | `{beginner, intermediate, pro}` — tier guides seen (also the tier gate) |
+| `suspos_tutorial_step_v1` | `{beginner, intermediate, pro}` — last step reached per tier guide |
 | `suspos_baltut_seen_v1` | Balance guide seen |
 | `suspos_onboard_v1` | Onboarding popup dismissed (defaults `true`) |
 
-Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Current step and open guide
-are session state and are not persisted — a reload closes any open guide.
+Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Which guide is open is session
+state — a reload closes it — but every step change in a tier guide writes that step
+to `suspos_tutorial_step_v1`. Pressing the header `?` with a saved step above 0
+shows a small choice, **RESUME AT STEP n** or **START OVER**; with nothing saved it
+opens at step 1 as before. The saved step is clamped to the guide's current length,
+since steps get added and removed. Resuming goes through `openTut(mode, step)`, so
+the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
+state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
+The balance guide is not tracked — it's five steps.
 
 RESET (⟲) with **Tutorials** ticked sets all three tier flags and
-`suspos_baltut_seen_v1` back to `false`, which re-locks INT and PRO until their
+`suspos_baltut_seen_v1` back to `false` and zeroes `suspos_tutorial_step_v1`, which re-locks INT and PRO until their
 prerequisite guides are opened again. It does not open a guide by itself, and
 does not move you out of the tier you're in: the auto-open effect runs on a
 *tier change*, so each tier guide reappears the next time you switch into its

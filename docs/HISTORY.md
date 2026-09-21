@@ -18,6 +18,21 @@ Balance, Reading the Results) beside FULL TOUR. The quick path is the `quick:tru
 steps of `TUTORIALS.beginner` filtered by `tutSteps`, not a second array, so it
 can't drift from the full tour. It closes through `closeTutEnd` like the full tour.
 
+## Changed — tier guides can resume where they were left
+
+The current step used to be session state, so a reload lost it and `?` always
+restarted at step 1. The last step per tier guide now persists in
+`suspos_tutorial_step_v1`; `?` offers RESUME AT STEP n / START OVER. DONE clears it,
+as does RESET with Tutorials ticked. It is clamped on read because a guide can
+shrink between visits.
+
+## Changed — tutorial steps can carry a task
+
+Steps take an optional `task: {text, check}`. The card shows the text with ○ and
+flips it to ✓ once `check(fe, snapshotAtStepOpen)` passes, so "changed" means changed
+during this step rather than ever. NEXT is never blocked. The beginner guide's
+Factory Presets, Ride Stiffness and Balance steps have tasks.
+
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 
 The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on
