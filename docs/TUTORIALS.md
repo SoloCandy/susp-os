@@ -55,6 +55,15 @@ The TERMS glossary is a separate, non-sequential reference and is not covered he
 | INT | `tutSeen.beginner` | switches to BEG and opens the beginner guide |
 | PRO | `tutSeen.intermediate` | switches to INT and opens the intermediate guide |
 
+The gate is explained, not silent. A locked tier button is dimmed with a 🔒 before
+its label, in both the desktop header and the phone (`headerCompact`) row, and its
+`title` (from `lockTitle`) reads "Unlocks after you open the BEG guide" (or INT
+guide for PRO). A locked click sets `tutNotice` — e.g. "INT unlocks once you've
+seen the BEG guide." — which `TutorialPanel` shows via its `notice` prop above the
+body of the first card only; `closeTut` clears it. The prerequisite is *opening*
+the guide, not finishing it: `tutSeen` is marked by the `uiMode` effect as the
+guide opens.
+
 Leaving PRO while a Vehicle DNA is applied first asks for confirmation
 (`requestMode` → `dnaTierWarn`); that check runs before the gate.
 
@@ -75,13 +84,17 @@ Rendered when `!onboardSeen || showComplexity`. `suspos_onboard_v1` defaults to
 whenever the **beginner or intermediate** guide is closed — DONE ✓ on the last step
 or ✕ on any step. Not after PRO (there is no next tier) and not after the balance
 guide. The point is to send the user to the tier buttons as they leave a tour.
+`showComplexity` holds the tier the closed guide unlocks (`'intermediate'` after
+BEG, `'pro'` after INT), and the popup opens with a green "🔓 INT unlocked" / "🔓 PRO
+unlocked" line naming it. `closeOnboard` resets it to `false`.
 
 ---
 
 ## The card (`TutorialPanel`)
 
 Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
-tier guides only — `units` / `setUnits` for the units step.
+tier guides only — `units` / `setUnits` for the units step and `notice` for the
+locked-tier redirect message (step 0 only; see Tier gating).
 
 - **Header**: `{label} GUIDE · n / total`, the step title, and ✕. For tier guides
   ✕ and DONE ✓ share one handler (`closeTutEnd`), so closing early has the same

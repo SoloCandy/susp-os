@@ -561,3 +561,11 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
   successful cancel.
 - **Stale `~index.html:NNNN` references** in the FWD diff-polarity comments (in `computeDiff`
   and at the EXIT slider) now point at `sanitizeTune` and `feelToPhysics`.
+
+## RESET with Tutorials ticked while on INT or PRO can lock the current tier
+
+RESET clears `suspos_tutorial_seen_v1` but leaves `uiMode` alone. The `uiMode`
+effect then marks only the *current* tier's guide as seen and reopens it, so a
+reset done on INT leaves you on INT with `tutSeen.beginner` false: the INT button
+shows 🔒 while you are on it, and PRO is unlocked. Opening the BEG guide
+(or clicking INT) restores the normal order. The gating rules were left as-is.

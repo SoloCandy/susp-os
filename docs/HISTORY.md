@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — tutorial tier gating is now explained
+
+INT and PRO were locked until the previous tier's guide had been opened, but nothing
+said so: a click on a locked tier just switched to the prerequisite tier and opened
+its guide. Locked tier buttons now show 🔒, dimmed, with a tooltip naming the guide
+that unlocks them; the redirected guide's first card says why it opened; and the
+complexity popup after BEG/INT names the tier that just unlocked. The gating rules
+themselves are unchanged.
+
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 
 The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on
