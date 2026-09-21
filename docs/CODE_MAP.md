@@ -146,7 +146,7 @@ resolves conflicts in the DNA's `keep` order. Constants: `DNA_AXES`, `DNA_YIELDA
 `DNA_MAX_MOVES`. Presentation: `DNA_AXIS_UI`, `dnaFmt`, `DNA_MODE_FIELDS`. In `App`,
 `dnaStore` (`suspos_dna_v1`), `dnaRef`, `dnaPreview`, `dnaLink`, `dnaApply`, `dnaSave`,
 `dnaLoadSaved`, `dnaUnlink`, `dnaFromDecoded`, `dnaDot`, `garageEntries`/`dnaEntries`
-and `requestMode` wire it to the GARAGE DNA section, the sidebar DNA line, the
+and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA line, the
 `visDna` card, the tier warning and TUNE CHECK's IMPORT AS DNA button.
 
 ---
@@ -197,7 +197,7 @@ depends on the tier.
 - **All tiers**: `zone-garage` — the right-side GARAGE drawer. It is *not* part
   of the sidebar, so it sits outside the per-tier lists below and is the only
   zone present at every tier regardless of panel.
-- **All tiers, inside the sidebar**: `zone-toolbar` — the RESET/CHECK/SHARE row,
+- **All tiers, inside the sidebar**: `zone-toolbar` — the RESET (⟲)/DNA/CHECK/SHARE row,
   pinned at the top of the sidebar's outer wrapper (a sibling of the scrollable
   content and the pinned VISUALS footer), outside the `uiMode` branching that
   splits BEG from INT/PRO below it.
@@ -220,7 +220,7 @@ Sections are collapsed on load — `open` is plain `useState`, not persisted.
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
 exactly one per `Sec`, all nine including `visuals` — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
-detail overlay), `factoryOpen`, `dnaOpen` and `dnaSavedOpen` (the GARAGE factory list, DNA editor and MY DNA drawer) and the `vis*` cards
+detail overlay), `factoryOpen` and `dnaSavedOpen` (the GARAGE factory list and the DNA modal's MY DNA drawer) and the `vis*` cards
 nested *inside* the VISUALS section.
 
 **The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**

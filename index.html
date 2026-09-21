@@ -2208,7 +2208,7 @@ const DNA_ARCHETYPES=[
    keep:['balanceOffset','arbShare','reboundZeta','platformHz','pitchRatio']},
 ];
 
-// Presentation for the GARAGE DNA editor, the sidebar marks and the VISUALS match card, in the
+// Presentation for the DNA modal, the sidebar marks and the VISUALS match card, in the
 // order they render. `step` is fine enough to hit every archetype seed exactly.
 const DNA_AXIS_UI=[
   {k:'platformHz',   label:'PLATFORM',   unit:' Hz',step:0.01,  dp:2},
@@ -3109,7 +3109,7 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                 <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT TUNE</div>
                 <div style={{marginBottom:8}}>Keeps the numbers. DECODED TUNE is how the app reads them in its own Hz + ζ model; IMPORT TUNE writes that onto this car, replacing its RIDE, DAMPERS and ANTI-ROLL BARS. It comes back close rather than exact, so review those sections afterward.</div>
                 <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT AS DNA <span style={{color:'#475569'}}>· PRO</span></div>
-                <div>Keeps the handling. IMPORT AS DNA reads the decoded tune back as handling targets and loads them into the GARAGE DNA editor — this car doesn't change. APPLY it here, or on another car to carry the handling across.</div>
+                <div>Keeps the handling. IMPORT AS DNA reads the decoded tune back as handling targets and loads them into the DNA editor (sidebar DNA button) — this car doesn't change. APPLY it here, or on another car to carry the handling across.</div>
               </div>
             </Card>
             <Card title="VEHICLE MASS" hint="Synced with the CHASSIS Weight and Front Weight Bias fields in the sidebar — editing either place updates both.">
@@ -3182,7 +3182,7 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                 <button className={`tbtn${dnaSet?' saved':''}`} disabled={!onImportDna}
                   style={{flex:1,fontSize:10,opacity:onImportDna?1:0.35}}
                   title={onImportDna
-                    ?"Reads this tune back as a handling DNA and replaces the GARAGE editor's draft. This car's own settings are left alone — edit the axes there, then APPLY, or carry the DNA onto another car."
+                    ?"Reads this tune back as a handling DNA and replaces the DNA editor's draft. This car's own settings are left alone — edit the axes there, then APPLY, or carry the DNA onto another car."
                     :'Vehicle DNA is PRO only — switch tier to use it.'}
                   onClick={importDecodedDna}>{dnaSet?'DNA SET ✓':'IMPORT AS DNA'}</button>
               </div>
@@ -3860,7 +3860,7 @@ const TUTORIALS={
      body:'The right panel shows exact values to enter in the tuning menu, as six cards: Alignment, Anti-Roll Bars, Springs, Dampers, Brakes, and Differential. Alignment, brakes, and the differential are always computed automatically from your other inputs. Amber values mean you\'re near a game limit — soften your inputs slightly if that happens.'},
     {title:'Output Toolbar',
      focus:['toolbar'],
-     body:'The toolbar is pinned at the top of the sidebar. RESET opens a confirm dialog to clear the tune, the tutorials, or both back to defaults; your garage saves are never touched. ↩ and ↪ undo and redo your last changes. CHECK opens Tune Check, a reverse calculator: type in spring and damper values from a tune you already have and it reads back the frequencies and damping ratios behind them. SHARE handles moving tunes between devices with a code, and makes or restores a JSON backup of your whole garage.'},
+     body:'The toolbar is pinned at the top of the sidebar. The red ⟲ (RESET) opens a confirm dialog to clear the tune, the tutorials, or both back to defaults; your garage saves are never touched. ↩ and ↪ undo and redo your last changes. DNA (PRO) opens the Vehicle DNA editor, where you build a tune from handling targets and keep your saved DNAs. CHECK opens Tune Check, a reverse calculator: type in spring and damper values from a tune you already have and it reads back the frequencies and damping ratios behind them. SHARE handles moving tunes between devices with a code, and makes or restores a JSON backup of your whole garage.'},
   ],
   intermediate:[
     {title:'Welcome — Intermediate Mode',
@@ -3921,7 +3921,7 @@ const TUTORIALS={
      body:'The right panel shows exact values to enter in the tuning menu, as six cards: Alignment, Anti-Roll Bars, Springs, Dampers, Brakes, and Differential. Amber values mean you\'re near a game limit — soften your inputs slightly if that happens.'},
     {title:'Output Toolbar',
      focus:['toolbar'],
-     body:'Pinned at the top of the sidebar: RESET clears the tune back to defaults (saves untouched), CHECK opens Tune Check to reverse a tune you already have, and SHARE handles codes and garage backups.'},
+     body:'Pinned at the top of the sidebar: the red ⟲ (RESET) clears the tune back to defaults (saves untouched), DNA (PRO) builds a tune from handling targets and holds your saved DNAs, CHECK opens Tune Check to reverse a tune you already have, and SHARE handles codes and garage backups.'},
     {title:'Garage',
      focus:['garage'],sidebar:'close',
      body:'GARAGE (top right) is one place for everything you save. Each entry is a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff tune), or a CAR holding both — save whichever you want with the three buttons at the top. A car gives you separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car\'s chassis with another\'s tune. Every load is undoable with ↩ and redoable with ↪.'},
@@ -4330,12 +4330,13 @@ function App(){
   // scrolled out of view, is a bug factory.
   const[garageUI,setGarageUI]=usePersist('suspos_garage_ui_v1',{filter:'all',sort:'recent'});
   const[garageSearch,setGarageSearch]=useState('');
-  // Vehicle DNA. `draft` is the GARAGE editor's DNA; `applied` is the last APPLY — its name, the
+  // Vehicle DNA. `draft` is the DNA modal's editor; `applied` is the last APPLY — its name, the
   // axis targets, and what measureDNA read straight after, which is the baseline drift is judged
   // against. Cleared by anything that replaces the tune wholesale, and before leaving PRO.
   const[dnaStore,setDnaStore]=usePersist('suspos_dna_v1',{draft:DNA_ARCHETYPES[0],applied:null});
   const[dnaTierWarn,setDnaTierWarn]=useState(null);
   const[dnaEntryName,setDnaEntryName]=useState('');
+  const[showDnaModal,setShowDnaModal]=useState(false);
   // One-time migration: pull any customized old preset slots (suspos_saves_v9) into MY BUILDS.
   // The 6 factory slots that match their defaults are skipped; only renamed/overwritten slots move.
   // Non-destructive (old key left intact); guarded by a flag so it runs at most once per browser.
@@ -4497,7 +4498,7 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
   // parse to a full radius, and only when the rounded-mm result actually changed, so this
@@ -4735,8 +4736,8 @@ function App(){
   const dnaEdited=!!dnaRef&&DNA_AXIS_UI.some(({k})=>Math.abs((dnaRef.axes[k]??NaN)-dnaDraft.axes[k])>1e-9||!isFinite(dnaRef.axes[k]));
   const dnaName=dnaRef?(dnaEdited?dnaRef.name+' (edited)':dnaRef.name):dnaDraft.name;
   // Only solved while the editor is on screen — the resolver runs many forward solves.
-  const dnaPreview=useMemo(()=>uiMode==='pro'&&garagePanelOpen&&open.dnaOpen?applyDNA(ch,fe,dr,dnaDraft):null,
-    [uiMode,garagePanelOpen,open.dnaOpen,ch,fe,dr,dnaDraft]);
+  const dnaPreview=useMemo(()=>uiMode==='pro'&&showDnaModal?applyDNA(ch,fe,dr,dnaDraft):null,
+    [uiMode,showDnaModal,ch,fe,dr,dnaDraft]);
   const dnaLink=useMemo(()=>{
     const a=dnaStore.applied;
     if(!a||uiMode!=='pro')return null;
@@ -4775,8 +4776,8 @@ function App(){
     const t=solveTune(ch,resolveFeEffective(ch,nfe),nfe.gameMode??DEF_FE.gameMode).tune;
     setDnaStore({...dnaStore,draft:{...dnaDraft,name:'DECODED TUNE',
       axes:dnaReadBack(ch,nfe,dr,t,dnaDraft.axes)}});
-    setOpen(p=>({...p,dnaOpen:true}));
-    setGaragePanelOpen(true);
+    setShowChecker(false);
+    setShowDnaModal(true);
   };
   // A mark on a sidebar control a DNA set: indigo while it still reads as applied, amber once it
   // has drifted (edited, or the chassis changed under it).
@@ -5180,6 +5181,108 @@ function App(){
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
       {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} metricUnits={metricUnits} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
+      {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records
+          the link the sidebar marks and the VISUALS match card read. Opened from the sidebar
+          toolbar; below PRO the modal still opens so the feature is discoverable. */}
+      {showDnaModal&&(
+        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+             onClick={()=>setShowDnaModal(false)}>
+          <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,width:420,maxWidth:'calc(100vw - 20px)',
+                       maxHeight:'88vh',overflow:'auto',fontFamily:'var(--font-mono)'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                         padding:'8px 14px',borderBottom:'1px solid #1e293b'}}>
+              <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>VEHICLE DNA
+                {uiMode!=='pro'&&<span style={{fontSize:8,color:'#818cf8',letterSpacing:1,marginLeft:8}}>PRO</span>}</span>
+              <button onClick={()=>setShowDnaModal(false)} aria-label="Close" style={{background:'none',border:'none',color:'#94a3b8',
+                cursor:'pointer',fontSize:14}}>✕</button>
+            </div>
+            <div style={{padding:'10px 14px 14px'}}>
+                {uiMode!=='pro'&&<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>
+                  Switch to PRO to build a tune from a handling DNA.</div>}
+                {dnaPreview&&(()=>{
+                  const r=dnaPreview;
+                  const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaDraft.axes,[k]:v}}});
+                  const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
+                  const modeDiffs=DNA_MODE_FIELDS.filter(([o,f])=>(o==='fe'?fe:dr)[f]!==(o==='fe'?r.fe:r.dr)[f]);
+                  return(<>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:8}}>
+                      {DNA_ARCHETYPES.map(a=>{
+                        const on=dnaRef?.id==null&&dnaRef?.name===a.name;
+                        return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:9,padding:'4px 2px'}}
+                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes}}})}>{a.name}</button>;
+                      })}
+                    </div>
+                    {/* MY DNA — saved DNAs as garage entries of kind 'dna', laid out like the saved
+                        garage list below: a save row, then EntryCards. LOAD DNA fills the editor;
+                        it does not apply. */}
+                    <div style={{marginBottom:10}}>
+                      <div onClick={()=>setOpen(p=>({...p,dnaSavedOpen:!p.dnaSavedOpen}))}
+                        style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:5,userSelect:'none'}}>
+                        <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>MY DNA</span>
+                        <span style={{fontSize:9,color:'#475569'}}>{dnaEntries.length}</span>
+                        <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.dnaSavedOpen?'▲':'▼'}</span>
+                      </div>
+                      {open.dnaSavedOpen&&<>
+                        <div style={{marginBottom:6}}>
+                          <input value={dnaEntryName} onChange={e=>setDnaEntryName(e.target.value)}
+                            onKeyDown={e=>{if(e.key==='Enter')dnaSave();}}
+                            placeholder={`Name this DNA… (${dnaName})`}
+                            style={{width:'100%',background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
+                                    padding:'4px 7px',fontSize:11,color:'#e2e8f0',outline:'none',
+                                    fontFamily:'inherit',marginBottom:5}}/>
+                          <button className="tbtn" style={{width:'100%',fontSize:9}} onClick={dnaSave}>SAVE DNA</button>
+                        </div>
+                        {dnaEntries.length===0
+                          ?<div style={{fontSize:10,color:'#374151',textAlign:'center',padding:'10px 0',letterSpacing:1}}>
+                             NO SAVED DNA<div style={{fontSize:9,marginTop:6,letterSpacing:0}}>
+                               Set the sliders below, name it above, then save.</div></div>
+                          :dnaEntries.map(e=>(
+                             <EntryCard key={e.id} entry={e} metricUnits={metricUnits} allTags={allTags}
+                               onLoadDna={dnaLoadSaved}
+                               onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
+                               onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
+                           ))}
+                      </>}
+                    </div>
+                    <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
+                      {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
+                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes}}})}>REVERT</span></>
+                        :<>EDITING {dnaName}</>}</div>
+                    {DNA_AXIS_UI.map(({k,label,step})=>(
+                      <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
+                        onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
+                        box={{unit:(DNA_AXIS_UI.find(a=>a.k===k).unit||'').trim()||undefined,dp:DNA_AXIS_UI.find(a=>a.k===k).dp}}/>
+                    ))}
+                    <div style={{borderTop:'1px solid #1e293b',paddingTop:6}}>
+                      <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:3}}>ON THIS CHASSIS</div>
+                      {DNA_AXIS_UI.map(({k,label})=>{
+                        const mv=r.moves.find(m=>m.axis===k),ms=r.misses.find(m=>m.axis===k);
+                        const[txt,col]=r.inexpressible.includes(k)?['— not expressible with this diff','#475569']
+                          :ms?[`${dnaFmt(k,ms.achieved)} · ${ms.cause??'missed'}`,'#f59e0b']
+                          :mv?[`${dnaFmt(k,mv.to)} · moved to keep ${labelOf(mv.protects)}`,'#f59e0b']
+                          :[`✓ ${dnaFmt(k,r.measured[k])}`,'#22c55e'];
+                        return(
+                          <div key={k} style={{display:'flex',gap:6,fontSize:9,lineHeight:1.6}}>
+                            <span style={{color:'#64748b',width:72,flexShrink:0}}>{label}</span>
+                            <span style={{color:col,minWidth:0}}>{txt}</span>
+                          </div>
+                        );
+                      })}
+                      {modeDiffs.length>0&&<div style={{fontSize:9,color:'#f59e0b',marginTop:5,lineHeight:1.5}}>
+                        SWITCHES {modeDiffs.map(([o,f,l])=>
+                          `${l} ${String((o==='fe'?fe:dr)[f]??'—').toUpperCase()} → ${String((o==='fe'?r.fe:r.dr)[f]).toUpperCase()}`).join(' · ')}
+                      </div>}
+                    </div>
+                    <button className="tbtn on" style={{width:'100%',marginTop:8,fontSize:10}} onClick={dnaApply}>
+                      APPLY {dnaName}</button>
+                    <div style={{fontSize:8,color:'#475569',marginTop:3,textAlign:'center'}}>Overwrites the tune once · undo with ↩</div>
+                  </>);
+                })()}
+            </div>
+          </div>
+        </div>
+      )}
       {showGlossary&&<GlossaryModal onClose={()=>setShowGlossary(false)}/>}
       {showResetModal&&(
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
@@ -5368,9 +5471,9 @@ function App(){
 
         {/* PINNED — TOOLBAR (reset, check, share) */}
         <div id="zone-toolbar" style={{flexShrink:0,borderBottom:'1px solid #0f172a',background:'#020617',...dim('toolbar')}}>
-          <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:'6px 12px'}}>
-            <button className="tbtn" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}}
-              title="Reset tune or tutorials to defaults (saves not affected)">RESET</button>
+          <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:isMobile?'6px 8px':'6px 12px'}}>{/* 8px on the 300px phone sidebar keeps ⟲ ↩ ↪ DNA CHECK SHARE on one row */}
+            <button className="tbtn" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}} aria-label="Reset"
+              title="Reset tune or tutorials to defaults (saves not affected)">⟲</button>
             <button className="tbtn undo-btn" style={{fontSize:11}}
               onClick={undo} disabled={!canUndo} aria-label="Undo"
               title={histTitle('Undo',histRef.current.undoLabel,canUndo)}>↩</button>
@@ -5378,6 +5481,8 @@ function App(){
               onClick={redo} disabled={!canRedo} aria-label="Redo"
               title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>
             <div style={{flex:1}}/>
+            <button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
+              title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button>
             <button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button>
             <button className="tbtn" style={{fontSize:11}} onClick={()=>{
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
@@ -5529,7 +5634,7 @@ function App(){
           {dnaLink&&<div style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
             <span style={{color:'#818cf8',letterSpacing:1,cursor:'pointer'}} title="Open the DNA editor"
-              onClick={()=>{setOpen(p=>({...p,dnaOpen:true}));setGaragePanelOpen(true);}}>DNA: {dnaLink.name}</span>
+              onClick={()=>setShowDnaModal(true)}>DNA: {dnaLink.name}</span>
             <span style={{color:dnaLink.drifted?'#f59e0b':'#475569'}}>
               {dnaLink.drifted?`· ${dnaLink.drifted} drifted`:'· as applied'}</span>
             <span style={{flex:1}}/>
@@ -8500,98 +8605,6 @@ function App(){
                     );
                   })}
                 </div>}
-              </div>
-              {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records
-                  the link the sidebar marks and the VISUALS match card read. Below PRO the header
-                  stays so the feature is discoverable. */}
-              <div style={{marginBottom:10}}>
-                <div onClick={()=>setOpen(p=>({...p,dnaOpen:!p.dnaOpen}))}
-                  style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:5,userSelect:'none'}}>
-                  <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA</span>
-                  {uiMode!=='pro'&&<span style={{fontSize:8,color:'#818cf8',letterSpacing:1}}>PRO</span>}
-                  <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.dnaOpen?'▲':'▼'}</span>
-                </div>
-                {open.dnaOpen&&uiMode!=='pro'&&<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>
-                  Switch to PRO to build a tune from a handling DNA.</div>}
-                {open.dnaOpen&&dnaPreview&&(()=>{
-                  const r=dnaPreview;
-                  const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaDraft.axes,[k]:v}}});
-                  const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
-                  const modeDiffs=DNA_MODE_FIELDS.filter(([o,f])=>(o==='fe'?fe:dr)[f]!==(o==='fe'?r.fe:r.dr)[f]);
-                  return(<>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:8}}>
-                      {DNA_ARCHETYPES.map(a=>{
-                        const on=dnaRef?.id==null&&dnaRef?.name===a.name;
-                        return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:9,padding:'4px 2px'}}
-                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes}}})}>{a.name}</button>;
-                      })}
-                    </div>
-                    {/* MY DNA — saved DNAs as garage entries of kind 'dna', laid out like the saved
-                        garage list below: a save row, then EntryCards. LOAD DNA fills the editor;
-                        it does not apply. */}
-                    <div style={{marginBottom:10}}>
-                      <div onClick={()=>setOpen(p=>({...p,dnaSavedOpen:!p.dnaSavedOpen}))}
-                        style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:5,userSelect:'none'}}>
-                        <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>MY DNA</span>
-                        <span style={{fontSize:9,color:'#475569'}}>{dnaEntries.length}</span>
-                        <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.dnaSavedOpen?'▲':'▼'}</span>
-                      </div>
-                      {open.dnaSavedOpen&&<>
-                        <div style={{marginBottom:6}}>
-                          <input value={dnaEntryName} onChange={e=>setDnaEntryName(e.target.value)}
-                            onKeyDown={e=>{if(e.key==='Enter')dnaSave();}}
-                            placeholder={`Name this DNA… (${dnaName})`}
-                            style={{width:'100%',background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
-                                    padding:'4px 7px',fontSize:11,color:'#e2e8f0',outline:'none',
-                                    fontFamily:'inherit',marginBottom:5}}/>
-                          <button className="tbtn" style={{width:'100%',fontSize:9}} onClick={dnaSave}>SAVE DNA</button>
-                        </div>
-                        {dnaEntries.length===0
-                          ?<div style={{fontSize:10,color:'#374151',textAlign:'center',padding:'10px 0',letterSpacing:1}}>
-                             NO SAVED DNA<div style={{fontSize:9,marginTop:6,letterSpacing:0}}>
-                               Set the sliders below, name it above, then save.</div></div>
-                          :dnaEntries.map(e=>(
-                             <EntryCard key={e.id} entry={e} metricUnits={metricUnits} allTags={allTags}
-                               onLoadDna={dnaLoadSaved}
-                               onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
-                               onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
-                           ))}
-                      </>}
-                    </div>
-                    <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
-                      {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
-                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes}}})}>REVERT</span></>
-                        :<>EDITING {dnaName}</>}</div>
-                    {DNA_AXIS_UI.map(({k,label,step})=>(
-                      <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
-                        onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
-                        box={{unit:(DNA_AXIS_UI.find(a=>a.k===k).unit||'').trim()||undefined,dp:DNA_AXIS_UI.find(a=>a.k===k).dp}}/>
-                    ))}
-                    <div style={{borderTop:'1px solid #1e293b',paddingTop:6}}>
-                      <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:3}}>ON THIS CHASSIS</div>
-                      {DNA_AXIS_UI.map(({k,label})=>{
-                        const mv=r.moves.find(m=>m.axis===k),ms=r.misses.find(m=>m.axis===k);
-                        const[txt,col]=r.inexpressible.includes(k)?['— not expressible with this diff','#475569']
-                          :ms?[`${dnaFmt(k,ms.achieved)} · ${ms.cause??'missed'}`,'#f59e0b']
-                          :mv?[`${dnaFmt(k,mv.to)} · moved to keep ${labelOf(mv.protects)}`,'#f59e0b']
-                          :[`✓ ${dnaFmt(k,r.measured[k])}`,'#22c55e'];
-                        return(
-                          <div key={k} style={{display:'flex',gap:6,fontSize:9,lineHeight:1.6}}>
-                            <span style={{color:'#64748b',width:72,flexShrink:0}}>{label}</span>
-                            <span style={{color:col,minWidth:0}}>{txt}</span>
-                          </div>
-                        );
-                      })}
-                      {modeDiffs.length>0&&<div style={{fontSize:9,color:'#f59e0b',marginTop:5,lineHeight:1.5}}>
-                        SWITCHES {modeDiffs.map(([o,f,l])=>
-                          `${l} ${String((o==='fe'?fe:dr)[f]??'—').toUpperCase()} → ${String((o==='fe'?r.fe:r.dr)[f]).toUpperCase()}`).join(' · ')}
-                      </div>}
-                    </div>
-                    <button className="tbtn on" style={{width:'100%',marginTop:8,fontSize:10}} onClick={dnaApply}>
-                      APPLY {dnaName}</button>
-                    <div style={{fontSize:8,color:'#475569',marginTop:3,textAlign:'center'}}>Overwrites the tune once · undo with ↩</div>
-                  </>);
-                })()}
               </div>
               {/* three distinct empty states, each with an inline escape hatch — the failure
                   mode of a filter UI is a user who can't find their data and doesn't know why */}

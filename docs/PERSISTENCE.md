@@ -22,7 +22,7 @@ examples of that).
 | `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
-| `suspos_dna_v1` | Vehicle DNA: the GARAGE editor's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |
+| `suspos_dna_v1` | Vehicle DNA: the DNA modal's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |
 | `suspos_garage_ui_v1` | Garage panel filter + sort preference (`{filter, sort}`) — search text is deliberately not persisted | `{filter:'all', sort:'recent'}` |
 | `suspos_garage_v1` | Legacy chassis-only Garage (`{id, name, ch, savedAt}`) — **read-only**, migration source | `[]` |
 | `suspos_builds_v1` | Legacy tune-only My Builds (`{id, name, fe, dr, savedAt}`) — **read-only**, migration source | `[]` |
@@ -61,7 +61,7 @@ kind would desync the moment an entry is rewritten:
 | `chassis` | `ch` | LOAD CHASSIS |
 | `build` | `fe` + `dr` | LOAD BUILD |
 | `car` | `ch` + `fe` + `dr` | both, separately |
-| `dna` | `dna` only | LOAD DNA — shown in GARAGE → DNA → MY DNA, not the main list |
+| `dna` | `dna` only | LOAD DNA — shown in the DNA modal's MY DNA drawer, not the main list |
 | `empty` | none | none — corrupt entry, delete only |
 
 Save and load are still full generic spreads (`{...ch}` / `{...DEF_CH,...e.ch}`,

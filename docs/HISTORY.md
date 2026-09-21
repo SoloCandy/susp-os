@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Vehicle DNA moved out of GARAGE into its own modal
+
+The DNA editor and MY DNA left the GARAGE drawer for a modal opened by a DNA button in
+the sidebar toolbar, left of CHECK. TUNE CHECK's IMPORT AS DNA now closes the checker and
+opens that modal. The `dnaOpen` open-state key went with the section; `dnaSavedOpen`
+still collapses MY DNA inside the modal. Saved DNAs are unchanged garage entries of kind
+`'dna'`, so nothing persisted moved.
+
+## Changed — sidebar RESET became an icon
+
+The toolbar's RESET button now shows a red ⟲ (aria-label and tooltip unchanged)
+to free width in `zone-toolbar` for another button. On the 300px touch sidebar the
+row was already wrapping; the word label was the easiest width to reclaim.
+
 ## Changed — a measured ARB scale is flagged when MEAS. NAT BAL moves
 
 MEASURE ARB solves the click scale against the current MEAS. NAT BAL, on springs

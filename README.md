@@ -44,7 +44,7 @@ A **BEG / INT / PRO** toggle in the header controls how much of the input surfac
 
 Every slider's value can be typed as well as dragged, in the number box beside its label.
 
-A **RESET / ↩ / ↪ / CHECK / SHARE** toolbar is pinned to the top of the sidebar, above every tier's inputs, so it's always reachable without scrolling. RESET clears the tune or the tutorials back to defaults (garage saves are untouched). ↩ undoes and ↪ redoes (also Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y, ⌘ on Mac): a slider drag is one step, and a load, APPLY, share-code import or reset is one step each. CHECK opens Tune Check, a reverse calculator for reading frequencies and damping ratios back out of existing spring/damper values — import the result as a tune, or (PRO) as a Vehicle DNA. SHARE handles share codes and JSON garage backups.
+A **⟲ RESET / ↩ / ↪ / DNA / CHECK / SHARE** toolbar is pinned to the top of the sidebar, above every tier's inputs, so it's always reachable without scrolling. The red ⟲ (RESET) clears the tune or the tutorials back to defaults (garage saves are untouched). ↩ undoes and ↪ redoes (also Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y, ⌘ on Mac): a slider drag is one step, and a load, APPLY, share-code import or reset is one step each. DNA (PRO) opens the Vehicle DNA editor and your saved DNAs. CHECK opens Tune Check, a reverse calculator for reading frequencies and damping ratios back out of existing spring/damper values — import the result as a tune, or (PRO) as a Vehicle DNA. SHARE handles share codes and JSON garage backups.
 
 A **VISUALS** card is pinned to the bottom of the sidebar (collapsible, stays put while the sections above it scroll) and holds every dial/graph in one place, in four independently collapsible groups — **ARB** (the split dial with ROLL/ARB SHARE), **RIDE / DAMPERS** (the spring-Hz dial and the rebound/bump dial), **DYNAMICS** (a damped step-response chart showing how fast each axle settles and whether it overshoots, with a shaded ±10% settle band, a dashed settle-time marker and a first-neutral-crossing ring per trace — the markers are measured off the drawn curve, so the settle line is literally where the trace enters the band), and **SAG** (the sag vs load chart, when RIDE HEIGHT → CG is active) — so they're visible regardless of which input section is currently open, instead of being scattered across ANTI-ROLL BARS/RIDE/DAMPERS/CHASSIS.
 
@@ -106,7 +106,7 @@ Reference docs for maintainers:
 - [CODEC.md](docs/CODEC.md) — the share-code field ID table (never reuse an id)
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
-- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the GARAGE drawer)
+- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
 

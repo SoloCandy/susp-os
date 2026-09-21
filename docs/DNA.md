@@ -4,8 +4,8 @@ A saved, chassis-portable description of *how a car should drive* — sharp and
 agile, compliant and forgiving, planted, tail-happy — that is applied to whatever
 chassis is loaded by solving the tune that produces it on that car.
 
-> **Status: implemented in PRO, first-pass UI.** The editor lives in the GARAGE
-> drawer; the look is expected to change once it has been used. Core functions sit
+> **Status: implemented in PRO, first-pass UI.** The editor lives in the DNA
+> modal (sidebar toolbar); the look is expected to change once it has been used. Core functions sit
 > under the `── Vehicle DNA ──` banner in `index.html` and are exercised by
 > `tests-dna.js`.
 
@@ -494,7 +494,7 @@ damper clicks that is a few tenths of a bias point.
 | The editor's draft and the last APPLY | `suspos_dna_v1` = `{ draft, applied }` | Object-valued, so `mergeDefaults` fills new fields for free |
 | Saved custom DNAs | garage entries carrying only `dna`, kind `'dna'` | Listed in the MY DNA drawer, not the main garage list; included in BACKUP/RESTORE |
 | Which DNA a saved build came from | optional `dna` on a garage entry beside `fe`/`dr` | Not part of `kindOf` — a build with a `dna` is still a build |
-| Factory archetypes | `DNA_ARCHETYPES` constant | Buttons in the GARAGE DNA section |
+| Factory archetypes | `DNA_ARCHETYPES` constant | Buttons in the DNA modal |
 | Share codes | **Not in v1** | The stamped tune already travels through the existing codec |
 
 `draft` is a DNA plus `ref`, what it was loaded from: `{name, axes}` for an archetype,
@@ -541,17 +541,17 @@ The link only drives read-outs. What happens to it:
 
 ## UI (PRO)
 
-- **GARAGE drawer, DNA section** (`dnaOpen`), between FACTORY and the saved entries.
-  Below PRO it shows only a note to switch to PRO.
+- **DNA modal** (`showDnaModal`), opened by the DNA button in the sidebar toolbar, left of
+  CHECK. Below PRO it shows only a note to switch to PRO.
   - archetype buttons, which load a draft; they do not apply;
-  - **MY DNA** (`dnaSavedOpen`), a drawer laid out like the saved garage list: a name
+  - **MY DNA** (`dnaSavedOpen`), a drawer laid out like the GARAGE saved list: a name
     field and SAVE DNA, then an `EntryCard` per saved DNA — rename, date, ↺ REWRITE WITH
     EDITOR DNA, delete, summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and
     does not apply. No filter, sort or search;
   - EDITING / EDITED FROM … with REVERT;
   - one `FeelSlider` per axis over the full `DNA_AXES` range;
   - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
-    missed (and why), or not expressible. Solved only while the section is open;
+    missed (and why), or not expressible. Solved only while the modal is open;
   - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
   - **APPLY**, one undo step like any load; ↩ also removes the link, ↪ restores both.
 - **TUNE CHECK → DECODE → IMPORT AS DNA** (`CheckerModal`, `onImportDna`). Next to
@@ -561,8 +561,8 @@ The link only drives read-outs. What happens to it:
   editor's draft and leaving the car alone. Both build from one `decodedFe` patch, so
   they can never read the same inputs differently. The draft arrives named DECODED TUNE
   with no `ref`, so the editor shows a fresh DNA rather than "edited from" whatever was
-  loaded; `keep` is carried over, since a tune has nothing to say about rank. It opens
-  the GARAGE drawer and the DNA section, and is **not** a commit — the undo snapshot
+  loaded; `keep` is carried over, since a tune has nothing to say about rank. It closes
+  TUNE CHECK and opens the DNA modal, and is **not** a commit — the undo snapshot
   carries the applied link, never the draft, and nothing on the car has changed. Below
   PRO the button is disabled with a title saying why.
 - **Sidebar DNA line**, above CHASSIS: name, drift count, ✕ to remove the link. The name
