@@ -114,7 +114,10 @@ saved before the field existed use `NAT_BAL_REF_HZ` (2.5, the card's default).
 
 One Forza ARB click adds `arbScaleOf(ch)·track²` of suspension roll stiffness
 per axle, before the tyre. `arbScaleOf` returns `ch.measuredArbClick` when
-MEASURE ARB is set, else `ARB_RS_SCALE`.
+MEASURE ARB is set, else `ARB_RS_SCALE`. APPLY also records the MEAS. NAT BAL
+and Hz it was measured against (`measuredArbNat`/`measuredArbNatHz`), and
+`arbScaleStale` flags RE-MEASURE once those stop matching. The scale is still
+used while flagged; the flag only says it was solved against a different anchor.
 
 The constant was 240, then 285, both fitted without the tyre term, which folded
 the tyre's softness into the click. Refitting the same in-game MAN bar sweep

@@ -102,7 +102,7 @@ Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-S
 conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
 fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB click scale: MEASURE ARB's value or `ARB_RS_SCALE` — every click↔roll-stiffness
-conversion goes through it), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
+conversion goes through it), `arbScaleStale` (true when a measured scale's recorded MEAS. NAT BAL or Hz no longer matches the chassis — drives the ARB SCALE SETUP card's and sidebar's RE-MEASURE flags), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
 reading), `natOffsetOf` (MEASURE NAT BAL's gap from the
 geometric estimate with the tyre term taken out — 0 when not measuring; the one
 definition all four solve sites use), `tyreRollStiffness` / `inSeries` / `displayRsBalance` (the

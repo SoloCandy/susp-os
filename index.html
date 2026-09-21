@@ -181,6 +181,11 @@ const ARB_RS_SCALE=540;
 // The click scale for this chassis: the MEASURE ARB reading when one is set, else the default.
 const arbScaleOf=ch=>ch.useMeasuredArbClick&&ch.measuredArbClick!=null
   ?Math.max(ARB_SCALE_MIN,Math.min(ARB_SCALE_MAX,ch.measuredArbClick)):ARB_RS_SCALE;
+// A measured click scale is solved against MEAS. NAT BAL on springs at its Hz, so it goes stale
+// when either changes. measuredArbNat/measuredArbNatHz record what it was measured against;
+// null (scales applied before they existed) = unknown, never flagged.
+const arbScaleStale=ch=>!!(ch.useMeasuredArbClick&&ch.measuredArbNat!=null&&(!ch.useMeasuredNatBal
+  ||ch.measuredNatBal!==ch.measuredArbNat||(ch.measuredNatBalHz??NAT_BAL_REF_HZ)!==(ch.measuredArbNatHz??NAT_BAL_REF_HZ)));
 const ARB_SCALE_MIN=150,ARB_SCALE_MAX=1500;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
 // ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
@@ -2080,7 +2085,7 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               trackF:1.55,trackR:1.52,
               tyreF:'265/35R18',tyreR:'265/35R18',
               useMeasuredNatBal:false,measuredNatBal:null,layout:'RWD',
-              measuredNatBalHz:null,useMeasuredArbClick:false,measuredArbClick:null,
+              measuredNatBalHz:null,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null,
               useRideHeightCG:true,rideHeightF:0.13,rideHeightR:0.12,
               // Spring/damper travel per unit wheel travel. 1.0 = direct-acting, which is
               // what Forza displays, so these are inert in the Forza modes and only affect
@@ -3219,7 +3224,8 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
             </Card>
             <Card title="ARB SCALE SETUP" accent>
               {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
-              :!ch.useMeasuredNatBal?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Set MEAS. NAT BAL first. This reading is measured against it, on the same springs.</div>
+              :!ch.useMeasuredNatBal?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Set MEAS. NAT BAL first. This reading is measured against it, on the same springs.
+                {arbScaleStale(ch)&&<div style={{fontSize:10,color:'#f59e0b',marginTop:4}}>A measured scale ({Math.round(arbScaleOf(ch))}) is still in use but its NAT BAL was cleared — RE-MEASURE.</div>}</div>
               :<>
                 <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,marginBottom:8}}>
                   Forza scales its ARB slider differently on every car. This finds how much one click is worth on this one,
@@ -3247,13 +3253,18 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                 <div style={{display:'flex',gap:4,marginTop:8}}>
                   <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
                     title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew)}))}>APPLY</button>
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew),
+                      measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}))}>APPLY</button>
                   <button className="tbtn" style={{flex:1,fontSize:10,opacity:ch.useMeasuredArbClick?1:0.35}} disabled={!ch.useMeasuredArbClick}
                     title={`Go back to the default click scale (${ARB_RS_SCALE}).`}
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null}))}>RESET</button>
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>RESET</button>
                 </div>
                 <div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6}}>
-                  {ch.useMeasuredArbClick?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}</div>
+                  {ch.useMeasuredArbClick?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}
+                  {arbScaleStale(ch)&&<span style={{color:'#f59e0b'}}> · RE-MEASURE</span>}</div>
+                {arbScaleStale(ch)&&<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:4}}>
+                  MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
+                  It's still in use; take both readings again and APPLY.</div>}
               </>}
             </Card>
           </div>}
@@ -3479,6 +3490,9 @@ const CODEC_FIELDS=[
   {id:72,group:'ch',key:'measuredNatBalHz'},
   {id:73,group:'ch',key:'useMeasuredArbClick',bool:true},
   {id:74,group:'ch',key:'measuredArbClick'},
+  // 75/76: the MEAS. NAT BAL and its Hz that 74 was measured against, so arbScaleStale can flag it.
+  {id:75,group:'ch',key:'measuredArbNat'},
+  {id:76,group:'ch',key:'measuredArbNatHz'},
   // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
   // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
   // misread a stale scale as half-stiff bars. See docs/CODEC.md.
@@ -3558,6 +3572,8 @@ const sanitizeTune=({ch,fe,dr})=>{
       // deliberately not carried over: read as the new scale they would halve the bars.
       useMeasuredArbClick: !!(ch?.useMeasuredArbClick),
       measuredArbClick:  ch?.useMeasuredArbClick&&ch?.measuredArbClick!=null?cl(ch.measuredArbClick,ARB_SCALE_MIN,ARB_SCALE_MAX,null):null,
+      measuredArbNat:    ch?.useMeasuredArbClick&&ch?.measuredArbNat!=null?cl(ch.measuredArbNat,0.10,0.90,null):null,
+      measuredArbNatHz:  ch?.useMeasuredArbClick&&ch?.measuredArbNatHz!=null?cl(ch.measuredArbNatHz,HZ_MIN,HZ_MAX,null):null,
       // Floor at 0.2 rather than 0: mrDiv squares this, so a near-zero ratio would
       // scale the displayed rate toward infinity.
       motionRatioF: cl(ch?.motionRatioF,    0.2,  1.5,  DEF_CH.motionRatioF),
@@ -6045,6 +6061,9 @@ function App(){
                   onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null}))}>✕</button>
               </>}
             </div>}
+            {uiMode==='pro'&&arbScaleStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
+              title="The ARB click scale was measured against a different MEAS. NAT BAL. Open MEASURE and take the ARB readings again."
+              onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>ARB SCALE: RE-MEASURE</button>}
             {(()=>{
               if(uiMode!=='pro')return null;
               const{targetBal,dTrackF,dTrackR,trackFfeas,trackRfeas}=chassisAnalysis;

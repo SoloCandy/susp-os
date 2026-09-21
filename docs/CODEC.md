@@ -91,8 +91,10 @@ future version might not carry.
 | 72 | ch | measuredNatBalHz | raw number |
 | 73 | ch | useMeasuredArbClick | bool |
 | 74 | ch | measuredArbClick | raw number |
+| 75 | ch | measuredArbNat | raw number |
+| 76 | ch | measuredArbNatHz | raw number |
 
-**Next available id: 75.**
+**Next available id: 77.**
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
@@ -136,6 +138,11 @@ Ids 73/74 (`useMeasuredArbClick`/`measuredArbClick`) are `group:'ch'` like
 60/61: a calibration of this car's Forza ARB slider. A shared build's ARB clicks
 only mean the sender's stiffness against the sender's scale, so it travels with
 the chassis.
+
+Ids 75/76 (`measuredArbNat`/`measuredArbNatHz`) record the MEAS. NAT BAL and Hz a
+click scale was measured against. `arbScaleStale` flags the scale (RE-MEASURE)
+when the chassis's current reading differs. Absent (older codes, scales applied
+before these ids) means unknown and is never flagged.
 
 ## Retired — never reuse
 

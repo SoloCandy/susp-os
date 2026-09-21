@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a measured ARB scale is flagged when MEAS. NAT BAL moves
+
+MEASURE ARB solves the click scale against the current MEAS. NAT BAL, on springs
+at its Hz. Re-measuring NAT BAL afterwards silently left a scale solved against
+the old anchor, and the card could only tell you in words to re-measure. APPLY
+now records both values (codec ids 75/76, chassis group). `arbScaleStale` shows
+RE-MEASURE on the card and an ARB SCALE: RE-MEASURE button under the sidebar's NAT BAL
+row when they no longer match, including when NAT BAL is cleared. Scales applied
+before this change have nothing recorded, so they count as unknown and are never
+flagged; the alternative was warning on every older save.
+
+To revert: drop ids 75/76 from `CODEC_FIELDS` (retire them, never reuse),
+`arbScaleStale` and its call sites, and the two fields from `DEF_CH`,
+`sanitizeTune` and APPLY/RESET.
+
 ## Fixed — tutorials and glossary described the old balance model
 
 After the tyre-series change, the help text still described the model that change

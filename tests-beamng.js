@@ -41,7 +41,7 @@ const M = new Function(
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
-  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf};'
+  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale};'
 )();
 
 let pass = 0, fail = 0;
@@ -347,6 +347,16 @@ console.log('\n── MEASURE ARB ──');
 const ARB_CAL = { weight: 2950, frontBias: 65, trackF: 1.553, trackR: 1.561, tyreF: '235/35R19',
   tyreR: '235/35R19', useMeasuredNatBal: true, measuredNatBal: 0.38 };
 const ARB_CAL_FE = { rideStiffness: 2.5, rearHzMode: 'multiplier', rearHzMult: 1.0, rideRef: 'shared', arbMode: 'man' };
+t('a measured scale is flagged stale when MEAS. NAT BAL or its Hz changes, never when unknown', () => {
+  const ok = { ...ARB_CAL, measuredNatBalHz: 2.5, useMeasuredArbClick: true, measuredArbClick: 600, measuredArbNat: 0.38, measuredArbNatHz: 2.5 };
+  if (M.arbScaleStale(ok)) throw new Error('fresh flagged');
+  if (!M.arbScaleStale({ ...ok, measuredNatBal: 0.40 })) throw new Error('NAT change missed');
+  if (!M.arbScaleStale({ ...ok, measuredNatBalHz: 3.0 })) throw new Error('Hz change missed');
+  if (!M.arbScaleStale({ ...ok, useMeasuredNatBal: false })) throw new Error('cleared NAT missed');
+  if (M.arbScaleStale({ ...ok, measuredNatBalHz: null })) throw new Error('null Hz is 2.5');
+  if (M.arbScaleStale({ ...ok, measuredArbNat: null })) throw new Error('older scale flagged');
+  if (M.arbScaleStale({ ...ok, useMeasuredArbClick: false, measuredNatBal: 0.40 })) throw new Error('default scale flagged');
+});
 t('no measured scale falls back to ARB_RS_SCALE; a measured one is used and clamped', () => {
   if (M.arbScaleOf(M.DEF_CH) !== M.ARB_RS_SCALE) throw new Error('default scale');
   if (M.arbScaleOf({ useMeasuredArbClick: true, measuredArbClick: 600 }) !== 600) throw new Error('measured');
