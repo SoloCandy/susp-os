@@ -11,6 +11,13 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — tutorial steps can carry a task
+
+Steps take an optional `task: {text, check}`. The card shows the text with ○ and
+flips it to ✓ once `check(fe, snapshotAtStepOpen)` passes, so "changed" means changed
+during this step rather than ever. NEXT is never blocked. The beginner guide's
+Factory Presets, Ride Stiffness and Balance steps have tasks.
+
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 
 The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on
