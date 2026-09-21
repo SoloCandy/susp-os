@@ -11,6 +11,23 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — tutorials and glossary described the old balance model
+
+After the tyre-series change, the help text still described the model that change
+replaced. The PRO "Mech Balance Target" step called the slider an absolute
+0.20–0.90 rear share, but it had become an offset from NAT. The glossary said the
+plain spring-and-bar split "is the number Forza displays", which is exactly the
+assumption the tyre-series change disproved. Neither said where the natural
+balance's reference Hz comes from, and ARB SCALE SETUP had no help at all.
+
+Now:
+- The PRO track has a "Calibrating ARB Scale" step, and the NAT BAL step
+  mentions the saved Hz and the ✕ button.
+- The glossary adds Tyre Compliance and ARB Scale.
+- MECH and CO-SOLVE say they aim at the balance Forza displays.
+
+Text only. Every new step reuses an existing focus id.
+
 ## Changed — the balance display counts the tyres in series; ARB click scale 540
 
 The app still overshot the game at big balance offsets after the ARB scale fix:
