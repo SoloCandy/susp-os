@@ -1893,13 +1893,20 @@ cases (it's always the reference axle) and that the 8 CO-SOLVE fixtures are
 byte-identical (CO-SOLVE overrides `effectiveRHz` regardless of `rearHzMode`) — the
 diff is fully explained by the intended default change, not a leak elsewhere.
 
+## Changed — beginner tutorial asks for units as its second step
+
+A "Choose Your Units" step now follows the welcome card and embeds the same
+`UnitsPicker` the UNITS modal uses, so a new user sets their units before
+reading any numbers. Steps carry an optional `units:true` flag for this.
+
 ## Changed — IMP/MET toggle replaced by a UNITS modal
 
 The header's IMP/MET pair (and its compact-header copy in the sidebar) is now one
 UNITS button opening a modal that sets weight (lb/kg), spring rate (lb/in /
 Forza N/mm / kgf/mm), ride height (in/cm) and speed (mph/km/h) independently, with ALL
 IMPERIAL / ALL METRIC shortcuts. Stored as `suspos_units_v2`; the old boolean
-`suspos_units_v1` is read once so metric users start all-metric.
+`suspos_units_v1` is read once so metric users start all-metric. ALL METRIC (and
+that seed) uses kgf/mm for springs, Forza's own metric default.
 
 ## Reverted — `NMM_PER_LBIN` back to `/100` to match Forza's metric spring readout
 

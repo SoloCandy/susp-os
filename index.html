@@ -2053,7 +2053,8 @@ const UNIT_GROUPS=[
   {k:'speed',label:'Speed',opts:[['mph','mph'],['kmh','km/h']]},
 ];
 const UNITS_IMP={mass:'lb',spring:'lbin',length:'in',speed:'mph'};
-const UNITS_MET={mass:'kg',spring:'nmm',length:'cm',speed:'kmh'};
+// ALL METRIC picks kgf/mm for springs because that is Forza's own metric default.
+const UNITS_MET={mass:'kg',spring:'kgfmm',length:'cm',speed:'kmh'};
 const legacyUnits=()=>{
   try{return JSON.parse(localStorage.getItem('suspos_units_v1'))===true?UNITS_MET:UNITS_IMP;}
   catch(e){return UNITS_IMP;}
@@ -3860,6 +3861,9 @@ const TUTORIALS={
     {title:'Welcome to SUSP.OS',
      focus:null,sidebar:'close',
      body:'SUSP.OS calculates suspension values from your car\'s stats and a handling target — you set what kind of car and how you want it to feel, the app solves the numbers. Tap the ☰ button to open the setup sidebar. This guide walks through the basics, then the results panel on the right.'},
+    {title:'Choose Your Units',
+     focus:null,units:true,
+     body:'Pick the units your game shows so the numbers here can be typed straight in. Spring rate should match whatever your tuning screen in Forza uses. You can change any of these later with the UNITS button.'},
     {title:'Getting Around',
      focus:null,
      body:'The ☰ button opens and closes the setup sidebar — results update live on the right as you type. On desktop the header carries a UNITS button (choose lb/kg, lb/in, N/mm or kgf/mm, in/cm and mph/km/h separately), HORIZON/MOTORSPORT game title, and the BEG/INT/PRO complexity buttons, then ? to reopen this guide, TERMS for the glossary, and GARAGE for your saves. Undo ↩ and redo ↪ sit beside RESET at the top of the sidebar, and Ctrl+Z / Ctrl+Shift+Z (⌘ on Mac) work too. On phones the BEG/INT/PRO row sits under the title, and the UNITS button and game title toggle move to the top of the sidebar. Every slider has a number box beside it for typing an exact value. The small ⓘ next to almost every label is a hint — hover it on desktop, or tap it on mobile, for a plain-language explanation of what that control does and which way it shifts your handling balance.'},
@@ -4090,7 +4094,29 @@ const GLOSSARY=[
 const HINT_LAYOUT='Which wheels the engine drives. Sets how the differential recommendation is calculated, and shifts alignment targets and the recommended balance range — FWD wants front grip protected, RWD wants rear traction, AWD splits the difference and unlocks the centre diff controls.';
 const HINT_BUILD_TYPE='Determines your intended use. Shifts alignment targets, diff AUTO behaviour, diff type recommendation, brake balance, and the recommended Mech Balance Target range.';
 
-const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1})=>{
+// Shared by the UNITS modal and the beginner tutorial's units step.
+const UnitsPicker=({units,setUnits})=>(<>
+  <div style={{display:'flex',gap:4,marginBottom:12}}>
+    <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_IMP)}>ALL IMPERIAL</button>
+    <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_MET)}>ALL METRIC</button>
+  </div>
+  {UNIT_GROUPS.map(g=>(
+    <div key={g.k} style={{marginBottom:10}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+        <span style={{fontSize:11,color:'#cbd5e1'}}>{g.label}</span>
+        <div style={{display:'flex',gap:3}}>
+          {g.opts.map(([v,lbl])=>(
+            <button key={v} className={`tbtn${units[g.k]===v?' on':''}`} style={{fontSize:11,minWidth:48}}
+              onClick={()=>setUnits({...units,[g.k]:v})}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+      {g.note&&<div style={{fontSize:9,color:'#475569',marginTop:3,lineHeight:1.4}}>{g.note}</div>}
+    </div>
+  ))}
+</>);
+
+const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits})=>{
   const steps=TUTORIALS[mode]??[];
   const total=steps.length;
   const t=steps[step];
@@ -4291,6 +4317,7 @@ const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1})=>{
                 </div>
               ))
             : t.body}
+          {t.units&&units&&<div style={{marginTop:10}}><UnitsPicker units={units} setUnits={setUnits}/></div>}
         </div>
         {showMore&&<div style={{position:'absolute',left:0,right:0,bottom:10,height:26,
              background:'linear-gradient(transparent,#0f172a)',pointerEvents:'none',
@@ -5233,24 +5260,7 @@ function App(){
                 cursor:'pointer',fontSize:14}}>✕</button>
             </div>
             <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
-              <div style={{display:'flex',gap:4,marginBottom:12}}>
-                <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_IMP)}>ALL IMPERIAL</button>
-                <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_MET)}>ALL METRIC</button>
-              </div>
-              {UNIT_GROUPS.map(g=>(
-                <div key={g.k} style={{marginBottom:10}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-                    <span style={{fontSize:11,color:'#cbd5e1'}}>{g.label}</span>
-                    <div style={{display:'flex',gap:3}}>
-                      {g.opts.map(([v,lbl])=>(
-                        <button key={v} className={`tbtn${units[g.k]===v?' on':''}`} style={{fontSize:11,minWidth:52}}
-                          onClick={()=>setUnits({...units,[g.k]:v})}>{lbl}</button>
-                      ))}
-                    </div>
-                  </div>
-                  {g.note&&<div style={{fontSize:9,color:'#475569',marginTop:3}}>{g.note}</div>}
-                </div>
-              ))}
+              <UnitsPicker units={units} setUnits={setUnits}/>
             </div>
           </div>
         </div>
@@ -5411,7 +5421,7 @@ function App(){
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
         onClose={closeTut}
         onDone={closeTutDone}
-        zoom={effZoom}/>}
+        zoom={effZoom} units={units} setUnits={setUnits}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
         onPrev={()=>setBalTutStep(s=>Math.max(s-1,0))}
