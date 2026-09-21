@@ -3867,13 +3867,13 @@ class ErrorBoundary extends React.Component{
 const TUTORIALS={
   beginner:[
     {title:'Welcome to SUSP.OS',
-     focus:null,sidebar:'close',
+     focus:null,sidebar:'close',pathChoice:true,
      body:'SUSP.OS calculates suspension values from your car\'s stats and a handling target — you say what kind of car it is and how it should feel, and the app solves the numbers. This guide gets you a working tune in a couple of steps, then shows how to refine it.'},
     {title:'Choose Your Units',
-     focus:null,units:true,
+     focus:null,units:true,quick:true,
      body:'Pick the units your game shows so the numbers here can be typed straight in. Spring rate should match whatever your tuning screen in Forza uses. You can change any of these later with the UNITS button.'},
     {title:'Load a Preset',
-     focus:['garage'],sidebar:'close',
+     focus:['garage'],sidebar:'close',quick:true,
      task:{text:'Load any FACTORY preset.',check:(fe,snap)=>fe!==snap},
      body:'Pick a preset for your car\'s class and load it. Under FACTORY in the garage are six — STREET, TRACK, RALLY, DRIFT, MOTORSPT, X COUNTRY. The ★ marks the one matching your build type. The results panel now holds a full tune; the next steps refine it for your car.'},
     {title:'Getting Around',
@@ -3890,7 +3890,7 @@ const TUTORIALS={
      task:{text:'Drag Ride Stiffness and watch the category change.',check:(fe,snap)=>fe.rideStiffness!==snap.rideStiffness},
      body:'Overall suspension stiffness. FIRM is the best starting point — sharp response with good body control. SOFT and ROAD suit comfort or rough surfaces; RACE suits smooth circuits only.'},
     {title:'Balance',
-     focus:['balance'],
+     focus:['balance'],quick:true,
      task:{text:'Move the Balance slider and watch the Handling Balance bar move with it.',check:(fe,snap)=>(fe.arbBias??0)!==(snap.arbBias??0)},
      body:'Right (OVERSTEER) stiffens the rear for more rotation; left (UNDERSTEER) stiffens the front for stability on corner entry. Centre is neutral for your weight distribution. Drift builds want more right, street and GT builds mild left; track builds vary by layout and taste.'},
     {title:'Character',
@@ -3900,7 +3900,7 @@ const TUTORIALS={
      focus:['balance-bar'],sidebar:'close',
      body:'Pinned at the bottom of the results panel, this shows your total oversteer or understeer tendency. The centre band is neutral, the mild zone is typical for intentional bias, the outer zone is aggressive. Tap it for a breakdown of every contributor.'},
     {title:'Reading the Results',
-     focus:['output'],
+     focus:['output'],quick:true,
      body:'The right panel shows the values to enter in the tuning menu, as six cards: Alignment, Anti-Roll Bars, Springs, Dampers, Brakes, and Differential. Amber values mean you\'re near a game limit — soften your inputs slightly if that happens.'},
     {title:'Output Toolbar',
      focus:['toolbar'],
@@ -4039,6 +4039,11 @@ const TUTORIALS={
   ],
 };
 
+// The path a guide is running: the whole array, or only its quick:true steps (QUICK START on a
+// pathChoice card). A filtered view, not a second array — reordering or trimming steps in
+// TUTORIALS reshapes the quick path with no other edit.
+const tutSteps=(mode,quick)=>{const all=TUTORIALS[mode]??[];return quick?all.filter(x=>x.quick):all;};
+
 // Standalone reference — unlike TUTORIALS this isn't a guided sequence, it's an
 // always-available lookup for anyone who forgets what a term means. Not tier-gated:
 // every term is shown regardless of BEG/INT/PRO, since a BEG user can still run into
@@ -4130,8 +4135,8 @@ const UnitsPicker=({units,setUnits})=>(<>
   ))}
 </>);
 
-const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState})=>{
-  const steps=TUTORIALS[mode]??[];
+const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState})=>{
+  const steps=tutSteps(mode,quick);
   const total=steps.length;
   const t=steps[step];
   // Optional step task: snapshot appState when the step opens so "changed" means
@@ -4342,6 +4347,7 @@ const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUni
                 </div>
               ))
             : t.body}
+          {quick&&step===total-1&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap ? in the header any time to replay the full tour.</div>}
           {t.units&&units&&<div style={{marginTop:10}}><UnitsPicker units={units} setUnits={setUnits}/></div>}
           {task&&<div data-tut-task={taskDone?'done':'pending'}
                style={{marginTop:10,padding:'6px 8px',border:'1px solid '+(taskDone?'#166534':'#312e81'),
@@ -4359,7 +4365,10 @@ const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUni
       </div>
       <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
         {step>0&&<button style={btnStyle} onClick={onPrev}>← PREV</button>}
-        {step<total-1
+        {t.pathChoice&&!quick&&onQuick
+          ?<><button style={btnStyle} onClick={onQuick}>QUICK START</button>
+             <button style={{...btnStyle,borderColor:'#4f46e5',color:'#818cf8'}} onClick={onNext}>FULL TOUR →</button></>
+          :step<total-1
           ?<button style={{...btnStyle,borderColor:'#4f46e5',color:'#818cf8'}} onClick={onNext}>NEXT →</button>
           :<button style={{...btnStyle,borderColor:'#16a34a',color:'#4ade80'}} onClick={onDone??onClose}>DONE ✓</button>}
       </div>
@@ -4507,13 +4516,14 @@ function App(){
   const closeOnboard=()=>{setOnboardSeen(true);setShowComplexity(false);};
   const[tutMode,setTutMode]=useState(null);
   const[tutStep,setTutStep]=useState(0);
+  const[tutQuick,setTutQuick]=useState(false); // QUICK START chosen on a pathChoice card — see tutSteps
   const[tutResume,setTutResume]=useState(null); // {mode, step} while the RESUME / START OVER choice is up
   const savedTutStep=mode=>{
     const n=+tutProgress?.[mode]||0,len=TUTORIALS[mode]?.length??0;
     return len?Math.max(0,Math.min(Math.floor(n),len-1)):0;
   };
   const openTut=(mode,step=0)=>{
-    setTutMode(mode);setTutStep(step);
+    setTutMode(mode);setTutStep(step);setTutQuick(false);
     // The opening step's sidebar is driven by its own metadata; default to open otherwise.
     // The [tutMode, tutStep] effect below then applies sections/garage/sidebar for that step.
     if(!TUTORIALS[mode]?.[step]?.sidebar)setSidebarOpen(true);
@@ -4524,9 +4534,9 @@ function App(){
     if(n>0)setTutResume({mode,step:n});else openTut(mode);
   };
   useEffect(()=>{
-    if(tutMode&&tutMode!=='balance'&&(tutProgress?.[tutMode]??0)!==tutStep)
+    if(tutMode&&tutMode!=='balance'&&!tutQuick&&(tutProgress?.[tutMode]??0)!==tutStep)
       setTutProgress(p=>({...p,[tutMode]:tutStep}));
-  },[tutMode,tutStep]); // eslint-disable-line
+  },[tutMode,tutStep,tutQuick]); // eslint-disable-line
   const closeTut=()=>setTutMode(null);
   // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier)
   const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:0}));closeTutEnd();};
@@ -4554,7 +4564,7 @@ function App(){
     if(uiMode==='pro'&&m!=='pro'&&dnaStore.applied){setDnaTierWarn(m);return;}
     tryAccessMode(m);
   };
-  const tutFocus=tutMode?(TUTORIALS[tutMode]?.[tutStep]?.focus??null):null;
+  const tutFocus=tutMode?(tutSteps(tutMode,tutQuick)[tutStep]?.focus??null):null;
   const dim=(...zones)=>{
     if(!tutMode)return{};
     if(!tutFocus||!zones.some(z=>tutFocus.includes(z)))
@@ -4586,7 +4596,7 @@ function App(){
     // Assignment, not a conditional: the old inline drawer only ever needed opening, but a
     // full-height overlay left open would obscure the results panel for every later step.
     setGaragePanelOpen(!!tutFocus?.includes('garage'));
-    const stepMeta=TUTORIALS[tutMode]?.[tutStep];
+    const stepMeta=tutSteps(tutMode,tutQuick)[tutStep];
     if(stepMeta?.sidebar==='close')setSidebarOpen(false);
     else if(stepMeta?.sidebar==='open')setSidebarOpen(true);
     // Sidebar now defaults closed too — a step whose focus lives in the sidebar
@@ -4594,7 +4604,7 @@ function App(){
     // Steps that only reference the output panel/balance bar force it closed so
     // that panel isn't obstructed. Focus-less info steps leave it as the user set it.
     else if(tutFocus)setSidebarOpen(!(tutFocus.includes('output')||tutFocus.includes('balance-bar')));
-  },[tutMode,tutStep]); // eslint-disable-line
+  },[tutMode,tutStep,tutQuick]); // eslint-disable-line
   // `open` holds two unrelated kinds of flag: the collapsible SIDEBAR SECTIONS (SECTION_KEYS
   // below — exactly one per <Sec>, all nine of them, `visuals` included), and flags that are
   // not sections at all — balanceExpanded (the balance detail overlay), factoryOpen (the
@@ -5483,8 +5493,9 @@ function App(){
           </div>
         </div>
       )}
-      {tutMode&&<TutorialPanel mode={tutMode} step={tutStep}
-        onNext={()=>setTutStep(s=>Math.min(s+1,(TUTORIALS[tutMode]?.length??1)-1))}
+      {tutMode&&<TutorialPanel mode={tutMode} step={tutStep} quick={tutQuick}
+        onQuick={()=>{setTutQuick(true);setTutStep(0);}}
+        onNext={()=>setTutStep(s=>Math.min(s+1,tutSteps(tutMode,tutQuick).length-1))}
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
         onClose={closeTutEnd}
         onDone={finishTut}
