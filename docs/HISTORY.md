@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the beginner guide loads a preset at step 3 and keeps every step short
+
+Results used to appear only at step 12 of 13, so a new user read eleven steps about
+inputs with an empty results panel. "Load a Preset" is now step 3, straight after
+units, and every later step refines a tune that is already on screen. "Saving Your
+Own" moved to the end, where there is something worth saving.
+
+"Getting Around" (~160 words, `focus:null`, which dimmed the whole page) is cut to ☰,
+undo/redo and ⓘ and now spotlights `toolbar`; header-button detail is left to the ⓘ
+hints. "Output Toolbar" drops ↩ / ↪, now covered earlier. No step exceeds about 70
+words, so none triggers ▼ SCROLL FOR MORE on desktop.
+
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 
 The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on

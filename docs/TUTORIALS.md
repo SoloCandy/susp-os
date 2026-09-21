@@ -184,19 +184,19 @@ every step title of its guide, in order.
 
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Welcome to SUSP.OS | — | close | What the app does; ☰ opens the sidebar. |
+| 1 | Welcome to SUSP.OS | — | close | What the app does; a working tune comes first, refinement after. |
 | 2 | Choose Your Units | — | | Embedded units picker; match Forza's spring units. |
-| 3 | Getting Around | — | | Header buttons desktop vs phone, undo/redo, number boxes, ⓘ hints. |
-| 4 | Layout & Build Type | `layout-build`, `build-type` | | Drive layout and build type and what they drive. |
-| 5 | Weight & Front Bias | `weight` | | Take them from the car selection screen. |
-| 6 | Factory Presets | `garage` | close | GARAGE → FACTORY presets, ★ match, loads are undoable. |
-| 7 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR. |
-| 8 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. |
-| 9 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. |
-| 10 | Character | `character` | | STABLE ↔ AGILE damping feel. |
-| 11 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. |
-| 12 | Reading the Results | `output` | | The six result cards; amber = near a game limit. |
-| 13 | Output Toolbar | `toolbar` | | RESET, ↩ / ↪, DNA, CHECK, SHARE. |
+| 3 | Load a Preset | `garage` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. |
+| 4 | Getting Around | `toolbar` | | ☰ sidebar, ↩ / ↪ and keyboard undo, ⓘ hints. |
+| 5 | Layout & Build Type | `layout-build`, `build-type` | | Drive layout and build type and what they drive. |
+| 6 | Weight & Front Bias | `weight` | | Take them from the car selection screen. |
+| 7 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. |
+| 8 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. |
+| 9 | Character | `character` | | STABLE ↔ AGILE damping feel. |
+| 10 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. |
+| 11 | Reading the Results | `output` | | The six result cards; amber = near a game limit. |
+| 12 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
+| 13 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. |
 
 ### Intermediate <!--@tutorial intermediate-->
 
