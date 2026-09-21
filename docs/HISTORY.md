@@ -21,7 +21,23 @@ Own" moved to the end, where there is something worth saving.
 "Getting Around" (~160 words, `focus:null`, which dimmed the whole page) is cut to ☰,
 undo/redo and ⓘ and now spotlights `toolbar`; header-button detail is left to the ⓘ
 hints. "Output Toolbar" drops ↩ / ↪, now covered earlier. No step exceeds about 70
-words, so none triggers ▼ SCROLL FOR MORE on desktop.
+words, so no step's text triggers ▼ SCROLL FOR MORE. The "Load any FACTORY preset"
+task moved with the preset step.
+
+## Changed — tier guides can resume where they were left
+
+The current step used to be session state, so a reload lost it and `?` always
+restarted at step 1. The last step per tier guide now persists in
+`suspos_tutorial_step_v1`; `?` offers RESUME AT STEP n / START OVER. DONE clears it,
+as does RESET with Tutorials ticked. It is clamped on read because a guide can
+shrink between visits.
+
+## Changed — tutorial steps can carry a task
+
+Steps take an optional `task: {text, check}`. The card shows the text with ○ and
+flips it to ✓ once `check(fe, snapshotAtStepOpen)` passes, so "changed" means changed
+during this step rather than ever. NEXT is never blocked. The beginner guide's
+Factory Presets, Ride Stiffness and Balance steps have tasks.
 
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 

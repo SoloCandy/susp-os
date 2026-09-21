@@ -3874,6 +3874,7 @@ const TUTORIALS={
      body:'Pick the units your game shows so the numbers here can be typed straight in. Spring rate should match whatever your tuning screen in Forza uses. You can change any of these later with the UNITS button.'},
     {title:'Load a Preset',
      focus:['garage'],sidebar:'close',
+     task:{text:'Load any FACTORY preset.',check:(fe,snap)=>fe!==snap},
      body:'Pick a preset for your car\'s class and load it. Under FACTORY in the garage are six — STREET, TRACK, RALLY, DRIFT, MOTORSPT, X COUNTRY. The ★ marks the one matching your build type. The results panel now holds a full tune; the next steps refine it for your car.'},
     {title:'Getting Around',
      focus:['toolbar'],
@@ -3886,9 +3887,11 @@ const TUTORIALS={
      body:'Enter your car\'s total weight and front weight bias from the car selection screen, not the tuning menu. These two numbers drive almost every calculation, so the tune you loaded now fits your car.'},
     {title:'Ride Stiffness',
      focus:['ride-stiffness'],
+     task:{text:'Drag Ride Stiffness and watch the category change.',check:(fe,snap)=>fe.rideStiffness!==snap.rideStiffness},
      body:'Overall suspension stiffness. FIRM is the best starting point — sharp response with good body control. SOFT and ROAD suit comfort or rough surfaces; RACE suits smooth circuits only.'},
     {title:'Balance',
      focus:['balance'],
+     task:{text:'Move the Balance slider and watch the Handling Balance bar move with it.',check:(fe,snap)=>(fe.arbBias??0)!==(snap.arbBias??0)},
      body:'Right (OVERSTEER) stiffens the rear for more rotation; left (UNDERSTEER) stiffens the front for stability on corner entry. Centre is neutral for your weight distribution. Drift builds want more right, street and GT builds mild left; track builds vary by layout and taste.'},
     {title:'Character',
      focus:['character'],
@@ -4127,10 +4130,21 @@ const UnitsPicker=({units,setUnits})=>(<>
   ))}
 </>);
 
-const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits})=>{
+const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState})=>{
   const steps=TUTORIALS[mode]??[];
   const total=steps.length;
   const t=steps[step];
+  // Optional step task: snapshot appState when the step opens so "changed" means
+  // changed during this step, then latch done once check(appState,snap) passes.
+  // Never gates NEXT — it's a nudge, not a lock.
+  const task=t?.task;
+  const taskSnap=useRef(null);
+  const[taskDone,setTaskDone]=useState(false);
+  useEffect(()=>{taskSnap.current=appState;setTaskDone(false);},[mode,step]); // eslint-disable-line
+  useEffect(()=>{
+    if(!task||taskDone||!appState||!taskSnap.current)return;
+    try{if(task.check(appState,taskSnap.current))setTaskDone(true);}catch(e){}
+  },[appState,task,taskDone]);
   // balance mode always anchors to the balance bar zone even though its steps have focus:null
   const focusKey=mode==='balance'?'balance-bar':(t?.focus?.[0]??null);
   // Widen on desktop: at the mobile width this stays 264 (unchanged), but a fixed
@@ -4329,6 +4343,13 @@ const TutorialPanel=({mode,step,onNext,onPrev,onClose,onDone,zoom=1,units,setUni
               ))
             : t.body}
           {t.units&&units&&<div style={{marginTop:10}}><UnitsPicker units={units} setUnits={setUnits}/></div>}
+          {task&&<div data-tut-task={taskDone?'done':'pending'}
+               style={{marginTop:10,padding:'6px 8px',border:'1px solid '+(taskDone?'#166534':'#312e81'),
+                 borderRadius:2,display:'flex',gap:8,alignItems:'flex-start',
+                 color:taskDone?'#4ade80':'#c7d2fe',transition:'color .2s,border-color .2s'}}>
+            <span style={{fontWeight:700,flexShrink:0}}>{taskDone?'✓':'○'}</span>
+            <span><span style={{letterSpacing:1,fontSize:9,opacity:.8}}>TRY IT · </span>{task.text}</span>
+          </div>}
         </div>
         {showMore&&<div style={{position:'absolute',left:0,right:0,bottom:10,height:26,
              background:'linear-gradient(transparent,#0f172a)',pointerEvents:'none',
@@ -5432,7 +5453,7 @@ function App(){
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
         onClose={closeTutEnd}
         onDone={closeTutEnd}
-        zoom={effZoom} units={units} setUnits={setUnits}/>}
+        zoom={effZoom} units={units} setUnits={setUnits} appState={fe}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
         onPrev={()=>setBalTutStep(s=>Math.max(s-1,0))}
