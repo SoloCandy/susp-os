@@ -88,10 +88,11 @@ future version might not carry.
 | 67 | fe | arbNeutralEqual | bool |
 | 68 | ch | arbMotionRatioF | raw number |
 | 69 | ch | arbMotionRatioR | raw number |
-| 70 | ch | useMeasuredArbScale | bool |
-| 71 | ch | measuredArbScale | raw number |
+| 72 | ch | measuredNatBalHz | raw number |
+| 73 | ch | useMeasuredArbClick | bool |
+| 74 | ch | measuredArbClick | raw number |
 
-**Next available id: 72.**
+**Next available id: 75.**
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
@@ -127,15 +128,25 @@ silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
 actually tuned toward. See the semantic-change note below.
 
-Ids 70/71 (`useMeasuredArbScale`/`measuredArbScale`) are `group:'ch'` like
+Id 72 (`measuredNatBalHz`) travels with ids 60/61: the tyre-series balance
+display's equal-Hz natural moves slightly with Hz, so a MEASURE NAT BAL reading
+only anchors correctly at the Hz it was taken. Absent (older codes) means 2.5.
+
+Ids 73/74 (`useMeasuredArbClick`/`measuredArbClick`) are `group:'ch'` like
 60/61: a calibration of this car's Forza ARB slider. A shared build's ARB clicks
 only mean the sender's stiffness against the sender's scale, so it travels with
 the chassis.
 
 ## Retired — never reuse
 
-None yet. (No field has been deleted since the codec's v1 sparse-table
-redesign; ids that predate it were never individually numbered.)
+- **70/71** — `useMeasuredArbScale`/`measuredArbScale`. MEASURE ARB's click
+  scale as first shipped, fitted without the tyre-series term, so a value means
+  about half what ids 73/74 mean. Removed from `CODEC_FIELDS`, so decoding skips
+  them as unknown ids and `sanitizeTune` does not carry the old keys over: read as
+  the new scale they would halve every bar. The user re-measures.
+
+(No other field has been deleted since the codec's v1 sparse-table redesign;
+ids that predate it were never individually numbered.)
 
 ## Extending an enum (id 10 / `gameMode`, and the general rule)
 

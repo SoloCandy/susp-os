@@ -40,7 +40,8 @@ const M = new Function(
   slice('const KG_TO_LB=', 'const arbCtx=') +
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,cornerMasses,isPhysical,' +
-  'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale};'
+  'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
+  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -348,33 +349,130 @@ const ARB_CAL = { weight: 2950, frontBias: 65, trackF: 1.553, trackR: 1.561, tyr
 const ARB_CAL_FE = { rideStiffness: 2.5, rearHzMode: 'multiplier', rearHzMult: 1.0, rideRef: 'shared', arbMode: 'man' };
 t('no measured scale falls back to ARB_RS_SCALE; a measured one is used and clamped', () => {
   if (M.arbScaleOf(M.DEF_CH) !== M.ARB_RS_SCALE) throw new Error('default scale');
-  if (M.arbScaleOf({ useMeasuredArbScale: true, measuredArbScale: 340 }) !== 340) throw new Error('measured');
-  if (M.arbScaleOf({ useMeasuredArbScale: false, measuredArbScale: 340 }) !== M.ARB_RS_SCALE) throw new Error('flag off');
-  if (M.arbScaleOf({ useMeasuredArbScale: true, measuredArbScale: 5000 }) !== 800) throw new Error('clamp');
+  if (M.arbScaleOf({ useMeasuredArbClick: true, measuredArbClick: 600 }) !== 600) throw new Error('measured');
+  if (M.arbScaleOf({ useMeasuredArbClick: false, measuredArbClick: 600 }) !== M.ARB_RS_SCALE) throw new Error('flag off');
+  if (M.arbScaleOf({ useMeasuredArbClick: true, measuredArbClick: 50000 }) !== M.ARB_SCALE_MAX) throw new Error('clamp');
+  // The retired pre-tyre-model fields must not be read as the new scale (they'd halve the bars).
+  if (M.arbScaleOf({ useMeasuredArbScale: true, measuredArbScale: 305 }) !== M.ARB_RS_SCALE) throw new Error('retired field read');
 });
 t('solveArbScale recovers the scale the model used, from either bar direction', () => {
   // Round trip through computeTune: solve the balance a known scale produces, then ask the
   // solver which scale gives that balance. Catches a wrong formula or a missed offset term.
-  for (const scale of [200, 285, 340])
+  for (const scale of [300, 540, 900])
     for (const [f, r] of [[1, 46], [46, 1], [14, 51]]) {
-      const ch = { ...ARB_CAL, useMeasuredArbScale: true, measuredArbScale: scale };
+      const ch = { ...ARB_CAL, useMeasuredArbClick: true, measuredArbClick: scale };
       const bal = solve(ch, { ...ARB_CAL_FE, arbManF: f, arbManR: r }, 'horizon').tune.mechBalance;
       near(M.solveArbScale(ch, 2.5, f, r, bal), scale, 1e-6, `scale ${scale} bars ${f}/${r}`);
     }
 });
-t('solveArbScale matches the in-game Scirocco R readings (fitted ~339)', () => {
+t('solveArbScale matches the in-game Scirocco R readings (all-row fit ~626)', () => {
+  // Two readings carry Forza's 2dp rounding, so they land within several percent of the fit.
   const a = M.solveArbScale(ARB_CAL, 2.5, 14, 51, 0.47), b = M.solveArbScale(ARB_CAL, 2.5, 62, 3, 0.31);
-  near((a + b) / 2, 354, 0.05, 'averaged rear/front-biased scale');
+  near((a + b) / 2, 670, 0.03, 'averaged rear/front-biased scale');
 });
 t('solveArbScale rejects a reading on the wrong side of natural', () => {
-  // Rear bars can only move balance rearward; a reading below natural has no positive solution.
+  // Rear bars can only move balance rearward; a reading below natural has no solution.
   if (M.solveArbScale(ARB_CAL, 2.5, 1, 46, 0.30) !== null) throw new Error('expected null');
 });
 t('a measured scale changes AUTO clicks inversely and leaves roll stiffness alone', () => {
   const r1 = solve(ARB_CAL, { rideStiffness: 2.5 }, 'horizon').tune;
-  const r2 = solve({ ...ARB_CAL, useMeasuredArbScale: true, measuredArbScale: 2 * M.ARB_RS_SCALE }, { rideStiffness: 2.5 }, 'horizon').tune;
+  const r2 = solve({ ...ARB_CAL, useMeasuredArbClick: true, measuredArbClick: 2 * M.ARB_RS_SCALE }, { rideStiffness: 2.5 }, 'horizon').tune;
   near(r2.arbR, r1.arbR / 2, 0.05, 'rear clicks halve');
   near(r2.rsAbR, r1.rsAbR, 0.02, 'rear roll stiffness');
+});
+
+console.log('\n── tyre-series display ──');
+// MX-5 Cup far-offset sweep: springs split front/rear, ARB 1/1, readings off Forza's display.
+const MX5 = { weight: 2374, frontBias: 50, trackF: 1.495, trackR: 1.505, cgHeight: 0.429,
+  tyreF: '215/40R17', tyreR: '215/40R17', useMeasuredNatBal: true, measuredNatBal: 0.52 };
+const MX5_ROWS = [ // lb/in front, rear, Forza's reading
+  [379, 379, .52], [342, 418, .56], [306, 460, .59], [272, 505, .63], [418, 342, .49], [460, 307, .46],
+  [504, 272, .42], [532, 990, .62], [989, 533, .44], [465, 1087, .65], [1085, 466, .40], [341, 799, .66], [797, 342, .39]];
+const displayFor = (ch, kF, kR) => {
+  const rs = (k, tr) => k * M.LB_IN_TO_NM * tr * tr / 2 + M.ARB_RS_SCALE * tr * tr; // springs + a 1-click bar
+  return M.displayRsBalance(ch, rs(kF, ch.trackF), rs(kR, ch.trackR)) + M.displayNatOffsetOf(ch);
+};
+t('the tyre-series display reproduces the MX-5 spring sweep within Forza\'s rounding', () => {
+  // Without the tyre term these rows miss by up to 0.075 (rms 0.05). With it, rms is ~0.007: the
+  // model is anchored on the 2dp 0.52 reading, whose true value the full fit put at 0.524, so every
+  // row carries ~0.005 of that rounding on top of its own.
+  const ch = { ...M.DEF_CH, ...MX5 };
+  let ss = 0;
+  for (const [kF, kR, g] of MX5_ROWS) {
+    const d = displayFor(ch, kF, kR) - g; ss += d * d;
+    if (Math.abs(d) > 0.015) throw new Error(`${kF}/${kR}: off by ${d.toFixed(3)}`);
+  }
+  const rms = Math.sqrt(ss / MX5_ROWS.length);
+  if (rms > 0.009) throw new Error(`rms ${rms.toFixed(4)}`);
+});
+// Scirocco R (65% front) and Ultima Evo (38% front, 245/335 tyres) sweeps, springs split at 2.5 and
+// 3.5 Hz. The uneven cars are what pin how tyre stiffness scales with load: sqrt(load) fits both;
+// stiffness proportional to load misses the Scirocco's rows by ~0.01 more.
+const SWEEPS = [
+  [{ weight: 2950, frontBias: 65, trackF: 1.553, trackR: 1.561, tyreF: '235/35R19', tyreR: '235/35R19',
+     useMeasuredNatBal: true, measuredNatBal: 0.38, measuredNatBalHz: 2.5 },
+   [[613.1, 330.2, .38], [492.1, 402.2, .44], [439.1, 439.2, .47], [1201.2, 647.2, .39], [964.2, 788.1, .44],
+    [1503.2, 502.1, .33], [861.2, 860.1, .47]]],
+  [{ weight: 2102, frontBias: 38, trackF: 1.605, trackR: 1.515, tyreF: '245/30R18', tyreR: '335/25R18',
+     useMeasuredNatBal: true, measuredNatBal: 0.65, measuredNatBalHz: 2.5 },
+   [[255.3, 416.2, .65], [309.3, 337.2, .58], [338.3, 301.2, .55], [500.3, 816.2, .64], [397.3, 1004.2, .70],
+    [606.3, 660.2, .58], [662.3, 589.4, .55]]]];
+t('the tyre-series display reproduces the Scirocco and Ultima spring sweeps', () => {
+  let ss = 0, n = 0;
+  for (const [over, rows] of SWEEPS) {
+    const ch = { ...M.DEF_CH, ...over };
+    for (const [kF, kR, g] of rows) {
+      const d = displayFor(ch, kF, kR) + M.tireCorrOf(ch) - g; ss += d * d; n++;
+      if (Math.abs(d) > 0.02) throw new Error(`${over.frontBias}% front, ${kF}/${kR}: off by ${d.toFixed(3)}`);
+    }
+  }
+  const rms = Math.sqrt(ss / n);
+  // sqrt(load) gives ~0.006; load-proportional ~0.009 and fixed stiffness ~0.011.
+  if (rms > 0.0075) throw new Error(`rms ${rms.toFixed(4)}`);
+});
+t('the display equals MEASURE NAT BAL at equal springs of the Hz it was read at', () => {
+  // Ultima-like: nat moves with Hz on an uneven car, so the stored Hz must be the anchor.
+  const base = { weight: 2102, frontBias: 38, trackF: 1.605, trackR: 1.515, tyreF: '245/30R18', tyreR: '335/25R18',
+    useMeasuredNatBal: true, measuredNatBal: 0.64 };
+  for (const hz of [2.5, 3.5]) {
+    const ch = { ...M.DEF_CH, ...base, measuredNatBalHz: hz };
+    const tune = solve(ch, { rideStiffness: hz, rearHzMode: 'multiplier', rearHzMult: 1.0, rideRef: 'shared',
+      arbMode: 'man', arbManF: 1, arbManR: 1 }, 'horizon').tune;
+    near(tune.mechBalance, 0.64, 0.004, `anchor at ${hz} Hz`);
+  }
+});
+
+console.log('\n── solveTune ──');
+const TARGET_FES = [
+  ['MECH', { arbBalMode: 'mech' }], ['CO-SOLVE', { arbBalMode: 'coSolve' }],
+  ['Rear Hz MECH', { rearHzMode: 'mech', rideRef: 'shared', arbMode: 'man', arbManF: 1, arbManR: 1 }]];
+t('the displayed balance lands on the target in every target-seeking mode', () => {
+  for (const [label, over] of TARGET_FES)
+    for (const tgt of [0.45, 0.55, 0.62]) {
+      const fe = { ...M.DEF_FE, rideStiffness: 2.5, ...over, arbBalTarget: tgt };
+      const { tune } = M.solveTune({ ...M.DEF_CH }, fe, 'horizon');
+      if (tune.mechBalClamped) continue;
+      near(tune.mechBalance, tgt, 0.002, `${label} ${tgt}`);
+    }
+});
+t('without the outer loop the same solves land short (so the loop is doing the work)', () => {
+  const fe = { ...M.DEF_FE, rideStiffness: 3.0, rearHzMode: 'mech', rideRef: 'shared', arbMode: 'man',
+    arbManF: 1, arbManR: 1, arbBalTarget: 0.62 };
+  const direct = solve({}, fe, 'horizon').tune.mechBalance, looped = M.solveTune({ ...M.DEF_CH }, fe, 'horizon').tune.mechBalance;
+  if (Math.abs(direct - 0.62) < 0.02) throw new Error(`direct solve already hits the target (${direct})`);
+  near(looped, 0.62, 0.002, 'looped');
+});
+t('an unreachable target is reported against the target asked for, not the internal one', () => {
+  const fe = { ...M.DEF_FE, arbBalMode: 'mech', arbMode: 'share', arbShareMan: 5, arbBalTarget: 0.85 };
+  const { tune } = M.solveTune({ ...M.DEF_CH }, fe, 'horizon');
+  if (!tune.mechBalClamped) throw new Error(`not flagged at ${tune.mechBalance}`);
+});
+t('physical modes and non-target modes pass straight through', () => {
+  for (const [mode, fe] of [['beamng', { arbBalMode: 'mech', arbBalTarget: 0.6 }], ['horizon', {}]]) {
+    const f = { ...M.DEF_FE, ...fe };
+    const a = JSON.stringify(M.solveTune({ ...M.DEF_CH }, f, mode).tune), b = JSON.stringify(solve({}, fe, mode).tune);
+    if (a !== b) throw new Error(`${mode} changed`);
+  }
 });
 
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);

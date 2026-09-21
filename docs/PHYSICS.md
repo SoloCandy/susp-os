@@ -17,7 +17,8 @@ Key empirical constants calibrated from real Forza data:
 
 | Constant | Value | Description |
 |---|---|---|
-| `ARB_RS_SCALE` | 285 | Default ARB click → roll stiffness per m² of track (N·m/rad). Per-car override via MEASURE ARB — see [ARB click scale](#arb-click-scale-measure-arb) |
+| `ARB_RS_SCALE` | 540 | Default ARB click → roll stiffness per m² of track (N·m/rad), at the suspension, before the tyre. Per-car override via MEASURE ARB — see [ARB click scale](#arb-click-scale-measure-arb) |
+| `TYRE_HZ` / `TYRE_REF_MASS` | 3.94 Hz / 269 kg | The tyre as a spring in series with each axle in Forza's displayed balance: a 3.94 Hz spring on a 269 kg corner, stiffening with √(corner mass). See [Tyres in series](#tyres-in-series-with-the-suspension-displayrsbalance) |
 | `DAMPING_CALIBRATION` | 0.00135 | Maps damper click → critical damping coefficient. Empirically validated via SimHub telemetry: Forza uses lbf/ft/s internally, not N/mm/s — the ×1.35 correction factor confirmed by comparing suspension settling behaviour under baseline vs corrected damper values |
 | `TIRE_LOAD_SENS` | 0.15 | Grip falloff per unit Fz/Fz_ref — the tyre load sensitivity that lets roll stiffness shift balance |
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
@@ -50,43 +51,93 @@ full caveat.
 40 clicks, damper 40 clicks. BeamNG — none (see Physical-unit output below).
 
 **Mechanical balance accuracy.** Mechanical balance (the **MECH BALANCE**
-readout) is the roll-stiffness rear fraction, matching the metric Forza
-displays. The calculator's prediction includes tyre-width correction via
-`TIRE_MECH_SCALE`.
+readout) is the rear fraction of roll stiffness *as Forza displays it*: each
+axle's suspension (springs + bars) in series with its tyres (see below), plus
+the tyre-width correction `TIRE_MECH_SCALE` and the MEASURE NAT BAL offset.
+Against 33 in-game readings on three cars — springs split front/rear by up to
+±0.15 at 2.5–3.5 Hz — the display model's rms error is about 0.006, inside
+Forza's 2-decimal readout. The geometric natural balance (no measurement)
+reads 0.017–0.028 below Forza on those cars; MEASURE NAT BAL removes that per
+car.
 
-For **asymmetric tyres** (different widths front/rear), the correction
-typically brings error down to **±0.02**.
+### Tyres in series with the suspension (`displayRsBalance`)
 
-For **symmetric tyres** (same width front/rear), the geometric natural balance
-reads 0.017–0.028 below Forza on the three test cars; MEASURE NAT BAL removes
-that per car. Away from natural, the bars' contribution depends on the click
-scale, which Forza sets per car — see below.
+Forza's displayed balance treats each tyre as a spring in series with its
+axle: an axle shows `K·Kt/(K+Kt)`, where `K` is its suspension roll
+stiffness and `Kt = tyreRollStiffness(cornerMass, track)`. That compresses
+front/rear differences, and compresses them more the stiffer the suspension:
+the stiffer spring stops being the soft link.
+
+The evidence, from a far-offset sweep with the springs doing all the work
+(Rear Hz MECH, ARB 1/1): on the MX-5 Cup the game moved only **0.70** of the
+predicted shift at 2.5 Hz, **0.675** at 3.0 Hz and **~0.61** at 3.5 Hz — a
+straight line at each Hz, flattening with stiffness. A constant ratio and a
+fixed extra stiffness (which would make the ratio *rise* with Hz) were both
+ruled out. The series tyre fits all 13 MX-5 rows at once. Fitting the MX-5,
+Scirocco R (65% front) and Ultima Evo (38% front, 245/335 tyres) together —
+33 readings, including the equal-Hz natural readings each car was measured at
+— gave:
+
+- **Tyre frequency 3.94 Hz on a 269 kg corner** (`TYRE_HZ`, `TYRE_REF_MASS`),
+  stable from the MX-5 alone (3.96) to all three cars.
+- **Stiffness growing with √(corner mass).** Best fit 0.35 power; √ is within
+  noise. A load-independent tyre would make natural balance drift with Hz on
+  uneven cars, which none of the three did; stiffness proportional to load
+  misses the Scirocco's rows. `tyreRollStiffness` expresses this as the tyre
+  spring on a corner of mass `√(m·TYRE_REF_MASS)`.
+- **No width term.** The Ultima's rows were predicted before measurement both
+  with and without a width-proportional tyre; the width-free model won every row
+  where they differed.
+
+The Ultima rows were a genuine out-of-sample check: the model was fixed from
+the other two cars first.
+
+**Where it applies.** Only the displayed `mechBalance` in the Forza modes, and
+MEASURE ARB's solve. The solvers (`mechSpringSplit`, CO-SOLVE, the ARB split)
+still work in suspension space; `solveTune` re-runs them with an adjusted
+internal target until the *displayed* balance meets the target (secant, at most
+8 extra passes), then judges `mechBalClamped` against the target asked for. So a
+target-seeking mode asks for bigger spring or bar splits than before, and runs
+into Forza's spring and bar limits sooner — targets that were never reachable in
+the game now say so. Roll angle, the GRIP BIAS model, the contribution bars and
+the physical (BeamNG) modes are unchanged: the calibration is of Forza's balance
+readout, and nothing here measured the rest.
+
+**MEASURE NAT BAL with the tyre term.** At equal ride Hz the display model's
+natural balance moves slightly with Hz on an uneven car (about 0.01 per Hz on
+the Ultima), so the Hz a reading was taken at is stored with it
+(`ch.measuredNatBalHz`, set from NAT BAL SETUP's Measure Hz) and
+`displayNatOffsetOf` anchors the display to the reading at that Hz. Readings
+saved before the field existed use `NAT_BAL_REF_HZ` (2.5, the card's default).
 
 ### ARB click scale (MEASURE ARB)
 
-One Forza ARB click adds `arbScaleOf(ch)·track²` of roll stiffness per axle.
-`arbScaleOf` returns `ch.measuredArbScale` when MEASURE ARB is set, else
-`ARB_RS_SCALE`.
+One Forza ARB click adds `arbScaleOf(ch)·track²` of suspension roll stiffness
+per axle, before the tyre. `arbScaleOf` returns `ch.measuredArbClick` when
+MEASURE ARB is set, else `ARB_RS_SCALE`.
 
-The constant was 240. In-game measurement on the three test cars at 2.50 Hz,
-equal springs, MEASURE NAT BAL on and MAN bars swept front- and rear-biased,
-fitted best single scales of about **310 (MX-5 Cup), 258 (Ultima Evo) and 339
-(Scirocco R)**. The Ultima's and Scirocco's within-noise ranges (234–283 and
-306–374) do not overlap, so no single constant fits every car inside Forza's
-2-decimal readout: Forza normalises the 1–N slider per car. 285 is the
-compromise default. Fitting front and rear scales separately gave ratios of
-0.91, 1.14 and 1.08, all within noise of 1, so the front/rear split and the
-`track²` weighting hold; only the magnitude varies by car.
+The constant was 240, then 285, both fitted without the tyre term, which folded
+the tyre's softness into the click. Refitting the same in-game MAN bar sweep
+(three cars at 2.50 Hz, equal springs, bars swept front- and rear-biased) under
+the tyre-series model gives about **579 (MX-5 Cup), 438 (Ultima Evo) and 626
+(Scirocco R)**, each within Forza's rounding. The spread is the same as before:
+Forza normalises the 1–N slider per car, so no single constant fits every car.
+540 is the compromise default. Fitting front and rear scales separately (before
+the tyre refit) gave ratios within noise of 1, so the front/rear split and the
+`track²` weighting hold; only the magnitude varies by car. The bar data alone,
+with each car's scale free, prefers a tyre frequency of 3.5 Hz or more and is
+flat from there, so it agrees with the springs' 3.94 without pinning it.
 
 MEASURE ARB (TUNE CHECK's measure mode, beside NAT BAL SETUP) finds the
 per-car value. On the NAT BAL springs, the user sets the bars to `1 / H`
 then `H / 1` (`H` = 70% of the ARB ceiling) and types Forza's mech balance
-for each. `solveArbScale` takes each reading back to roll-stiffness space
-(minus `tireCorr` and `natOffset`, which is why MEASURE NAT BAL must be set
-first) and solves the balance equation for the scale in closed form. The two
-results are averaged: one 2-decimal reading moves the answer by several
-percent, and swapping the bars cancels any front/rear bias. Readings that
-give no scale between 100 and 800 are rejected.
+for each. `solveArbScale` bisects for the scale at which the display model
+(tyres, `tireCorr` and the MEASURE NAT BAL offset, which is why that must be
+set first) reads what Forza showed. The two results are averaged: one
+2-decimal reading moves the answer by several percent, and swapping the bars
+cancels any front/rear bias. A reading no scale between 150 and 1500 can
+produce is rejected. Scales measured before the tyre term (codec ids 70/71)
+are dropped, not converted.
 
 Changing the scale moves clicks, not stiffness: AUTO, SHARE, ROLL and the
 balance solves ask for the same roll stiffness and print fewer or more clicks.
@@ -649,6 +700,11 @@ frequency (dispatch lives in `feelToPhysics`):
   value is read off Forza's display, which already includes the tyre-width
   effect, so leaving `tireCorr` inside `natOffset` counted it twice on any
   car with different front/rear tyre widths.
+
+  These targets are in suspension space. In the Forza modes the reported
+  balance is the tyre-series display, so `solveTune` adjusts the target these
+  solvers receive until the displayed balance meets the user's — see
+  [Tyres in series](#tyres-in-series-with-the-suspension-displayrsbalance).
   Without this, a MEASURE NAT BAL reading that differs from the geometric
   estimate made every one of these solvers "correct" a gap that wasn't
   real, even when the Balance Target sat exactly on the measured NAT (0

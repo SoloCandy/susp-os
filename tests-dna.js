@@ -494,7 +494,10 @@ t('damping floor (LIGHT): platform rises only if ζ outranks it', () => {
 });
 
 t('balance (FrontHeavy, Forza): pitch carries the correction only if balance outranks it', () => {
-  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, arbShare: 7.5, balanceOffset: 0 };
+  // balanceOffset -0.10, not 0: since the Forza display counts the tyres in series, springs move the
+  // balance about 0.7x as far, and a 0 offset here is out of reach at any pitch. -0.10 needs the same
+  // kind of rescue (pitch ~1.5) the test was written around.
+  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, arbShare: 7.5, balanceOffset: -0.10 };
   const keepBal = M.applyDNA(chOf(FIXTURES.FrontHeavy), feOf('horizon'), M.DEF_DR,
     { axes, keep: ['platformHz', 'balanceOffset', 'pitchRatio', 'arbShare', 'reboundZeta'] });
   assert(moved(keepBal, 'pitchRatio') && !missed(keepBal, 'balanceOffset'), 'pitch should move and balance land');

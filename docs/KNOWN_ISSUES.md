@@ -496,6 +496,24 @@ Separately, in-game measurement on three cars found the geometric estimate
 reads 0.017–0.028 lower than Forza with the tyre term out of the picture. MEASURE
 NAT BAL covers this per car; the geometric formula does not.
 
+The tyre-series display adds a third reading of "natural": without a
+measurement, `naturalMechBalanceOf` is still the plain mass·track² fraction, but
+the display at equal Hz is the tyre-series fraction, which differs by up to about
+0.01 on uneven cars. It is the same class of inconsistency as the two above and
+was kept out of the tyre change for the same reason.
+
+## Open — the tyre-series model's reach
+
+`displayRsBalance` is fitted to three cars (MX-5 Cup, Ultima Evo, Scirocco R) at
+2.5–3.5 Hz. Untested: ride frequencies outside that band, very light or heavy
+cars (the √load scaling is extrapolated from 269–476 kg corners), and whether
+tyre compound or profile matters (widths 215–335 showed no effect). It governs
+only the displayed balance and the target solves: roll angle, GRIP BIAS, the
+Handling Balance contribution bars and `coSolveAbCorr` are still suspension-only,
+so near a big spring split they no longer describe the same stiffness the balance
+readout does. BeamNG has no displayed balance to calibrate against and stays
+suspension-only.
+
 ## Open — code review findings (2026-09-18)
 
 Found in a full review of `index.html`. Items marked *reproduced* were run against the

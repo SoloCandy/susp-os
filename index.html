@@ -171,16 +171,17 @@ const KMH_PER_MPH=1.60934;
 // resolved entry in docs/HISTORY.md.) Physical-unit game modes don't use this at all:
 // BeamNG's slider is N/m, so it converts with LB_IN_TO_NM directly.
 const NMM_PER_LBIN=LB_IN_TO_NM/1000;
-// Forza ARB click → roll stiffness per m² of track (N·m/rad). 240 until in-game measurement on
-// three cars (MX-5 Cup, Ultima Evo, Scirocco R) found best fits of ~310, ~258 and ~339: Forza
-// normalises its 1–N slider per car, so no one value fits every car within its 2dp readout.
-// 285 is the compromise default; MEASURE ARB (ch.measuredArbScale, read via arbScaleOf)
-// replaces it per car. See docs/PHYSICS.md.
-const ARB_RS_SCALE=285;
+// Forza ARB click → roll stiffness per m² of track (N·m/rad), at the suspension (before the tyre —
+// see TYRE_HZ). Fitted to an in-game MAN bar sweep on three cars under the tyre-series model:
+// ~579 (MX-5 Cup), ~438 (Ultima Evo), ~626 (Scirocco R). Forza normalises its 1–N slider per car,
+// so no one value fits every car within its 2dp readout; 540 is the compromise default and
+// MEASURE ARB (ch.measuredArbClick, read via arbScaleOf) replaces it per car. Was 240, then 285,
+// both fitted without the tyre term. See docs/PHYSICS.md.
+const ARB_RS_SCALE=540;
 // The click scale for this chassis: the MEASURE ARB reading when one is set, else the default.
-const arbScaleOf=ch=>ch.useMeasuredArbScale&&ch.measuredArbScale!=null
-  ?Math.max(ARB_SCALE_MIN,Math.min(ARB_SCALE_MAX,ch.measuredArbScale)):ARB_RS_SCALE;
-const ARB_SCALE_MIN=100,ARB_SCALE_MAX=800;
+const arbScaleOf=ch=>ch.useMeasuredArbClick&&ch.measuredArbClick!=null
+  ?Math.max(ARB_SCALE_MIN,Math.min(ARB_SCALE_MAX,ch.measuredArbClick)):ARB_RS_SCALE;
+const ARB_SCALE_MIN=150,ARB_SCALE_MAX=1500;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
 // ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
 // roll angle the springs alone would give — 7% per degree. One definition for every solver
@@ -191,6 +192,23 @@ const axleRollStiffness=(hz,mass,track)=>Math.pow(hz*2*Math.PI,2)*mass*track*tra
 // Body roll moment at 1 g lateral (N·m): mass × sprung-CG height above the roll centre.
 const rollMomentOf=ch=>(ch.weight/KG_TO_LB)*9.81*(ch.cgHeight-rollCenterHeight(ch));
 const autoArbShare=springRollDeg=>Math.max(5,Math.min(50,springRollDeg*7))/100;
+// Forza's displayed mech balance counts each tyre as a spring in series with its suspension: an
+// axle shows K·Kt/(K+Kt), so front/rear differences are compressed, more so the stiffer the
+// suspension. Fitted to 33 in-game readings on three cars (MX-5 Cup, Ultima Evo, Scirocco R;
+// springs split front/rear at 2.5–3.5 Hz, plus equal-Hz natural readings): the tyre behaves like a
+// 3.94 Hz spring on a 269 kg corner and stiffens with the square root of its load. Tyre width had
+// no measurable effect. Forza modes only; physical modes stay suspension-only. docs/PHYSICS.md.
+const TYRE_HZ=3.94,TYRE_REF_MASS=269;
+const tyreRollStiffness=(mass,track)=>axleRollStiffness(TYRE_HZ,Math.sqrt(mass*TYRE_REF_MASS),track);
+const inSeries=(k,kt)=>k>0?k*kt/(k+kt):0;
+// The rear fraction of roll stiffness Forza displays, from each axle's suspension roll stiffness.
+const displayRsBalance=(ch,kF,kR)=>{
+  const mc=cornerMasses(ch);
+  const eF=inSeries(kF,tyreRollStiffness(mc.front,ch.trackF)),eR=inSeries(kR,tyreRollStiffness(mc.rear,ch.trackR));
+  return eF+eR>0?eR/(eF+eR):1-ch.frontBias/100;
+};
+// MEASURE NAT BAL readings taken before the Hz was recorded were taken at this Hz (the card's default).
+const NAT_BAL_REF_HZ=2.5;
 const DAMPING_CALIBRATION=0.00135;
 // Mech-balance model (tyre load sensitivity). See mechBalanceLLT.
 const TIRE_LOAD_SENS=0.15;   // grip falloff per unit Fz/Fz_ref (tyre load sensitivity)
@@ -274,20 +292,30 @@ const natOffsetOf=ch=>{
   const geom=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
   return naturalMechBalanceOf(ch)-geom-tireCorrOf(ch);
 };
-// MEASURE ARB: the click scale that makes the model read what Forza displayed with bars f/r at
-// equal springs of hz. Solves rsBal = (spR+r·s·tR²)/(spF+spR+f·s·tF²+r·s·tR²) for s, where the
-// reading is first taken back to rsBalance space the same way mechBalance is built (tireCorr +
-// natOffset), so it needs MEASURE NAT BAL set on the same springs. null when the reading doesn't
-// move the balance the way the bars must (no solution, or one outside ARB_SCALE_MIN..MAX).
+// MEASURE NAT BAL's offset for the Forza display (displayRsBalance): the reading minus what the
+// tyre-series model shows at equal springs of the Hz it was measured at, minus tireCorr (already
+// inside the reading). The model's equal-Hz balance moves slightly with Hz, which is why the Hz
+// is stored with the reading. natOffsetOf stays the solvers' suspension-space offset. 0 unmeasured.
+const displayNatOffsetOf=ch=>{
+  if(!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null))return 0;
+  const mc=cornerMasses(ch),hz=ch.measuredNatBalHz??NAT_BAL_REF_HZ;
+  return naturalMechBalanceOf(ch)-tireCorrOf(ch)
+    -displayRsBalance(ch,axleRollStiffness(hz,mc.front,ch.trackF),axleRollStiffness(hz,mc.rear,ch.trackR));
+};
+// MEASURE ARB: the click scale that makes the display model read what Forza showed with bars f/r
+// at equal springs of hz. Bisection — the tyre term leaves no closed form, and the balance moves
+// monotonically with the scale for a fixed f/r. Needs MEASURE NAT BAL for the offset. null when the
+// reading can't come from any scale in ARB_SCALE_MIN..MAX (wrong side of natural, or too far).
 const solveArbScale=(ch,hz,f,r,reading)=>{
   const mc=cornerMasses(ch);
   const spF=axleRollStiffness(hz,mc.front,ch.trackF),spR=axleRollStiffness(hz,mc.rear,ch.trackR);
-  const T=reading-tireCorrOf(ch)-natOffsetOf(ch);
-  const qF=f*ch.trackF*ch.trackF,qR=r*ch.trackR*ch.trackR;
-  const den=T*(qF+qR)-qR;
-  if(Math.abs(den)<1e-12)return null;
-  const sc=(spR-T*(spF+spR))/den;
-  return sc>=ARB_SCALE_MIN&&sc<=ARB_SCALE_MAX?sc:null;
+  const off=tireCorrOf(ch)+displayNatOffsetOf(ch);
+  const bal=sc=>displayRsBalance(ch,spF+f*sc*ch.trackF*ch.trackF,spR+r*sc*ch.trackR*ch.trackR)+off;
+  let lo=ARB_SCALE_MIN,hi=ARB_SCALE_MAX,bLo=bal(lo);
+  const bHi=bal(hi);
+  if(Math.abs(bHi-bLo)<1e-9||(reading-bLo)*(reading-bHi)>0)return null;
+  for(let i=0;i<50;i++){const mid=(lo+hi)/2,bm=bal(mid);if((reading-bLo)*(reading-bm)<=0)hi=mid;else{lo=mid;bLo=bm;}}
+  return (lo+hi)/2;
 };
 // The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
 // so the band is stated once. sanitizeTune clamps the STORED delta instead (0.20-nat..0.90-nat).
@@ -1252,7 +1280,11 @@ const computeTune=(ch,phys,gameMode)=>{
   // Roll-stiffness rear fraction — matches what Forza displays as "Mech Balance".
   const rsKf=rsSpF+rsAbF,rsKr=rsSpR+rsAbR;
   const rsBalance=rsKf+rsKr>0?rsKr/(rsKf+rsKr):1-ch.frontBias/100;
-  const mechBalance=Math.max(0,Math.min(1,rsBalance+tireCorr+natOffset));    // tyre-width and NAT-BAL corrected: matches Forza's displayed mech balance
+  // What Forza displays: in the Forza modes each tyre sits in series with its axle (displayRsBalance),
+  // which the solvers above don't model — solveTune closes that gap for the target-seeking modes.
+  // Physical modes stay suspension-only. Both add the tyre-width and MEASURE NAT BAL corrections.
+  const mechBalance=Math.max(0,Math.min(1,physUnits?rsBalance+tireCorr+natOffset
+    :displayRsBalance(ch,rsKf,rsKr)+tireCorr+displayNatOffsetOf(ch)));
   const gripBalance=balanceFromRsBal(ch,rsBalance);                // physical at-limit balance from LLT model (informational)
   // MAN ARB stiffness bypasses the budget/split solve entirely (see arbMode==='man' branch
   // above), so a leftover arbBalMode of mech/coSolve from before switching to MAN must not
@@ -1285,6 +1317,31 @@ const computeTune=(ch,phys,gameMode)=>{
          coSolveAutoS,coSolveSpCorr,coSolveAbCorr,coSolveLiftRisk};
 };
 
+// The whole solve: feelToPhysics then computeTune. In the Forza modes the solvers work in suspension
+// space while the reported balance is the tyre-series display, so a target-seeking mode would land
+// short of its target. This re-runs the solve with an adjusted internal target (secant) until the
+// DISPLAYED balance meets the one asked for, or gets as close as the springs and bars allow — then
+// judges mechBalClamped against the target the user asked for. fe must be feEffective (absolute
+// arbBalTarget). Every caller goes through here so Vehicle DNA and the live tune agree.
+const solveTune=(ch,fe,gameMode)=>{
+  const run=tgt=>{const f=tgt==null?fe:{...fe,arbBalTarget:tgt};const physics=feelToPhysics(ch,f);
+    return{physics,tune:computeTune(ch,physics,gameMode)};};
+  const first=run(null);
+  if(isPhysical(gameMode)||fe.arbBalTarget==null||!hasBalTargetSolve(fe))return first;
+  const want=clampBalTarget(fe.arbBalTarget);
+  let best=first,bestErr=Math.abs(first.tune.mechBalance-want);
+  let x0=want,y0=first.tune.mechBalance-want,x1=clampBalTarget(want-y0);
+  for(let i=0;i<8&&bestErr>0.0005;i++){
+    const r=run(x1),y1=r.tune.mechBalance-want;
+    if(Math.abs(y1)<bestErr){best=r;bestErr=Math.abs(y1);}
+    if(Math.abs(y1-y0)<1e-9)break;
+    const x2=clampBalTarget(x1-y1*(x1-x0)/(y1-y0));
+    if(x2===x1)break;
+    x0=x1;y0=y1;x1=x2;
+  }
+  const clamped=(fe.arbMode??'auto')!=='man'&&(fe.arbBalMode==='mech'||fe.arbBalMode==='coSolve')&&bestErr>0.01;
+  return{physics:best.physics,tune:{...best.tune,mechBalClamped:clamped}};
+};
 const computeAlignment=(ch,tune,layout,buildType)=>{
   const{fHz,rHz,rollDeg}=tune;
   const build=buildType??'track';
@@ -1596,7 +1653,7 @@ const dnaTolerances=(tune,gameMode)=>{
 const dnaEvaluate=(ch,fe,dr,axes)=>{
   const c=compileDNA(ch,fe,dr,axes);
   const gameMode=c.fe.gameMode??DEF_FE.gameMode;
-  const tune=computeTune(ch,feelToPhysics(ch,resolveFeEffective(ch,c.fe)),gameMode);
+  const tune=solveTune(ch,resolveFeEffective(ch,c.fe),gameMode).tune;
   return{fe:c.fe,dr:c.dr,tune,measured:measureDNA(ch,tune,c.fe,c.dr),tol:dnaTolerances(tune,gameMode)};
 };
 
@@ -2023,7 +2080,7 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               trackF:1.55,trackR:1.52,
               tyreF:'265/35R18',tyreR:'265/35R18',
               useMeasuredNatBal:false,measuredNatBal:null,layout:'RWD',
-              useMeasuredArbScale:false,measuredArbScale:null,
+              measuredNatBalHz:null,useMeasuredArbClick:false,measuredArbClick:null,
               useRideHeightCG:true,rideHeightF:0.13,rideHeightR:0.12,
               // Spring/damper travel per unit wheel travel. 1.0 = direct-acting, which is
               // what Forza displays, so these are inert in the Forza modes and only affect
@@ -3151,12 +3208,12 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                   <span style={{display:'flex',alignItems:'center',gap:6}}>
                     {!ch.useMeasuredNatBal&&<span style={{fontSize:10,color:'#475569',letterSpacing:1}}>NOT SET</span>}
                     <NumBox value={ch.measuredNatBal??0.50} min={0.30} max={0.90} dp={2} label="Measured natural balance"
-                      onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v}))}/>
+                      onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz}))}/>
                   </span>
                 </div>
                 <input type="range" className="sli" min={0.30} max={0.90} step={0.01}
                   value={ch.measuredNatBal??0.50}
-                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value)}))}
+                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz}))}
                   style={{width:'100%'}}/>
               </div>
             </Card>
@@ -3182,13 +3239,13 @@ const CheckerModal=({onClose,lim,metricUnits,ch,setCh,setFe,onImportDna,initialM
                 <div style={{display:'flex',gap:4,marginTop:8}}>
                   <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
                     title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbScale:true,measuredArbScale:Math.round(arbScaleNew)}))}>APPLY</button>
-                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:ch.useMeasuredArbScale?1:0.35}} disabled={!ch.useMeasuredArbScale}
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew)}))}>APPLY</button>
+                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:ch.useMeasuredArbClick?1:0.35}} disabled={!ch.useMeasuredArbClick}
                     title={`Go back to the default click scale (${ARB_RS_SCALE}).`}
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbScale:false,measuredArbScale:null}))}>RESET</button>
+                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null}))}>RESET</button>
                 </div>
                 <div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6}}>
-                  {ch.useMeasuredArbScale?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}</div>
+                  {ch.useMeasuredArbClick?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}</div>
               </>}
             </Card>
           </div>}
@@ -3407,11 +3464,16 @@ const CODEC_FIELDS=[
   {id:65,group:'ch',key:'rideHeightF'},
   {id:66,group:'ch',key:'rideHeightR'},
   {id:67,group:'fe',key:'arbNeutralEqual',bool:true},
-  // 70/71: MEASURE ARB's per-car click scale. group:'ch' — a calibration of this car's
+  // 73/74: MEASURE ARB's per-car click scale. group:'ch' — a calibration of this car's
   // Forza slider, and a shared build's ARB clicks only mean the same stiffness against it.
-  {id:70,group:'ch',key:'useMeasuredArbScale',bool:true},
-  {id:71,group:'ch',key:'measuredArbScale'},
-  // Retired ids — never reuse: none yet (dead fields removed pre-v1 never had an id).
+  // 72: the Hz MEASURE NAT BAL was read at — the tyre-series display's equal-Hz balance moves a
+  // little with Hz, so displayNatOffsetOf needs it. null = NAT_BAL_REF_HZ (older readings).
+  {id:72,group:'ch',key:'measuredNatBalHz'},
+  {id:73,group:'ch',key:'useMeasuredArbClick',bool:true},
+  {id:74,group:'ch',key:'measuredArbClick'},
+  // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
+  // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
+  // misread a stale scale as half-stiff bars. See docs/CODEC.md.
 ];
 const codecFieldDefault=f=>f.tyre?f.def:DEF_GROUPS[f.group][f.key];
 const codecReadField=(src,f)=>{
@@ -3483,8 +3545,11 @@ const sanitizeTune=({ch,fe,dr})=>{
       // instead of silently falling back to geometry — see docs/CODEC.md id 60/61.
       useMeasuredNatBal: !!(ch?.useMeasuredNatBal),
       measuredNatBal:    ch?.useMeasuredNatBal&&ch?.measuredNatBal!=null?cl(ch.measuredNatBal,0.10,0.90,null):null,
-      useMeasuredArbScale: !!(ch?.useMeasuredArbScale),
-      measuredArbScale:  ch?.useMeasuredArbScale&&ch?.measuredArbScale!=null?cl(ch.measuredArbScale,ARB_SCALE_MIN,ARB_SCALE_MAX,null):null,
+      measuredNatBalHz:  ch?.useMeasuredNatBal&&ch?.measuredNatBalHz!=null?cl(ch.measuredNatBalHz,HZ_MIN,HZ_MAX,null):null,
+      // useMeasuredArbScale/measuredArbScale (pre-tyre-model, retired codec ids 70/71) are
+      // deliberately not carried over: read as the new scale they would halve the bars.
+      useMeasuredArbClick: !!(ch?.useMeasuredArbClick),
+      measuredArbClick:  ch?.useMeasuredArbClick&&ch?.measuredArbClick!=null?cl(ch.measuredArbClick,ARB_SCALE_MIN,ARB_SCALE_MAX,null):null,
       // Floor at 0.2 rather than 0: mrDiv squares this, so a near-zero ratio would
       // scale the displayed rate toward infinity.
       motionRatioF: cl(ch?.motionRatioF,    0.2,  1.5,  DEF_CH.motionRatioF),
@@ -4621,8 +4686,8 @@ function App(){
   const natGripBalance=balanceFromRsBal(ch,naturalMechBalanceOf(ch));
   // The single TARGET/GRIP resolution funnel — see resolveFeEffective.
   const feEffective=resolveFeEffective(ch,fe);
-  const physics=useMemo(()=>feelToPhysics(ch,feEffective),[ch,feEffective]);
-  const tune=useMemo(()=>computeTune(ch,physics,fe.gameMode),[ch,physics,fe.gameMode]);
+  const solved=useMemo(()=>solveTune(ch,feEffective,fe.gameMode),[ch,feEffective,fe.gameMode]);
+  const physics=solved.physics,tune=solved.tune;
   const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
   // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
   // its own name plus "(edited)", so the sidebar never claims a stock GT3 that isn't one.
@@ -4678,7 +4743,7 @@ function App(){
   // draft loses its `ref`, so the editor shows a fresh DNA, not "edited from" whatever was loaded.
   const dnaFromDecoded=mkFe=>{
     const nfe=mkFe(fe);
-    const t=computeTune(ch,feelToPhysics(ch,resolveFeEffective(ch,nfe)),nfe.gameMode??DEF_FE.gameMode);
+    const t=solveTune(ch,resolveFeEffective(ch,nfe),nfe.gameMode??DEF_FE.gameMode).tune;
     setDnaStore({...dnaStore,draft:{...dnaDraft,name:'DECODED TUNE',
       axes:dnaReadBack(ch,nfe,dr,t,dnaDraft.axes)}});
     setOpen(p=>({...p,dnaOpen:true}));
@@ -5964,7 +6029,7 @@ function App(){
               {ch.useMeasuredNatBal&&<>
                 <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
                 <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
-                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null}))}>✕</button>
+                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null}))}>✕</button>
               </>}
             </div>}
             {(()=>{

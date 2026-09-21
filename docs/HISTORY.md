@@ -11,6 +11,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the balance display counts the tyres in series; ARB click scale 540
+
+The app still overshot the game at big balance offsets after the ARB scale fix:
+"close, but not quite" past about ±0.15. A far-offset sweep separated springs
+from bars (Rear Hz MECH with ARB 1/1, against MECH with equal springs) and found
+the bars fine and the springs short: the game moved 0.70 of the app's predicted
+shift at 2.5 Hz, less at 3.0 and 3.5 Hz. That pattern — a ratio falling as the
+springs stiffen — is the tyre acting as a spring in series with the suspension.
+Fitted across 33 readings on three cars: a 3.94 Hz tyre on a 269 kg corner,
+stiffening with √load, no width term; rms about 0.006 against 0.040 without it.
+The Ultima's rows were predicted before they were measured.
+
+What changed:
+
+- `computeTune`'s `mechBalance` in the Forza modes is the tyre-series display
+  (`displayRsBalance`). The solvers still work in suspension space, and
+  `solveTune` wraps `feelToPhysics` + `computeTune` to re-run the target modes
+  until the displayed balance meets the target. All three solve call sites use it.
+- `ARB_RS_SCALE` 285 → 540. The old values had the tyre's softness folded into
+  each click; with the tyre modelled, a click is about 1.9× the suspension
+  stiffness. Solved modes (AUTO, SHARE, ROLL, the balance modes) therefore print
+  roughly half the clicks for the same requested stiffness — AUTO had in effect
+  been asking for about twice its intended bar share in-game. MAN clicks are kept
+  and read stiffer.
+- MEASURE ARB's solve is now a bisection through the display model. Its stored
+  field moved to `measuredArbClick` (codec ids 73/74) and ids 70/71 are retired:
+  a scale measured before this is about half the new meaning and is dropped
+  rather than misread. Re-measure.
+- MEASURE NAT BAL stores the Hz it was read at (`measuredNatBalHz`, id 72): the
+  model's equal-Hz natural moves a little with Hz on uneven cars.
+- Targets that need big spring splits now ask for them, and hit Forza's spring
+  limits sooner. On the sweep cars those limits were real (MX-5 front min 246,
+  Scirocco rear min 305.6 and max 1528, Ultima front min 217.8 and max 1088.9).
+- `tests-dna.js`'s FrontHeavy pitch-rescue scenario moved from balance offset 0
+  to −0.10: with springs 0.7× as effective, offset 0 was out of reach at any pitch.
+
 ## Changed — ARB click scale raised to 285, and MEASURE ARB added
 
 `ARB_RS_SCALE` was 240, described as validated across three cars. That check

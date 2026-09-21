@@ -80,6 +80,9 @@ resolveFeEffective(ch, fe)             → resolves the stored TARGET/GRIP balan
 feelToPhysics(ch, fe)                  → resolves feel settings into physics
                                          (front/rear Hz, ζ per axle, ARB mode…)
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
+solveTune(ch, feEffective, gameMode)   → feelToPhysics + computeTune, repeated in the
+                                         Forza target modes until the DISPLAYED balance
+                                         meets the target; every caller goes through it
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
@@ -102,7 +105,9 @@ fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB cli
 conversion goes through it), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
 reading), `natOffsetOf` (MEASURE NAT BAL's gap from the
 geometric estimate with the tyre term taken out — 0 when not measuring; the one
-definition all four solve sites use), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
+definition all four solve sites use), `tyreRollStiffness` / `inSeries` / `displayRsBalance` (the
+tyre-series balance Forza displays — `computeTune`'s `mechBalance` and MEASURE ARB), `displayNatOffsetOf`
+(MEASURE NAT BAL's offset for that display, anchored at the stored `measuredNatBalHz`), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
 `resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
@@ -126,8 +131,10 @@ own `firstCrossing` reads the neutral crossing off the same points),
 pre-inversion and `computeTune`'s `effectiveRHz` solve so both agree on the
 same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.
 
-In `App()` the chain is `resolveFeEffective` → `feelToPhysics` → `computeTune` →
-everything else, the last three each in its own `useMemo`.
+In `App()` the chain is `resolveFeEffective` → `solveTune` (`feelToPhysics` →
+`computeTune`, repeated for the Forza target modes) → everything else, each in its
+own `useMemo`. Vehicle DNA's resolver (`dnaEvaluate`) and `dnaApply` call `solveTune`
+too, so DNA and the live tune agree.
 
 **Vehicle DNA core** (see [DNA.md](DNA.md)): `sanitizeDNA` normalises a DNA;
 `compileDNA` turns its axes into an `fe`/`dr` patch; `measureDNA` reads the axes back

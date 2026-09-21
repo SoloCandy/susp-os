@@ -63,7 +63,7 @@ Pasting a share code (SHARE → LOAD CODE) offers two ways in: **OVERWRITE** rep
 ## Architecture
 
 The entire app is a single HTML file: a pure-JS physics engine
-(`feelToPhysics` → `computeTune` → `computeDiff`/`computeAlignment`), a React
+(`solveTune`: `feelToPhysics` → `computeTune`, then `computeDiff`/`computeAlignment`), a React
 UI transpiled in-browser via `@babel/standalone`, `localStorage` persistence,
 and a sparse Base64 share codec. No build step, no server.
 
