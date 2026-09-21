@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — tier guides can resume where they were left
+
+The current step used to be session state, so a reload lost it and `?` always
+restarted at step 1. The last step per tier guide now persists in
+`suspos_tutorial_step_v1`; `?` offers RESUME AT STEP n / START OVER. DONE clears it,
+as does RESET with Tutorials ticked. It is clamped on read because a guide can
+shrink between visits.
+
 ## Changed — closing the BEG/INT guide early now shows the complexity popup; tutorial reset includes the balance guide
 
 The complexity popup (pointing at BEG / INT / PRO and `?`) used to appear only on

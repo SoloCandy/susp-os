@@ -259,14 +259,22 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 | Key | Holds |
 |---|---|
 | `suspos_tutorial_seen_v1` | `{beginner, intermediate, pro}` — tier guides seen (also the tier gate) |
+| `suspos_tutorial_step_v1` | `{beginner, intermediate, pro}` — last step reached per tier guide |
 | `suspos_baltut_seen_v1` | Balance guide seen |
 | `suspos_onboard_v1` | Onboarding popup dismissed (defaults `true`) |
 
-Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Current step and open guide
-are session state and are not persisted — a reload closes any open guide.
+Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Which guide is open is session
+state — a reload closes it — but every step change in a tier guide writes that step
+to `suspos_tutorial_step_v1`. Pressing the header `?` with a saved step above 0
+shows a small choice, **RESUME AT STEP n** or **START OVER**; with nothing saved it
+opens at step 1 as before. The saved step is clamped to the guide's current length,
+since steps get added and removed. Resuming goes through `openTut(mode, step)`, so
+the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
+state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
+The balance guide is not tracked — it's five steps.
 
 RESET (⟲) with **Tutorials** ticked sets all three tier flags and
-`suspos_baltut_seen_v1` back to `false`, which re-locks INT and PRO until their
+`suspos_baltut_seen_v1` back to `false` and zeroes `suspos_tutorial_step_v1`, which re-locks INT and PRO until their
 prerequisite guides are opened again. It does not open a guide by itself, and
 does not move you out of the tier you're in: the auto-open effect runs on a
 *tier change*, so each tier guide reappears the next time you switch into its
