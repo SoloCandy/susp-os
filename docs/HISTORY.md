@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — measured values lost their sliders (experiment branch)
+
+A slider suits a value you choose by feel. It doesn't suit one you read off a spec
+sheet or the game's tuning screen: nobody drags to find 3,200 lb. `Field` and
+`FeelSlider` gained a `noSlider` prop that keeps the number box (typing, wheel
+stepping, clamping) and drops the range input. The standalone MEAS. NAT BAL range
+went the same way. Stored values, codec and `sanitizeTune` are untouched. The list
+of which controls are which is in [SLIDERS.md](SLIDERS.md).
+
 ## Changed — slider − / + nudge buttons removed
 
 On touch screens (768px and narrower) every slider row had a − and + button either
