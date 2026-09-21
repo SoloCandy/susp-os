@@ -20,6 +20,7 @@ examples of that).
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |
 | `suspos_zoom_v1` | Desktop UI zoom level — **read-only** since the header zoom buttons were removed in favour of browser zoom. A previously-set value is still honoured; nothing writes it any more | `1.1` |
 | `suspos_tutorial_seen_v1` | Which tier guides have been dismissed | `{beginner:false, intermediate:false, pro:false}` |
+| `suspos_tutorial_step_v1` | Last step reached in each tier guide (0-based), so `?` can offer RESUME. `0` = nothing to resume; cleared when that guide hits DONE and by RESET (Tutorials). Clamped to the guide's current length on read | `{beginner:0, intermediate:0, pro:0}` |
 | `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
@@ -146,3 +147,7 @@ replaced one whole list and left the other alone; with a single list, replacing
 everything would silently delete the kinds the user didn't tick. A kind the file
 carries none of is not replaced even if its greyed-out box is still ticked — see
 [HISTORY.md](HISTORY.md).
+
+The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
+`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, …) is per-device and
+deliberately not included.

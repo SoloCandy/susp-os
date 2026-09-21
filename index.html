@@ -4404,6 +4404,9 @@ function App(){
   const[uiZoom]=usePersist('suspos_zoom_v1',1.1);
   const[tutSeen,setTutSeen]=usePersist('suspos_tutorial_seen_v1',{beginner:false,intermediate:false,pro:false});
   const[balTutSeen,setBalTutSeen]=usePersist('suspos_baltut_seen_v1',false);
+  // Last step reached per tier guide, so ? can offer RESUME. 0 = nothing to resume;
+  // cleared on DONE and by RESET (Tutorials). Clamped on read — steps get added and removed.
+  const[tutProgress,setTutProgress]=usePersist('suspos_tutorial_step_v1',{beginner:0,intermediate:0,pro:0});
   const[balTutOpen,setBalTutOpen]=useState(false);
   const[balTutStep,setBalTutStep]=useState(0);
   const openBalTut=()=>{setBalTutStep(0);setBalTutOpen(true);};
@@ -4508,17 +4511,32 @@ function App(){
   const closeOnboard=()=>{setOnboardSeen(true);setShowComplexity(false);};
   const[tutMode,setTutMode]=useState(null);
   const[tutStep,setTutStep]=useState(0);
-  const openTut=mode=>{
-    setTutMode(mode);setTutStep(0);
-    // Step 0 sidebar is driven by its own metadata; default to open for all other guides
-    const step0=TUTORIALS[mode]?.[0];
-    if(!step0?.sidebar)setSidebarOpen(true);
+  const[tutResume,setTutResume]=useState(null); // {mode, step} while the RESUME / START OVER choice is up
+  const savedTutStep=mode=>{
+    const n=+tutProgress?.[mode]||0,len=TUTORIALS[mode]?.length??0;
+    return len?Math.max(0,Math.min(Math.floor(n),len-1)):0;
   };
+  const openTut=(mode,step=0)=>{
+    setTutMode(mode);setTutStep(step);
+    // The opening step's sidebar is driven by its own metadata; default to open otherwise.
+    // The [tutMode, tutStep] effect below then applies sections/garage/sidebar for that step.
+    if(!TUTORIALS[mode]?.[step]?.sidebar)setSidebarOpen(true);
+  };
+  // Header ?: offer to resume where this tier's guide was left, if anywhere past step 0
+  const askTut=mode=>{
+    const n=savedTutStep(mode);
+    if(n>0)setTutResume({mode,step:n});else openTut(mode);
+  };
+  useEffect(()=>{
+    if(tutMode&&tutMode!=='balance'&&(tutProgress?.[tutMode]??0)!==tutStep)
+      setTutProgress(p=>({...p,[tutMode]:tutStep}));
+  },[tutMode,tutStep]); // eslint-disable-line
   // One-shot note on the guide's first card explaining a locked-tier redirect; cleared on close
   const[tutNotice,setTutNotice]=useState(null);
   const closeTut=()=>{setTutMode(null);setTutNotice(null);};
   // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier).
   // showComplexity holds the tier that guide unlocks, so the popup can name it.
+  const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:0}));closeTutEnd();};
   const closeTutEnd=()=>{
     if(tutMode==='beginner')setShowComplexity('intermediate');
     else if(tutMode==='intermediate')setShowComplexity('pro');
@@ -5274,7 +5292,7 @@ function App(){
       setAl({...DEF_AL});
       dnaUnlink();
     });
-    if(resetOpts.tutorials){setTutSeen({beginner:false,intermediate:false,pro:false});setBalTutSeen(false);}
+    if(resetOpts.tutorials){setTutSeen({beginner:false,intermediate:false,pro:false});setBalTutSeen(false);setTutProgress({beginner:0,intermediate:0,pro:0});}
     setShowResetModal(false);
     setResetOpts({tune:true,tutorials:false});
   };
@@ -5443,6 +5461,23 @@ function App(){
           </div>
         </div>
       )}
+      {tutResume&&(
+        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+             onClick={()=>setTutResume(null)}>
+          <div onClick={e=>e.stopPropagation()}
+               style={{background:'#0a0f1a',border:'1px solid #1e3a5f',borderRadius:6,padding:20,maxWidth:380,width:'100%'}}>
+            <div style={{fontSize:13,letterSpacing:1,color:'#38bdf8',marginBottom:12}}>{{beginner:'BEGINNER',intermediate:'INTERMEDIATE',pro:'PRO'}[tutResume.mode]} GUIDE</div>
+            <div style={{fontSize:12,color:'#cbd5e1',lineHeight:1.6,marginBottom:14}}>
+              You left this guide at step {tutResume.step+1} of {TUTORIALS[tutResume.mode]?.length}.
+            </div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button className="tbtn" onClick={()=>{const m=tutResume.mode;setTutResume(null);openTut(m);}}>START OVER</button>
+              <button className="tbtn" style={{color:'#38bdf8',borderColor:'#1e3a5f'}}
+                onClick={()=>{const{mode,step}=tutResume;setTutResume(null);openTut(mode,step);}}>RESUME AT STEP {tutResume.step+1}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {dnaTierWarn&&(
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
              onClick={()=>setDnaTierWarn(null)}>
@@ -5466,7 +5501,7 @@ function App(){
         onNext={()=>setTutStep(s=>Math.min(s+1,(TUTORIALS[tutMode]?.length??1)-1))}
         onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
         onClose={closeTutEnd}
-        onDone={closeTutEnd}
+        onDone={finishTut}
         zoom={effZoom} units={units} setUnits={setUnits} appState={fe} notice={tutNotice}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
@@ -5556,7 +5591,7 @@ function App(){
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
             </>}
             <button className="tbtn" style={{fontSize:11}}
-              onClick={()=>openTut(uiMode)}>?</button>
+              onClick={()=>askTut(uiMode)}>?</button>
             <button className="tbtn" style={{fontSize:11}} title="Glossary — look up a term"
               onClick={()=>setShowGlossary(true)}>TERMS</button>
             {!isPhone&&<div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>}

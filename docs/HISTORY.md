@@ -20,6 +20,14 @@ that unlocks them; the redirected guide's first card says why it opened; and the
 complexity popup after BEG/INT names the tier that just unlocked. The gating rules
 themselves are unchanged.
 
+## Changed — tier guides can resume where they were left
+
+The current step used to be session state, so a reload lost it and `?` always
+restarted at step 1. The last step per tier guide now persists in
+`suspos_tutorial_step_v1`; `?` offers RESUME AT STEP n / START OVER. DONE clears it,
+as does RESET with Tutorials ticked. It is clamped on read because a guide can
+shrink between visits.
+
 ## Changed — tutorial steps can carry a task
 
 Steps take an optional `task: {text, check}`. The card shows the text with ○ and
