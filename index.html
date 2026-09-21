@@ -255,6 +255,16 @@ const naturalMechBalanceOf=ch=>{
   const mc=cornerMasses(ch);
   return mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
 };
+// MEASURE NAT BAL's gap from the geometric estimate, as a constant rsBalance-space offset. The
+// measured value is read off Forza's display, which already includes the tyre-width effect, so
+// tireCorr is taken out here — every caller adds tireCorr back separately, and leaving it in
+// counted it twice on cars with different front/rear tyre widths. 0 when not measuring.
+const natOffsetOf=ch=>{
+  if(!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null))return 0;
+  const mc=cornerMasses(ch);
+  const geom=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
+  return naturalMechBalanceOf(ch)-geom-tireCorrOf(ch);
+};
 // The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
 // so the band is stated once. sanitizeTune clamps the STORED delta instead (0.20-nat..0.90-nat).
 const clampBalTarget=v=>Math.max(0.20,Math.min(0.90,v));
@@ -575,7 +585,7 @@ const mechSpringSplit=(ch,fe,arbBalModeEarly,hzPairFor)=>{
   // a physical rsBalance target the same way: pre-compensate tyre-width and MEASURE NAT BAL
   // calibration offsets so a target sitting exactly on NAT collapses back to rsBalNat and
   // needs no spring correction. See resolveCoSolveSpringShare for the full rationale.
-  const natOffset=naturalMechBalanceOf(ch)-rsBalNat;
+  const natOffset=natOffsetOf(ch);
   const rsBalTgt=Math.max(0.05,Math.min(0.95,arbBalTgt-tireCorrOf(ch)-natOffset));
   const multFor=p=>{
     const eff=p>0?Math.max(0.05,Math.min(0.95,(rsBalTgt-p*rsBalNat)/(1-p))):rsBalTgt;
@@ -623,7 +633,7 @@ const feelToPhysics=(ch,fe)=>{
     // MEASURE NAT BAL calibrates naturalMechBalanceOf away from this geometric estimate — treat
     // the gap as a constant offset (same treatment as tireCorr) so a target sitting exactly on
     // NAT needs no correction. See resolveCoSolveSpringShare for the full rationale.
-    const natOffset=naturalMechBalanceOf(ch)-Rbl;
+    const natOffset=natOffsetOf(ch);
     const rst=Math.max(0.001,Math.min(0.999,abt-tireCorr-natOffset));
     const springShareAuto=fe.springShareAuto!==false;
     const csArbMode=fe.arbMode??'auto';
@@ -910,7 +920,7 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
   // as a constant offset — same treatment as tireCorr below — so a target sitting exactly on NAT
   // (0 delta) collapses back to R_baseline and needs no correction, instead of CO-SOLVE "fixing"
   // a gap between our geometry estimate and the measured reading that isn't a real tuning need.
-  const natOffset=naturalMechBalanceOf(ch)-R_baseline;
+  const natOffset=natOffsetOf(ch);
   const targetRsBalance=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset));
   let S;
   if(springShareAuto){
@@ -982,8 +992,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // MEASURE NAT BAL calibrates naturalMechBalanceOf away from the geometric equal-Hz/zero-ARB
   // estimate below — treat the gap as a constant offset (same treatment as tireCorr) so a target
   // sitting exactly on NAT needs no correction. See resolveCoSolveSpringShare for the rationale.
-  const _natGeom=(m.rear*ch.trackR*ch.trackR)/(m.front*ch.trackF*ch.trackF+m.rear*ch.trackR*ch.trackR);
-  const natOffset=naturalMechBalanceOf(ch)-_natGeom;
+  const natOffset=natOffsetOf(ch);
   // CO-SOLVE: solve rear Hz from spring share + mech balance target before anything else
   let effectiveRHz=rHz;
   let coSolveR_baseline=null; // spring-only balance at equal Hz (S=0 baseline), captured for contribution readout

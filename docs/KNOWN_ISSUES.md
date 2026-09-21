@@ -479,6 +479,23 @@ suggest a typical 0.4–0.5, and both disappear once either ratio is moved off 1
 
 ---
 
+## Open — "NAT" means two different things without MEASURE NAT BAL
+
+`naturalMechBalanceOf(ch)` returns Forza's displayed value when MEASURE NAT BAL
+is on, but the geometric roll-stiffness fraction (no tyre term) when it is off.
+On staggered tyres without a measurement, the Balance Target's NAT therefore sits
+`tireCorr` away from the balance the car actually displays at equal Hz and
+minimal bars, so a 0-delta target still asks the solver for a small correction.
+`gripNeutralOf` has the mirror problem: it passes `naturalMechBalanceOf` to
+`balanceFromRsBal`, which expects a roll-stiffness fraction, so a measured
+reading on staggered tyres arrives with the tyre term still in it. Making both
+consistent moves stored deltas and GRIP targets for existing builds, so it was
+kept out of the MEASURE NAT BAL double-count fix.
+
+Separately, in-game measurement on three cars found the geometric estimate
+reads 0.017–0.028 lower than Forza with the tyre term out of the picture. MEASURE
+NAT BAL covers this per car; the geometric formula does not.
+
 ## Open — code review findings (2026-09-18)
 
 Found in a full review of `index.html`. Items marked *reproduced* were run against the

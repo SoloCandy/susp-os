@@ -98,7 +98,9 @@ solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
 conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
-fallback, and the tyre-width mech-balance correction), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
+fallback, and the tyre-width mech-balance correction), `natOffsetOf` (MEASURE NAT BAL's gap from the
+geometric estimate with the tyre term taken out — 0 when not measuring; the one
+definition all four solve sites use), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
 `resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
 `naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance

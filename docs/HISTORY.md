@@ -11,6 +11,32 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MEASURE NAT BAL counted the tyre-width correction twice
+
+With MEASURE NAT BAL on, every solve site set
+`natOffset = naturalMechBalanceOf(ch) − geometric estimate` and the reported
+balance was `rsBalance + tireCorr + natOffset`. The measured value is read off
+Forza's own mech balance display, which already includes the tyre-width effect,
+so `natOffset` had silently absorbed `tireCorr` and the formula added it a
+second time. Invisible on matched tyres (`tireCorr` = 0); on staggered tyres
+the app read high by exactly `tireCorr` at every setting.
+
+Found during in-game ARB calibration on an Ultima Evo (245/335 tyres, measured
+0.65): at equal Hz and 1/1 bars the app showed 0.674 while Forza showed 0.65,
+and 0.024 is `0.08·ln(335/245)`. Refitting the tyres square moved Forza's
+reading to 0.62, the size the tyre term predicts, which confirms the measured
+value carries the tyre effect. The target solves (MECH, CO-SOLVE, Rear Hz MECH)
+were affected too: they subtracted and re-added the same inflated offset, so the
+app reported the target as hit while Forza read about `tireCorr` lower. That
+matches the long-standing report that the app overshoots the game.
+
+Fixed with `natOffsetOf(ch)`, which subtracts `tireCorr` and returns 0 when not
+measuring; all four sites use it. Unmeasured cars and measured cars on matched
+tyres give the same output as before (differences of order 1e-11 from the old
+near-zero subtraction). After the fix the Ultima's five in-game rows match
+Forza's absolute readings within its 2-decimal display. Guarded by a
+`tests-beamng.js` test that fails on the old code.
+
 ## Changed — DAMPERS summary gains AVG ζ and a measured settle row
 
 The summary showed rebound ζ, bump ζ and the analytic settle time, which

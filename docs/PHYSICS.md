@@ -615,9 +615,13 @@ frequency (dispatch lives in `feelToPhysics`):
   Both MECH and CO-SOLVE (and the CO-SOLVE `Kcs` pre-inversion) convert the
   absolute `resolveArbBalTarget`/`arbBalTarget` reading into a *physical*
   roll-stiffness target the same way: subtract `tireCorr` (tyre-width) and
-  `natOffset` — the gap between `naturalMechBalanceOf(ch)` and each site's
-  own plain track-width/mass geometric formula — before it enters any
-  ratio-inversion math, then add both back on the reported `mechBalance`.
+  `natOffset` (`natOffsetOf(ch)`) before it enters any ratio-inversion
+  math, then add both back on the reported `mechBalance`. `natOffset` is 0
+  unless MEASURE NAT BAL is on; then it is the measured reading minus the
+  geometric track-width/mass estimate **minus `tireCorr`**. The measured
+  value is read off Forza's display, which already includes the tyre-width
+  effect, so leaving `tireCorr` inside `natOffset` counted it twice on any
+  car with different front/rear tyre widths.
   Without this, a MEASURE NAT BAL reading that differs from the geometric
   estimate made every one of these solvers "correct" a gap that wasn't
   real, even when the Balance Target sat exactly on the measured NAT (0

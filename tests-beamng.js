@@ -326,5 +326,21 @@ t('every Forza mode/ARB-mode combination still solves identically to its own mat
   }
 });
 
+console.log('\n── MEASURE NAT BAL ──');
+t('a measured natural balance is not double-counted with the tyre-width correction', () => {
+  // Ultima Evo, 245/335 tyres, Forza reads 0.65 at equal Hz and 1/1 bars. The measured value is
+  // taken off Forza's display, which already contains the tyre-width effect, so the app must read
+  // back exactly that value at the same setup — it used to show 0.674 (tireCorr added twice).
+  const ch = { weight: 2102, frontBias: 38, trackF: 1.605, trackR: 1.515, cgHeight: 0.425,
+    tyreF: '245/30/18', tyreR: '335/25/18', useMeasuredNatBal: true, measuredNatBal: 0.65 };
+  const fe = { rideStiffness: 2.5, rearHzMode: 'multiplier', rearHzMult: 1.0, rideRef: 'shared',
+    arbMode: 'man', arbManF: 1, arbManR: 1 };
+  for (const mode of ['horizon', 'motorsport'])
+    near(solve(ch, fe, mode).tune.mechBalance, 0.65, 0.003, `${mode} anchor`);
+  // Square tyres: no tyre term, so the same measurement must also read back unchanged.
+  near(solve({ ...ch, tyreF: '355/20/18', tyreR: '355/25/18' }, fe, 'horizon').tune.mechBalance,
+    0.65, 0.003, 'square-tyre anchor');
+});
+
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
