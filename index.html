@@ -75,10 +75,10 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
 input[type=number]{-moz-appearance:textfield}
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
-.num{width:80px;background:transparent;border:1px solid transparent;border-radius:2px;
+.num{width:80px;background:transparent;border:1px solid #1e293b;border-radius:2px;
      color:#e2e8f0;font-family:var(--font-mono);font-size:16px;padding:1px 2px;
      outline:none;text-align:right;transition:border-color .12s,background .12s}
-.num:hover,.num.empty{border-color:#1e293b}
+.num:hover{border-color:#334155}
 .num:focus{border-color:#e2e8f033;background:#0a0f1a}
 .sli{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:1.5px;
      outline:none;margin-top:6px;cursor:pointer;display:block;border:none;padding:10px 0;
@@ -2444,8 +2444,8 @@ const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder
   };
   return(
     <span style={{display:'flex',alignItems:'center',gap:3}}>
-      {/* An empty box has no text to show where it is, so it keeps its border (.num.empty). */}
-      <input type="number" className={`num${Number.isFinite(value)?"":" empty"}`} aria-label={label} min={min} max={max} disabled={disabled} placeholder={placeholder}
+      {/* Every .num box keeps its border, so an empty one still shows where it is. */}
+      <input type="number" className="num" aria-label={label} min={min} max={max} disabled={disabled} placeholder={placeholder}
         step={dp>0?Number((1/10**dp).toFixed(dp)):1}
         value={draft??fmt(value)}
         onFocus={e=>{const t=fmt(value);openedRef.current=t;setDraft(t);e.target.select();}}
