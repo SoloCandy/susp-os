@@ -5949,7 +5949,7 @@ function App(){
                 fields are hidden rather than shown inert. */}
             {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
               {[['F','motionRatioF','Front'],['R','motionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider key={ax} label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
+                <Field noSlider stacked key={ax} label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
                   hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel. 1.0 = direct-acting (strut on the hub). Lower means the spring sits inboard on a control arm and must be stiffer to give the same wheel rate — the output is divided by the ratio squared, so 0.7 raises it by about double. BeamNG's sliders act at the spring, so this is what makes the numbers match; it does not change Hz, roll stiffness, or handling balance. Leave at 1.0 unless you know the car's geometry.`}/>
               ))}
@@ -5958,7 +5958,7 @@ function App(){
                 ARB N/m output and MAN-mode entry read it; nothing in the solve does. */}
             {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
               {[['F','arbMotionRatioF','Front'],['R','arbMotionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
+                <Field noSlider stacked key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
                   hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track — where the drop link attaches, not where the spring does. 1.0 assumes the bar acts at the wheels, which makes the N/m read low; a typical inboard link is around 0.4–0.5, which raises the printed rate by (1/ratio)². Display and entry only: the roll stiffness this app solves, the balance bar and Hz are unchanged.`}/>
               ))}
