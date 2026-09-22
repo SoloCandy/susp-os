@@ -111,6 +111,7 @@ Reference docs for maintainers:
 - [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
 - [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step, when each guide opens, tier gating, spotlight/positioning, and how to add a step
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
+- [IDEAS.md](docs/IDEAS.md) — parked designs, not implemented or scheduled (AUTO Balance Mode)
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
 
 ---
