@@ -1000,14 +1000,18 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
     // See computeTune's prior inline version (moved here unchanged) for the full derivation.
     const _rm=rollMomentOf(ch);
     const _rsTotTgt=_rm/(arbTargetRoll*(Math.PI/180));
-    const _basicBudget=arbScaleOf(ch)*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+(utilRef-1)*arbBasicMan/100);
+    const arbScale=arbScaleOf(ch);
+    const _basicBudget=arbScale*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+(utilRef-1)*arbBasicMan/100);
+    const _K=targetRsBalance/(1-targetRsBalance);
     const simUtil=(sVal)=>{
       const R_sp_s=Math.max(0.001,Math.min(0.999,R_baseline+sVal*(targetRsBalance-R_baseline)));
       const rsSpR_s=R_sp_s*rsSpF_cs/(1-R_sp_s);
       const eRHz=clampHz(Math.sqrt(2*rsSpR_s/(m.rear*ch.trackR*ch.trackR))/(2*Math.PI));
-      const spUtil=Math.min(1,Math.abs(rsSpR_s-rsSpR_base)/(arbScaleOf(ch)*ch.trackR*ch.trackR*utilRef));
-      const rsSpF_s=axleRollStiffness(fHz,m.front,ch.trackF), rsSpRs=axleRollStiffness(eRHz,m.rear,ch.trackR);
-      const rsSp_s=rsSpF_s+rsSpRs;
+      const rsSpRs=axleRollStiffness(eRHz,m.rear,ch.trackR);
+      // Measured from the clamped Hz: once clampHz bites, the unclamped rsSpR_s overstates
+      // what springs deliver and the search would hand them correction they can't make.
+      const spUtil=Math.min(1,Math.abs(rsSpRs-rsSpR_base)/(arbScale*ch.trackR*ch.trackR*utilRef));
+      const rsSp_s=rsSpF_cs+rsSpRs;
       const nRoll=rsSp_s>0?(_rm/rsSp_s)*(180/Math.PI):5;
       const autoSh=autoArbShare(nRoll);
       const sh=arbMode==='share'?arbShareMan/100:autoSh;
@@ -1015,11 +1019,9 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
         :arbMode==='basic'?_basicBudget
         :rsSp_s*(sh/(1-sh));
       if(budget_s<=0) return{spUtil,abUtil:0};
-      const _mTgt=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset));
-      const _K=_mTgt/(1-_mTgt);
-      const rF_s=Math.max(0,Math.min(1,(_K*(rsSpF_s+budget_s)-rsSpRs)/(budget_s*(1+_K))));
-      const abF_s=budget_s*(1-rF_s)/(arbScaleOf(ch)*ch.trackF*ch.trackF);
-      const abR_s=budget_s*rF_s/(arbScaleOf(ch)*ch.trackR*ch.trackR);
+      const rF_s=Math.max(0,Math.min(1,(_K*(rsSpF_cs+budget_s)-rsSpRs)/(budget_s*(1+_K))));
+      const abF_s=budget_s*(1-rF_s)/(arbScale*ch.trackF*ch.trackF);
+      const abR_s=budget_s*rF_s/(arbScale*ch.trackR*ch.trackR);
       const abUtil=Math.max(abF_s,abR_s)/utilRef;
       // abUtil only measures how close ARB sits to the CEILING. A lopsided split can also want
       // an axle near zero, which clk() later floors up to the game's 1-click minimum — real,

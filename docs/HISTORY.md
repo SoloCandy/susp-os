@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — CO-SOLVE Auto Spring Share measured spring strain before the Hz clamp
+
+`simUtil` in `resolveCoSolveSpringShare` measured `spUtil` from the rear roll
+stiffness *before* `clampHz`, while everything downstream used the clamped Hz.
+Once the rear Hz hit its limit the search believed springs were delivering more
+correction than they could, and handed them too large a share. `spUtil` now reads
+the clamped stiffness. Same pass hoisted loop-invariant work out of `simUtil`
+(`arbScaleOf`, the front spring roll stiffness, and a recomputed copy of
+`targetRsBalance` and its `K`). Unclamped cases are unchanged; all suites pass.
+
 ## Changed — measured values lost their sliders (experiment branch)
 
 A slider suits a value you choose by feel. It doesn't suit one you read off a spec
