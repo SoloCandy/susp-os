@@ -775,7 +775,7 @@ Which modes can raise it:
 | FLAT RIDE | yes — the solve genuinely runs out of band |
 | MECH | yes |
 | SHARED | yes |
-| MULTIPLIER | only under a SHARED reference, where the slider sets the average and the ratio throws one end out of band; with a front or rear reference it clamps silently |
+| MULTIPLIER | yes — under a FRONT/REAR reference when the ratio throws the derived axle out of band, under SHARED when it throws one end of the split out |
 | INDEPENDENT | no — the field itself is already clamped on entry |
 | CO-SOLVE | no — forced false, since `mechBalClamped` covers its limits instead |
 

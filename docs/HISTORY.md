@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MULTIPLIER under a FRONT/REAR reference clamped the derived axle silently
+
+The SHARED multiplier path was fixed to raise `rearHzClamped` (see "the Hz band
+clamp reported the wrong axle" below), but the FRONT/REAR multiplier path kept
+`secondaryHzClamped=false`. Ride Stiffness 3.2 Hz × 3.00 asked for a 9.6 Hz rear
+and delivered 5.5; 1.0 Hz × 0.50 asked for 0.5 and delivered 0.8 — no banner, no
+amber Hz, no CLAMPED badge. Found by a sweep of every clamp flag against the
+delivered tune (210,600 cases); this was the only flag that failed to fire. The
+flag now comes from the raw request like every other path, so the existing
+`hzClampNote` banner covers it.
+
 ## Changed — `solveTune`'s target-correction loop now runs in BeamNG too
 
 The secant loop that re-runs the solve until the reported balance meets the

@@ -325,9 +325,9 @@ After compiling, run `resolveFeEffective` → `feelToPhysics` → `computeTune`,
 measure the result (see [Measuring a tune against a DNA](#measuring-a-tune-against-a-dna)).
 An axis **misses** when its residual exceeds tolerance. Flags only explain *why*.
 
-Flags alone are not enough, because one of them is silent in exactly this
-configuration: under MULTIPLIER with a FRONT reference the rear axle is clamped to
-the Hz band with `rearHzClamped` forced false (see
+Flags alone are not enough: the pitch row judges the rear the DNA asks for against
+the Hz band directly, rather than trusting `rearHzClamped`, so the cause it names
+does not depend on which axle the active reference derives (see
 [PHYSICS.md](PHYSICS.md#when-the-band-clamp-is-reported-physicsrearhzclamped)).
 
 `dnaTolerances(tune, gameMode)` sets each allowance to half of one quantisation step

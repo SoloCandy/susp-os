@@ -799,7 +799,7 @@ const feelToPhysics=(ch,fe)=>{
       const mult=fe.rearHzMult??1.20;
       const raw=rideRef==='front'?primaryHz*mult:primaryHz/mult;
       secondaryHz=clampHz(raw);
-      secondaryHzClamped=false;
+      secondaryHzClamped=raw<HZ_MIN||raw>HZ_MAX;
     } else if(rearHzMode==='mech'&&arbBalModeEarly!=='coSolve'){
       const mech=mechSpringSplit(ch,fe,arbBalModeEarly,mult=>{
         const sec=mult==null?primaryHz
@@ -1700,8 +1700,8 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
   const hit=(e,w,k)=>e.measured[k]==null||Math.abs(e.measured[k]-w[k])<=e.tol[k];
   const ROWS=[
     {id:'pitch',axes:['pitchRatio'],cands:['pitchRatio','platformHz'],
-     // MULTIPLIER under a FRONT reference clamps the rear axle with rearHzClamped forced false, so
-     // this one is detected from the band itself rather than from a flag.
+     // Detected from the band itself rather than physics.rearHzClamped: the raw rear this DNA asks
+     // for is the thing being judged, and the flag only covers the derived axle of the active ref.
      cause:e=>{const r=e.fe.rideStiffness*work.pitchRatio;
        return r>HZ_MAX||r<HZ_MIN?'rear axle outside the Hz band':'spring rate snapping';}},
     {id:'damping',axes:['reboundZeta','bumpRatio'],own:'reboundZeta',cands:['reboundZeta','platformHz'],
@@ -5134,9 +5134,9 @@ function App(){
       ?'Move the Mech Balance Target closer to the chassis natural balance, or adjust Ride Stiffness to give the solve room inside the band.'
       :physics.rearHzMode==='shared'
       ?'Adjust the Avg Bottom-Out target, or bring the front and rear ride heights closer together so both axles solve inside the band.'
-      // MULTIPLIER and INDEPENDENT. Only reachable under a SHARED reference, where the slider
-      // sets the AVERAGE and a ratio far from 1.0 throws one end of the split out of the band —
-      // the other references clamp these two modes without ever raising the flag.
+      // MULTIPLIER, under any reference (a ratio far from 1.0 throws the derived axle, or one end
+      // of a SHARED split, out of the band), and INDEPENDENT under SHARED only — its manual Hz
+      // is slider-bounded to the band, so FRONT/REAR never clamp it.
       :'Move the Rear/Front Multiplier toward 1.00, or adjust Ride Stiffness so both ends of the split land inside the band.';
     return `${what} ${advice}`;
   })();
