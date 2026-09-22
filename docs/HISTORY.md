@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a bar at a Forza click limit now holds the roll balance
+
+A bar past `lim.arb` or under 1 click used to be clamped on its own, which shifted
+the roll balance its split was solved for. The out-of-range bar is now pinned and
+the other re-solved to hold that balance. Across 399 pinned cases in a sweep (WEIGHT,
+NEUTRAL, CHASSIS × AUTO/SHARE) the gap to the unclamped balance fell from a mean of
+0.058 to 0.021; what remains is cases where the re-solved bar hits a limit too.
+
+Considered alongside it and rejected: scaling both Hz axles to hold the ratio when
+one leaves the band. It only matters at extreme multipliers, makes the Ride
+Stiffness slider disagree with the Hz actually run, and removes the ratio-flattening
+that was quietly easing balance targets. The band clamp warning, which says to move
+the multiplier toward 1.00, is the better answer there.
+
 ## Fixed — MULTIPLIER under a FRONT/REAR reference clamped the derived axle silently
 
 The SHARED multiplier path was fixed to raise `rearHzClamped` (see "the Hz band

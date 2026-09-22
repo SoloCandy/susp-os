@@ -1260,6 +1260,33 @@ const computeTune=(ch,phys,gameMode)=>{
     // Auto/WEIGHT/MECH/CO-SOLVE: solve from budget
     arbF=clk(rsAbBudget*(1-rF),ch.trackF);
     arbR=clk(rsAbBudget*rF,ch.trackR);
+    // A bar pinned at the 1-click floor or the lim.arb ceiling on its own shifts the roll
+    // balance the split was solved for. Hold that balance instead: pin the bar furthest out of
+    // range, then re-solve the other one so (rsSpR+rsAbR)/rsTotal lands where the unclamped
+    // split put it. Holding the bar RATIO (as dampScale does for dampers)
+    // would not do it, since the springs' share doesn't scale with the bars. Total bar
+    // stiffness moves instead, and ROLL/SHARE report that through their own flags. Forza only:
+    // physical modes have no ceiling, and the zero floor only binds on a negative budget.
+    if(!physUnits&&rsAbBudget>0){
+      const scF=arbScaleOf(ch)*ch.trackF*ch.trackF,scR=arbScaleOf(ch)*ch.trackR*ch.trackR;
+      const wantF=rsAbBudget*(1-rF),wantR=rsAbBudget*rF;
+      const uF=wantF/scF,uR=wantR/scR;
+      const out=u=>u>lim.arb?u/lim.arb:u<1?1/Math.max(u,1e-9):1;
+      if(out(uF)>1||out(uR)>1){
+        const B=(rsSpR+wantR)/(rsSp+wantF+wantR);
+        const pin=u=>Math.max(1,Math.min(lim.arb,u));
+        const toClk=rs=>Math.round(Math.max(1,Math.min(lim.arb,rs))*10)/10;
+        if(out(uF)>=out(uR)){
+          const F=pin(uF)*scF;
+          arbF=toClk(F/scF);
+          if(B<1)arbR=toClk(((B*(rsSp+F)-rsSpR)/(1-B))/scR);
+        } else {
+          const R=pin(uR)*scR;
+          arbR=toClk(R/scR);
+          if(B>0)arbF=toClk(((rsSpR+R)/B-rsSp-R)/scF);
+        }
+      }
+    }
   }
   // Physical modes snap the SOLVED budget to BeamNG's Anti-Roll Spring Rate grid, so rsAbF/rsAbR
   // below carry the snapped stiffness into mechBalance/bTot/arbShare. The grid is on BeamNG's

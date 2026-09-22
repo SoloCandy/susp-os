@@ -791,6 +791,17 @@ SHARED sites now share one `splitAvgHz` helper that clamps both axles and report
 off the raw values — which also means a solve landing exactly *on* a bound no
 longer reports itself as clamped. See [HISTORY.md](HISTORY.md).
 
+### Anti-roll bars at a click limit
+
+In the Forza modes a bar that wants past `lim.arb`, or below the 1-click floor, is
+pinned there and the **other** bar is re-solved so the roll-stiffness balance,
+`(rsSpR+rsAbR)/rsTotal`, stays where the unclamped split put it. Scaling both bars
+by one factor, as `dampScale` does for dampers, would not keep it: the springs'
+share doesn't scale with the bars. Total bar stiffness moves instead, and ROLL °/
+SHARE % report that through `rollClamped`/`shareClamped`. When the re-solved bar
+also hits a limit the balance can't be held, and lands as close as the limits
+allow. MAN is untouched (a typed value), and the physical modes have no ceiling.
+
 ## RESPONSE / transient character (`responseFactors`)
 
 A feel score, not a physical output — nothing downstream consumes it, and it

@@ -488,5 +488,16 @@ t('physical modes and non-target modes pass straight through', () => {
   }
 });
 
+console.log('\n── bars at a click limit ──');
+t('a bar pinned at a click limit holds the roll balance the unclamped split asked for', () => {
+  // WEIGHT, SHARE 30%, stiff springs on a rear-weighted car: the front bar wants past 65 clicks.
+  // BeamNG has no ceiling, so its roll balance is the unclamped one (to spring-snap noise).
+  const fe = { arbBalMode: 'weight', arbMode: 'share', arbBias: -50, arbShareMan: 30, rideStiffness: 3 };
+  const rb = x => (x.rsSpR + x.rsAbR) / (x.rsSpF + x.rsSpR + x.rsAbF + x.rsAbR);
+  const h = solve({ frontBias: 40 }, fe, 'horizon').tune, b = solve({ frontBias: 40 }, fe, 'beamng').tune;
+  if (h.arbF < 65) throw new Error(`front bar no longer pinned (${h.arbF})`);
+  near(rb(h), rb(b), 0.005, 'roll balance vs unclamped');
+});
+
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
