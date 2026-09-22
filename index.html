@@ -6950,7 +6950,9 @@ function App(){
                          padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
                          border:'1px solid #1e293b',marginBottom:10,marginTop:-6}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>FRONT</span>
-              <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:'#e2e8f0'}}>{physics.frontHz.toFixed(2)}</span>
+              {/* Amber on the derived axle when the Hz band clamped it — the same cue MECH's own
+                  SOLVED readout gives. Under SHARED both ends are derived, so both light up. */}
+              <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:physics.rearHzClamped&&(physics.rideRef??'front')!=='front'?'#f59e0b':'#e2e8f0'}}>{physics.frontHz.toFixed(2)}</span>
               <span style={{fontSize:10,color:'#94a3b8'}}>Hz</span>
               <div style={{flex:1,height:1,background:'#1e293b'}}/>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:0.5,fontFamily:'var(--font-mono)'}}>
@@ -6958,7 +6960,7 @@ function App(){
               </span>
               <div style={{flex:1,height:1,background:'#1e293b'}}/>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REAR</span>
-              <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:'#e2e8f0'}}>{tune.rHz.toFixed(2)}</span>
+              <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:physics.rearHzClamped&&(physics.rideRef??'front')!=='rear'?'#f59e0b':'#e2e8f0'}}>{tune.rHz.toFixed(2)}</span>
               <span style={{fontSize:10,color:'#94a3b8'}}>Hz</span>
             </div>
             {/* spring rate strip */}
