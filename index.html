@@ -1018,7 +1018,10 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
       const budget_s=arbMode==='roll'?Math.max(0,_rsTotTgt-rsSp_s)
         :arbMode==='basic'?_basicBudget
         :rsSp_s*(sh/(1-sh));
-      if(budget_s<=0) return{spUtil,abUtil:0};
+      // No ARB budget (ROLL mode once springs alone meet the roll target) means ARB can deliver
+      // none of the correction — not that it is relaxed. Reporting 0 made the search back off
+      // to where the bars are floored and useless; unbounded strain hands it all to springs.
+      if(budget_s<=0) return{spUtil,abUtil:Infinity};
       const rF_s=Math.max(0,Math.min(1,(_K*(rsSpF_cs+budget_s)-rsSpRs)/(budget_s*(1+_K))));
       const abF_s=budget_s*(1-rF_s)/(arbScale*ch.trackF*ch.trackF);
       const abR_s=budget_s*rF_s/(arbScale*ch.trackR*ch.trackR);

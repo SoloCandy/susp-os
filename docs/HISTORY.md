@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — CO-SOLVE Auto Spring Share stopped short under ROLL stiffness mode
+
+With ARB Stiffness Mode ROLL, the ARB budget is whatever roll stiffness the springs
+leave unmet. At strongly biased Balance Targets, raising `S` stiffens the springs
+until they meet the roll target alone and the budget hits zero — and `simUtil`
+returned `abUtil:0` there, which the search read as "ARB relaxed". It backed off to
+the `S` just below that point, where the bars were floored and too weak to help.
+A 65/35 FWD car asking for 0.75 landed at 0.51; `S=100` reached it within 0.0004.
+A sweep (6 chassis × 3 games × 4 ARB modes × targets 0.25–0.75) found 102 such
+misses, all ROLL. Zero budget now reports unbounded ARB strain, same reasoning as
+the floor-strain fix below: ARB can deliver none of the correction, so springs take
+it all. After the fix no unpinned case misses by more than 0.006; the misses left
+are pinned at `S=100` and no spring share does better.
+
 ## Fixed — CO-SOLVE Auto Spring Share measured spring strain before the Hz clamp
 
 `simUtil` in `resolveCoSolveSpringShare` measured `spUtil` from the rear roll
