@@ -96,11 +96,14 @@ the other two cars first.
 MEASURE ARB's solve. The solvers (`mechSpringSplit`, CO-SOLVE, the ARB split)
 still work in suspension space; `solveTune` re-runs them with an adjusted
 internal target until the *displayed* balance meets the target (secant, at most
-8 extra passes), then judges `mechBalClamped` against the target asked for. So a
+8 extra passes), then judges `mechBalClamped` against the target asked for.
+The physical (BeamNG) modes run the same loop against the suspension balance —
+nothing is displayed there, but spring snapping still moves the result off the
+target the solvers aimed at, and the loop takes that back out. So a
 target-seeking mode asks for bigger spring or bar splits than before, and runs
 into Forza's spring and bar limits sooner — targets that were never reachable in
 the game now say so. Roll angle, the GRIP BIAS model, the contribution bars and
-the physical (BeamNG) modes are unchanged: the calibration is of Forza's balance
+the physical (BeamNG) balance itself are unchanged: the calibration is of Forza's balance
 readout, and nothing here measured the rest.
 
 **MEASURE NAT BAL with the tyre term.** At equal ride Hz the display model's

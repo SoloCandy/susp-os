@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — `solveTune`'s target-correction loop now runs in BeamNG too
+
+The secant loop that re-runs the solve until the reported balance meets the
+target was skipped in physical modes, since BeamNG has no tyre-series display
+offset. But BeamNG snaps springs to 500 N/m after CO-SOLVE solves the rear Hz,
+and the snapped front no longer matches the front the rear was solved against,
+so the final balance drifts. Running the loop there too cut the mean BeamNG
+CO-SOLVE miss in the sweep from 0.0013 to 0.0008 and the cases a hand-picked
+Spring Share could beat from 70 to 25; the worst miss left is about 0.005,
+the spring grid's own resolution. No other code changed.
+
 ## Fixed — CO-SOLVE Auto Spring Share stopped short under ROLL stiffness mode
 
 With ARB Stiffness Mode ROLL, the ARB budget is whatever roll stiffness the springs

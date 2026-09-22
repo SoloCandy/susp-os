@@ -81,7 +81,7 @@ feelToPhysics(ch, fe)                  → resolves feel settings into physics
                                          (front/rear Hz, ζ per axle, ARB mode…)
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
 solveTune(ch, feEffective, gameMode)   → feelToPhysics + computeTune, repeated in the
-                                         Forza target modes until the DISPLAYED balance
+                                         target modes until the DISPLAYED balance
                                          meets the target; every caller goes through it
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune

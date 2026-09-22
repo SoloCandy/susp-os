@@ -1347,13 +1347,15 @@ const computeTune=(ch,phys,gameMode)=>{
 // space while the reported balance is the tyre-series display, so a target-seeking mode would land
 // short of its target. This re-runs the solve with an adjusted internal target (secant) until the
 // DISPLAYED balance meets the one asked for, or gets as close as the springs and bars allow — then
-// judges mechBalClamped against the target the user asked for. fe must be feEffective (absolute
+// judges mechBalClamped against the target the user asked for. Physical (BeamNG) modes run the same
+// loop: there is no display offset there, but the 500 N/m spring snap and the front-Hz snap after
+// CO-SOLVE's rear solve still move the final balance off the target the solvers aimed at. fe must be feEffective (absolute
 // arbBalTarget). Every caller goes through here so Vehicle DNA and the live tune agree.
 const solveTune=(ch,fe,gameMode)=>{
   const run=tgt=>{const f=tgt==null?fe:{...fe,arbBalTarget:tgt};const physics=feelToPhysics(ch,f);
     return{physics,tune:computeTune(ch,physics,gameMode)};};
   const first=run(null);
-  if(isPhysical(gameMode)||fe.arbBalTarget==null||!hasBalTargetSolve(fe))return first;
+  if(fe.arbBalTarget==null||!hasBalTargetSolve(fe))return first;
   const want=clampBalTarget(fe.arbBalTarget);
   let best=first,bestErr=Math.abs(first.tune.mechBalance-want);
   let x0=want,y0=first.tune.mechBalance-want,x1=clampBalTarget(want-y0);
