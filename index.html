@@ -6502,54 +6502,6 @@ function App(){
               arbBasicMan:DEF_FE.arbBasicMan,
               arbSplitOpposite:DEF_FE.arbSplitOpposite,
               arbNeutralEqual:DEF_FE.arbNeutralEqual}))}>
-            {(arbBalMode==='weight'||arbBalMode==='neutral'||arbBalMode==='chassis')&&(()=>{
-              const isNeutral=arbBalMode==='neutral';
-              const isChassis=arbBalMode==='chassis';
-              const splitPct=(isNeutral||isChassis)?tune.balArbSplit:Math.round(physics.arbBalance/100*100);
-              return(<>
-                <FeelSlider label="ARB Bias" value={fe.arbBias}
-                  onChange={pFe('arbBias')} min={-50} max={50} leftLabel="FRONT HEAVY" rightLabel="REAR HEAVY"
-                  markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
-                  hint={isNeutral&&fe.arbNeutralEqual
-                    ?"Shifts the ARB split away from the springs' own front/rear proportion, where each axle's bar carries the same share of that axle's roll stiffness. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) leaves the springs' balance untouched."
-                    :isNeutral
-                    ?"Shifts the ARB split away from the point that exactly cancels the springs' contribution to the balance bar — at the extremes this can swing the split all the way to front-only or rear-only. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) cancels the springs' bias."
-                    :isChassis
-                    ?"Shifts the front/rear ARB stiffness split from the car's actual natural mech balance (track-width geometry, or your MEASURE NAT BAL reading) instead of raw weight %. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) matches the calibrated natural balance."
-                    :"Shifts the front/rear ARB stiffness split from the neutral weight-distribution default. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) matches the car's weight balance."}
-                  readout={`F ${100-splitPct}% / R ${splitPct}%`}/>
-                {isNeutral&&fe.arbNeutralEqual&&(()=>{
-                  const pF=tune.rsSpF+tune.rsAbF>0?tune.rsAbF/(tune.rsSpF+tune.rsAbF)*100:0;
-                  const pR=tune.rsSpR+tune.rsAbR>0?tune.rsAbR/(tune.rsSpR+tune.rsAbR)*100:0;
-                  return <div style={{display:'flex',alignItems:'center',gap:6,
-                             padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
-                             border:`1px solid ${tune.neutralClamped?'#f59e0b':'#1e293b'}`,marginBottom:6,marginTop:-6}}>
-                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB ROLL % F</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa'}}>{pF.toFixed(1)}</span>
-                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>R</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{pR.toFixed(1)}</span>
-                    <span style={{flex:1}}/>
-                    {tune.neutralClamped
-                      ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB AT LIMIT</span>
-                      :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
-                  </div>;
-                })()}
-                {isNeutral&&!fe.arbNeutralEqual&&<div style={{display:'flex',alignItems:'center',gap:6,
-                             padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
-                             border:`1px solid ${tune.neutralClamped?'#f59e0b':'#1e293b'}`,marginBottom:6,marginTop:-6}}>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPRINGS</span>
-                  <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa'}}>{tune.bSp>=0?'+':''}{tune.bSp.toFixed(1)}</span>
-                  <span style={{fontSize:10,color:'#475569'}}>→</span>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB</span>
-                  <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{tune.bAb>=0?'+':''}{tune.bAb.toFixed(1)}</span>
-                  <span style={{flex:1}}/>
-                  {tune.neutralClamped
-                    ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB MAXED — CAN'T FULLY CANCEL</span>
-                    :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
-                </div>}
-              </>);
-            })()}
-
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>Stiffness Mode</span>
               <Hint text={`AUTO derives ARB stiffness from the car's natural roll tendency — heavier, taller, softer cars get more ARB contribution.${physMode?'':' BASIC sets an overall stiffness level directly (0% ≈ softest, 100% ≈ stiffest bars the game allows) — like SHARE %, but the level doesn’t scale with spring rate.'} ROLL ° targets a specific body roll angle. SHARE % directly sets ARBs as a fraction of total roll stiffness. MAN sets front/rear ARB ${physMode?'roll stiffness':'clicks'} directly for calibration testing — bypasses the budget/split system entirely, so Balance Mode is hidden while this is active.`}/>
@@ -6725,6 +6677,53 @@ function App(){
                   hint="How much of the mechanical balance correction comes from rear spring stiffness vs ARB split. AUTO finds the split that equalises spring and ARB utilisation — recommended for most builds. Disable AUTO to set manually."/>
               </div>
             </>}
+            {(arbBalMode==='weight'||arbBalMode==='neutral'||arbBalMode==='chassis')&&(()=>{
+              const isNeutral=arbBalMode==='neutral';
+              const isChassis=arbBalMode==='chassis';
+              const splitPct=(isNeutral||isChassis)?tune.balArbSplit:Math.round(physics.arbBalance/100*100);
+              return(<>
+                {isNeutral&&fe.arbNeutralEqual&&(()=>{
+                  const pF=tune.rsSpF+tune.rsAbF>0?tune.rsAbF/(tune.rsSpF+tune.rsAbF)*100:0;
+                  const pR=tune.rsSpR+tune.rsAbR>0?tune.rsAbR/(tune.rsSpR+tune.rsAbR)*100:0;
+                  return <div style={{display:'flex',alignItems:'center',gap:6,
+                             padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
+                             border:`1px solid ${tune.neutralClamped?'#f59e0b':'#1e293b'}`,marginBottom:6}}>
+                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB ROLL % F</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa'}}>{pF.toFixed(1)}</span>
+                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>R</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{pR.toFixed(1)}</span>
+                    <span style={{flex:1}}/>
+                    {tune.neutralClamped
+                      ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB AT LIMIT</span>
+                      :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
+                  </div>;
+                })()}
+                {isNeutral&&!fe.arbNeutralEqual&&<div style={{display:'flex',alignItems:'center',gap:6,
+                             padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
+                             border:`1px solid ${tune.neutralClamped?'#f59e0b':'#1e293b'}`,marginBottom:6}}>
+                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPRINGS</span>
+                  <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa'}}>{tune.bSp>=0?'+':''}{tune.bSp.toFixed(1)}</span>
+                  <span style={{fontSize:10,color:'#475569'}}>→</span>
+                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB</span>
+                  <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{tune.bAb>=0?'+':''}{tune.bAb.toFixed(1)}</span>
+                  <span style={{flex:1}}/>
+                  {tune.neutralClamped
+                    ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB MAXED — CAN'T FULLY CANCEL</span>
+                    :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
+                </div>}
+                <FeelSlider label="ARB Bias" value={fe.arbBias}
+                  onChange={pFe('arbBias')} min={-50} max={50} leftLabel="FRONT HEAVY" rightLabel="REAR HEAVY"
+                  markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
+                  hint={isNeutral&&fe.arbNeutralEqual
+                    ?"Shifts the ARB split away from the springs' own front/rear proportion, where each axle's bar carries the same share of that axle's roll stiffness. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) leaves the springs' balance untouched."
+                    :isNeutral
+                    ?"Shifts the ARB split away from the point that exactly cancels the springs' contribution to the balance bar — at the extremes this can swing the split all the way to front-only or rear-only. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) cancels the springs' bias."
+                    :isChassis
+                    ?"Shifts the front/rear ARB stiffness split from the car's actual natural mech balance (track-width geometry, or your MEASURE NAT BAL reading) instead of raw weight %. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) matches the calibrated natural balance."
+                    :"Shifts the front/rear ARB stiffness split from the neutral weight-distribution default. FRONT HEAVY adds more front bar stiffness (more understeer). REAR HEAVY adds more rear bar stiffness (more oversteer). Neutral (centre) matches the car's weight balance."}
+                  readout={`F ${100-splitPct}% / R ${splitPct}%`}/>
+              </>);
+            })()}
           </Sec></div>
 
           <div id="zone-feel" style={dim('ride','feel')}><Sec title="RIDE" open={open.ride} onToggle={tog('ride')}
