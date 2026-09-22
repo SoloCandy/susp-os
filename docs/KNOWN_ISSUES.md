@@ -512,6 +512,24 @@ so near a big spring split they no longer describe the same stiffness the balanc
 readout does. BeamNG has no displayed balance to calibrate against and stays
 suspension-only.
 
+## Open — tyre pressure moves Forza's balance, and the app has no pressure input
+
+Changing tyre pressure in Forza's tuning menu moves the displayed mech balance.
+The app has no pressure control. `tyreRollStiffness` gives every tyre one
+stiffness (`TYRE_HZ` on a `TYRE_REF_MASS` corner, scaled by √ corner mass), and
+that stiffness was fitted at whatever pressures the three calibration cars ran,
+which weren't recorded. So a tune whose pressures differ from those gets a
+displayed balance and target solves that the game won't match. The same goes for
+anything else fitted through the tyre: the per-car MEASURE ARB click scales and
+MEASURE NAT BAL readings are only valid at the pressures they were measured at.
+
+Not yet known: whether pressure acts through the tyre's stiffness (the series
+model predicts a bigger shift on stiffer suspension) or as a flat offset, and
+whether it scales with tyre width or compound. A calibration run is planned: a
+pressure sweep at two spring stiffnesses, front and rear separately, then with
+bars, on the same three cars. Until it's done, keep pressures at stock while
+measuring or comparing against the game.
+
 ## Open — code review findings (2026-09-18)
 
 Found in a full review of `index.html`. Items marked *reproduced* were run against the
