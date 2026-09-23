@@ -11,6 +11,69 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — mode toggles now translate the current value instead of snapping
+
+Three toggles describe the same underlying quantity two different ways, but each
+held its own stored slider value, so switching jumped the car to whatever the
+other slider was last left at.
+
+- **RIDE · STIFFNESS HZ → BOTTOM G's** already seeded `rideBottomG` from the
+  current Hz, and the BOTTOM G's slider writes `rideStiffness` as it moves, so
+  that pair was already symmetric. What was not: both directions rehomed a
+  `rearHzMode` of `shared` (the EQUAL BOTTOM-OUT split, which only exists under
+  BOTTOM G's) to `flatRide`, which re-derived the front/rear split and visibly
+  moved both axles. It now rehomes to `multiplier` pinned at the ratio the car is
+  already sitting at, which reproduces the exact same two frequencies. The RIDE
+  REF. buttons got the same treatment, including `independent` → SHARED, where the
+  old `flatRide` fallback contradicted the tooltip's own promise that switching
+  reference never changes the actual Hz.
+- **DAMPERS · REBOUND MODE CHARACTER ↔ SETTLE TIME** carried nothing at all.
+  CHARACTER now seeds `reboundZeta` from `physics.baseZeta` (the anchor actually
+  in force), and SETTLE TIME seeds `settleTarget` from
+  `settleTimeFromZeta(baseZeta, refHz)`, where `refHz` is the same pre-CO-SOLVE
+  ride-reference Hz the back-solve itself uses — using `tune.rHz` here would land
+  the round trip a few hundredths off.
+
+Four more toggles in the same class were seeded in the same pass, after an audit
+of every `tog` button for a stored value on each side:
+
+- **DAMPERS · BUMP MODE, INDEPENDENT → BUMP RATIO.** Half of this pair was already
+  done — RATIO→INDEPENDENT seeds `bumpZeta` — and the return trip was bare. Now
+  `100·physics.bumpZeta/physics.baseZeta`. A CROSSED tune still moves: RATIO tops
+  out at 100% and cannot express bump above rebound.
+- **CO-SOLVE · SPRING SHARE, AUTO → MAN.** The slider reads `tune.coSolveAutoS`
+  under AUTO and `fe.springShare` under MAN, so the handle visibly jumped.
+- **BALANCE · Balance Target, GRIP → TARGET.** Seeds the delta GRIP resolved to.
+  The first attempt wrote `feEffective.arbBalTarget` straight in and pinned the
+  slider at its `+0.43` ceiling: that field is an absolute balance, the stored one
+  is a delta from NAT (`resolveArbBalTarget` adds `naturalMechBalanceOf` back on).
+- **ARB · STIFFNESS → BASIC.** Every other ARB mode already seeded; BASIC now
+  inverts its own budget formula against `tune.rsAbF+rsAbR`. Approximate by
+  design — click quantisation, limit pinning and a 1% step worth ~0.6 clicks all
+  sit in the way — but it lands near the bars on screen instead of at 50%.
+
+The same defect turned up once more outside the toggles themselves. **Dropping a
+tier, PRO → INT**, rehomes a `rearHzMode` of `mech` to `multiplier` because MECH is
+PRO-gated — and landed on the stale stored `rearHzMult`, re-deriving the split and
+silently moving rear Hz. It now seeds the ratio exactly as the MULTIPLIER button
+does, via a ref written during render (that effect sits above where `physics` is
+declared). BEGINNER is unaffected: the effect above it has already set
+`rearHzMode` to `multiplier`, so the branch never fires there. The neighbouring
+`arbBalMode` mech/coSolve → `weight` fallback is deliberately left as-is — WEIGHT
+has no single companion value, and `arbBias` is a shared reinterpreted slider.
+
+Considered and left alone: ALIGNMENT AUTO→MANUAL, where MANUAL reasonably means
+"my saved numbers" rather than "the recommendation, now editable"; `rearHzMode`'s
+FLAT RIDE and MECH, which derive the split outright and have no value to hold; and
+Damping Bias and the ARB Balance Modes, which reinterpret one shared slider rather
+than swapping stored values, already recorded as intentional.
+
+The ζ↔time round trip is exact below critical damping. Above it, returning to
+CHARACTER lands on the underdamped twin rather than the typed value, because a
+settle time maps to two ζ roots and `rateToZeta` deliberately prefers the
+underdamped one. `settleTarget` also clamps to 0.10–1.50s, so a very stiff or
+very soft anchor can land at the end of the slider instead of its exact time.
+
 ## Changed — ARB Bias is hidden under MAN ARB stiffness
 
 MAN sets front/rear ARB clicks directly and bypasses the budget/split solve

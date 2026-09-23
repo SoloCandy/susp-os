@@ -4775,6 +4775,9 @@ function App(){
     }));
   },[uiMode,restoreTick]); // eslint-disable-line
   // BEG/INT: fall back to simple modes if switching down from PRO
+  // Written during render (below, once physics exists) so the fallback effect can seed
+  // rearHzMult without reaching forward to a const declared after it.
+  const hzRatioRef=useRef(1.20);
   useEffect(()=>{
     if(uiMode==='pro')return;
     setFeRaw(p=>{
@@ -4784,8 +4787,16 @@ function App(){
       const hzOk=p.rearHzMode!=='mech';
       if(arbOk&&hzOk)return p;
       return{...p,
+        // WEIGHT has no single companion value to carry — arbBias is a shared slider each
+        // Balance Mode reinterprets (like Damping Bias), so there is nothing to seed here.
         ...(arbOk?{}:{arbBalMode:'weight'}),
-        ...(hzOk?{}:{rearHzMode:'multiplier'}),
+        // Seed rearHzMult from the ratio the car is currently sitting at, exactly as the
+        // MULTIPLIER button does. Landing on a stale stored multiplier re-derived the
+        // front/rear split, so dropping a tier silently moved rear Hz. Beginner is
+        // unaffected: the effect above has already set rearHzMode to 'multiplier' by the
+        // time this runs, so hzOk is true and this branch never fires there.
+        ...(hzOk?{}:{rearHzMode:'multiplier',
+          rearHzMult:Math.round(Math.max(0.5,Math.min(3,hzRatioRef.current))*100)/100}),
       };
     });
     // MANUAL diff mode and its toggle are both PRO-gated; leaving diffManual set with no
@@ -4910,6 +4921,7 @@ function App(){
   const feEffective=resolveFeEffective(ch,fe);
   const solved=useMemo(()=>solveTune(ch,feEffective,fe.gameMode),[ch,feEffective,fe.gameMode]);
   const physics=solved.physics,tune=solved.tune;
+  hzRatioRef.current=physics.frontHz>0?physics.rearHz/physics.frontHz:1.20;
   const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
   // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
   // its own name plus "(edited)", so the sidebar never claims a stock GT3 that isn't one.
@@ -6266,7 +6278,15 @@ function App(){
                   <Hint text="Sets how the mech balance target is determined. TARGET: set the value manually — use the Balance Guide range as a reference. GRIP: auto-derives the target as the mirror of the car's natural grip bias (1 − natGripBalance), so the suspension directly counteracts the chassis's understeer or oversteer tendency. Use the Balance Offset slider to shift intentionally away from neutral."/>
                   <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
                     <button className={`tog${(fe.arbBalTargetMode??'manual')==='manual'?' on':''}`}
-                      onClick={()=>setFe(p=>({...p,arbBalTargetMode:'manual'}))}>TARGET</button>
+                      onClick={()=>setFe(p=>({...p,arbBalTargetMode:'manual',
+                        // GRIP derives the target from the chassis; TARGET reads the stored
+                        // arbBalTarget. Seed it with the value GRIP had resolved to, so leaving
+                        // GRIP doesn't move the target. feEffective.arbBalTarget is that value
+                        // ABSOLUTE (clamped, Balance-Offset-inclusive) while the stored field is
+                        // a delta FROM NAT — resolveArbBalTarget adds naturalMechBalanceOf back
+                        // on. Seeding the absolute number straight in pins the slider at its
+                        // +0.43 ceiling instead, so subtract natural first.
+                        arbBalTarget:Math.round((feEffective.arbBalTarget-natMechBalance)*100)/100}))}>TARGET</button>
                     <button className={`tog${(fe.arbBalTargetMode??'manual')==='grip'?' on':''}`}
                       onClick={()=>setFe(p=>({...p,arbBalTargetMode:'grip'}))}>GRIP</button>
                   </div>
@@ -6540,7 +6560,20 @@ function App(){
                     and SHARE % all still work unchanged. Switching into a physical mode while
                     BASIC is selected falls back to AUTO below. */}
                 {!physMode&&<button className={`tog${arbMode==='basic'?' on':''}`}
-                  onClick={()=>pFe('arbMode')('basic')}>BASIC</button>}
+                  onClick={()=>setFe(p=>({...p,arbMode:'basic',
+                    // Invert BASIC's own budget formula (computeTune: budget =
+                    // arbScale·(tF²+tR²)·(1+(lim.arb-1)·pct/100)) against the ARB roll stiffness
+                    // the car is currently running, so switching in lands near the bars already
+                    // on screen instead of snapping to the stored 50%. Approximate on purpose:
+                    // rsAbF/rsAbR come back through click quantisation and any limit pinning, so
+                    // the reconstructed budget is close, not exact. BASIC is hidden in physical
+                    // modes, so lim.arb is always defined here.
+                    arbBasicMan:(()=>{
+                      const C=arbScaleOf(ch)*(ch.trackF*ch.trackF+ch.trackR*ch.trackR);
+                      const ceil=lim?.arb??ARB_UTIL_REF;
+                      if(C<=0||ceil<=1)return p.arbBasicMan??50;
+                      return Math.max(0,Math.min(100,Math.round(100*((tune.rsAbF+tune.rsAbR)/C-1)/(ceil-1))));
+                    })()}))}>BASIC</button>}
                 <button className={`tog${arbMode==='roll'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,arbMode:'roll',
                     arbTargetRollMan:Math.round(physics.arbTargetRoll*10)/10}))}>ROLL °</button>
@@ -6691,7 +6724,13 @@ function App(){
               <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPRING SHARE</span>
                 <button className={`tog${(fe.springShareAuto!==false)?' on':''}`}
-                  onClick={()=>setFe(p=>({...p,springShareAuto:!(p.springShareAuto!==false)}))}>AUTO</button>
+                  onClick={()=>setFe(p=>{const auto=p.springShareAuto!==false;
+                    // The slider reads coSolveAutoS under AUTO and fe.springShare under MAN, so
+                    // leaving AUTO without seeding visibly jumped the handle. Hand the resolved
+                    // AUTO share over as the starting manual value.
+                    return{...p,springShareAuto:!auto,
+                      ...(auto?{springShare:Math.max(0,Math.min(100,Math.round(tune.coSolveAutoS??50)))}:{})};
+                  })}>AUTO</button>
               </div>
               <div style={(fe.springShareAuto!==false)?{opacity:0.45,pointerEvents:'none'}:{}}>
                 <FeelSlider label=""
@@ -6776,6 +6815,14 @@ function App(){
               const bottomGToHz=g=>Math.sqrt(9810*Math.max(0,g)/rhPrimary_mm)/(2*Math.PI);
               const bottomGLo=hzToBottomG(HZ_MIN), bottomGHi=hzToBottomG(HZ_MAX);
               const primaryBottomG=hzToBottomG(primaryHz);
+              // Translational parity for the REAR HZ mode: 'shared' (equal bottom-out) only
+              // exists under BOTTOM G's, and 'independent' only under FRONT/REAR ref, so those
+              // combinations have to be rehomed when the mode they belong to is left. Falling
+              // back to flatRide re-derived the split and visibly moved both axles' Hz; pinning
+              // MULTIPLIER to the ratio the car is sitting at right now reproduces the exact
+              // same front and rear frequencies, so only the control changes, not the car.
+              const holdHzRatio={rearHzMode:'multiplier',
+                rearHzMult:Math.round(Math.max(0.5,Math.min(3,physics.frontHz>0?physics.rearHz/physics.frontHz:1.2))*100)/100};
               return(<>
                 {/* Ride reference toggle — always visible, works in CO-SOLVE via Hz inversion */}
                 <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
@@ -6785,25 +6832,25 @@ function App(){
                       rideRef:'front',
                       rideStiffness:hzToRs(physics.frontHz),
                       ...(p.rearHzMode==='independent'?{rearHzMan:Math.round(physics.rearHz*100)/100}:{}),
-                      ...(p.rearHzMode==='shared'?{rearHzMode:'flatRide'}:{})}))}>FRONT</button>
+                      ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>FRONT</button>
                   <button className={`tog${rRef==='shared'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,
                       rideRef:'shared',
                       rideStiffness:hzToRs((tune.fHz+tune.rHz)/2),
-                      ...(p.rearHzMode==='independent'?{rearHzMode:'flatRide'}:{})}))}>SHARED</button>
+                      ...(p.rearHzMode==='independent'?holdHzRatio:{})}))}>SHARED</button>
                   <button className={`tog${rRef==='rear'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,
                       rideRef:'rear',
                       rideStiffness:hzToRs(tune.rHz),
                       ...(p.rearHzMode==='independent'?{rearHzMan:Math.round(tune.fHz*100)/100}:{}),
-                      ...(p.rearHzMode==='shared'?{rearHzMode:'flatRide'}:{})}))}>REAR</button>
+                      ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>REAR</button>
                 </div>
                 {(()=>{
                   const effStiffMode=(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?'bottomG':'hz';
                   return ch.useRideHeightCG&&<div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                  <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>STIFFNESS<Hint text="What the Ride Stiffness slider below sets. HZ: spring frequency directly. BOTTOM G's: the vertical load factor at which the active RIDE REF. axle bottoms out (same model as the SAG vs LOAD chart) — the slider back-solves the Hz that produces it, and keeps re-solving it if ride height changes or a build/share-code lands a different target on this chassis. Switching RIDE REF. never changes the actual Hz values, only which axle's number is shown. Only available with RIDE HEIGHT → CG enabled (CHASSIS section)."/></span>
+                  <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>STIFFNESS<Hint text="What the Ride Stiffness slider below sets. HZ: spring frequency directly. BOTTOM G's: the vertical load factor at which the active RIDE REF. axle bottoms out (same model as the SAG vs LOAD chart) — the slider back-solves the Hz that produces it, and keeps re-solving it if ride height changes or a build/share-code lands a different target on this chassis. Switching RIDE REF. never changes the actual Hz values, only which axle's number is shown. Switching between HZ and BOTTOM G's carries the current value across — the g you were holding becomes the Hz that produces it, and vice versa — so the car doesn't jump. Only available with RIDE HEIGHT → CG enabled (CHASSIS section)."/></span>
                   <button className={`tog${effStiffMode==='hz'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'hz',
-                    ...(p.rearHzMode==='shared'?{rearHzMode:'flatRide'}:{})}))}>HZ</button>
+                    ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>HZ</button>
                   <button className={`tog${effStiffMode==='bottomG'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'bottomG',rideBottomG:primaryBottomG}))}>BOTTOM G's</button>
                 </div>;
                 })()}
@@ -7028,14 +7075,32 @@ function App(){
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REBOUND MODE</span>
                 <Hint text={dampCharMode==='settle'
                   ?"SETTLE TIME: set a target settle time in seconds. The app back-calculates the rebound ζ needed to hit that time on the ride-reference axle. How that value reaches the other axle is set by DAMPING BALANCE MODE below — TIME SYNC derives the other axle's own ζ from its own spring frequency to match the same time exactly; STANDARD, HYBRID and EQUAL FORCE split differently, so only the reference axle is guaranteed to hit the target."
-                  :"CHARACTER: set rebound damping directly as a ζ (damping ratio) percentage. Full manual control — you pick the value, the app doesn't back-solve anything."}/>
+                  :"CHARACTER: set rebound damping directly as a ζ (damping ratio) percentage. Full manual control — you pick the value, the app doesn't back-solve anything. Switching between the two modes carries the current value across: the settle time you were holding becomes the equivalent ζ, and vice versa, so the car doesn't jump."}/>
               </div>
-              <div style={{display:'flex',gap:3,marginBottom:8}}>
+              {(()=>{
+                // Translational parity, the same idea as RIDE's HZ <-> BOTTOM G's: both modes
+                // describe the SAME anchor ζ, one as a number and one as the time it produces,
+                // so switching carries the current value across instead of snapping back to
+                // whatever the other slider was last left at. physics.baseZeta is the anchor
+                // actually in force (the typed ζ under CHARACTER, the back-solved one under
+                // SETTLE TIME), and refHz must match the Hz the SETTLE TIME back-solve itself
+                // uses — pre-CO-SOLVE physics.frontHz/rearHz on the ride-reference axle — or the
+                // round trip lands a few hundredths off.
+                const refHz=physics.rideRef==='rear'?physics.rearHz
+                          :physics.rideRef==='shared'?(physics.frontHz+physics.rearHz)/2
+                          :physics.frontHz;
+                // Carried time clamps to the slider's own 0.10-1.50s; ζ above 100% reads out as
+                // its underdamped twin, since settle time alone can't distinguish the two roots
+                // (see rateToZeta) and this app prefers the underdamped one.
+                const carriedSettle=Math.max(0.10,Math.min(1.50,settleTimeFromZeta(physics.baseZeta,refHz)));
+                const carriedZeta=Math.round(Math.max(10,Math.min(200,physics.baseZeta))*10)/10;
+                return <div style={{display:'flex',gap:3,marginBottom:8}}>
                 <button className={`tog${dampCharMode==='zeta'?' on':''}`}
-                  onClick={()=>setFe(p=>({...p,dampCharMode:'zeta'}))}>CHARACTER</button>
+                  onClick={()=>setFe(p=>({...p,dampCharMode:'zeta',reboundZeta:carriedZeta}))}>CHARACTER</button>
                 <button className={`tog${dampCharMode==='settle'?' on':''}`}
-                  onClick={()=>setFe(p=>({...p,dampCharMode:'settle'}))}>SETTLE TIME</button>
-              </div>
+                  onClick={()=>setFe(p=>({...p,dampCharMode:'settle',settleTarget:Math.round(carriedSettle*100)/100}))}>SETTLE TIME</button>
+              </div>;
+              })()}
             </>}
             {dampCharMode==='settle'
               ? <FeelSlider label="Settle Target" value={fe.settleTarget??0.80}
@@ -7078,7 +7143,16 @@ function App(){
             </div>
             <div style={{display:'flex',gap:3,marginBottom:10}}>
               <button className={`tog${dampingMode==='ratio'?' on':''}`}
-                onClick={()=>setFe(p=>({...p,dampingMode:'ratio'}))}>BUMP RATIO</button>
+                onClick={()=>setFe(p=>({...p,dampingMode:'ratio',
+                  // Mirror of the INDEPENDENT seed below: express the bump anchor currently in
+                  // force as a % of the rebound anchor, so INDEPENDENT-RATIO lands on the tune
+                  // already on screen. physics.bumpZeta is the anchor BEFORE Damping Balance
+                  // Mode splits it, which is exactly what this slider feeds, so no per-axle
+                  // reconstruction is needed in this direction.
+                  // Clamped to the slider's own 10-100: RATIO cannot express bump above
+                  // rebound, so a CROSSED tune does move here. Unavoidable, not a bug.
+                  bumpRatio:Math.max(10,Math.min(100,Math.round(
+                    physics.baseZeta>0?100*physics.bumpZeta/physics.baseZeta:56)))}))}>BUMP RATIO</button>
               <button className={`tog${dampingMode==='independent'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampingMode:'independent',
                   // Seed the typed anchor from whichever axle the active Damping Balance Mode
