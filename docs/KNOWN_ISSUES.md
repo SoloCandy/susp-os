@@ -585,3 +585,27 @@ effect then marks only the *current* tier's guide as seen and reopens it, so a
 reset done on INT leaves you on INT with `tutSeen.beginner` false: the INT button
 shows 🔒 while you are on it, and PRO is unlocked. Opening the BEG guide
 (or clicking INT) restores the normal order. The gating rules were left as-is.
+
+---
+
+## Accepted — Ride Stiffness can read 3 decimals after a BOTTOM G's edit
+
+The Hz sliders step by 0.01 and the BOTTOM G's slider steps by 0.01 g, but the
+stored value lands on the 0.001 Hz grid `hzToRs` imposes (see
+[PHYSICS.md](PHYSICS.md)'s "The 0.001 Hz grid"). Because `Hz ∝ √g`, one g step is
+worth well under 0.01 Hz over most of the range, so a tune resolved from BOTTOM
+G's keeps a third decimal — the Ride Stiffness number box shows `2.446`, not
+`2.45`, and `NumBox.fmt` widens `dp` to the value's own precision rather than
+truncating it.
+
+This is deliberate. Two alternatives were considered and rejected:
+
+- **Round the stored value back to 0.01 Hz.** That is the grid the dead steps came
+  from: two to five consecutive g steps, and closer to ten near the ceiling,
+  produced no change in the tune at all.
+- **Format the box to 2dp and keep the 0.001 grid.** Two readings that look
+  identical would then export different spring rates, which is worse than an
+  extra digit.
+
+Typing into the Hz box, or stepping either Hz slider, still lands on 0.01 — the
+third decimal only appears when BOTTOM G's put it there.
