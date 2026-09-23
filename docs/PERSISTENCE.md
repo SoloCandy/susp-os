@@ -161,3 +161,16 @@ carries none of is not replaced even if its greyed-out box is still ticked — s
 The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
 `suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, …) is per-device and
 deliberately not included.
+
+## Share links (`#t=`) persist nothing
+
+COPY LINK's `#t=CODE` hash touches no storage key. The link is read once on mount,
+the code is staged into component state (`pending`), and `history.replaceState`
+strips the hash immediately — so a reload restores the ordinary persisted tune, not
+the link, and cannot restage an old code over edits made since. The part ticks
+(`importSel`) are component state too: they stay put for the session, including
+across a load, but a fresh page starts with every part ticked. See
+[CODEC.md](CODEC.md#parts--how-a-decoded-code-is-applied).
+
+Nothing changes on disk until APPLY SELECTED (which writes the live tune through
+the usual persisted keys) or TO GARAGE (which writes one new garage entry).

@@ -11,6 +11,39 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a code is staged in parts, and a link can carry one
+
+Loading a share code used to be all-or-nothing on the three codec groups: paste, tick
+CHASSIS/FEEL/DRIVETRAIN, press OVERWRITE, and the chosen groups landed on the live tune
+immediately. Two things were wrong with that. FEEL is the group people actually want half
+of — taking a friend's dampers meant taking their bars and their ride frequency too — and
+there was no way to see what a code contained before it replaced what you had.
+
+A decoded code is now **staged**: `decodeTune` → `sanitizeTune` lands in a `pending` state
+that nothing on screen reads, and the picker shows what the code carries per part, tagging
+the parts that already match yours. APPLY SELECTED resolves it through `mergeTune`, DISCARD
+throws it away. `fe` splits into SPRINGS / DAMPERS / ARB, so the parts are the five things
+people trade, and each `sanitizeTune` migration (settle → `dampBalMode`, `arbBalMode:'man'`
+→ `arbMode:'man'`) stays inside one part and can never be applied by halves. The tier is
+listed without a tickbox, which is what "shown, never applied" already meant.
+
+The ticks are always on screen — with nothing staged they summarise your own values — and
+**a load never moves them**. The choice made before pasting is the one that applies;
+staging that silently re-ticked parts would be a picker that picks for you.
+
+**An opened link stages too, it does not apply.** COPY LINK wraps the code in `#t=`, and
+opening one used to be impossible, so nothing was being replaced — but it would have been
+the obvious behaviour to ship, and it is the one that makes a link dangerous to click. The
+hash is cleared with `history.replaceState` as soon as it is read, so a reload cannot
+restage an old code over the work done since.
+
+TO GARAGE takes the same merge as APPLY, so the entry it writes is exactly what APPLY
+would have given you. Garage *loads* stay whole-tune: the picker is for codes and links.
+
+The wire format did not move — no new ids, no version bump. Parts are only how a decoded
+code is applied. `tests-share.js` is the new suite that holds that line: every codec field
+must belong to exactly one part, so a field added later with no part fails a test.
+
 ## Changed — a DNA can be shared, on its own codec
 
 A personality could not leave the device it was made on. Share codes carry the stamped tune, which

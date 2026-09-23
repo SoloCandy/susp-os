@@ -605,7 +605,7 @@ The link only drives read-outs. What happens to it:
 | APPLY | set to this DNA |
 | SAVE BUILD / SAVE CAR, and REWRITE of a build | copied onto the entry as `dna` (removed from the entry if there is no link) |
 | LOAD BUILD / LOAD CAR's build | replaced by the entry's `dna`, or cleared if it has none |
-| Factory preset LOAD, LOAD CODE's OVERWRITE with feel or drivetrain ticked, RESET of the tune | cleared |
+| Factory preset LOAD, LOAD CODE's APPLY SELECTED with any feel part (SPRINGS / DAMPERS / ARB) or DRIVETRAIN ticked, RESET of the tune | cleared |
 | Leaving PRO | a confirm first; SWITCH clears it (one undo step) |
 | ✕ on the sidebar DNA line | cleared, tune untouched (one undo step) |
 | Undo (↩) / redo (↪) | restored with the tune: the link is part of every history snapshot, so undoing APPLY removes it and redo puts it back |

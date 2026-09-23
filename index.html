@@ -3785,6 +3785,81 @@ const decodeTune=(code)=>{
   return{ch,fe,dr,meta};
 };
 
+
+// ---- Share parts ----
+// A decoded code is APPLIED IN PIECES. The wire format is untouched — a code
+// still carries every field — but which of them reach the live tune is the
+// reader's choice, so someone can take a friend's dampers without losing their
+// own ARBs. See docs/CODEC.md "Parts".
+//
+// Why these five. ch and dr are the codec's own groups and split no further:
+// a chassis is one car, a drivetrain is one build. fe is split three ways
+// because it is the only group where a reader plausibly wants half of it —
+// springs, dampers and bars are the three things tuners trade separately, and
+// they are the three sections the sidebar already shows. The split also keeps
+// every sanitizeTune migration inside one part: settleMode/settleBias →
+// dampBalMode is entirely within `damp`, and arbBalMode:'man' → arbMode:'man'
+// is entirely within `arb`, so no partial apply can land half a migration.
+//   - gameMode/targetSpeed ride with `ride`: targetSpeed feeds nothing but the
+//     flat-ride rear-Hz solve, and gameMode picks the limits and units the
+//     frequency solve is expressed in.
+//   - springShare/springShareAuto ride with `arb`: the SHARE % slider splits
+//     roll stiffness between springs and bars, and lives in the ARB section.
+//   - meta.tier is a part with `applies:false` — it is listed so the reader
+//     sees what the code records, but it has no tickbox and mergeTune never
+//     writes it. Applying a sender's tier would rewrite the tune being loaded
+//     (the BEG/INT fallback effects) and can demand a tier the reader cannot
+//     reach; see docs/CODEC.md id 77. Every CODEC_FIELDS entry still belongs to
+//     exactly one part, which tests-share.js enforces.
+const codecFieldGroup=f=>f.tyre?'ch':f.group;
+const codecFieldKey=f=>f.tyre?(f.tyre==='F'?'tyreF':'tyreR'):f.key;
+const SHARE_PARTS=[
+  {id:'ch',group:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout',
+   keys:['weight','frontBias','wheelbase','cgHeight','trackF','trackR','layout','tyreF','tyreR',
+         'rideHeightF','rideHeightR','motionRatioF','motionRatioR','arbMotionRatioF','arbMotionRatioR',
+         'useMeasuredNatBal','measuredNatBal','measuredNatBalHz',
+         'useMeasuredArbClick','measuredArbClick','measuredArbNat','measuredArbNatHz']},
+  {id:'ride',group:'fe',label:'SPRINGS',sub:'Ride stiffness · rear Hz · game mode',
+   keys:['rideStiffness','rideStiffMode','rideBottomG','rideRef',
+         'rearHzMode','rearHzMan','rearHzMult','gameMode','targetSpeed']},
+  {id:'damp',group:'fe',label:'DAMPERS',sub:'Rebound · bump · damping balance',
+   keys:['dampingMode','dampCharMode','dampBalMode','dampingBias',
+         'reboundZeta','bumpRatio','bumpZeta','settleTarget','settleBias','settleMode']},
+  {id:'arb',group:'fe',label:'ARB',sub:'Bar stiffness · balance · spring/bar share',
+   keys:['arbBias','arbMode','arbTargetRollMan','arbShareMan','arbBasicMan',
+         'arbBalMode','arbBalTarget','arbBalTargetMode','arbBalDelta',
+         'arbManF','arbManR','arbSplitOpposite','arbNeutralEqual','springShare','springShareAuto']},
+  {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff',
+   keys:['buildType','diffType','diffManual','diffComplement','diffBiasEntry','diffBiasExit',
+         'diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel',
+         'diffRearAccel','diffRearDecel','diffCenter']},
+  {id:'tier',group:'meta',label:'TIER',sub:'Recorded, never applied',applies:false,keys:['tier']},
+];
+const SHARE_PART_IDS=SHARE_PARTS.filter(p=>p.applies!==false).map(p=>p.id);
+// The current tune with only the ticked parts taken from a decoded one. `parts` is a
+// {partId:bool} map; an empty or missing map changes nothing. Pure — `current` is never
+// mutated, and a key the incoming object does not carry is left alone (fields the codec
+// does not travel with, e.g. useRideHeightCG, stay as the reader set them).
+const mergeTune=(current,incoming,parts)=>{
+  const out={ch:{...current.ch},fe:{...current.fe},dr:{...current.dr}};
+  for(const p of SHARE_PARTS){
+    if(p.applies===false||!parts||!parts[p.id])continue;
+    const src=incoming?.[p.group];
+    if(!src)continue;
+    for(const k of p.keys)if(k in src)out[p.group][k]=src[k];
+  }
+  return out;
+};
+// True when a part of the incoming code carries anything different from the live tune, so
+// the picker can tag the parts that are already the same.
+const partDiffers=(current,incoming,partId)=>{
+  const p=SHARE_PARTS.find(x=>x.id===partId);
+  if(!p||p.applies===false)return false;
+  const a=current?.[p.group],b=incoming?.[p.group];
+  if(!a||!b)return false;
+  return p.keys.some(k=>k in b&&a[k]!==b[k]);
+};
+
 const sanitizeTune=({ch,fe,dr})=>{
   const n=(v,def)=>(typeof v==='number'&&isFinite(v))?v:def;
   const cl=(v,lo,hi,def)=>Math.max(lo,Math.min(hi,n(v,def)));
@@ -4103,7 +4178,7 @@ const TUTORIALS={
      body:'The results panel shows the values to enter in the tuning menu, as six cards: Alignment, Anti-Roll Bars, Springs, Dampers, Brakes, and Differential. Amber values mean you\'re near a game limit — soften your inputs slightly if that happens.'},
     {title:'Output Toolbar',
      focus:['toolbar'],
-     body:'The red ⟲ RESET clears the tune, the tutorials, or both; garage saves are never touched. DNA (PRO) builds a tune from handling targets. CHECK reads back the frequencies and damping behind an existing tune. SHARE moves tunes between devices with a code and backs up your garage.'},
+     body:'The red ⟲ RESET clears the tune, the tutorials, or both; garage saves are never touched. DNA (PRO) builds a tune from handling targets. CHECK reads back the frequencies and damping behind an existing tune. SHARE moves tunes between devices with a code or a link, and backs up your garage.'},
     {title:'Saving Your Own',
      focus:['garage'],sidebar:'close',
      body:'Happy with it? Name an entry in the row above the preset list. SAVE CHASSIS keeps the car (weight, bias, layout), SAVE BUILD keeps the tune, SAVE CAR keeps both. Saves appear under FACTORY; loading one is undoable with ↩. Reopen this guide any time with ?.'},
@@ -4176,7 +4251,7 @@ const TUTORIALS={
      body:'Entries carry notes and your own tags, plus automatic ones (drivetrain, weight balance, stiffness band, build type) that you can search on directly. Filter by kind, sort, and search from the row under the save buttons. ↺ rewrites an entry from your current setup — pick CHASSIS, BUILD, or BOTH, and BOTH is how you turn a chassis entry into a full car.'},
     {title:'Sharing & Backup',
      focus:['garage'],sidebar:'close',
-     body:'The SHARE button handles codes between devices (COPY CODE / LOAD CODE), a JSON backup of your garage (BACKUP), and restoring one (RESTORE) — including backups made before the garage was unified.'},
+     body:'The SHARE button handles codes and links between devices (COPY CODE / COPY LINK / LOAD CODE), a JSON backup of your garage (BACKUP), and restoring one (RESTORE) — including backups made before the garage was unified. A code you load is staged, not applied: tick the parts you want — chassis, springs, dampers, ARB, drivetrain — and APPLY SELECTED takes only those.'},
   ],
   pro:[
     {title:'Welcome — Pro Mode',
@@ -4217,7 +4292,7 @@ const TUTORIALS={
      body:'Scroll down in the expanded panel for LOAD TRANSFER — corner weights and lateral load transfer at 1g cornering. XFER F/R shows how much weight shifts to the outer tyre per axle per g of cornering. OUT/IN show outer and inner wheel loads at 1g. Wider track and lower CG both reduce transfer. These inform ARB aggressiveness and how much camber the outer tyre needs under load.'},
     {title:'Output Panel & Tune Check',
      focus:['toolbar'],
-     body:'The results panel is unchanged from the lower tiers — six cards of exact values, amber where you\'re close to a game limit — but PRO leans on the toolbar pinned above the sidebar more. CHECK opens Tune Check, a reverse calculator: enter existing in-game spring and damper values to read back their natural frequency and damping ratios, useful for analysing a shared tune or verifying a manual setup. Its MEASURE tab is also where MEASURE NAT BAL sends you, and where ARB SCALE SETUP calibrates your car\'s bars. SHARE moves tunes between devices as a code and backs up or restores your garage as JSON, and RESET returns the tune or the tutorials to defaults without touching your saves — a tune reset is one ↩ away from being undone.'},
+     body:'The results panel is unchanged from the lower tiers — six cards of exact values, amber where you\'re close to a game limit — but PRO leans on the toolbar pinned above the sidebar more. CHECK opens Tune Check, a reverse calculator: enter existing in-game spring and damper values to read back their natural frequency and damping ratios, useful for analysing a shared tune or verifying a manual setup. Its MEASURE tab is also where MEASURE NAT BAL sends you, and where ARB SCALE SETUP calibrates your car\'s bars. SHARE moves tunes between devices as a code or a link — and a loaded code is staged, so you tick which parts of it (chassis, springs, dampers, ARB, drivetrain) actually land — and backs up or restores your garage as JSON, and RESET returns the tune or the tutorials to defaults without touching your saves — a tune reset is one ↩ away from being undone.'},
   ],
   balance:[
     {title:'Handling Balance',
@@ -4884,14 +4959,47 @@ function App(){
   const[dataMode,setDataMode]=useState('share'); // 'share'|'load'|'backup'|'restore'
   const[exportSel,setExportSel]=useState({chassis:true,build:true,car:true,dna:true});
   const[importCode,setImportCode]=useState('');
-  const[importSel,setImportSel]=useState({ch:true,fe:true,dr:true});
+  // Which parts of a loaded code get applied. The ticks are ALWAYS on screen and a load never
+  // moves them: what the user set before pasting is what gets taken. See SHARE_PARTS.
+  const[importSel,setImportSel]=useState(()=>Object.fromEntries(SHARE_PART_IDS.map(id=>[id,true])));
+  // A pasted code or an opened link is STAGED, not applied: nothing on screen moves until
+  // APPLY SELECTED. {tune:{ch,fe,dr} (sanitized), tier, from:'paste'|'link'}
+  const[pending,setPending]=useState(null);
   const[importErr,setImportErr]=useState('');
-  const[shareCopied,setShareCopied]=useState(false);
+  const[shareCopied,setShareCopied]=useState(false); // false | 'code' | 'link'
   const[shareSel,setShareSel]=useState({ch:true,fe:true,dr:true});
   const[restoreData,setRestoreData]=useState(null);
   const[restoreErr,setRestoreErr]=useState('');
   const[restoreSel,setRestoreSel]=useState({chassis:true,build:true,car:true,dna:true});
   const[resetOpts,setResetOpts]=useState({tune:true,tutorials:false});
+  // Decode a code into `pending` without touching the live tune. Returns true on success;
+  // a bad code lands in importErr and clears whatever was staged.
+  const stageCode=(code,from)=>{
+    const clean=String(code??'').replace(/\s/g,'');
+    if(!clean)return false;
+    try{
+      const dec=decodeTune(clean);
+      setPending({tune:sanitizeTune(dec),tier:tierOf(dec.meta?.tier),from});
+      setImportErr('');
+      return true;
+    }catch(e){
+      setPending(null);
+      setImportErr(e.message&&/DNA code/.test(e.message)?e.message
+        :'Invalid code — make sure you pasted the full string.');
+      return false;
+    }
+  };
+  // A shared link (…#t=CODE) stages once on open, with the SHARE panel already on LOAD CODE,
+  // then the hash is cleared so a reload can't restage over edits made since. Staging, not
+  // applying: an opened link never moves the tune on its own. See docs/CODEC.md "Parts".
+  useEffect(()=>{
+    const m=location.hash.match(/^#t=(.+)$/);
+    if(!m)return;
+    setShowDataModal(true);setDataMode('load');
+    setImportCode(decodeURIComponent(m[1]));
+    stageCode(decodeURIComponent(m[1]),'link');
+    history.replaceState(null,'',location.pathname+location.search);
+  },[]); // eslint-disable-line
 
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[isMobile,setIsMobile]=useState(false);
@@ -5505,7 +5613,8 @@ function App(){
     setEntryName('');
   };
   // Imported straight into the garage as a new entry, leaving the live ch/fe/dr untouched —
-  // the counterpart to OVERWRITE in the LOAD CODE tab, which applies to the live tune instead.
+  // the counterpart to APPLY SELECTED in the LOAD CODE tab, which applies to the live tune
+  // instead. Both take the same merge, so the entry is exactly what APPLY would have given you.
   // tier is the SENDER's, taken from the decoded code — this entry is their tune, and
   // stamping the importer's own tier on it would erase the one fact the field records.
   // Codes with no id 77 pass null through and the card shows no tier chip.
@@ -6054,8 +6163,9 @@ function App(){
             <button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button>
             <button className="tbtn" style={{fontSize:11}} onClick={()=>{
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
-              setShareCopied(false);setImportCode('');setImportErr('');
-              setImportSel({ch:true,fe:true,dr:true});
+              setShareCopied(false);setImportCode('');setImportErr('');setPending(null);
+              // importSel is deliberately NOT reset: the part ticks are the user's standing
+              // choice about what a loaded code may touch, and they are always on screen.
               setExportSel({chassis:true,build:true,car:true,dna:true});setShowDataModal(true);
             }}>SHARE</button>
           </div>
@@ -8564,7 +8674,11 @@ function App(){
               shareSel.dr?dr:DEF_DR,
               uiMode
             );
-            const doCopy=()=>copyToClipboard(sharePayload,()=>setShareCopied(true));
+            const doCopy=()=>copyToClipboard(sharePayload,()=>setShareCopied('code'));
+            // A link is the same code, carried in the URL. Opening one STAGES it in LOAD CODE
+            // rather than applying it — see the #t= effect in App and docs/CODEC.md "Parts".
+            const shareLink=location.origin+location.pathname+'#t='+encodeURIComponent(sharePayload);
+            const doCopyLink=()=>copyToClipboard(shareLink,()=>setShareCopied('link'));
             const selectStyle={width:'100%',background:'#020617',border:'1px solid #1e293b',
               borderRadius:2,padding:'5px 8px',fontSize:11,color:'#e2e8f0',outline:'none',
               fontFamily:'var(--font-mono)',letterSpacing:1,marginBottom:14,cursor:'pointer',
@@ -8607,8 +8721,8 @@ function App(){
                 </div>
                 {(()=>{
                   const hints={
-                    share:'Generates a compact code for the current tune — chassis, springs, dampers, ARBs, and all feel settings. Share it with any SUSP.OS user. Does not include your garage entries.',
-                    load:'Paste a code from another device or user. OVERWRITE replaces your current setup — TO GARAGE saves it as a new garage entry instead, without touching your current tune.',
+                    share:'Generates a compact code for the current tune — chassis, springs, dampers, ARBs, and all feel settings. COPY LINK wraps the same code in a URL that opens SUSP.OS with it ready to load. Does not include your garage entries.',
+                    load:'Paste a code or link from another device or user, then READ CODE to stage it — nothing on your tune moves until you APPLY SELECTED. Only the parts you tick are taken; the rest keep your values. TO GARAGE saves the result as a new garage entry instead, without touching your current tune.',
                     backup:'Downloads a JSON file of your garage entries. Use this to move your collection to another device or keep a local copy. Does not include the current unsaved tune.',
                     restore:'Loads garage entries from a backup file — older backups from before the garage was unified are read too. Pick which kinds to restore; the kinds you leave unticked are kept as they are. Does not affect the current unsaved tune.',
                   };
@@ -8629,85 +8743,111 @@ function App(){
                             padding:'6px 8px',fontSize:10,color:'#e2e8f0',outline:'none',resize:'none',
                             fontFamily:'var(--font-mono)',letterSpacing:0.5,marginTop:10,marginBottom:6,cursor:'text'}}/>
                   <div style={{fontSize:9,color:'#475569',marginBottom:12,letterSpacing:0.5}}>
-                    Paste into LOAD CODE on any device running SUSP.OS
+                    Paste into LOAD CODE on any device running SUSP.OS — or send the link, which opens
+                    SUSP.OS with the code already staged for the reader to pick from.
                   </div>
                   <div style={{display:'flex',gap:6}}>
-                    <button className="tbtn" style={{flex:1,fontSize:11}} onClick={close}>CLOSE</button>
-                    <button className={`tbtn${shareCopied?' saved':' on'}`} style={{flex:1,fontSize:11}}
-                      onClick={doCopy}>{shareCopied?'COPIED':'COPY'}</button>
+                    <button className="tbtn" style={{flex:1,fontSize:10}} onClick={close}>CLOSE</button>
+                    <button className={`tbtn${shareCopied==='code'?' saved':' on'}`} style={{flex:1,fontSize:10}}
+                      onClick={doCopy}>{shareCopied==='code'?'COPIED':'COPY CODE'}</button>
+                    <button className={`tbtn${shareCopied==='link'?' saved':''}`} style={{flex:1,fontSize:10}}
+                      onClick={doCopyLink}>{shareCopied==='link'?'COPIED':'COPY LINK'}</button>
                   </div>
                 </>)}
 
                 {/* LOAD CODE */}
-                {dataMode==='load'&&(<>
+                {dataMode==='load'&&(()=>{
+                  // The picker is always on screen. With nothing staged it summarises the
+                  // user's OWN values, so the ticks read as "what a code may touch"; once a
+                  // code is staged it summarises the code's values and tags the parts that
+                  // already match. Staging never moves a tick — see importSel/pending in App.
+                  const cur={ch,fe,dr};
+                  const src=pending?pending.tune:cur;
+                  const r1=v=>Math.round(v*10)/10;
+                  const up=v=>String(v??'').toUpperCase();
+                  const summary={
+                    ch:  t=>`${Math.round(t.ch.weight)} lb · ${r1(t.ch.frontBias)}% front · ${t.ch.tyreF}`,
+                    ride:t=>`${r1(t.fe.rideStiffness)} Hz · rear ${up(t.fe.rearHzMode)}`,
+                    damp:t=>`${Math.round(t.fe.reboundZeta)}% ζ · bump ${Math.round(t.fe.bumpRatio)}% · ${up(t.fe.dampBalMode)}`,
+                    arb: t=>`${up(t.fe.arbMode)} · bias ${Math.round(t.fe.arbBias)} · spring ${Math.round(t.fe.springShare)}%`,
+                    dr:  t=>`${up(t.dr.buildType)} · ${up(t.dr.diffType)} diff`,
+                  };
+                  const none=!SHARE_PART_IDS.some(id=>importSel[id]);
+                  // Everything below works off one merge, so APPLY and TO GARAGE can never
+                  // disagree about what the ticks mean.
+                  const merged=pending?mergeTune(cur,pending.tune,importSel):null;
+                  const feTicked=!!(importSel.ride||importSel.damp||importSel.arb);
+                  const applyPending=()=>{
+                    if(!merged||none)return;
+                    commit('load share code',()=>{
+                      // merged.* is built from the LIVE tune, so fields the codec doesn't
+                      // carry (e.g. useRideHeightCG, local-only per docs/CODEC.md) survive.
+                      if(importSel.ch) setCh(prev=>({...DEF_CH,...prev,...merged.ch}));
+                      if(feTicked)     setFe(merged.fe);
+                      if(importSel.dr) setDr(merged.dr);
+                      if(feTicked||importSel.dr) dnaUnlink();
+                    });
+                    setPending(null);setImportCode('');
+                    close();
+                  };
+                  return(<>
                   <textarea value={importCode} onChange={e=>{setImportCode(e.target.value);setImportErr('');}}
-                    placeholder="Paste tune code here…" rows={3}
+                    placeholder="Paste a tune code or link here…" rows={3}
                     style={{width:'100%',background:'#020617',border:'1px solid #1e293b',borderRadius:2,
                             padding:'6px 8px',fontSize:10,color:'#e2e8f0',outline:'none',resize:'none',
-                            fontFamily:'var(--font-mono)',letterSpacing:0.5,marginBottom:10}}/>
+                            fontFamily:'var(--font-mono)',letterSpacing:0.5,marginBottom:8}}/>
+                  <div style={{display:'flex',gap:6,marginBottom:10}}>
+                    <button className="tbtn" style={{flex:1,fontSize:10}} disabled={!importCode.trim()}
+                      onClick={()=>{
+                        // A pasted LINK is accepted too: everything after #t= is the code.
+                        const raw=importCode.trim();
+                        const h=raw.indexOf('#t=');
+                        stageCode(h>=0?decodeURIComponent(raw.slice(h+3)):raw,'paste');
+                      }}>{pending?'RE-READ CODE':'READ CODE'}</button>
+                  </div>
                   {importErr&&<div style={{fontSize:9,color:'#f87171',marginBottom:8,letterSpacing:0.5}}>{importErr}</div>}
-                  {/* Tier read out of the pasted code BEFORE importing, so the choice below is
-                      made knowing how much of it was hand-set. Decoding a half-typed code throws
-                      constantly, so failures are swallowed here — importErr is the place a real
-                      bad code is reported, on the button press. Nothing is applied from this:
-                      the reader's own tier never changes. */}
-                  {(()=>{
-                    if(!importCode.trim())return null;
-                    let tier=null;
-                    try{tier=tierOf(decodeTune(importCode.replace(/\s/g,'')).meta?.tier);}catch(e){return null;}
-                    return<div style={{fontSize:9,color:'#64748b',marginBottom:8,letterSpacing:0.5}}>
-                      {tier
-                        ?<>Saved in <span style={{color:'#818cf8'}}>{TIER_LABEL[tier]}</span> tier. Your own tier is unchanged by loading it.</>
-                        :<>Tier not recorded — this code predates the field.</>}
-                    </div>;
-                  })()}
-                  <div style={{fontSize:9,letterSpacing:2,color:'#475569',marginBottom:6}}>APPLY TO</div>
-                  {[
-                    {key:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout'},
-                    {key:'fe',label:'FEEL',sub:'Ride · damping · ARB · balance'},
-                    {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff'},
-                  ].map(({key,label,sub})=>chkRow(key,label,sub,importSel[key],
-                    e=>setImportSel(s=>({...s,[key]:e.target.checked}))))}
+                  <div style={{fontSize:9,letterSpacing:2,color:'#475569',marginBottom:6}}>
+                    {pending?'THIS CODE CARRIES':'PARTS A CODE MAY LOAD'}</div>
+                  {SHARE_PARTS.filter(p=>p.applies!==false).map(p=>{
+                    const same=pending&&!partDiffers(cur,pending.tune,p.id);
+                    return chkRow(p.id,p.label,
+                      <>{summary[p.id](src)}
+                        <span style={{color:same?'#4ade80':'#334155',marginLeft:6}}>{'· '}
+                          {pending?(same?'same as yours':'from the code'):'yours now'}</span></>,
+                      !!importSel[p.id],e=>setImportSel(s=>({...s,[p.id]:e.target.checked})));
+                  })}
+                  {/* Tier is recorded by the code and shown, never applied — it has no tick.
+                      Applying a sender's tier would rewrite the tune being loaded (the BEG/INT
+                      fallback effects) and can demand a tier the reader can't reach. */}
+                  <div style={{fontSize:9,color:'#64748b',margin:'8px 0 2px',letterSpacing:0.5}}>
+                    {pending
+                      ?(pending.tier
+                        ?<>Written in <span style={{color:'#818cf8'}}>{TIER_LABEL[pending.tier]}</span> tier. Shown, never applied — your own tier is unchanged.</>
+                        :<>Tier not recorded — this code predates the field.</>)
+                      :<>Your tier is <span style={{color:'#818cf8'}}>{TIER_LABEL[uiMode]}</span>. A loaded code never changes it.</>}
+                  </div>
+                  {none&&<div style={{fontSize:9,color:'#f87171',margin:'6px 0',letterSpacing:0.5}}>
+                    Tick at least one part.</div>}
                   <div style={{display:'flex',gap:6,marginTop:14}}>
-                    <button className="tbtn" style={{flex:1,fontSize:10}} onClick={close}>CANCEL</button>
-                    <button className="tbtn on" style={{flex:1,fontSize:10}}
-                      disabled={!importCode.trim()||(!importSel.ch&&!importSel.fe&&!importSel.dr)}
-                      onClick={()=>{
-                        const code=importCode.replace(/\s/g,'');
-                        try{
-                          const{ch:ic,fe:ife,dr:idr}=sanitizeTune(decodeTune(code));
-                          // ic (sanitizeTune's ch) always has every codec-covered field filled in,
-                          // but fields the codec doesn't carry (e.g. useRideHeightCG, still
-                          // deliberately local-only per docs/CODEC.md) are absent from it — merge
-                          // over the CURRENT chassis, not DEF_CH, so those stay as the user set them.
-                          commit('load share code',()=>{
-                            if(importSel.ch) setCh(prev=>({...DEF_CH,...prev,...ic}));
-                            if(importSel.fe) setFe({...DEF_FE,...ife});
-                            if(importSel.dr) setDr({...DEF_DR,...idr});
-                            if(importSel.fe||importSel.dr) dnaUnlink();
-                          });
-                          close();
-                        }catch(e){
-                          console.error('Import failed:',e,code);
-                          setImportErr('Invalid code — make sure you pasted the full string.');
-                        }
-                      }}>OVERWRITE</button>
                     <button className="tbtn" style={{flex:1,fontSize:10}}
-                      disabled={!importCode.trim()||(!importSel.ch&&!importSel.fe&&!importSel.dr)}
+                      onClick={pending?()=>{setPending(null);setImportErr('');}:close}>
+                      {pending?'DISCARD':'CLOSE'}</button>
+                    <button className="tbtn on" style={{flex:1,fontSize:10}}
+                      disabled={!pending||none} onClick={applyPending}>APPLY SELECTED</button>
+                    <button className="tbtn" style={{flex:1,fontSize:10}}
+                      disabled={!pending||none}
                       onClick={()=>{
-                        const code=importCode.replace(/\s/g,'');
-                        try{
-                          const dec=decodeTune(code);
-                          const{ch:ic,fe:ife,dr:idr}=sanitizeTune(dec);
-                          garageImport(ic,ife,idr,importSel,dec.meta?.tier);
-                          close();
-                        }catch(e){
-                          console.error('Import failed:',e,code);
-                          setImportErr('Invalid code — make sure you pasted the full string.');
-                        }
+                        // The entry is exactly what APPLY would have given you: your tune with
+                        // the ticked parts taken from the code. Garage LOADS stay whole-tune.
+                        if(!merged)return;
+                        garageImport(merged.ch,merged.fe,merged.dr,
+                          {ch:!!importSel.ch,fe:feTicked,dr:!!importSel.dr},pending.tier);
+                        setPending(null);setImportCode('');
+                        close();
                       }}>TO GARAGE</button>
                   </div>
-                </>)}
+                  </>);
+                })()}
 
                 {/* BACKUP */}
                 {dataMode==='backup'&&(<>

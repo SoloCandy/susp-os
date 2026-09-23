@@ -166,6 +166,51 @@ check('CODEC.md id table matches CODEC_FIELDS exactly', () => {
   return problems.length === 0 || problems.join('; ');
 });
 
+// ── share parts ────────────────────────────────────────────────────────────
+// tests-share.js proves the parts cover CODEC_FIELDS; this proves the DOC says the same
+// thing, so a field quietly moved between parts can't leave the table behind.
+const sharePartsBlock = (() => {
+  const i = SRC.indexOf('const SHARE_PARTS=[');
+  return SRC.slice(i, SRC.indexOf('\n];', i));
+})();
+const sharePartRows = [...stripComments(sharePartsBlock)
+  .matchAll(/\{id:'(\w+)',group:'(\w+)',[^]*?keys:\[([^\]]*)\]/g)]
+  .map(m => ({ id: m[1], group: m[2], keys: [...m[3].matchAll(/'([^']+)'/g)].map(x => x[1]) }));
+
+check('SHARE_PARTS parsed', () =>
+  sharePartRows.length >= 5 || `only parsed ${sharePartRows.length} parts`);
+
+check('every codec field belongs to exactly one share part', () => {
+  const seen = new Map();
+  for (const p of sharePartRows) for (const k of p.keys) {
+    const sig = `${p.group}.${k}`;
+    if (seen.has(sig)) return `${sig} is in both '${seen.get(sig)}' and '${p.id}'`;
+    seen.set(sig, p.id);
+  }
+  const missing = codecRows
+    .map(r => r.tyre ? `ch.tyre${r.tyre}` : `${r.group}.${r.key}`)
+    .filter(sig => !seen.has(sig));
+  return missing.length === 0 || `no share part claims: ${[...new Set(missing)].join(', ')}`;
+});
+
+check('CODEC.md Parts table lists every part with its real fields', () => {
+  const sec = codecSection('Parts — how a decoded code is applied');
+  const problems = [];
+  for (const p of sharePartRows) {
+    const row = sec.split('\n').find(l => l.startsWith('|') && l.includes(`\`${p.id}\``));
+    if (!row) { problems.push(`part '${p.id}' has no row in the Parts table`); continue; }
+    for (const k of p.keys)
+      if (!new RegExp(String.raw`\b` + k + String.raw`\b`).test(row))
+        problems.push(`${p.id}: ${k} missing from its row`);
+  }
+  return problems.length === 0 || problems.join('; ');
+});
+
+check('CODEC.md Parts states the one-part rule', () => {
+  const sec = codecSection('Parts — how a decoded code is applied');
+  return /exactly one part/.test(sec) || 'the "every codec field belongs to exactly one part" rule is not stated';
+});
+
 check('CODEC.md documents the DNA codec ids as the code assigns them', () => {
   const block = /const DNA_CODEC_IDS=\{([^}]*)\}/.exec(SRC);
   if (!block) return 'cannot find DNA_CODEC_IDS in index.html';

@@ -171,7 +171,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `EntryCard` | one garage entry inside the GARAGE drawer |
 | `CheckerModal` | TUNE CHECK (DECODE / MEASURE). DECODE's two buttons share one `decodedFe` patch: IMPORT TUNE writes it to the tune, IMPORT AS DNA (PRO, `onImportDna`) reads it back into the DNA editor. `decodedFe` anchors ζ and bump on the **front** axle because it writes `rideRef:'front'` and STANDARD's exact-anchor axle follows Ride Reference — the two have to move together, and once didn't ([HISTORY.md](HISTORY.md)) |
 | `GlossaryModal` | glossary lookup |
-| the data modal | SHARE / LOAD CODE / BACKUP / RESTORE (inline in `App`, not a component) |
+| the data modal | SHARE (COPY CODE / COPY LINK) / LOAD CODE / BACKUP / RESTORE (inline in `App`, not a component). LOAD CODE stages into `pending` and applies through `mergeTune` — see the share-parts suite below |
 | `TutorialPanel` | the guided tours |
 | `OverwriteBtn` | *(no current call site — `useTwoTap`, the hook behind it, is what the garage reuses)* |
 | `ErrorBoundary` | wraps the app |
@@ -499,6 +499,12 @@ matching after a reorganisation, fix the markers; don't delete the suite.
 **`tests-history.js` reads `index.html` too** and tests the shipped `makeHistory`:
 commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap.
 
+**`tests-share.js` reads `index.html` the same way** and covers the share parts:
+`SHARE_PARTS` coverage and disjointness against `CODEC_FIELDS`, each part merging in
+isolation, an empty parts map changing nothing, no mutation of the current tune, and a
+decode/encode round trip merging identically. A codec field added without a part fails
+here — that is the check the split exists to keep honest.
+
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
 checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
@@ -513,7 +519,9 @@ non-trivial edit:
    code, and VISUALS, the expanded balance panel, and the modals are not
    reachable from a cold load.
 4. Round-trip a share code (SHARE → LOAD CODE) if anything near the codec,
-   defaults, or `sanitizeTune` moved.
+   defaults, or `sanitizeTune` moved. Read the code, tick one part, APPLY SELECTED,
+   and confirm the unticked parts did not move; then COPY LINK and open the `#t=`
+   URL, which must stage rather than apply.
 5. `node tests.js` if any mirrored physics function changed — and update the
    mirror by hand, since nothing will tell you it drifted.
 6. `node tests-beamng.js` if anything in `computeTune`, `GAME_LIMITS`, or the
@@ -525,7 +533,9 @@ non-trivial edit:
    `resolveFeEffective`, `sanitizeTune`, `DEF_FE`/`DEF_DR`, the Damping Bias / EXIT /
    ENTRY slider expressions, `settleZetas`/`dampRate` (which `dnaReadBack` inverts), or
    anything under the `── Vehicle DNA ──` banner. Reads `index.html` too.
-9. `node tests-history.js` after touching `makeHistory`. It covers the stacks only;
+9. `node tests-share.js` after touching `CODEC_FIELDS`, `SHARE_PARTS`, `mergeTune`,
+   or `sanitizeTune`. Reads `index.html`; the picker UI itself still needs the browser.
+10. `node tests-history.js` after touching `makeHistory`. It covers the stacks only;
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.

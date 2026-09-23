@@ -50,7 +50,7 @@ A **VISUALS** card is pinned to the bottom of the sidebar (collapsible, stays pu
 
 A **GARAGE** drawer slides out from the right (button at the top-right of the header, every tier) and holds everything you save. Each entry is a **chassis**, a **build** (feel + diff tune), or a **car** carrying both — a car gives you separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car's chassis with another's tune, and every load is undoable and redoable. Entries take notes and your own tags, and derive automatic ones (drivetrain, weight balance, stiffness band, build type) that you can search on directly, alongside filter-by-kind and sort. Every entry has a COPY CODE button to get a share code back out. The six factory presets are pinned read-only at the top. This replaces the old split between a chassis-only GARAGE drawer inside CHASSIS and a tune-only MY BUILDS drawer inside BUILD.
 
-Pasting a share code (SHARE → LOAD CODE) offers two ways in: **OVERWRITE** replaces your current tune, or **TO GARAGE** saves it as a new garage entry without touching what you're working on.
+SHARE gives you a **code** and a **link** (`…#t=CODE`) for the current tune; opening a link is the same as pasting the code. Either way the code is **staged, not applied** — READ CODE shows what it carries, part by part (CHASSIS · SPRINGS · DAMPERS · ARB · DRIVETRAIN), tagging the parts that already match yours, and nothing on your tune moves until **APPLY SELECTED** takes the parts you ticked. The ticks are always on screen — with nothing staged they summarise your own values — and reading a code never moves them. **DISCARD** throws a staged code away; **TO GARAGE** saves the same result as a new garage entry without touching what you're working on. Garage loads stay whole-tune. Every field a code carries belongs to exactly one part — see [docs/CODEC.md](docs/CODEC.md).
 
 INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
 
@@ -126,6 +126,7 @@ node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
 node tests-docs.js     # documentation drift checks (reads index.html and docs/)
 node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
 node tests-history.js  # undo / redo history core tests (reads index.html directly)
+node tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

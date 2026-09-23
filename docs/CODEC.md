@@ -165,6 +165,75 @@ click scale was measured against. `arbScaleStale` flags the scale (RE-MEASURE)
 when the chassis's current reading differs. Absent (older codes, scales applied
 before these ids) means unknown and is never flagged.
 
+## Parts — how a decoded code is applied
+
+A code is **staged, not applied**. Decoding produces a `pending` tune that nothing on
+screen reads; the SHARE panel's LOAD CODE tab shows a tickbox per part and only
+APPLY SELECTED (or DISCARD) resolves it. `SHARE_PARTS` / `mergeTune` / `partDiffers`
+in `index.html` are the whole mechanism, and they sit beside `encodeTune`/`decodeTune`
+as pure functions — no React, no DOM — so `tests-share.js` can reach them.
+
+**Parts are not part of the wire format.** A code still carries every field, at the
+same ids, under the same version. Which of them reach the live tune is the reader's
+choice, decided after the code is read.
+
+| Part | Group | Fields |
+|---|---|---|
+| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
+| `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
+| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
+| `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
+| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter |
+| `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
+
+> **Rule: every codec field belongs to exactly one part.** A field added to
+> `CODEC_FIELDS` without a part fails `tests-share.js` (coverage), and a field named in
+> two parts fails it too (disjointness). The tyre sub-fields (ids 34–39) count as their
+> container keys `ch.tyreF` / `ch.tyreR`.
+
+**Why this split.** `ch` and `dr` are the codec's own groups and split no further — a
+chassis is one car, a drivetrain is one build. `fe` is split three ways because it is
+the only group where a reader plausibly wants half of it: springs, dampers and bars are
+the three things tuners trade separately, and they are the three sections the sidebar
+already shows. The split also keeps every `sanitizeTune` migration inside a single
+part, so no partial apply can land half of one:
+
+- ids 48/49 (`settleBias`/`settleMode`) → `dampBalMode` + `dampingBias` is entirely
+  within `damp`. Those two ids are decode-only and have no `DEF_FE` entry; they are
+  still part members, and `tests-share.js` names them as the only keys allowed to lack
+  a default.
+- id 41's `arbBalMode:'man'` → `arbBalMode:'manual'` + `arbMode:'man'` is entirely
+  within `arb`.
+
+Two judgement calls inside `fe`:
+
+- **`gameMode` and `targetSpeed` ride with `ride`.** `targetSpeed` feeds nothing but the
+  flat-ride rear-Hz solve, and `gameMode` picks the limits and units the frequency solve
+  is expressed in. Neither is a damper or a bar setting.
+- **`springShare`/`springShareAuto` ride with `arb`.** The SHARE % slider splits roll
+  stiffness between springs and bars, lives in the ARB section, and is meaningless
+  without the `arbMode` it qualifies.
+
+**`meta.tier` rides with nothing.** It is a part so that coverage stays total, but it is
+marked `applies:false`: no tickbox, and `mergeTune` never writes it. Applying a sender's
+tier would rewrite the tune being loaded (switching tier runs the BEG/INT fallback
+effects) and could demand a tier the reader cannot reach — see id 77 above. It is shown
+in the picker as a line of text, which is the same "shown, never applied" contract the
+field has always had.
+
+## Links (`#t=`)
+
+COPY LINK is COPY CODE's output wrapped in `location.origin + location.pathname + '#t=' +
+encodeURIComponent(code)`. Opening such a link **stages** the code exactly as pasting it
+does — the SHARE panel opens on LOAD CODE with the parts picker showing the link's
+values, and nothing moves until APPLY SELECTED. The hash is cleared with
+`history.replaceState` immediately after it is read, so a reload cannot restage an old
+link over edits made since. Nothing about the link is persisted; see
+[PERSISTENCE.md](PERSISTENCE.md).
+
+Pasting a whole link into the LOAD CODE box works too: everything after `#t=` is read as
+the code.
+
 ## Retired — never reuse
 
 - **70/71** — `useMeasuredArbScale`/`measuredArbScale`. MEASURE ARB's click

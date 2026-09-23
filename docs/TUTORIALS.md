@@ -260,7 +260,7 @@ every step title of its guide, in order.
 | 16 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
 | 17 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
 | 18 | Organizing & Searching | `garage` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
-| 19 | Sharing & Backup | `garage` | close | COPY / LOAD CODE, BACKUP, RESTORE. |
+| 19 | Sharing & Backup | `garage` | close | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. |
 
 ### Pro <!--@tutorial pro-->
 
