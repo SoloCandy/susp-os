@@ -86,6 +86,43 @@ against them whatever modes it uses. The last three are **setting axes**: they o
 mean the same thing when the tune is in the modes the compiler sets (see
 [Measuring a tune against a DNA](#measuring-a-tune-against-a-dna)).
 
+### Slack: how much of a target the personality needs
+
+Every axis was a point target: the compiled tune had to land on it, within whatever quantisation
+`dnaTolerances` allows, or the axis missed and the resolver started spending other axes to reach
+it. That is stricter than a personality usually means. GT3 wants a small bar contribution; it does
+not want *exactly* 4.5%.
+
+`slack` is a per-axis half-width, stored on the DNA, added to the quantisation allowance when the
+resolver decides whether an axis hit. It is **optional, sparse and defaults to 0**, so a DNA that
+sets none behaves exactly as it did before.
+
+- **Outcome axes only** (`DNA_SLACK_AXES`). The setting axes are written verbatim and always land.
+- **Capped at half the axis range** (`dnaSlackMax`). Past that a "target" spans everything
+  reachable and stops meaning anything.
+- **`applyDNA` reports `accept`** — the quantisation allowance plus the slack — so a caller never
+  adds the two itself and then disagrees with the resolver about what counts as met.
+- **Drift is unaffected.** It is judged against `achieved`, not the target, so slack has no say in
+  it.
+
+What it buys is the resolver *not* spending a more protected axis on a target that was never that
+precise. GT3 asking for the 8.5% share its v1 roll seed produced, in Motorsport, where 40-click
+bars cannot sit on it, with share ranked first:
+
+| `slack.arbShare` | Result |
+|---|---|
+| 0 | platform moved 3.30 → 3.64 Hz to hit the share exactly |
+| 3 | share met at 9.1% where it lands; platform stays on 3.30 Hz |
+
+The editor shows it as an **ACCEPT ±** box under each outcome axis, and the match readout says
+`✓ 9.1% · within ±3.0% of 8.5%` — met, but not on the target, which is a different thing from a
+bare ✓.
+
+**The archetype seeds do not use it yet.** [Share seeds](#share-seeds-fit-motorsports-bars) records
+why each was moved to a value that lands in Motorsport; slack is the mechanism that would let them
+be seeded where they belong instead, with the reachable range expressed rather than implied. That
+is a tuning decision to make in-game, not a mechanical one, so the seeds are unchanged.
+
 ### Balance: an absolute offset from grip-neutral
 
 `balanceOffset` is how far the car's mech balance sits from grip-neutral, in
@@ -234,6 +271,8 @@ converts at the boundary:
     reboundZeta: 55,    bumpRatio: 38,      dampBias: 5,
     diffExit: -5,       diffEntry: 15,
   },
+  // Optional, sparse, outcome axes only: how far each may land from its target and still be met.
+  slack: { arbShare: 3 },
   // Most protected first. A permutation of the five axes that can give way;
   // the setting axes never conflict, so they are not ranked.
   keep: ['platformHz', 'balanceOffset', 'reboundZeta', 'pitchRatio', 'arbShare'],
@@ -243,6 +282,8 @@ converts at the boundary:
 - `v` exists so a future axis or a changed meaning can migrate rather than
   misread. Adding an axis with a sensible default does not need a bump — same rule
   as [PERSISTENCE.md](PERSISTENCE.md).
+- `slack` is optional and **sparse**: an axis with no slack is simply absent, and a DNA that
+  uses none stores `{}`. See [Slack](#slack-how-much-of-a-target-the-personality-needs).
 - `keep` is an order, not weights. An order is explainable in the UI ("share gave
   way to keep balance") and resolves every pairwise conflict consistently.
 - **`surface` is deliberately absent from v1.** It was proposed as the arbiter for
@@ -577,7 +618,8 @@ The link only drives read-outs. What happens to it:
     EDITOR DNA, delete, summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and
     does not apply. No filter, sort or search;
   - EDITING / EDITED FROM … with REVERT;
-  - one `FeelSlider` per axis over the full `DNA_AXES` range;
+  - one `FeelSlider` per axis over the full `DNA_AXES` range, with an **ACCEPT ±** box under each
+    outcome axis for its [slack](#slack-how-much-of-a-target-the-personality-needs);
   - **PRIORITY**, the draft's `keep` order: the five `DNA_YIELDABLE` axes, most protected
     first, each with ▲/▼ to swap with its neighbour. A row reads *gave way* or *missed*
     when the live preview says so, so the effect of a reorder is visible without applying.
@@ -603,9 +645,12 @@ The link only drives read-outs. What happens to it:
 - **Sidebar DNA line**, above CHASSIS: name, drift count, ✕ to remove the link. The name
   opens the editor. Not a `Sec`.
 - **Sidebar marks**: a dot on the label of each control an axis compiled onto — indigo
-  while it reads as applied, amber once drifted. `dnaDot` is the only call site pattern.
-  The ride stiffness and rear multiplier dots show only under a FRONT ride reference,
-  since under any other reference those sliders hold a different quantity.
+  while it reads as applied, amber once drifted, **slate when the control is not showing that
+  axis right now**. `dnaDot` is the only call site pattern. The third state is the ride stiffness
+  and rear multiplier sliders under a reference other than FRONT, where they hold the average or
+  the rear while the axis is the front: the dot used to be hidden there, which left no sign the
+  DNA had set the control at all, and its title now says what the number on screen is not. The
+  measurement is unaffected either way — `measureDNA` always reads `tune.fHz`.
 - **VISUALS card DNA MATCH** (`visDna`): target, now, and ✓/≠ per axis. Shown only while
   a link exists.
 - **Tier warning**: leaving PRO with a link asks first — the BEG/INT fallback effects
@@ -672,7 +717,9 @@ These moves change little about how much the car rolls. Total roll stiffness is 
 9.5% to 12.5% removes about 3%.
 
 **Before raising a seed, re-measure in Motorsport**: its bar ceiling is the tightest of
-the three games. Balance is a separate question: several of these combinations do not
+the three games — or give the axis
+[slack](#slack-how-much-of-a-target-the-personality-needs) and seed it where it belongs, which is
+what slack exists for. Either is a tuning decision; the seeds above are unchanged. Balance is a separate question: several of these combinations do not
 reach their balance offset on the rear-biased, front-heavy and tyre-stagger chassis in
 Forza at any share, and the resolver moves pitch or platform there.
 
@@ -740,13 +787,18 @@ does — a mirror could not catch a compiler that drifted from the solver it dri
    both ways round; an out-of-range balance target is never chased; the pair pass fires on
    the rear-biased GT3 case, both halves name each other, and the pair stays inside the
    more protected member's licence.
-7. **Read-back.** A compiled tune read back by `dnaReadBack` returns the DNA that
+7. **Slack.** It is sparse, clamped to `dnaSlackMax`, never negative, and never on a setting
+   axis; a slack-widened target is met where a point target would have pulled a more protected
+   axis off its own value; `accept` is the quantisation allowance plus the slack. Half the fuzz
+   DNAs in the invariants below carry slack, so a widened `hit` is checked against every
+   reporting invariant rather than only the happy path.
+8. **Read-back.** A compiled tune read back by `dnaReadBack` returns the DNA that
    produced it: outcome axes match `measureDNA` clamped to their ranges, diff axes
    exactly, and `dampBias` within the damper quantisation propagated through the log.
    The bias inverts the ζ split even when STANDARD wrote it and `measureDNA` reads
    `null`; an inexpressible axis keeps the value it was handed; the result is always a
    `sanitizeDNA` fixed point.
-8. **Invariants**, over every archetype and a seeded fuzz set on every fixture and game
+9. **Invariants**, over every archetype and a seeded fuzz set on every fixture and game
    mode: moves stay within the cap and the axis ranges; no axis moves to save a
    less-protected one; nothing ranked above every moved axis is broken; every axis off
    its target was moved or reported; every outcome miss has a cause; resolved tunes

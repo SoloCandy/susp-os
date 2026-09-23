@@ -42,7 +42,7 @@ const M = new Function(
   slice('const KG_TO_LB=', 'const arbCtx=') + '\n' +
   slice('const DNA_ARCHETYPES=', 'const Hint=') + '\n' +
   slice('const sanitizeTune=', '\nconst useTwoTap') +
-  '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
+  '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'resolveArbBalTarget,gripNeutralOf,naturalMechBalanceOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
@@ -86,9 +86,14 @@ let seed = 0x5eed;
 const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
 const rndIn = (lo, hi) => lo + (hi - lo) * rnd();
 const shuffled = a => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
-const randomDNA = () => ({
+// Half the fuzz DNAs carry slack, so the invariants below run against both a point target and a
+// tolerated one — a widened `hit` must not let the resolver stop reporting what it did.
+const randomDNA = (withSlack = false) => ({
   name: 'fuzz',
   axes: Object.fromEntries(Object.entries(M.DNA_AXES).map(([k, { min, max }]) => [k, rndIn(min, max)])),
+  slack: withSlack
+    ? Object.fromEntries(M.DNA_SLACK_AXES.map(k => [k, rndIn(0, (M.DNA_AXES[k].max - M.DNA_AXES[k].min) / 8)]))
+    : {},
   keep: shuffled(M.DNA_YIELDABLE),
 });
 
@@ -534,6 +539,34 @@ t('two axes move together when neither can clear a miss alone', () => {
     `${m.axis} moved for something ranked below the pair`);
 });
 
+t('slack is sparse, clamped to half the axis range, and never negative', () => {
+  const d = M.sanitizeDNA({ slack: { arbShare: 0, platformHz: -1, pitchRatio: 99, bumpRatio: 3, nope: 5 } });
+  assert(!('arbShare' in d.slack) && !('platformHz' in d.slack), 'zero and negative slack should be dropped');
+  assert(!('nope' in d.slack), 'an unknown axis should not survive');
+  assert(d.slack.pitchRatio === M.dnaSlackMax('pitchRatio'), `pitchRatio slack should clamp, got ${d.slack.pitchRatio}`);
+  assert(d.slack.bumpRatio === 3, 'a plain value should pass through');
+  for (const k of M.DNA_SLACK_AXES) assert(k in M.DNA_AXES, `${k} is not an axis`);
+  assert(M.DNA_SLACK_AXES.every(k => !['dampBias', 'diffExit', 'diffEntry'].includes(k)),
+    'setting axes are written verbatim and must not take slack');
+});
+
+t('slack lets an axis land off its target rather than spending a more protected one', () => {
+  // GT3 asking for the 8.5% share its v1 roll seed produced, in Motorsport, where 40-click bars
+  // cannot sit on it. With a point target the resolver drags platform 3.30 → 3.64 Hz to hit the
+  // share exactly; with ±3% of slack the share is met where it lands and platform stays home.
+  const gt3 = M.DNA_ARCHETYPES.find(a => a.name === 'GT3');
+  const keep = ['arbShare', 'balanceOffset', 'platformHz', 'pitchRatio', 'reboundZeta'];
+  const run = slack => M.applyDNA(chOf({}), feOf('motorsport'), M.DEF_DR,
+    M.sanitizeDNA({ ...gt3, axes: { ...gt3.axes, arbShare: 8.5 }, slack: { arbShare: slack }, keep }));
+  const tight = run(0), loose = run(3);
+  assert(moved(tight, 'platformHz'), 'a point target should have pulled platform off 3.30 Hz');
+  assert(!moved(loose, 'platformHz'), `platform moved anyway: ${loose.moves.map(m => m.axis)}`);
+  near(loose.measured.platformHz, gt3.axes.platformHz, loose.tol.platformHz, 'platform stays on target under slack');
+  assert(!missed(loose, 'arbShare'), 'share should count as met inside its slack');
+  assert(Math.abs(loose.measured.arbShare - 8.5) > loose.tol.arbShare, 'this case should need the slack, not just rounding');
+  assert(loose.accept.arbShare === loose.tol.arbShare + 3, 'accept should be the quantisation allowance plus the slack');
+});
+
 t('a balance target outside 0.20..0.90 is accepted, never chased', () => {
   const ch = chOf(FIXTURES.WideFront);                       // grip-neutral sits low here
   const off = 0.20 - M.gripNeutralOf(ch) - 0.05;             // below the 0.20 floor
@@ -548,7 +581,7 @@ section('resolver invariants — archetypes and fuzz across every fixture and ga
 const RUNS = [];
 for (const mode of MODES) for (const [fn, over] of Object.entries({ ...FIXTURES, Heavy: HEAVY, Light: LIGHT })) {
   for (const a of M.DNA_ARCHETYPES) RUNS.push({ label: `${mode}/${fn}/${a.name}`, ch: chOf(over), fe: feOf(mode), dna: a });
-  for (let i = 0; i < 6; i++) RUNS.push({ label: `${mode}/${fn}/fuzz${i}`, ch: chOf({ ...over, layout: LAYOUTS[i % 3] }), fe: feOf(mode), dna: randomDNA() });
+  for (let i = 0; i < 6; i++) RUNS.push({ label: `${mode}/${fn}/fuzz${i}`, ch: chOf({ ...over, layout: LAYOUTS[i % 3] }), fe: feOf(mode), dna: randomDNA(i % 2 === 1) });
 }
 const RESULTS = RUNS.map(r => ({ ...r, res: M.applyDNA(r.ch, r.fe, M.DEF_DR, r.dna) }));
 
@@ -577,7 +610,7 @@ t('never breaks an axis ranked above every axis it moved', () => {
     for (const k of OUTCOME) {
       const r = rankIn(res.dna, k);
       if (r < 0 || r >= top) continue;
-      const hitAtStart = Math.abs(start.measured[k] - res.dna.axes[k]) <= start.tol[k];
+      const hitAtStart = Math.abs(start.measured[k] - res.dna.axes[k]) <= start.tol[k] + (res.dna.slack[k] ?? 0);
       if (hitAtStart) assert(!missed(res, k), `${label}: ${k} (rank ${r}) hit at start but misses after moving rank ${top}`);
     }
   }
@@ -586,7 +619,7 @@ t('never breaks an axis ranked above every axis it moved', () => {
 t('honest reporting: every axis off its original target was moved or is listed as a miss', () => {
   for (const { label, res } of RESULTS) for (const k of [...OUTCOME, ...SETTING]) {
     if (res.measured[k] == null) { assert(res.inexpressible.includes(k), `${label}: ${k} null but not inexpressible`); continue; }
-    const off = Math.abs(res.measured[k] - res.dna.axes[k]) > res.tol[k];
+    const off = Math.abs(res.measured[k] - res.dna.axes[k]) > res.accept[k];
     if (off) assert(moved(res, k) || missed(res, k), `${label}: ${k} off target (${res.measured[k]} vs ${res.dna.axes[k]}) and unreported`);
   }
 });

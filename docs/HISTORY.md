@@ -11,6 +11,30 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — DNA axes can carry slack, and the ride dots no longer vanish
+
+Two limits of the axis model, both about a target being stated more precisely than it is meant.
+
+**Every axis was a point target.** The compiled tune had to land on it within `dnaTolerances`'
+quantisation allowance or the axis missed, and the resolver would start spending other axes to
+reach it. A personality rarely means that: GT3 wants a small bar contribution, not exactly 4.5%.
+Axes now carry an optional per-axis `slack`, a half-width added to the quantisation allowance when
+the resolver decides whether an axis hit. It is sparse and defaults to 0, so every existing DNA
+behaves as it did. With GT3 asking for 8.5% share in Motorsport with share ranked first, a point
+target drags platform 3.30 → 3.64 Hz to hit the share exactly; ±3% of slack meets the share where
+it lands and leaves platform on its own target.
+
+This is also the mechanism the archetype share seeds needed. They were each moved to a value that
+lands on Motorsport's 40-click bars rather than where the roll seed put them; slack would let them
+be seeded where they belong with the reachable range expressed. The seeds are deliberately left
+alone — that is an in-game tuning decision.
+
+**The ride stiffness and rear multiplier dots were hidden under a non-FRONT reference.** The
+reasoning was sound — those sliders hold the average or the rear, while the axis is the front —
+but hiding the dot left no sign the DNA had set the control at all. They now show in slate, with a
+title saying the slider is not showing that axis. Nothing about the measurement changed;
+`measureDNA` always read `tune.fHz` regardless of reference.
+
 ## Changed — the DNA resolver can move two axes together
 
 `applyDNA` tried one candidate at a time, and rejected any move that broke an axis ranked above

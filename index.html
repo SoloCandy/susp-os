@@ -1601,6 +1601,17 @@ const DNA_AXES={
 // Bump ratio and the setting axes never trade against another axis. This order is also the
 // fallback `keep` for a DNA that doesn't supply a complete one.
 const DNA_YIELDABLE=['platformHz','balanceOffset','arbShare','pitchRatio','reboundZeta'];
+// SLACK — how far an outcome axis may land from its target and still count as met, on top of the
+// quantisation allowance dnaTolerances computes. A target says what the car should do; slack says
+// how much of it the personality actually needs. Without it every axis is a point target, and a
+// value that cannot be reached everywhere has to be seeded at the tightest game's limit rather
+// than where it belongs — which is why the archetype shares were fitted to Motorsport's 40-click
+// bars. Default 0, so a DNA that sets none behaves exactly as before.
+// Only outcome axes take it: the setting axes are written verbatim and always land.
+const DNA_SLACK_AXES=['platformHz','pitchRatio','arbShare','balanceOffset','reboundZeta','bumpRatio'];
+// Half the axis range is the ceiling: past that a "target" spans everything reachable and stops
+// meaning anything.
+const dnaSlackMax=k=>(DNA_AXES[k].max-DNA_AXES[k].min)/2;
 const DNA_MAX_MOVES=4;
 // Stored fields that are the negation of their slider. Avoids writing -0, which survives JSON as 0
 // but fails Object.is against it.
@@ -1619,10 +1630,16 @@ const sanitizeDNA=raw=>{
     const v=ax[k];
     return[k,(typeof v==='number'&&isFinite(v))?Math.max(min,Math.min(max,v)):def];
   }));
+  // Sparse: an axis with no slack is simply absent, so a DNA that uses none stores `slack:{}`
+  // and the archetype literals stay a sanitizeDNA fixed point without six zeroes each.
+  const slack=Object.fromEntries(DNA_SLACK_AXES
+    .map(k=>[k,raw?.slack?.[k]])
+    .filter(([,v])=>typeof v==='number'&&isFinite(v)&&v>0)
+    .map(([k,v])=>[k,Math.min(v,dnaSlackMax(k))]));
   const seen=new Set();
   const keep=[...keepIn,...DNA_YIELDABLE]
     .filter(k=>DNA_YIELDABLE.includes(k)&&!seen.has(k)&&seen.add(k));
-  return{v:2,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,keep};
+  return{v:2,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,slack,keep};
 };
 
 // Axes → a patch spread over the current fe/dr, so everything not named here (gameMode,
@@ -1733,7 +1750,10 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
   const dna=sanitizeDNA(dnaRaw);
   const rank=k=>dna.keep.indexOf(k);                       // lower = more protected
   const work={...dna.axes};
-  const hit=(e,w,k)=>e.measured[k]==null||Math.abs(e.measured[k]-w[k])<=e.tol[k];
+  // Quantisation allowance plus the DNA's own slack. `accept` below reports the sum, so a caller
+  // never has to add the two itself and then disagree with the resolver about what counts as met.
+  const accept=(e,k)=>e.tol[k]+(dna.slack[k]??0);
+  const hit=(e,w,k)=>e.measured[k]==null||Math.abs(e.measured[k]-w[k])<=accept(e,k);
   const ROWS=[
     {id:'pitch',axes:['pitchRatio'],cands:['pitchRatio','platformHz'],
      // Detected from the band itself rather than physics.rearHzClamped: the raw rear this DNA asks
@@ -1862,6 +1882,7 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
   const rowOf=k=>ROWS.find(r=>r.axes.includes(k));
   return{
     dna,fe:ev.fe,dr:ev.dr,tune:ev.tune,measured:ev.measured,tol:ev.tol,work,moves,
+    accept:Object.fromEntries(Object.keys(DNA_AXES).map(k=>[k,accept(ev,k)])),
     misses:Object.keys(DNA_AXES).filter(k=>!hit(ev,work,k))
       .map(k=>({axis:k,target:work[k],achieved:ev.measured[k],cause:rowOf(k)?.cause(ev)??null})),
     inexpressible:Object.keys(DNA_AXES).filter(k=>ev.measured[k]==null),
@@ -2326,19 +2347,19 @@ const DNA_ARCHETYPES=[
   {v:2,name:'MOMENTUM',
    axes:{platformHz:2.80,pitchRatio:1.125,arbShare:7.5,balanceOffset:-0.0075,
          reboundZeta:39,bumpRatio:55,dampBias:5,diffExit:10,diffEntry:0},
-   keep:['platformHz','balanceOffset','pitchRatio','arbShare','reboundZeta']},
+   slack:{},keep:['platformHz','balanceOffset','pitchRatio','arbShare','reboundZeta']},
   {v:2,name:'RALLY / B-ROAD',
    axes:{platformHz:1.60,pitchRatio:1.025,arbShare:12.5,balanceOffset:-0.035,
          reboundZeta:57.5,bumpRatio:39,dampBias:5,diffExit:-5,diffEntry:15},
-   keep:['platformHz','balanceOffset','reboundZeta','pitchRatio','arbShare']},
+   slack:{},keep:['platformHz','balanceOffset','reboundZeta','pitchRatio','arbShare']},
   {v:2,name:'GT3',
    axes:{platformHz:3.30,pitchRatio:0.96,arbShare:4.5,balanceOffset:-0.025,
          reboundZeta:45.5,bumpRatio:63,dampBias:-10,diffExit:5,diffEntry:-5},
-   keep:['platformHz','arbShare','pitchRatio','balanceOffset','reboundZeta']},
+   slack:{},keep:['platformHz','arbShare','pitchRatio','balanceOffset','reboundZeta']},
   {v:2,name:'TAIL-HAPPY RWD',
    axes:{platformHz:2.20,pitchRatio:1.225,arbShare:7.0,balanceOffset:0.010,
          reboundZeta:41,bumpRatio:47,dampBias:10,diffExit:20,diffEntry:10},
-   keep:['balanceOffset','arbShare','reboundZeta','platformHz','pitchRatio']},
+   slack:{},keep:['balanceOffset','arbShare','reboundZeta','platformHz','pitchRatio']},
 ];
 
 // Presentation for the DNA modal, the sidebar marks and the VISUALS match card, in the
@@ -2358,6 +2379,12 @@ const dnaFmt=(k,v)=>{
   if(v==null||!isFinite(v))return'—';
   const u=DNA_AXIS_UI.find(a=>a.k===k);
   return(u.signed&&v>0?'+':'')+v.toFixed(u.dp)+u.unit;
+};
+// A width, not a position: never takes the +/- a signed axis puts on a value, because it already
+// follows a "±".
+const dnaFmtWidth=(k,v)=>{
+  const u=DNA_AXIS_UI.find(a=>a.k===k);
+  return Math.abs(v).toFixed(u.dp)+u.unit;
 };
 // The modes compileDNA forces. The editor lists the ones that differ before APPLY, because the
 // user may have chosen the current ones on purpose.
@@ -5020,17 +5047,20 @@ function App(){
     if(r?.id!=null){
       const e=entries.find(x=>x.id===r.id&&kindOf(x)==='dna');
       const d=e?sanitizeDNA(e.dna):null;
-      return e?{id:e.id,name:e.name,axes:d.axes,keep:d.keep}:(r.axes?{name:r.name,axes:r.axes,keep:r.keep}:null);
+      return e?{id:e.id,name:e.name,axes:d.axes,slack:d.slack,keep:d.keep}
+              :(r.axes?{name:r.name,axes:r.axes,slack:r.slack,keep:r.keep}:null);
     }
     const a=DNA_ARCHETYPES.find(x=>x.name===(r?.name??dnaStore.draft?.base??dnaStore.draft?.name));
-    return a?{name:a.name,axes:a.axes,keep:a.keep}:null;
+    return a?{name:a.name,axes:a.axes,slack:a.slack,keep:a.keep}:null;
   })();
   // The priority order is part of the personality, not a view setting: two DNAs with the same
   // axes and different `keep` resolve differently on any chassis where a target can't be met.
   // So reordering it counts as an edit, the same as moving a slider, and REVERT puts it back.
   const dnaKeepRef=sanitizeDNA({keep:dnaRef?.keep}).keep;
+  const dnaSlackRef=sanitizeDNA({slack:dnaRef?.slack}).slack;
   const dnaEdited=!!dnaRef&&(DNA_AXIS_UI.some(({k})=>Math.abs((dnaRef.axes[k]??NaN)-dnaDraft.axes[k])>1e-9||!isFinite(dnaRef.axes[k]))
-    ||dnaDraft.keep.some((k,i)=>k!==dnaKeepRef[i]));
+    ||dnaDraft.keep.some((k,i)=>k!==dnaKeepRef[i])
+    ||DNA_SLACK_AXES.some(k=>(dnaDraft.slack[k]??0)!==(dnaSlackRef[k]??0)));
   const dnaName=dnaRef?(dnaEdited?dnaRef.name+' (edited)':dnaRef.name):dnaDraft.name;
   // Only solved while the editor is on screen — the resolver runs many forward solves.
   const dnaPreview=useMemo(()=>uiMode==='pro'&&showDnaModal?applyDNA(ch,fe,dr,dnaDraft):null,
@@ -5049,12 +5079,12 @@ function App(){
   const dnaSave=()=>{
     const now=Date.now(),name=dnaEntryName.trim()||dnaName;
     setEntries(list=>[normalizeEntry({id:now,name,dna:{...dnaDraft,name},createdAt:now,updatedAt:now}),...list]);
-    setDnaStore({...dnaStore,draft:{...dnaDraft,name,ref:{id:now,name,axes:dnaDraft.axes}}});
+    setDnaStore({...dnaStore,draft:{...dnaDraft,name,ref:{id:now,name,axes:dnaDraft.axes,slack:dnaDraft.slack}}});
     setDnaEntryName('');
   };
   const dnaLoadSaved=e=>{
     const d=sanitizeDNA(e.dna);
-    setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes}}});
+    setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes,slack:d.slack}}});
   };
   const dnaUnlink=()=>{if(dnaStore.applied)setDnaStore({...dnaStore,applied:null});};
   const dnaApply=()=>{
@@ -5083,10 +5113,17 @@ function App(){
   };
   // A mark on a sidebar control a DNA set: indigo while it still reads as applied, amber once it
   // has drifted (edited, or the chassis changed under it).
-  const dnaDot=k=>{
+  // `aside` marks a control that the axis compiled onto but that is not showing that axis right
+  // now — the ride sliders under a reference other than FRONT, where the slider holds the average
+  // or the rear while the axis is the front. Hiding the dot there left no sign the DNA had set
+  // this control at all; a slate dot says the link exists and the title says what the number on
+  // screen is not. The measurement itself is unaffected: measureDNA always reads tune.fHz.
+  const dnaDot=(k,aside)=>{
     const r=dnaLink?.by[k];if(!r)return null;
-    return <span title={'DNA '+dnaLink.name+': target '+dnaFmt(k,r.target)+(r.drift?', drifted':'')}
-      style={{color:r.drift?'#f59e0b':'#818cf8',marginRight:4,fontSize:9}}>●</span>;
+    return <span title={'DNA '+dnaLink.name+': target '+dnaFmt(k,r.target)
+        +(aside?' — this slider is not showing that axis under the current ride reference':'')
+        +(r.drift&&!aside?', drifted':'')}
+      style={{color:aside?'#475569':r.drift?'#f59e0b':'#818cf8',marginRight:4,fontSize:9}}>●</span>;
   };
   // BOTTOM G's stiffness mode: fe.rideBottomG is a stored TARGET load factor (not a Hz), so it
   // must keep resolving to a fresh Hz whenever the chassis it applies to changes — ride height
@@ -5536,6 +5573,9 @@ function App(){
                 {dnaPreview&&(()=>{
                   const r=dnaPreview;
                   const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaDraft.axes,[k]:v}}});
+                  // sanitizeDNA keeps `slack` sparse, so a 0 is written and then dropped on the
+                  // way back in rather than stored as a zero entry.
+                  const setSlack=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,slack:{...dnaDraft.slack,[k]:v}}});
                   const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
                   // Swap with the neighbour. Writing the whole array keeps it a permutation, so
                   // sanitizeDNA never has to repair what the editor produced.
@@ -5551,7 +5591,7 @@ function App(){
                       {DNA_ARCHETYPES.map(a=>{
                         const on=dnaRef?.id==null&&dnaRef?.name===a.name;
                         return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:9,padding:'4px 2px'}}
-                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes}}})}>{a.name}</button>;
+                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes,slack:a.slack}}})}>{a.name}</button>;
                       })}
                     </div>
                     {/* MY DNA — saved DNAs as garage entries of kind 'dna', laid out like the saved
@@ -5588,12 +5628,27 @@ function App(){
                     </div>
                     <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
                       {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
-                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes},keep:[...dnaKeepRef]}})}>REVERT</span></>
+                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes},
+                          slack:{...dnaSlackRef},keep:[...dnaKeepRef]}})}>REVERT</span></>
                         :<>EDITING {dnaName}</>}</div>
-                    {DNA_AXIS_UI.map(({k,label,step})=>(
-                      <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
-                        onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
-                        box={{unit:(DNA_AXIS_UI.find(a=>a.k===k).unit||'').trim()||undefined,dp:DNA_AXIS_UI.find(a=>a.k===k).dp}}/>
+                    {DNA_AXIS_UI.map(({k,label,step,unit,dp})=>(
+                      <div key={k}>
+                        <FeelSlider label={label} value={dnaDraft.axes[k]}
+                          onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
+                          box={{unit:(unit||'').trim()||undefined,dp}}/>
+                        {/* Slack: how far this axis may land from the target and still count as
+                            met. 0 is a point target, which is how every DNA behaved before it
+                            existed. Only outcome axes have one — the setting axes always land. */}
+                        {DNA_SLACK_AXES.includes(k)&&(
+                          <div style={{display:'flex',alignItems:'center',gap:5,margin:'-2px 0 6px',fontSize:9}}>
+                            <span style={{color:'#475569',letterSpacing:1}}>ACCEPT ±</span>
+                            <NumBox value={dnaDraft.slack[k]??0} min={0} max={dnaSlackMax(k)} dp={dp}
+                              label={`${label} slack`} placeholder="0"
+                              onCommit={v=>setSlack(k,v)}/>
+                            <span style={{color:'#334155'}}>{(unit||'').trim()}</span>
+                          </div>
+                        )}
+                      </div>
                     ))}
                     {/* PRIORITY — the draft's `keep` order, most protected first. The resolver
                         only ever spends an axis ranked BELOW the one it is trying to reach, so
@@ -5625,9 +5680,15 @@ function App(){
                       <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:3}}>ON THIS CHASSIS</div>
                       {DNA_AXIS_UI.map(({k,label})=>{
                         const mv=r.moves.find(m=>m.axis===k),ms=r.misses.find(m=>m.axis===k);
+                        // An axis inside its slack but outside the quantisation allowance is met,
+                        // not missed — but it is not sitting on the target either, so it reads
+                        // "within ±" rather than a bare ✓.
+                        const slackUsed=r.measured[k]!=null&&(r.dna.slack[k]??0)>0
+                          &&Math.abs(r.measured[k]-r.work[k])>r.tol[k];
                         const[txt,col]=r.inexpressible.includes(k)?['— not expressible with this diff','#475569']
                           :ms?[`${dnaFmt(k,ms.achieved)} · ${ms.cause??'missed'}`,'#f59e0b']
                           :mv?[`${dnaFmt(k,mv.to)} · moved${mv.with?' with '+labelOf(mv.with):''} to keep ${labelOf(mv.protects)}`,'#f59e0b']
+                          :slackUsed?[`✓ ${dnaFmt(k,r.measured[k])} · within ±${dnaFmtWidth(k,r.dna.slack[k])} of ${dnaFmt(k,r.work[k])}`,'#22c55e']
                           :[`✓ ${dnaFmt(k,r.measured[k])}`,'#22c55e'];
                         return(
                           <div key={k} style={{display:'flex',gap:6,fontSize:9,lineHeight:1.6}}>
@@ -7007,7 +7068,7 @@ function App(){
                   hint={`Vertical-g load factor at which the ${rRef==='rear'?'rear':rRef==='shared'?'average':'front'} axle bottoms out, from static ride height and 1g sag — same model as the SAG vs LOAD chart. This target is saved with the build/share code and re-solves Hz on whatever chassis it's applied to.`}/>
                 :
                 <FeelSlider
-                  label={<>{rRef==='front'&&dnaDot('platformHz')}{rRef==='rear'?'Rear Stiffness':rRef==='shared'?'Avg Stiffness':'Ride Stiffness'}</>}
+                  label={<>{dnaDot('platformHz',rRef!=='front')}{rRef==='rear'?'Rear Stiffness':rRef==='shared'?'Avg Stiffness':'Ride Stiffness'}</>}
                   value={primaryHz}
                   onChange={v=>pFe('rideStiffness')(hzToRs(v))}
                   min={HZ_MIN} max={HZ_MAX} step={0.01} leftLabel={HZ_MIN.toFixed(2)} rightLabel={HZ_MAX.toFixed(2)}
@@ -7089,7 +7150,7 @@ function App(){
                 </>
             : rearHzMode==='multiplier'
               ? <FeelSlider
-                  label={<>{rRef==='front'&&dnaDot('pitchRatio')}{isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}</>}
+                  label={<>{dnaDot('pitchRatio',rRef!=='front')}{isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}</>}
                   value={fe.rearHzMult??1.20}
                   onChange={pFe('rearHzMult')} min={0.50} max={3.00} step={0.01}
                   leftLabel="×0.50" rightLabel="×3.00"
