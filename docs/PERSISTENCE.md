@@ -51,8 +51,18 @@ Don't bump for:
 One list holds every saved thing. An entry carries any combination of payloads:
 
 ```js
-{ id, name, ch?, fe?, dr?, dna?, tags:[], notes:'', createdAt, updatedAt }
+{ id, name, ch?, fe?, dr?, dna?, tier?, tags:[], notes:'', createdAt, updatedAt }
 ```
+
+`tier` is the complexity tier (`beginner`/`intermediate`/`pro`) the entry was saved
+in, shown as a `… TIER` chip on the card. It is stamped on save and re-stamped on
+rewrite (the payload is being replaced, so the old tier would describe contents that
+are gone). An entry imported from a share code carries the *sender's* tier, not the
+importer's. It is omitted, not defaulted, when unknown — entries saved before the
+field existed show no chip rather than claiming a tier nobody chose. Unlike `notes`
+and `tags` it **is** a codec field (id 77), since it describes the tune's authoring
+rather than this device's filing of it. Nothing ever applies it; see
+[CODEC.md](CODEC.md).
 
 Absent payloads are **omitted**, not stored as `null`. The entry's *kind* is
 **derived** from which payloads are present (`kindOf`), never stored — a stored

@@ -11,6 +11,35 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — garage entries and share codes record the tier they were saved in
+
+`uiMode` lives in its own localStorage key, not in `ch`/`fe`/`dr`, so nothing about
+a saved tune said whether it was authored in BEG, INT or PRO — which is most of what
+tells you how much of it was hand-set versus left to the lower tiers' automatic
+modes. Garage entries now carry `tier`, shown as a `… TIER` chip beside the existing
+auto-tags, and share codes carry it as codec id 77 in a new `meta` group, surfaced in
+LOAD CODE before you import.
+
+**Shown, never applied.** Loading a PRO tune while in BEG does not switch tier. Two
+reasons, either sufficient: switching tier runs the BEG/INT fallback effects, which
+rewrite `arbBalMode` and `rearHzMode` — so applying a sender's tier could silently
+rewrite the very tune it just loaded — and `canAccessMode` can lock a tier outright,
+so the demand may be unmeetable.
+
+Provenance rules, each chosen so the field records one fact and not a later one:
+
+- Saving stamps the current tier; rewriting re-stamps it, since the payload is being
+  replaced and the old tier would describe contents that are gone.
+- An entry's COPY CODE carries *that entry's* tier, not the current session's.
+- A code imported TO GARAGE keeps the *sender's* tier.
+- Unknown is omitted, never defaulted: entries and codes predating the field show no
+  chip and read "Tier not recorded" rather than asserting BEG.
+
+That last rule is why `DEF_META.tier` is `null`, a value `TIER_ENC` cannot encode:
+the encoder's "skip anything still at its default" test can then never fire for a
+real tier, so every new code carries id 77 — including `beginner`, which encodes to
+`0` and would otherwise be indistinguishable from an absent field.
+
 ## Changed — mode toggles now translate the current value instead of snapping
 
 Three toggles describe the same underlying quantity two different ways, but each

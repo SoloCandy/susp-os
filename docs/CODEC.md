@@ -93,8 +93,29 @@ future version might not carry.
 | 74 | ch | measuredArbClick | raw number |
 | 75 | ch | measuredArbNat | raw number |
 | 76 | ch | measuredArbNatHz | raw number |
+| 77 | meta | tier | enum (`TIER_ENC/DEC`) |
 
-**Next available id: 77.**
+**Next available id: 78.**
+
+Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
+only field in the `meta` group, and the only field that is not an input to any solve
+— nothing reads it back into the tune. It records how much of the tune was hand-set
+versus left to the lower tiers' automatic modes, and it is **shown, never applied**:
+switching tier runs the BEG/INT fallback effects, which rewrite `arbBalMode` and
+`rearHzMode`, and `canAccessMode` can lock a tier outright, so applying a sender's
+tier could both rewrite the tune being loaded and demand a tier the reader cannot
+reach.
+
+`DEF_META.tier` is `null`, which `TIER_ENC` cannot encode. That is deliberate: the
+encoder's "skip anything still at its default" test can therefore never fire for a
+real tier, so every new code carries id 77 — including `beginner`, which encodes to
+`0` and would otherwise be indistinguishable from an omitted field. Codes written
+before id 77 existed simply lack it and decode to `null`, which the UI reads as
+"not recorded" rather than guessing a tier.
+
+`decodeTune` returns `meta` as a fourth key beside `ch`/`fe`/`dr`. `sanitizeTune`
+takes only the three tune groups, so the extra key is inert for callers that do not
+ask for it.
 
 Ids 63/64 are the Ride Stiffness slider's BOTTOM G's mode (a target
 vertical-g bottom-out load factor, alternative to entering Hz directly — see
@@ -193,6 +214,7 @@ undocumented.
 | `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` · 3 `hybrid` (UI: SYNC → TIME SYNC (`sync`) / EQUAL FORCE (`neutral`) / HYBRID) |
 | `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
 | `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
+| `TIER_DEC` | 0 `beginner` · 1 `intermediate` · 2 `pro` (UI labels: BEG / INT / PRO) |
 
 `ARB_MODE_DEC` carries `auto` twice on purpose — index 3 is a retired `balance`
 value decoding to `auto` rather than throwing. `ALIGN_MODE_DEC` has no encoder

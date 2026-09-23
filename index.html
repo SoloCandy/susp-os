@@ -2011,6 +2011,10 @@ const normalizeEntry=raw=>{
     // Beside fe/dr: which DNA a build was stamped from. Alone: a saved DNA (kind 'dna').
     ...(raw?.dna&&typeof raw.dna==='object'
       &&((raw.fe||raw.dr)||(!raw.ch&&raw.dna.axes&&typeof raw.dna.axes==='object'))?{dna:raw.dna}:{}),
+    // Absent on every entry saved before tiers were recorded, and on anything restored
+    // from an older backup — omitted rather than defaulted, so the card can stay silent
+    // instead of asserting a tier nobody chose.
+    ...(tierOf(raw?.tier)?{tier:raw.tier}:{}),
     tags:      Array.isArray(raw?.tags)?raw.tags.filter(x=>typeof x==='string'):[],
     notes:     typeof raw?.notes==='string'?raw.notes:'',
     createdAt: Number.isFinite(raw?.createdAt)?raw.createdAt:t,
@@ -2076,6 +2080,9 @@ const autoTagsOf=e=>{
     out.push({label:lbl,color:col});   // reuses the HZ_BANDS single source of truth
   }
   if(e?.dr)out.push({label:(e.dr.buildType??'track').toUpperCase(),color:'#94a3b8'});
+  // Last so it reads as a provenance note after the tune's own descriptors, and absent
+  // entirely on pre-tier entries rather than guessed.
+  if(tierOf(e?.tier))out.push({label:TIER_LABEL[e.tier]+' TIER',color:'#818cf8'});
   return out;
 };
 
@@ -3457,7 +3464,25 @@ const BUILD_DEC=['street','track','drift','rally','offroad','drag'];
 // requires a length guard — codes are sparse "id:value" pairs, defaults
 // are omitted, and unknown ids are ignored on decode (forward-compatible).
 const CODEC_VERSION=1;
-const DEF_GROUPS={ch:DEF_CH,fe:DEF_FE,dr:DEF_DR};
+// ── complexity tier, as saved metadata ──
+// uiMode lives in its own localStorage key, not in ch/fe/dr — it's a property of the
+// SESSION, not the tune. But which tier a tune was authored in tells you how much of it
+// was hand-set versus left to the simpler tiers' automatic modes, so garage entries and
+// share codes record it. It is shown and never applied: switching tier runs the BEG/INT
+// fallback effects, which rewrite arbBalMode and rearHzMode (see docs/HISTORY.md), and
+// canAccessMode can lock a tier outright — so loading a PRO tune must not drag a BEG user
+// into PRO, nor silently rewrite the tune it just loaded. See docs/CODEC.md id 77.
+const TIER_ENC={beginner:0,intermediate:1,pro:2};
+const TIER_DEC=['beginner','intermediate','pro'];
+const TIER_LABEL={beginner:'BEG',intermediate:'INT',pro:'PRO'};
+const tierOf=v=>TIER_DEC.includes(v)?v:null;
+// meta is a codec group with no DEF_CH/DEF_FE/DEF_DR behind it. Its default is null, which
+// TIER_ENC cannot encode, so encodeTune's "skip fields still at their default" test never
+// fires for a real tier and every new code carries id 77 — including beginner, which would
+// otherwise vanish as the 0 value. Codes written before id 77 existed simply lack it and
+// decode back to null, which reads as "not recorded" rather than a guessed tier.
+const DEF_META={tier:null};
+const DEF_GROUPS={ch:DEF_CH,fe:DEF_FE,dr:DEF_DR,meta:DEF_META};
 const CODEC_FIELDS=[
   {id:1, group:'ch',key:'weight'},
   {id:2, group:'ch',key:'frontBias'},
@@ -3559,6 +3584,9 @@ const CODEC_FIELDS=[
   // 75/76: the MEAS. NAT BAL and its Hz that 74 was measured against, so arbScaleStale can flag it.
   {id:75,group:'ch',key:'measuredArbNat'},
   {id:76,group:'ch',key:'measuredArbNatHz'},
+  // 77: the complexity tier the code was written in — metadata about the tune's authoring,
+  // not an input to any solve. Decoding surfaces it for display only; nothing applies it.
+  {id:77,group:'meta',key:'tier',enc:TIER_ENC,dec:TIER_DEC},
   // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
   // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
   // misread a stale scale as half-stiff bars. See docs/CODEC.md.
@@ -3572,8 +3600,8 @@ const codecReadField=(src,f)=>{
   return src[f.group][f.key];
 };
 
-const encodeTune=(ch,fe,dr)=>{
-  const src={ch,fe,dr};
+const encodeTune=(ch,fe,dr,tier)=>{
+  const src={ch,fe,dr,meta:{tier:tierOf(tier)}};
   const same=(a,b)=>typeof a==='number'&&typeof b==='number'?Math.abs(a-b)<1e-9:a===b;
   const parts=[CODEC_VERSION];
   for(const f of CODEC_FIELDS){
@@ -3589,9 +3617,9 @@ const decodeTune=(code)=>{
   const parts=atob(code.trim()).split('|');
   const version=parseInt(parts[0],10);
   if(version!==CODEC_VERSION)throw new Error('Outdated or invalid tune code — ask for a new one.');
-  const ch={},fe={},dr={};
+  const ch={},fe={},dr={},meta={};
   const tyreParts={F:{},R:{}};
-  const dest=f=>f.group==='ch'?ch:f.group==='fe'?fe:dr;
+  const dest=f=>f.group==='ch'?ch:f.group==='fe'?fe:f.group==='meta'?meta:dr;
   for(const f of CODEC_FIELDS){
     if(f.tyre)tyreParts[f.tyre][f.part]=f.def;
     else dest(f)[f.key]=codecFieldDefault(f);
@@ -3608,7 +3636,10 @@ const decodeTune=(code)=>{
   }
   ch.tyreF=`${tyreParts.F.width}/${tyreParts.F.aspectRatio}R${tyreParts.F.rimDiameter}`;
   ch.tyreR=`${tyreParts.R.width}/${tyreParts.R.aspectRatio}R${tyreParts.R.rimDiameter}`;
-  return{ch,fe,dr};
+  // meta rides alongside ch/fe/dr rather than inside them: sanitizeTune takes {ch,fe,dr}
+  // and every caller destructures those three, so an extra key is inert for anyone not
+  // asking for it.
+  return{ch,fe,dr,meta};
 };
 
 const sanitizeTune=({ch,fe,dr})=>{
@@ -3857,7 +3888,7 @@ const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onLoadDna,onRewrit
           onClick={()=>onLoadBuild(entry)}>LOAD BUILD</button>}
         <button className={`tbtn${codeCopied?' saved':''}`} style={{flex:1,fontSize:9}}
           onClick={()=>copyToClipboard(
-            encodeTune(entry.ch||DEF_CH,entry.fe||DEF_FE,entry.dr||DEF_DR),
+            encodeTune(entry.ch||DEF_CH,entry.fe||DEF_FE,entry.dr||DEF_DR,entry.tier),
             ()=>{setCodeCopied(true);setTimeout(()=>setCodeCopied(false),1500);}
           )}>{codeCopied?'COPIED':'COPY CODE'}</button>
       </div>}
@@ -5291,16 +5322,21 @@ function App(){
       id:now,name:entryName.trim()||'Untitled',
       ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
       ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr},...(dnaStore.applied?{dna:dnaStore.applied}:{})}:{}),
+      tier:uiMode,
       createdAt:now,updatedAt:now,
     }),...list]);
     setEntryName('');
   };
   // Imported straight into the garage as a new entry, leaving the live ch/fe/dr untouched —
   // the counterpart to OVERWRITE in the LOAD CODE tab, which applies to the live tune instead.
-  const garageImport=(ic,ife,idr,sel)=>{
+  // tier is the SENDER's, taken from the decoded code — this entry is their tune, and
+  // stamping the importer's own tier on it would erase the one fact the field records.
+  // Codes with no id 77 pass null through and the card shows no tier chip.
+  const garageImport=(ic,ife,idr,sel,tier)=>{
     const now=Date.now();
     setEntries(list=>[normalizeEntry({
       id:now,name:'Imported '+new Date(now).toLocaleDateString(),
+      ...(tierOf(tier)?{tier}:{}),
       ...(sel.ch?{ch:{...DEF_CH,...ic}}:{}),
       ...((sel.fe||sel.dr)?{fe:{...DEF_FE,...ife},dr:{...DEF_DR,...idr}}:{}),
       createdAt:now,updatedAt:now,
@@ -5309,7 +5345,10 @@ function App(){
   const garageRewrite=(id,which)=>mutEntry(id,e=>{
     if(which==='dna')return{...e,dna:{...dnaDraft,name:e.name}};
     const{dna:_d,...rest}=e;
-    return{...(which==='build'||which==='both'?rest:e),
+    // Rewriting replaces the payload with the live one, so the tier is restamped too —
+    // leaving the old one would label the new contents with the session that wrote the
+    // contents they replaced.
+    return{...(which==='build'||which==='both'?rest:e),tier:uiMode,
       ...(which==='chassis'||which==='both'?{ch:{...ch}}:{}),
       ...(which==='build'  ||which==='both'?{fe:{...fe},dr:{...dr},...(dnaStore.applied?{dna:dnaStore.applied}:{})}:{}),
     };
@@ -8257,10 +8296,13 @@ function App(){
           {/* DATA MODAL — share / import / export */}
           {showDataModal&&(()=>{
             const close=()=>setShowDataModal(false);
+            // Always carries the tier, regardless of which payloads are ticked: it describes
+            // the session that authored the code, not any one of its three parts.
             const sharePayload=encodeTune(
               shareSel.ch?ch:DEF_CH,
               shareSel.fe?fe:DEF_FE,
-              shareSel.dr?dr:DEF_DR
+              shareSel.dr?dr:DEF_DR,
+              uiMode
             );
             const doCopy=()=>copyToClipboard(sharePayload,()=>setShareCopied(true));
             const selectStyle={width:'100%',background:'#020617',border:'1px solid #1e293b',
@@ -8344,6 +8386,21 @@ function App(){
                             padding:'6px 8px',fontSize:10,color:'#e2e8f0',outline:'none',resize:'none',
                             fontFamily:'var(--font-mono)',letterSpacing:0.5,marginBottom:10}}/>
                   {importErr&&<div style={{fontSize:9,color:'#f87171',marginBottom:8,letterSpacing:0.5}}>{importErr}</div>}
+                  {/* Tier read out of the pasted code BEFORE importing, so the choice below is
+                      made knowing how much of it was hand-set. Decoding a half-typed code throws
+                      constantly, so failures are swallowed here — importErr is the place a real
+                      bad code is reported, on the button press. Nothing is applied from this:
+                      the reader's own tier never changes. */}
+                  {(()=>{
+                    if(!importCode.trim())return null;
+                    let tier=null;
+                    try{tier=tierOf(decodeTune(importCode.replace(/\s/g,'')).meta?.tier);}catch(e){return null;}
+                    return<div style={{fontSize:9,color:'#64748b',marginBottom:8,letterSpacing:0.5}}>
+                      {tier
+                        ?<>Saved in <span style={{color:'#818cf8'}}>{TIER_LABEL[tier]}</span> tier. Your own tier is unchanged by loading it.</>
+                        :<>Tier not recorded — this code predates the field.</>}
+                    </div>;
+                  })()}
                   <div style={{fontSize:9,letterSpacing:2,color:'#475569',marginBottom:6}}>APPLY TO</div>
                   {[
                     {key:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout'},
@@ -8380,8 +8437,9 @@ function App(){
                       onClick={()=>{
                         const code=importCode.replace(/\s/g,'');
                         try{
-                          const{ch:ic,fe:ife,dr:idr}=sanitizeTune(decodeTune(code));
-                          garageImport(ic,ife,idr,importSel);
+                          const dec=decodeTune(code);
+                          const{ch:ic,fe:ife,dr:idr}=sanitizeTune(dec);
+                          garageImport(ic,ife,idr,importSel,dec.meta?.tier);
                           close();
                         }catch(e){
                           console.error('Import failed:',e,code);
