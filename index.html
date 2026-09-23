@@ -6704,7 +6704,7 @@ function App(){
                   hint="How much of the mechanical balance correction comes from rear spring stiffness vs ARB split. AUTO finds the split that equalises spring and ARB utilisation — recommended for most builds. Disable AUTO to set manually."/>
               </div>
             </>}
-            {(arbBalMode==='weight'||arbBalMode==='neutral'||arbBalMode==='chassis')&&(()=>{
+            {arbMode!=='man'&&(arbBalMode==='weight'||arbBalMode==='neutral'||arbBalMode==='chassis')&&(()=>{
               const isNeutral=arbBalMode==='neutral';
               const isChassis=arbBalMode==='chassis';
               const splitPct=(isNeutral||isChassis)?tune.balArbSplit:Math.round(physics.arbBalance/100*100);

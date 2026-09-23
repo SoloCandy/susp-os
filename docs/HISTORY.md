@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — ARB Bias is hidden under MAN ARB stiffness
+
+MAN sets front/rear ARB clicks directly and bypasses the budget/split solve
+entirely, so `arbBias` never reaches the output. The Balance Mode picker was
+already gated on `arbMode!=='man'` for that reason, but the ARB Bias slider was
+gated only on Balance Mode, so it stayed visible and inert in MAN. Now gated the
+same way. The stored value is untouched — leaving MAN restores it.
+
 ## Changed — a bar at a Forza click limit now holds the roll balance
 
 A bar past `lim.arb` or under 1 click used to be clamped on its own, which shifted
