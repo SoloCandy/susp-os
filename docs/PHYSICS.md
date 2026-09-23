@@ -162,12 +162,31 @@ the spring/ARB split that achieves it.
 ```js
 HZ_MIN = 0.8, HZ_MAX = 5.5                          // the whole app's spring-frequency band
 rsToHz = rs => rs > 6 ? 0.8 + (rs/100)*2.7 : rs      // migrates old 0-100 integer saves to Hz
-hzToRs = hz => clamp(HZ_MIN, HZ_MAX, hz)             // rounds/clamps a raw Hz value back into range
+hzToRs = hz => round(clamp(HZ_MIN, HZ_MAX, hz), 0.001) // snaps a raw Hz value to the grid, in range
 ```
 
 `fe.rideStiffness` stores Hz directly today; the `rs>6` branch in `rsToHz`
 exists only to auto-migrate pre-Hz saves/share-codes that stored an
 integer 0-100 slider position instead.
+
+### The 0.001 Hz grid
+
+`hzToRs` and `sanitizeTune` both round `fe.rideStiffness` to **0.001 Hz**. This
+is the floor under every stiffness input, not any slider's step — the Hz sliders
+themselves still step by 0.01, which is what arrow keys and the wheel move by.
+
+The grid is finer than the sliders because BOTTOM G's does not write Hz directly:
+it solves `Hz = √(9810·g / rideHeight_mm) / 2π` from a g target whose slider steps
+by 0.01 g. That map is `Hz ∝ √g`, so `dHz/dg = Hz/2g` and one g step is worth less
+and less Hz as the target rises — roughly 0.007 Hz at 1 g and 0.002 Hz at the stiff
+end of the range. On the old 0.01 Hz grid most of those steps rounded to the value
+they started from, so several consecutive g steps changed nothing. 0.001 Hz is
+finer than any step that slider can take at any ride height.
+
+The secondary axle is unaffected either way: `rearHzMan` and `rearHzMult` are
+clamp-only in `sanitizeTune`, so a derived secondary Hz carries full precision. In
+BeamNG both axles are re-derived from the snapped spring rate anyway
+(`PHYS_SNAP.spring`), which is coarser than either grid.
 
 ## Spring rate (`solveSpring`)
 

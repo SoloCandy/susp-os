@@ -196,7 +196,7 @@ const computeAlignment = (ch, tune, layout, buildType) => {
 // Spring-frequency operating band — must mirror app's HZ_MIN/HZ_MAX.
 const HZ_MIN = 0.8, HZ_MAX = 5.5;
 const rsToHz = rs => rs > 6 ? 0.8 + (rs / 100) * 2.7 : rs;
-const hzToRs = hz => Math.round(Math.max(HZ_MIN, Math.min(HZ_MAX, hz)) * 100) / 100;
+const hzToRs = hz => Math.round(Math.max(HZ_MIN, Math.min(HZ_MAX, hz)) * 1000) / 1000;
 
 // Offset is ONE traverse time (wheelbase/speed), not two — see the note above the app's
 // copy. This mirror said `2 * t` for a while after the app was corrected and still passed,
@@ -324,6 +324,16 @@ console.log('\nHz operating band');
   assert('hzToRs clamps above ceiling', hzToRs(9.9), HZ_MAX, 0.001);
   assert('hzToRs passes 5.0 through', hzToRs(5.0), 5.0, 0.001);
   assert('hzToRs passes 4.5 through', hzToRs(4.5), 4.5, 0.001);
+
+  // The grid is 0.001 Hz, not the 0.01 the Hz sliders step by: BOTTOM G's solves Hz from a
+  // 0.01 g step worth as little as ~0.002 Hz, and on a 0.01 grid those steps rounded back to
+  // where they started. Four consecutive g steps at a 120 mm ride height, which on the old
+  // grid read 2.49/2.50/2.50/2.51, must now all differ. See docs/HISTORY.md.
+  const gToHz = (g, rh) => Math.sqrt(9810 * g / rh) / (2 * Math.PI);
+  const ladder = [3.00, 3.01, 3.02, 3.03].map(g => hzToRs(gToHz(g, 120)));
+  assert('hzToRs keeps 3dp', ladder[0], 2.492, 1e-9);
+  assert('every 0.01 g step moves the stored Hz', new Set(ladder).size, 4);
+  assert('a sub-0.01 Hz value survives the grid', hzToRs(2.4462), 2.446, 1e-9);
 
   // legacy migration: old saves stored integers 0–100; only values >6 are legacy.
   // A genuine 5.0 Hz must NOT be misread as a legacy integer and rescaled down.

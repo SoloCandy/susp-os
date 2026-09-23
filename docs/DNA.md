@@ -336,7 +336,7 @@ miss:
 
 | Axis | Tolerance | Source |
 |---|---|---|
-| `platformHz` | 0.005 Hz, plus half a 500 N/m spring step in Hz in physical modes (`ΔHz/Hz = ½·Δk/k`) | `sanitizeTune`'s 0.01 Hz rounding; `PHYS_SNAP.spring` |
+| `platformHz` | 0.005 Hz, plus half a 500 N/m spring step in Hz in physical modes (`ΔHz/Hz = ½·Δk/k`) | `compileDNA`'s own 0.01 Hz rounding — `DNA_AXES.platformHz`'s step, deliberately coarser than `sanitizeTune`'s 0.001 Hz grid; `PHYS_SNAP.spring` |
 | `pitchRatio` | exact in Forza; the two axles' half spring steps in physical modes | `PHYS_SNAP.spring` |
 | `arbShare` | `tune.arbShareTol`: half a bar step (Forza 0.1 click, BeamNG's anti-roll spring grid) in share points, at least 0.5 | `shareClamped`'s own threshold, already downstream of bar rounding |
 | `balanceOffset` | 0.01 | `mechBalClamped`'s own threshold |

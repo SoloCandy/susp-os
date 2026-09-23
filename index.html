@@ -388,7 +388,12 @@ const rsToHz=rs=>rs>6?0.8+(rs/100)*2.7:rs;
 // funnels through here; callers that also REPORT the clamp still test their own raw value,
 // since a solve landing exactly on a bound is not clamped (see splitAvgHz).
 const clampHz=hz=>Math.max(HZ_MIN,Math.min(HZ_MAX,hz));
-const hzToRs=hz=>Math.round(clampHz(hz)*100)/100;
+// The Hz grid every stiffness input lands on. 0.001 Hz, not the 0.01 it used to be: the
+// BOTTOM G's slider writes Hz through here, and its 0.01 g step is worth well under 0.01 Hz
+// over most of its range (~0.002 Hz at the stiff end), so on the old grid several g steps in
+// a row produced no change at all. 0.001 Hz is finer than any g step the slider can take.
+// The Hz sliders keep their own 0.01 step — this is the floor under them, not their step.
+const hzToRs=hz=>Math.round(clampHz(hz)*1000)/1000;
 // Flat ride (Olley): the rear wheel meets a bump `t = wheelbase/speed` seconds after the
 // front, so the rear's period is shortened by exactly that much — rearPeriod = frontPeriod − t
 // — and the two axles come back into phase, cancelling pitch.
@@ -1628,7 +1633,10 @@ const sanitizeDNA=raw=>{
 const compileDNA=(ch,fe,dr,axes)=>({
   fe:{...fe,
     rideRef:'front',rideStiffMode:'hz',
-    // sanitizeTune rounds rideStiffness to 0.01 — round here too, or the patch is not a fixed point.
+    // DNA_AXES.platformHz has a 0.01 step and every archetype seed is written to 2dp, so the
+    // compiler rounds to 0.01 — deliberately coarser than sanitizeTune's 0.001 Hz grid, which
+    // 0.01 is a subset of, so the patch is still a sanitizeTune fixed point. dnaTolerances'
+    // 0.005 platformHz allowance is half of THIS step, not of the sanitize grid.
     rideStiffness:Math.round(axes.platformHz*100)/100,
     rearHzMode:'multiplier',rearHzMult:axes.pitchRatio,
     arbMode:'share',arbShareMan:axes.arbShare,
@@ -1684,7 +1692,8 @@ const dnaReadBack=(ch,fe,dr,tune,from)=>{
 
 // How far a measured axis may sit from its target and still count as hit. Each allowance is half
 // of one quantisation step of whatever produced the number, so rounding the game imposes is never
-// reported as a miss: sanitizeTune's 0.01 Hz, BeamNG's 500 N/m spring and 100 N/m/s damper grids,
+// reported as a miss: compileDNA's own 0.01 Hz rounding (coarser than sanitizeTune's 0.001 Hz
+// grid, and the one the compiled value actually lands on), BeamNG's 500 N/m spring and 100 N/m/s damper grids,
 // Forza's 0.1-click damper step. Share and balance reuse shareClamped's and mechBalClamped's own
 // thresholds, which already sit downstream of ARB click rounding.
 const dnaTolerances=(tune,gameMode)=>{
@@ -3685,7 +3694,7 @@ const sanitizeTune=({ch,fe,dr})=>{
   return{
     ch: sch,
     fe:{
-      rideStiffness:    (()=>{const rs=n(fe?.rideStiffness,DEF_FE.rideStiffness);const hz=rs>6?0.8+(rs/100)*2.7:rs;return clampHz(Math.round(hz*100)/100);})(),
+      rideStiffness:    (()=>{const rs=n(fe?.rideStiffness,DEF_FE.rideStiffness);const hz=rs>6?0.8+(rs/100)*2.7:rs;return clampHz(Math.round(hz*1000)/1000);})(),
       arbBias:          cl(fe?.arbBias,          -50,   50,  DEF_FE.arbBias),
       arbBalTarget:     fe?.arbBalTarget==null?null:cl(fe.arbBalTarget,0.20-_snb,0.90-_snb,0),
       arbBalMode:       (()=>{
@@ -5056,7 +5065,9 @@ function App(){
     if(fe.rideBottomG==null)return;
     const hz=clampHz(Math.sqrt(9810*fe.rideBottomG/rhPrimary_mm)/(2*Math.PI));
     const rs=hzToRs(hz);
-    if(Math.abs(rs-fe.rideStiffness)>0.001)setFeRaw(p=>({...p,rideStiffness:rs}));
+    // Sub-grid epsilon: one hzToRs tick IS 0.001, so testing >0.001 would discard every
+    // single-tick resolve and strand the target one step away from the Hz it asks for.
+    if(Math.abs(rs-fe.rideStiffness)>1e-6)setFeRaw(p=>({...p,rideStiffness:rs}));
   },[ch.rideHeightF,ch.rideHeightR,fe.rideStiffMode,fe.rideBottomG,physics.rideRef,tune.fHz,tune.rHz]); // eslint-disable-line
   const autoAlign=useMemo(()=>computeAlignment(ch,tune,ch.layout,dr.buildType),[ch,tune,ch.layout,dr.buildType]);
   // alignMode: 'build' (default, computeAlignment only) | 'mech' (nudge toward the resolved

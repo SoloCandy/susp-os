@@ -11,6 +11,40 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the stored Hz grid went from 0.01 to 0.001, so BOTTOM G's steps are all live
+
+`hzToRs` and `sanitizeTune` both rounded `fe.rideStiffness` to 0.01 Hz. That matched
+the Hz sliders' own 0.01 step exactly, so on those sliders it was invisible — but
+BOTTOM G's does not write Hz directly. It solves Hz from a g target whose slider steps
+by 0.01 g, through `Hz ∝ √g`, so `dHz/dg = Hz/2g` and one g step shrinks in Hz terms
+as the target rises: ~0.007 Hz at 1 g, ~0.002 Hz at the stiff end. Above roughly 1 g on
+any realistic ride height one g step was worth less than one grid tick, so it rounded
+back to where it started and **the tune did not move**. It took two to five steps to
+change anything, and closer to ten near the ceiling. Measured before the fix at
+3.00/3.01/3.02/3.03 g: 2.44/2.45/2.45/2.45 Hz. After: 2.442/2.446/2.450/2.454 Hz.
+
+The grid is now 0.001 Hz — finer than any step that slider can take at any ride
+height. **The Hz sliders keep their 0.01 step**, which is what arrows and the wheel
+move by; the grid is the floor under the inputs, not a step. Typing a 3dp Hz value now
+also survives, and the BOTTOM G's ↔ HZ round trip is exact rather than landing a tick
+off.
+
+Two things had to move with it, both because they were written against the old number:
+
+- The resolve effect's no-op guard was `Math.abs(rs-fe.rideStiffness)>0.001`. One tick
+  now **is** 0.001, so that test would have discarded every single-tick resolve and
+  stranded the target one step from the Hz it asks for. It is a sub-grid epsilon now.
+- `compileDNA` keeps rounding `platformHz` to 0.01, which is `DNA_AXES.platformHz`'s
+  own step and the precision every archetype seed is written to. 0.01 is a subset of
+  the 0.001 grid, so the patch is still a `sanitizeTune` fixed point — but
+  `dnaTolerances`' 0.005 allowance is half of *that* step, not of the sanitize grid,
+  and both the comment and the DNA test name said otherwise.
+
+Unaffected: the secondary axle (`rearHzMan`/`rearHzMult` were always clamp-only, never
+rounded), the codec (`encodeTune` writes raw numbers — no id, no version bump, and old
+codes decode identically), and BeamNG, where both axles are re-derived from the snapped
+spring rate anyway.
+
 ## Changed — garage entries and share codes record the tier they were saved in
 
 `uiMode` lives in its own localStorage key, not in `ch`/`fe`/`dr`, so nothing about

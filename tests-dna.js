@@ -233,7 +233,7 @@ t('compiled tunes are sanitizeTune fixed points (archetypes × layouts × game m
   }
 });
 
-t('platformHz is rounded to sanitizeTune\'s 0.01 Hz at compile time', () => {
+t("platformHz is rounded to compileDNA's own 0.01 Hz step at compile time", () => {
   const { fe } = M.compileDNA(chOf({}), M.DEF_FE, M.DEF_DR, { ...M.sanitizeDNA({}).axes, platformHz: 2.3456 });
   assert(fe.rideStiffness === 2.35, `got ${fe.rideStiffness}`);
 });

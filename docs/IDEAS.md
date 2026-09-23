@@ -86,3 +86,78 @@ kept separate from steady-state balance throughout the docs.
   fixed order plus hysteresis.
 - **Cheap first cut:** step 1 plus CO-SOLVE with Spring Share set automatically
   gets most of the benefit with no new solver.
+
+---
+
+## Finer slider steps
+
+Halving (or better) the `step` on the feel sliders that currently move in whole
+units. Worked out far enough to know which ones are safe, which are pointless and
+which are blocked; not implemented.
+
+### The starting point
+
+Most `FeelSlider` call sites use `step=1` across `−50..+50` or `0..100` — ARB
+Bias, Damping Bias, Character, Balance, EXIT/ENTRY, POWER SPLIT, ARB Share %, ARB
+Stiffness BASIC. The Hz sliders and Settle Target use `0.01`; Target Speed uses
+`5`.
+
+Fractional values on those sliders are **already legal state**. Every slider
+carries a number box, and a typed value is clamped but not snapped to the step
+(see [SLIDERS.md](SLIDERS.md)). So a finer step does not open a new state space —
+it only lets the mouse reach states the box already reaches, and nothing
+downstream can be newly surprised by a fractional field.
+
+### What a finer step costs
+
+- **Nothing in the codec.** `encodeTune` writes the raw number with no rounding,
+  so `8:12.5` is a valid field today. Share codes get a few characters longer; no
+  version bump, no new ids, old codes unaffected. See [CODEC.md](CODEC.md).
+- **Nothing in `sanitizeTune`** for the clamp-only fields: `arbBias`,
+  `dampingBias`, `reboundZeta`, `bumpRatio`, `bumpZeta`, `arbShareMan`,
+  `arbBasicMan`, `settleTarget`, `rearHzMult`, the `diffBias*` pair.
+- **Dead steps, where the game grid is coarser than the slider.** This is the
+  real failure mode, and it is a UI one: the slider moves, the output does not,
+  and a control that visibly refuses to do anything reads as broken. Forza snaps
+  dampers and ARB to 0.1 clicks and springs to whole lb/in; BeamNG snaps to
+  500 N/m springs and 100 N/m/s dampers (`PHYS_SNAP`, `clampDamp`, `snapPhys`).
+  A step is only worth adding where one current step moves the output by more
+  than roughly 1.5 game clicks.
+- **Keyboard and wheel traversal.** `FeelSlider`'s arrow/wheel handlers step by
+  `step`. Going from 1 to 0.1 across ±50 means 1000 keypresses end to end. If a
+  slider goes much finer, the arrows should keep the coarse unit and the fine one
+  should come from a modifier or the number box.
+
+### The Hz grid part of this has shipped
+
+The `sanitizeTune`/`hzToRs` 0.01 Hz rounding is now 0.001 Hz — see
+[HISTORY.md](HISTORY.md) and [PHYSICS.md](PHYSICS.md#the-0001-hz-grid). It was
+lifted for BOTTOM G's, whose 0.01 g steps were mostly landing back on the value
+they started from, not to make the Hz sliders finer. **The Hz sliders still step
+by 0.01 and this idea does not propose changing that** — the grid underneath them
+simply no longer sets a floor if it ever should change.
+
+### Proposed steps
+
+| Slider | Now | Proposed | Reasoning |
+|---|---|---|---|
+| ARB Bias | 1 | 0.5 | Continuous split; one point is well above a click |
+| Damping Bias | 1 | 0.5 | Same, under all three Damping Balance Modes |
+| Rebound ζ / Bump ζ / Bump Ratio | 1 | 0.5 | Damper solve is continuous ahead of the 0.1-click snap |
+| ARB Share % | 1 | 0.5 | Already has a half-step tolerance concept downstream (`halfArbStep`) |
+| Target Speed | 5 | 1 | 5 mph is coarse against a flat-ride ratio that already trips an advisory |
+| ARB Stiffness BASIC % | 1 | leave | 1% is already worth ~0.6 of a click — finer is mostly dead steps |
+| Character, Balance | 1 | leave | Deliberately coarse feel abstractions for BEG |
+| Ride Stiffness, Independent Hz | 0.01 | leave | 0.01 Hz is already a fine step to traverse; the 0.001 grid underneath is for BOTTOM G's, not for these |
+
+### Open questions for when it's picked up
+
+- **DNA axis steps are not in scope.** `DNA_AXES`'s own `step` values are chosen
+  so every archetype seed is hit exactly; changing them risks a seed falling off
+  the grid. `tests-dna.js` asserts the sanitize fixed-point property, so a
+  mistake there is at least caught.
+- **Arrow-key unit** needs deciding before shipping, per the traversal point
+  above.
+- **Presets and share codes stay integer-valued** regardless — no factory preset
+  needs a half step, and codes written before the change are unaffected either
+  way.
