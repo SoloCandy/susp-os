@@ -564,7 +564,7 @@ damper clicks that is a few tenths of a bias point.
 | Saved custom DNAs | garage entries carrying only `dna`, kind `'dna'` | Listed in the MY DNA drawer, not the main garage list; included in BACKUP/RESTORE |
 | Which DNA a saved build came from | optional `dna` on a garage entry beside `fe`/`dr` | Not part of `kindOf` — a build with a `dna` is still a build |
 | Factory archetypes | `DNA_ARCHETYPES` constant | Buttons in the DNA modal |
-| Share codes | **Not in v1** | The stamped tune already travels through the existing codec |
+| Share codes | `encodeDNA`/`decodeDNA` — a separate codec, prefix `DNA-` | Its own version and ids; nothing threaded through `CODEC_FIELDS`. See [CODEC.md](CODEC.md#the-dna-codec--a-second-separate-code) |
 
 `draft` is a DNA plus `ref`, what it was loaded from: `{name, axes}` for an archetype,
 `{id, name, axes}` for a saved DNA. `sanitizeDNA` drops `ref`, so the app reads it off
@@ -586,9 +586,14 @@ count and its empty states use `garageEntries`, which excludes the kind; BACKUP 
 RESTORE list it as a fourth checkbox. **Factory archetypes stay out of the entry list** for the reason presets do —
 see [PRESETS.md](PRESETS.md).
 
-**Share codes stay out of v1** because a DNA group in `CODEC_FIELDS` means new ids
-threaded through `DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune` for an
-object that is not a tune. Codec ids are permanent; see [CODEC.md](CODEC.md).
+**A DNA shares on its own code, never through `CODEC_FIELDS`.** A DNA group there would mean
+permanent tune-codec ids threaded through `DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune`
+for an object no solver reads. A separate table costs nothing on that side and lets an axis change
+meaning under its own version without touching a single tune code. The code carries the axes,
+`slack`, `keep` and the name; it does **not** carry `ref` or the applied link, which are local
+state about where a draft came from. Decoding replaces the editor's draft with no `ref` — it came
+from somewhere else, so "edited from" would name a DNA this app never had — and is not a commit.
+Field table and rules: [CODEC.md](CODEC.md#the-dna-codec--a-second-separate-code).
 
 ### The applied link
 
@@ -613,6 +618,8 @@ The link only drives read-outs. What happens to it:
 - **DNA modal** (`showDnaModal`), opened by the DNA button in the sidebar toolbar, left of
   CHECK. Below PRO it shows only a note to switch to PRO.
   - archetype buttons, which load a draft; they do not apply;
+  - **CODE**: this draft as a `DNA-` share code with COPY, and a box to paste one in. LOAD
+    replaces the draft; it does not apply;
   - **MY DNA** (`dnaSavedOpen`), a drawer laid out like the GARAGE saved list: a name
     field and SAVE DNA, then an `EntryCard` per saved DNA — rename, date, ↺ REWRITE WITH
     EDITOR DNA, delete, summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and

@@ -11,6 +11,28 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a DNA can be shared, on its own codec
+
+A personality could not leave the device it was made on. Share codes carry the stamped tune, which
+is chassis-specific — the exact thing a DNA exists to escape — and a DNA group in `CODEC_FIELDS`
+was rejected because tune-codec ids are permanent and would have been spent threading
+`DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune` for an object no solver reads.
+
+`encodeDNA`/`decodeDNA` sidestep that: their own version, their own ids, their own `DNA-` prefix,
+no shared table. The same rules apply for the same reasons — ids permanent, defaults omitted (a
+DNA at every default encodes to just its version), unknown ids ignored. The code carries the axes,
+`slack`, `keep` and the name, and decodes through `sanitizeDNA`, so a pasted code is the same
+shape a saved DNA is.
+
+The prefix is load-bearing in one more place: `decodeTune` checks for it first, so a DNA code
+pasted into TUNE CHECK or LOAD CODE is named rather than reported as corruption. One guard covers
+all three tune-decoding paths.
+
+`tests-docs.js` grew a second codec check at the same time. Its id-table check scanned the whole
+of CODEC.md, so the new DNA table's ids 1–9 were weighed against `CODEC_FIELDS` and every one
+"disagreed". Each check now reads the section it names, and the DNA ids are checked against
+`DNA_CODEC_IDS`.
+
 ## Changed — DNA axes can carry slack, and the ride dots no longer vanish
 
 Two limits of the axis model, both about a target being stated more precisely than it is meant.

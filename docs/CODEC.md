@@ -322,6 +322,49 @@ reinterprets old codes under new rules. Two examples so far:
 When making a change like this, note it here so future debugging of "why
 did my old share code load weird" has a paper trail.
 
+## The DNA codec — a second, separate code
+
+A Vehicle DNA travels on its **own** code, and none of the above applies to it.
+`encodeDNA`/`decodeDNA` have their own version, their own ids and their own prefix, and share no
+table with `CODEC_FIELDS`.
+
+**Why not a DNA group in `CODEC_FIELDS`.** Ids here are permanent and a tune codec entry means
+threading a group through `DEF_GROUPS`, `encodeTune`, `decodeTune` and `sanitizeTune` — for an
+object no solver reads. A DNA is not a tune. It also does not want the tune codec's lifecycle: an
+axis is free to change meaning under its own version without touching a single tune code.
+
+**Why it exists at all.** Without it a personality cannot be shared. The stamped tune a share code
+carries is chassis-specific, which is the exact thing a DNA exists to escape — see
+[DNA.md](DNA.md).
+
+| ID | Field | Encoding |
+|---|---|---|
+| 1 | `axes.platformHz` | raw number |
+| 2 | `axes.pitchRatio` | raw number |
+| 3 | `axes.arbShare` | raw number |
+| 4 | `axes.balanceOffset` | raw number |
+| 5 | `axes.reboundZeta` | raw number |
+| 6 | `axes.bumpRatio` | raw number |
+| 7 | `axes.dampBias` | raw number |
+| 8 | `axes.diffExit` | raw number |
+| 9 | `axes.diffEntry` | raw number |
+| 10 | `name` | `encodeURIComponent`, so it can never contain `\|` or `:` |
+| 11 | `keep` | the axis's index in `DNA_YIELDABLE`, one digit each, in keep order |
+| 21–29 | `slack.<axis>` | raw number — an axis's slack id is its axis id + `DNA_CODEC_SLACK` (20) |
+
+**The same rules as the tune codec, for the same reasons.** Ids are permanent — retire, never
+reuse. Fields still at their default are omitted, so a DNA at every default encodes to just its
+version. Unknown ids are ignored, so a code from a newer app carrying an axis this one has never
+heard of still loads.
+
+**The prefix is load-bearing.** Every code starts `DNA-`, and `decodeTune` checks for it before
+anything else so a DNA code pasted into TUNE CHECK or LOAD CODE is named rather than reported as
+corruption. One guard covers all three tune-decoding paths.
+
+`decodeDNA` returns a `sanitizeDNA` shape, so a decoded DNA is the same object a saved one is —
+out-of-range axes clamp, slack clamps to `dnaSlackMax`, and a damaged `keep` is repaired into a
+permutation.
+
 ## Fields deliberately excluded from the codec
 
 Not every `ch`/`fe`/`dr` field needs an id. `useRideHeightCG` is local-only:

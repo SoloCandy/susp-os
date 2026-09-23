@@ -44,6 +44,7 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
+  'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
   'resolveArbBalTarget,gripNeutralOf,naturalMechBalanceOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
@@ -573,6 +574,62 @@ t('a balance target outside 0.20..0.90 is accepted, never chased', () => {
   if (off < -0.20) return;                                   // not constructible on this fixture
   const res = M.applyDNA(ch, feOf('beamng'), M.DEF_DR, { axes: { ...M.sanitizeDNA({}).axes, balanceOffset: off }, keep: ['balanceOffset'] });
   assert(!res.moves.some(m => m.protects === 'balanceOffset'), 'moved an axis to chase an unreachable target');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+section('DNA share codes — a personality on its own codec');
+
+t('every archetype round-trips exactly, slack and keep order included', () => {
+  for (const a of M.DNA_ARCHETYPES) for (const slack of [{}, { arbShare: 2.5, platformHz: 0.3 }]) {
+    const d = M.sanitizeDNA({ ...a, slack, keep: shuffled(M.DNA_YIELDABLE) });
+    const back = M.decodeDNA(M.encodeDNA(d));
+    assert(JSON.stringify(back) === JSON.stringify(d), `${a.name} did not survive: ${JSON.stringify(back)}`);
+  }
+});
+
+t('a fuzz DNA round-trips, including names that would break the separators', () => {
+  for (let i = 0; i < 40; i++) {
+    const d = M.sanitizeDNA({ ...randomDNA(i % 2 === 1), name: 'a|b:c d%e/f' });
+    const back = M.decodeDNA(M.encodeDNA(d));
+    assert(back.name === d.name, `name mangled: ${back.name}`);
+    for (const k of Object.keys(M.DNA_AXES)) near(back.axes[k], d.axes[k], 1e-9, `${k} after a round trip`);
+    assert(JSON.stringify(back.slack) === JSON.stringify(d.slack), 'slack changed');
+    assert(back.keep.join() === d.keep.join(), 'keep order changed');
+  }
+});
+
+t('a code is prefixed, and the tune decoder says so rather than calling it corrupt', () => {
+  assert(M.encodeDNA(M.DNA_ARCHETYPES[0]).startsWith(M.DNA_CODE_PREFIX), 'missing prefix');
+  // decodeTune is outside this harness's slices, so the guard is pinned in the source: a DNA code
+  // must reach the tune decoder as "that is a DNA code", not as corruption.
+  assert(src.includes("if(String(code??'').trim().toUpperCase().startsWith(DNA_CODE_PREFIX))"),
+    'decodeTune no longer recognises a DNA code');
+  for (const bad of ['', 'nonsense', 'DNA-!!!!']) {
+    let threw = false;
+    try { M.decodeDNA(bad); } catch { threw = true; }
+    assert(threw, `decodeDNA accepted ${JSON.stringify(bad)}`);
+  }
+});
+
+t('an unknown id is ignored, and the ids themselves are permanent', () => {
+  // A code from a newer app carrying an axis this one has never heard of must still load.
+  const d = M.sanitizeDNA(M.DNA_ARCHETYPES[2]);
+  const inner = atob(M.encodeDNA(d).slice(M.DNA_CODE_PREFIX.length)) + '|99:1.23';
+  const back = M.decodeDNA(M.DNA_CODE_PREFIX + btoa(inner));
+  assert(JSON.stringify(back) === JSON.stringify(d), 'an unknown id changed the result');
+  // Pinned so a reshuffle of DNA_CODEC_IDS has to be a deliberate act, not a rename side effect.
+  assert(JSON.stringify(M.DNA_CODEC_IDS) === JSON.stringify({
+    platformHz: 1, pitchRatio: 2, arbShare: 3, balanceOffset: 4, reboundZeta: 5,
+    bumpRatio: 6, dampBias: 7, diffExit: 8, diffEntry: 9,
+  }), 'DNA codec ids are permanent — retire, never reuse');
+  assert(M.DNA_CODEC_VERSION === 1, 'DNA codec version changed');
+});
+
+t('a default DNA encodes to almost nothing', () => {
+  const code = M.encodeDNA({});
+  assert(atob(code.slice(M.DNA_CODE_PREFIX.length)) === String(M.DNA_CODEC_VERSION),
+    `a DNA at every default should carry only its version, got ${atob(code.slice(M.DNA_CODE_PREFIX.length))}`);
+  assert(JSON.stringify(M.decodeDNA(code)) === JSON.stringify(M.sanitizeDNA({})), 'the empty code should decode to the default DNA');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

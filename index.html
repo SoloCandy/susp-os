@@ -1642,6 +1642,61 @@ const sanitizeDNA=raw=>{
   return{v:2,name:(typeof raw?.name==='string'&&raw.name.trim())?raw.name:'Untitled',axes,slack,keep};
 };
 
+// ── DNA share codes ─────────────────────────────────────────────────────────
+// A DNA travels on its OWN code, not in CODEC_FIELDS. A DNA is not a tune: threading a DNA group
+// through DEF_GROUPS/encodeTune/decodeTune/sanitizeTune would spend permanent tune-codec ids on an
+// object no solver reads, and tune ids can never be reused (see docs/CODEC.md). A separate table
+// with its own prefix, its own version and its own ids costs nothing on that side — and it is the
+// only way a personality travels at all, since the stamped tune a share code carries is
+// chassis-specific, which is the exact thing a DNA exists to escape.
+//
+// Same shape as the tune codec otherwise: `version|id:value|…`, base64, fields still at their
+// default omitted, unknown ids ignored so a newer app's extra axis does not break an older one.
+// THESE IDS ARE PERMANENT. Retire, never reuse.
+const DNA_CODEC_VERSION=1;
+const DNA_CODE_PREFIX='DNA-';            // so a DNA code is never mistaken for a tune code
+const DNA_CODEC_IDS={platformHz:1,pitchRatio:2,arbShare:3,balanceOffset:4,reboundZeta:5,
+  bumpRatio:6,dampBias:7,diffExit:8,diffEntry:9};
+const DNA_CODEC_NAME=10;                 // encodeURIComponent'd, so it cannot contain | or :
+const DNA_CODEC_KEEP=11;                 // DNA_YIELDABLE indices in keep order, one digit each
+const DNA_CODEC_SLACK=20;                // an axis's slack id is its axis id + this
+
+const encodeDNA=raw=>{
+  const d=sanitizeDNA(raw);
+  const parts=[DNA_CODEC_VERSION];
+  if(d.name&&d.name!=='Untitled')parts.push(`${DNA_CODEC_NAME}:${encodeURIComponent(d.name)}`);
+  for(const[k,id]of Object.entries(DNA_CODEC_IDS)){
+    if(Math.abs(d.axes[k]-DNA_AXES[k].def)>1e-9)parts.push(`${id}:${d.axes[k]}`);
+    const sl=d.slack[k];
+    if(sl>0)parts.push(`${id+DNA_CODEC_SLACK}:${sl}`);
+  }
+  const keep=d.keep.map(k=>DNA_YIELDABLE.indexOf(k)).join('');
+  if(keep!==DNA_YIELDABLE.map((_,i)=>i).join(''))parts.push(`${DNA_CODEC_KEEP}:${keep}`);
+  return DNA_CODE_PREFIX+btoa(parts.join('|'));
+};
+
+// Returns a sanitizeDNA shape, so every downstream reader gets the same object a saved DNA is.
+const decodeDNA=code=>{
+  const t=String(code??'').trim();
+  if(!t.toUpperCase().startsWith(DNA_CODE_PREFIX))throw new Error('Not a DNA code — DNA codes start with DNA-.');
+  const parts=atob(t.slice(DNA_CODE_PREFIX.length)).split('|');
+  if(parseInt(parts[0],10)!==DNA_CODEC_VERSION)throw new Error('Outdated or invalid DNA code — ask for a new one.');
+  const axes={},slack={};let name,keep;
+  for(let i=1;i<parts.length;i++){
+    const ci=parts[i].indexOf(':');
+    if(ci<0)continue;
+    const id=Number(parts[i].slice(0,ci)),v=parts[i].slice(ci+1);
+    if(id===DNA_CODEC_NAME){name=decodeURIComponent(v);continue;}
+    if(id===DNA_CODEC_KEEP){keep=[...v].map(c=>DNA_YIELDABLE[Number(c)]).filter(Boolean);continue;}
+    const axis=Object.keys(DNA_CODEC_IDS).find(k=>DNA_CODEC_IDS[k]===id);
+    if(axis){axes[axis]=Number(v);continue;}
+    const sl=Object.keys(DNA_CODEC_IDS).find(k=>DNA_CODEC_IDS[k]+DNA_CODEC_SLACK===id);
+    if(sl)slack[sl]=Number(v);
+    // anything else is an id this version doesn't know — ignored, like the tune codec does
+  }
+  return sanitizeDNA({name,axes,slack,keep});
+};
+
 // Axes → a patch spread over the current fe/dr, so everything not named here (gameMode,
 // targetSpeed, the MAN ARB fields, buildType, diffType) survives. Every axis lands on one field in
 // a mode where that field already IS a target. Not CO-SOLVE: its rear/front ratio is exactly 1 at
@@ -3697,6 +3752,11 @@ const encodeTune=(ch,fe,dr,tier)=>{
 };
 
 const decodeTune=(code)=>{
+  // A DNA rides on its own codec, so its code reaches every tune-decoding path looking like
+  // corruption. Naming it here covers all of them at once — TUNE CHECK, LOAD CODE and the tier
+  // probe — instead of each guessing at "invalid".
+  if(String(code??'').trim().toUpperCase().startsWith(DNA_CODE_PREFIX))
+    throw new Error('That is a DNA code — paste it into the DNA editor (PRO), not here.');
   const parts=atob(code.trim()).split('|');
   const version=parseInt(parts[0],10);
   if(version!==CODEC_VERSION)throw new Error('Outdated or invalid tune code — ask for a new one.');
@@ -4609,6 +4669,9 @@ function App(){
   const[dnaStore,setDnaStore]=usePersist('suspos_dna_v1',{draft:DNA_ARCHETYPES[0],applied:null});
   const[dnaTierWarn,setDnaTierWarn]=useState(null);
   const[dnaEntryName,setDnaEntryName]=useState('');
+  const[dnaCodeIn,setDnaCodeIn]=useState('');
+  const[dnaCodeErr,setDnaCodeErr]=useState('');
+  const[dnaCodeCopied,setDnaCodeCopied]=useState(false);
   const[showDnaModal,setShowDnaModal]=useState(false);
   // One-time migration: pull any customized old preset slots (suspos_saves_v9) into MY BUILDS.
   // The 6 factory slots that match their defaults are skipped; only renamed/overwritten slots move.
@@ -5085,6 +5148,14 @@ function App(){
   const dnaLoadSaved=e=>{
     const d=sanitizeDNA(e.dna);
     setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes,slack:d.slack}}});
+  };
+  // Replaces the editor's draft, and nothing else — not a commit, exactly like IMPORT AS DNA.
+  const dnaLoadCode=()=>{
+    try{
+      const d=decodeDNA(dnaCodeIn);
+      setDnaStore({...dnaStore,draft:{...d,ref:null}});
+      setDnaCodeIn('');setDnaCodeErr('');
+    }catch(err){setDnaCodeErr(err.message||'Invalid DNA code.');}
   };
   const dnaUnlink=()=>{if(dnaStore.applied)setDnaStore({...dnaStore,applied:null});};
   const dnaApply=()=>{
@@ -5625,6 +5696,31 @@ function App(){
                                onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
                            ))}
                       </>}
+                    </div>
+                    {/* CODE — a DNA travels on its own code, never in the tune codec. Paste one in
+                        and it replaces the draft with no `ref`, the way IMPORT AS DNA does: it came
+                        from somewhere else, so "edited from" would name a DNA this app never had. */}
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:4}}>CODE</div>
+                      <div style={{display:'flex',gap:4,marginBottom:5}}>
+                        <input readOnly value={encodeDNA(dnaDraft)} onFocus={e=>e.target.select()}
+                          aria-label="This DNA as a share code"
+                          style={{flex:1,minWidth:0,background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
+                                  padding:'4px 7px',fontSize:9,color:'#64748b',outline:'none',fontFamily:'inherit'}}/>
+                        <button className={`tbtn${dnaCodeCopied?' saved':''}`} style={{fontSize:9}}
+                          onClick={()=>copyToClipboard(encodeDNA(dnaDraft),()=>setDnaCodeCopied(true))}>
+                          {dnaCodeCopied?'COPIED':'COPY'}</button>
+                      </div>
+                      <div style={{display:'flex',gap:4}}>
+                        <input value={dnaCodeIn} onChange={e=>{setDnaCodeIn(e.target.value);setDnaCodeErr('');}}
+                          onKeyDown={e=>{if(e.key==='Enter')dnaLoadCode();}}
+                          placeholder="Paste a DNA code…" aria-label="Paste a DNA code"
+                          style={{flex:1,minWidth:0,background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
+                                  padding:'4px 7px',fontSize:9,color:'#e2e8f0',outline:'none',fontFamily:'inherit'}}/>
+                        <button className="tbtn" style={{fontSize:9}} disabled={!dnaCodeIn.trim()}
+                          onClick={dnaLoadCode}>LOAD</button>
+                      </div>
+                      {dnaCodeErr&&<div style={{fontSize:9,color:'#f87171',marginTop:4}}>{dnaCodeErr}</div>}
                     </div>
                     <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
                       {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}

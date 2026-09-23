@@ -141,9 +141,18 @@ check('DEF_GROUPS covers every group CODEC_FIELDS references', () => {
   return orphan.length === 0 || `group(s) with no DEF_GROUPS entry: ${orphan.join(', ')}`;
 });
 
+// CODEC.md now documents two codecs. Each check reads the section it names, so the DNA table's
+// ids are never weighed against CODEC_FIELDS — they are a different, deliberately separate space.
+const codecSection = title => {
+  const i = doc['CODEC.md'].indexOf(`## ${title}`);
+  if (i < 0) throw new Error(`CODEC.md has no "## ${title}" section`);
+  const j = doc['CODEC.md'].indexOf('\n## ', i + 1);
+  return doc['CODEC.md'].slice(i, j < 0 ? undefined : j);
+};
+
 check('CODEC.md id table matches CODEC_FIELDS exactly', () => {
   const table = new Map();
-  for (const m of doc['CODEC.md'].matchAll(/^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/gm))
+  for (const m of codecSection('Field table').matchAll(/^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/gm))
     table.set(+m[1], `${m[2].trim()}.${m[3].trim()}`);
   const code = new Map();
   for (const r of codecRows)
@@ -154,6 +163,29 @@ check('CODEC.md id table matches CODEC_FIELDS exactly', () => {
     else if (table.get(id) !== sig) problems.push(`id ${id}: code has ${sig}, doc has ${table.get(id)}`);
   for (const id of table.keys())
     if (!code.has(id)) problems.push(`id ${id} documented but not in CODEC_FIELDS`);
+  return problems.length === 0 || problems.join('; ');
+});
+
+check('CODEC.md documents the DNA codec ids as the code assigns them', () => {
+  const block = /const DNA_CODEC_IDS=\{([^}]*)\}/.exec(SRC);
+  if (!block) return 'cannot find DNA_CODEC_IDS in index.html';
+  const code = new Map();
+  for (const m of block[1].matchAll(/(\w+):(\d+)/g)) code.set(+m[2], `axes.${m[1]}`);
+  const sec = codecSection('The DNA codec — a second, separate code');
+  const table = new Map();
+  for (const m of sec.matchAll(/^\|\s*(\d+)\s*\|\s*`([^`]+)`/gm)) table.set(+m[1], m[2]);
+  const problems = [];
+  for (const [id, sig] of code)
+    if (table.get(id) !== sig) problems.push(`DNA id ${id}: code has ${sig}, doc has ${table.get(id) ?? 'nothing'}`);
+  const num = (re, what) => {
+    const m = re.exec(SRC);
+    if (!m) problems.push(`cannot find ${what} in index.html`);
+    return m && m[1];
+  };
+  const slack = num(/const DNA_CODEC_SLACK=(\d+)/, 'DNA_CODEC_SLACK');
+  if (slack && !sec.includes(`(${slack})`)) problems.push(`doc does not state the slack offset ${slack}`);
+  const prefix = /const DNA_CODE_PREFIX='([^']+)'/.exec(SRC);
+  if (prefix && !sec.includes(`\`${prefix[1]}\``)) problems.push(`doc does not state the prefix ${prefix[1]}`);
   return problems.length === 0 || problems.join('; ');
 });
 
