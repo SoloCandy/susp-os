@@ -376,16 +376,43 @@ balance for free.
    clearing value wins. It clears only if the missed axes hit, the candidate hits its
    own new value, and every axis ranked above the candidate that currently hits still
    hits — a move may only spend axes ranked below itself.
-5. After any move, every accepted miss is judged again, because a move can unblock one:
+5. If **no** single candidate clears it and at least two are eligible, try them **in pairs**
+   (see below). A pair costs two of the move budget.
+6. After any move, every accepted miss is judged again, because a move can unblock one:
    lowering pitch for balance can make a share miss fixable that no platform value
    could fix before. Stop after `DNA_MAX_MOVES` (4) moves or when nothing is left to
    resolve.
+
+### Two candidates together
+
+The single-candidate search rejects a move that breaks an axis ranked above it, and that used to
+end the row. On a rear-biased chassis in Horizon, GT3 with balance ranked first shows the gap:
+raising pitch reaches the balance offset but drops share below its 1-click floor, and share alone
+cannot reach balance — so both were refused and the balance miss was accepted, although moving
+pitch **and** share together clears it.
+
+The pair pass is not a 2-D search. The **less protected** member moves first with the other
+**released** from its guard — allowed to break — and then the more protected member moves to
+repair itself while holding the first one's new value and the axes that were missing. Two 1-D
+searches, a few milliseconds, instead of a grid.
+
+The cost of a pair is the cost of its **more protected member**, which is what makes it legal
+under the same rule as a single move: that member moving alone would already have been permitted
+to spend everything ranked below it, and that is exactly what the other member's guard is relaxed
+to. The invariant is unchanged — nothing ranked above *every* moved axis is broken, and both
+members are still ranked below the axis they protect.
+
+Both halves carry `with`, naming the other, so the readout says *moved with ARB SHARE to keep
+BALANCE* rather than showing two unrelated concessions.
+
+Measured over every archetype, eight chassis, three games and all 120 `keep` permutations —
+11,520 applies: 30 resolutions improved, none got worse, worst case 9.4 ms.
 
 There is no per-axis direction table. An earlier draft of this section listed one
 ("share too low → lower `platformHz`" and so on); searching both ways gets the same
 answers without a table that could be written backwards.
 
-The result carries `moves` (`{axis, from, to, protects, cause}`), `misses`
+The result carries `moves` (`{axis, from, to, protects, cause, with?}`), `misses`
 (`{axis, target, achieved, cause}`) and `inexpressible`, for the match readout — e.g.
 *ARB share 30 → 13%, anti-roll bars at their limit* — so the app never presents a
 compromise as the target. This is the same principle as `impliedZeta` and the ARB
@@ -394,16 +421,17 @@ millisecond; `tests-dna.js` fails if the worst case in its sample reaches 50 ms.
 
 **Limits worth knowing:**
 
-- **One axis at a time.** Keeping a protected axis by moving two lower-ranked ones
-  together is not searched. TAIL-HAPPY on a front-heavy or staggered chassis in Forza
-  shows it: raising pitch would reach balance but breaks share, which TAIL-HAPPY ranks
-  above pitch, and share alone cannot reach balance — so the balance miss is accepted,
-  even though moving pitch *and* platform together might have kept both.
+- **At most two axes at a time.** Three lower-ranked axes moving together is not searched,
+  and the pair pass only runs on rows with two eligible candidates — in practice that is
+  the balance row, the only one with three candidates.
 - **Resolution.** A clearing window narrower than one 96th of an axis's range can be
   stepped over. Such windows are real: on a 60% front chassis MOMENTUM's balance clears
   only across roughly 0.07 of pitch, because raising the rear spring rate moves the
   springs the share budget is sized from. (Measured under the v1 roll axis.) A 12-step first version missed exactly those. A window
   that is missed is reported as a miss, never hidden.
+  Raising the count further was measured and is **not** a win: at 288 steps over the same
+  11,520-apply grid, 8 cases improved and 12 got worse. The search is greedy, so finding a
+  nearer clearing value first can lead the rest of the resolution somewhere worse. 96 stays.
 - **Greedy.** Rows resolve in dependency order, not by a global optimum.
 
 The resolver reads the same measurements in all three game modes. BeamNG has no
@@ -709,7 +737,9 @@ does — a mirror could not catch a compiler that drifted from the solver it dri
    that broke the gap fraction; a v1 DNA migrates to `arbShare`.
 6. **Resolver.** Each conflict — pitch band, bars at their ceiling for the share target,
    damper ceiling, damper floor, bar authority for balance — gives way in `keep` order
-   both ways round; an out-of-range balance target is never chased.
+   both ways round; an out-of-range balance target is never chased; the pair pass fires on
+   the rear-biased GT3 case, both halves name each other, and the pair stays inside the
+   more protected member's licence.
 7. **Read-back.** A compiled tune read back by `dnaReadBack` returns the DNA that
    produced it: outcome axes match `measureDNA` clamped to their ranges, diff axes
    exactly, and `dampBias` within the damper quantisation propagated through the log.

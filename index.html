@@ -1759,8 +1759,11 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
     const r=rank(k==='bumpRatio'?'reboundZeta':k);
     return r>=0&&r<rank(cand)&&hit(ev,work,k);
   });
-  const tryMove=(cand,protectedAxes)=>{
-    const v0=work[cand],{min,max}=DNA_AXES[cand],guard=guardedBy(cand);
+  // `release` names axes the caller intends to move itself in a moment, so this search may break
+  // them. Only the pair pass passes it; a plain single move never releases anything.
+  const tryMove=(cand,protectedAxes,release)=>{
+    const v0=work[cand],{min,max}=DNA_AXES[cand],
+      guard=guardedBy(cand).filter(k=>!release?.includes(k));
     const clears=v=>{
       const w={...work,[cand]:v},e=dnaEvaluate(ch,fe,dr,w);
       return[...protectedAxes,...guard,cand].every(k=>hit(e,w,k));
@@ -1788,29 +1791,73 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
     }
     return best;
   };
+  // Two candidates moving together, tried only after every single candidate has failed. The case
+  // it exists for: on a front-heavy or staggered chassis TAIL-HAPPY's balance is reachable by
+  // raising pitch, but raising pitch breaks share, which TAIL-HAPPY ranks above pitch — so the
+  // single pass rejects the pitch move and share alone cannot reach balance, and a miss was
+  // accepted that both axes together can clear.
+  //
+  // It is not a 2-D search. The less protected axis `b` moves first with `a` RELEASED from its
+  // guard — that is, allowed to break — and then `a` moves to repair itself while holding `b`'s
+  // new value and the axes that were missing. Two 1-D searches, ~4 ms, instead of a grid.
+  //
+  // The cost of the pair is the cost of its MORE protected member: `a` moving alone would already
+  // have been allowed to spend everything ranked below `a`, and that is exactly what the guard on
+  // `b` is relaxed to. So the invariant holds unchanged — nothing ranked above every moved axis
+  // is broken, and both members are still ranked below the axis they are protecting.
+  const tryPair=(row,own,cands)=>{
+    for(const b of cands){
+      for(const a of cands){
+        if(rank(a)>=rank(b))continue;                       // `a` is the more protected member
+        const toB=tryMove(b,row.axes,[a]);
+        if(toB==null)continue;
+        const v0b=work[b],ev0=ev;
+        work[b]=toB;ev=dnaEvaluate(ch,fe,dr,work);
+        const toA=tryMove(a,[...row.axes,b]);
+        if(toA!=null)return[{axis:b,to:toB,from:v0b},{axis:a,to:toA,from:work[a]}];
+        work[b]=v0b;ev=ev0;                                 // no repair — put `b` back
+      }
+    }
+    return null;
+  };
   const moves=[],accepted=new Set();
   let ev=dnaEvaluate(ch,fe,dr,work);
   while(moves.length<DNA_MAX_MOVES){
     const row=ROWS.find(r=>!accepted.has(r.id)&&r.axes.some(k=>!hit(ev,work,k)));
     if(!row)break;
     const own=row.own??row.axes[0];
+    // Least protected first; reaching the missed axis itself means everything left is more
+    // protected than it, so nothing beyond this point may move for it.
+    const cands=[...row.cands].sort((a,b)=>rank(b)-rank(a));
+    const eligible=cands.slice(0,cands.indexOf(own)<0?cands.length:cands.indexOf(own));
     let moved=false;
-    for(const cand of [...row.cands].sort((a,b)=>rank(b)-rank(a))){
-      if(cand===own)break;
+    for(const cand of eligible){
       const to=tryMove(cand,row.axes);
       if(to==null)continue;
       moves.push({axis:cand,from:work[cand],to,protects:own,cause:row.cause(ev)});
       work[cand]=to;
       ev=dnaEvaluate(ch,fe,dr,work);
       moved=true;
-      // A move can unblock a miss accepted earlier — lowering pitch for balance can make a roll
-      // miss that no platform value could fix become fixable — so every accepted miss is judged
-      // again against the new state. DNA_MAX_MOVES still bounds the loop. Without this a resolved
-      // DNA was not a fixed point: applying its own result could move again.
-      accepted.clear();
       break;
     }
-    if(!moved)accepted.add(row.id);
+    // Only when no single axis could do it, and only if there is room for both moves.
+    if(!moved&&eligible.length>1&&moves.length+2<=DNA_MAX_MOVES){
+      const pair=tryPair(row,own,eligible);
+      if(pair){
+        const cause=row.cause(ev);
+        // `with` marks the two halves of one joint move, so a readout can say they moved together
+        // rather than showing two unrelated concessions.
+        for(const m of pair)moves.push({...m,protects:own,cause,with:pair.find(o=>o!==m).axis});
+        for(const m of pair)work[m.axis]=m.to;
+        ev=dnaEvaluate(ch,fe,dr,work);
+        moved=true;
+      }
+    }
+    // A move can unblock a miss accepted earlier — lowering pitch for balance can make a share
+    // miss that no platform value could fix become fixable — so every accepted miss is judged
+    // again against the new state. DNA_MAX_MOVES still bounds the loop. Without this a resolved
+    // DNA was not a fixed point: applying its own result could move again.
+    if(moved)accepted.clear();else accepted.add(row.id);
   }
   const rowOf=k=>ROWS.find(r=>r.axes.includes(k));
   return{
@@ -5580,7 +5627,7 @@ function App(){
                         const mv=r.moves.find(m=>m.axis===k),ms=r.misses.find(m=>m.axis===k);
                         const[txt,col]=r.inexpressible.includes(k)?['— not expressible with this diff','#475569']
                           :ms?[`${dnaFmt(k,ms.achieved)} · ${ms.cause??'missed'}`,'#f59e0b']
-                          :mv?[`${dnaFmt(k,mv.to)} · moved to keep ${labelOf(mv.protects)}`,'#f59e0b']
+                          :mv?[`${dnaFmt(k,mv.to)} · moved${mv.with?' with '+labelOf(mv.with):''} to keep ${labelOf(mv.protects)}`,'#f59e0b']
                           :[`✓ ${dnaFmt(k,r.measured[k])}`,'#22c55e'];
                         return(
                           <div key={k} style={{display:'flex',gap:6,fontSize:9,lineHeight:1.6}}>

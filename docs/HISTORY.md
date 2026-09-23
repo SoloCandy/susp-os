@@ -11,6 +11,27 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the DNA resolver can move two axes together
+
+`applyDNA` tried one candidate at a time, and rejected any move that broke an axis ranked above
+it. That left reachable targets unreached: on a rear-biased chassis in Horizon, GT3 with balance
+ranked first needs pitch to move, pitch drops share under its 1-click floor, and share alone
+cannot reach balance — so both single moves were refused and the balance miss was accepted,
+although the two together clear it.
+
+When no single candidate clears a row and two are eligible, the resolver now moves the less
+protected one with the other released from its guard, then moves that one to repair itself. Two
+1-D searches, not a grid. A pair is legal under the existing rule because its cost is its more
+protected member's: that member alone could already have spent everything ranked below it.
+
+Over every archetype, eight chassis, three games and all 120 `keep` permutations — 11,520
+applies — 30 resolutions improved, none got worse, and the worst case went from well under a
+millisecond to 9.4 ms, against the suite's 50 ms cap.
+
+Measured at the same time and **not** changed: raising the 96-step scan to 288 improved 8 cases
+and made 12 worse. The search is greedy, so a nearer clearing value can lead the rest of the
+resolution somewhere worse. The step count stays where it is.
+
 ## Fixed — IMPORT AS DNA overwrote the draft's diff axes with the live car's
 
 `dnaFromDecoded` passed the live `dr` into `dnaReadBack`. A share code carries no

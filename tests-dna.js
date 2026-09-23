@@ -516,6 +516,24 @@ t('balance (FrontHeavy, Forza): pitch carries the correction only if balance out
   assert(missed(keepPitch, 'balanceOffset')?.cause === 'anti-roll bars cannot reach the split', 'balance miss or its cause missing');
 });
 
+t('two axes move together when neither can clear a miss alone', () => {
+  // RearBiased + Horizon + GT3, with balance ranked first. Pitch alone reaches balance but breaks
+  // share, and share alone cannot reach balance, so a single-candidate resolver accepted the
+  // balance miss. Moving both clears it. See docs/DNA.md's "Two candidates together".
+  const gt3 = M.DNA_ARCHETYPES.find(a => a.name === 'GT3');
+  const res = M.applyDNA(chOf(FIXTURES.RearBiased), feOf('horizon'), M.DEF_DR,
+    { ...gt3, keep: ['balanceOffset', 'arbShare', 'platformHz', 'pitchRatio', 'reboundZeta'] });
+  const joint = res.moves.filter(m => m.with);
+  assert(joint.length === 2, `expected one joint move, got ${res.moves.map(m => m.axis + (m.with ? '+' + m.with : ''))}`);
+  assert(joint[0].with === joint[1].axis && joint[1].with === joint[0].axis, 'the two halves should name each other');
+  assert(joint.every(m => m.protects === 'balanceOffset'), 'both halves should protect the same axis');
+  assert(!missed(res, 'balanceOffset'), 'balance should land once both moved');
+  // The pair costs what its MORE protected member would have cost alone: nothing ranked above it.
+  const top = Math.min(...joint.map(m => rankIn(res.dna, m.axis)));
+  for (const m of joint) assert(rankIn(res.dna, m.axis) >= top && rankIn(res.dna, m.protects) < top,
+    `${m.axis} moved for something ranked below the pair`);
+});
+
 t('a balance target outside 0.20..0.90 is accepted, never chased', () => {
   const ch = chOf(FIXTURES.WideFront);                       // grip-neutral sits low here
   const off = 0.20 - M.gripNeutralOf(ch) - 0.05;             // below the 0.20 floor
