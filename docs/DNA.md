@@ -550,6 +550,13 @@ The link only drives read-outs. What happens to it:
     does not apply. No filter, sort or search;
   - EDITING / EDITED FROM … with REVERT;
   - one `FeelSlider` per axis over the full `DNA_AXES` range;
+  - **PRIORITY**, the draft's `keep` order: the five `DNA_YIELDABLE` axes, most protected
+    first, each with ▲/▼ to swap with its neighbour. A row reads *gave way* or *missed*
+    when the live preview says so, so the effect of a reorder is visible without applying.
+    The editor always writes a full permutation, so `sanitizeDNA` never has to repair it.
+    Reordering counts as an edit — `dnaEdited` compares `keep` as well as the axes, the
+    name becomes `GT3 (edited)`, and REVERT restores the ref's order along with its values.
+    The setting axes and `bumpRatio` are not listed, because they never trade;
   - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
     missed (and why), or not expressible. Solved only while the modal is open;
   - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
@@ -577,8 +584,7 @@ The link only drives read-outs. What happens to it:
   rewrite `arbBalMode` (and at BEG `dampBalMode`/`dampingBias`) and nothing restores
   them. `requestMode` wraps `tryAccessMode` for the header tier buttons.
 
-Not built from the first design: the `keep` order editor, a radar chart,
-and re-apply from the match card. The Balance Guide keeps showing its build-type band
+Not built from the first design: a radar chart and re-apply from the match card. The Balance Guide keeps showing its build-type band
 even when the DNA sits outside it.
 
 ---

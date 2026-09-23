@@ -382,6 +382,15 @@ t('dampBias inverts the ζ split whatever damper-balance mode set it', () => {
   }
 });
 
+// The one that actually bit: dnaReadBack behaved correctly, and IMPORT AS DNA handed it the
+// wrong drivetrain. A share code patches fe only, so the live dr describes the car on screen,
+// not the tune being imported — and because those are real numbers, the from-fallback below
+// never fired. Pinned in the source, since the call site is in App. See docs/HISTORY.md.
+t('IMPORT AS DNA reads back with the diff marked inexpressible', () => {
+  assert(src.includes('axes:dnaReadBack(ch,nfe,{...dr,diffManual:true},t,dnaDraft.axes)'),
+    "dnaFromDecoded no longer blinds the diff axes — it would import the live car’s diff");
+});
+
 t('an axis the tune cannot express keeps the value it was given', () => {
   const ch = chOf({}), fe = feOf('horizon');
   // diffManual makes both diff axes inexpressible; sport makes ENTRY alone inexpressible.

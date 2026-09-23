@@ -549,9 +549,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
   (default car 22.2/21.3 → 65/65). Should seed from `tune.rollDeg`.
 - **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
   so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
-- **RESTORE skips saved DNAs by default.** After parsing a file, `setRestoreSel` sets only
-  chassis/build/car; the DNA checkbox goes uncontrolled and unticked, and a DNA-only backup
-  keeps RESTORE disabled until ticked by hand.
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
   to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
   arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
@@ -568,9 +565,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
   exported on a 12000 lb Motorsport car).
 - **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
   allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
-- **IMPORT AS DNA takes diff axes from the live car.** `dnaFromDecoded` passes the live `dr`,
-  so `diffExit`/`diffEntry` overwrite the draft's values although the decoded tune has no
-  diff data — against `dnaReadBack`'s keep-`from` rule.
 - **Balance Mode hint shows a literal "%%"** ("raw weight %%"), from a printf-style escape in
   a template literal.
 - **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a

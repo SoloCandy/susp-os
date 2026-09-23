@@ -11,6 +11,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — IMPORT AS DNA overwrote the draft's diff axes with the live car's
+
+`dnaFromDecoded` passed the live `dr` into `dnaReadBack`. A share code carries no
+drivetrain — `decodedFe` patches `fe` only — so those diff settings belonged to whatever
+car happened to be loaded, not to the tune being imported. `measureDNA` read them as
+real numbers, which meant the keep-`from` fallback never fired and `diffExit`/`diffEntry`
+in the editor were replaced by values the decoded tune had never stated. It now passes
+`{...dr, diffManual:true}`, which is `measureDNA`'s own signal that a tune says nothing
+about its diff, so both axes read `null` and fall back to the draft.
+
+The general rule this broke: `dnaReadBack` exists so an axis a tune cannot speak for
+keeps the value it was handed. Handing it a *different* source's data defeats that
+without tripping any of its guards.
+
+## Fixed — RESTORE left saved DNAs unticked
+
+After parsing a backup file, `setRestoreSel` wrote `chassis`/`build`/`car` and no `dna`
+key. The checkbox went from controlled to uncontrolled and rendered unticked, and since
+RESTORE is disabled while nothing is selected, a DNA-only backup looked like it could
+not be restored at all. The DNA kind was added to the backup selector when it shipped
+and missed at this one site.
+
+## Changed — the DNA priority order is editable, and counts as an edit
+
+The `keep` order shipped in the format and in `sanitizeDNA` with no way to change it: a
+saved DNA could only ever carry its archetype's order. The DNA modal now has a PRIORITY
+list with ▲/▼ per axis.
+
+`dnaEdited` compares `keep` as well as the axis values, so reordering renames the draft
+`… (edited)` and REVERT restores the reference's order. It has to: the order is part of
+the personality, not a view setting. On the default chassis in Horizon, GT3's own order
+(platform first) accepts two misses, while ranking `balanceOffset` first clears both —
+the resolver moves platform 3.30 → 3.72 Hz and share 4.5 → 11.7% instead. Across the
+archetypes, six chassis and all three games, permuting `keep` produced up to six
+distinct outcomes for a single DNA.
+
 ## Changed — the stored Hz grid went from 0.01 to 0.001, so BOTTOM G's steps are all live
 
 `hzToRs` and `sanitizeTune` both rounded `fe.rideStiffness` to 0.01 Hz. That matched

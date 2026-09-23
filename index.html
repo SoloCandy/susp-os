@@ -4972,12 +4972,18 @@ function App(){
     const r=dnaStore.draft?.ref;
     if(r?.id!=null){
       const e=entries.find(x=>x.id===r.id&&kindOf(x)==='dna');
-      return e?{id:e.id,name:e.name,axes:sanitizeDNA(e.dna).axes}:(r.axes?{name:r.name,axes:r.axes}:null);
+      const d=e?sanitizeDNA(e.dna):null;
+      return e?{id:e.id,name:e.name,axes:d.axes,keep:d.keep}:(r.axes?{name:r.name,axes:r.axes,keep:r.keep}:null);
     }
     const a=DNA_ARCHETYPES.find(x=>x.name===(r?.name??dnaStore.draft?.base??dnaStore.draft?.name));
-    return a?{name:a.name,axes:a.axes}:null;
+    return a?{name:a.name,axes:a.axes,keep:a.keep}:null;
   })();
-  const dnaEdited=!!dnaRef&&DNA_AXIS_UI.some(({k})=>Math.abs((dnaRef.axes[k]??NaN)-dnaDraft.axes[k])>1e-9||!isFinite(dnaRef.axes[k]));
+  // The priority order is part of the personality, not a view setting: two DNAs with the same
+  // axes and different `keep` resolve differently on any chassis where a target can't be met.
+  // So reordering it counts as an edit, the same as moving a slider, and REVERT puts it back.
+  const dnaKeepRef=sanitizeDNA({keep:dnaRef?.keep}).keep;
+  const dnaEdited=!!dnaRef&&(DNA_AXIS_UI.some(({k})=>Math.abs((dnaRef.axes[k]??NaN)-dnaDraft.axes[k])>1e-9||!isFinite(dnaRef.axes[k]))
+    ||dnaDraft.keep.some((k,i)=>k!==dnaKeepRef[i]));
   const dnaName=dnaRef?(dnaEdited?dnaRef.name+' (edited)':dnaRef.name):dnaDraft.name;
   // Only solved while the editor is on screen — the resolver runs many forward solves.
   const dnaPreview=useMemo(()=>uiMode==='pro'&&showDnaModal?applyDNA(ch,fe,dr,dnaDraft):null,
@@ -5018,8 +5024,13 @@ function App(){
   const dnaFromDecoded=mkFe=>{
     const nfe=mkFe(fe);
     const t=solveTune(ch,resolveFeEffective(ch,nfe),nfe.gameMode??DEF_FE.gameMode).tune;
+    // A share code carries no drivetrain: decodedFe patches fe only, so the live `dr` here is
+    // whatever car happens to be loaded, not anything the decoded tune said. Reading the diff
+    // axes off it would overwrite the draft with the current car's diff — against dnaReadBack's
+    // keep-`from` rule. diffManual is measureDNA's own “this tune doesn’t state a diff” signal,
+    // so both diff axes read null and fall back to the draft. See docs/HISTORY.md.
     setDnaStore({...dnaStore,draft:{...dnaDraft,name:'DECODED TUNE',
-      axes:dnaReadBack(ch,nfe,dr,t,dnaDraft.axes)}});
+      axes:dnaReadBack(ch,nfe,{...dr,diffManual:true},t,dnaDraft.axes)}});
     setShowChecker(false);
     setShowDnaModal(true);
   };
@@ -5479,6 +5490,14 @@ function App(){
                   const r=dnaPreview;
                   const setAxis=(k,v)=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaDraft.axes,[k]:v}}});
                   const labelOf=k=>DNA_AXIS_UI.find(a=>a.k===k)?.label??k;
+                  // Swap with the neighbour. Writing the whole array keeps it a permutation, so
+                  // sanitizeDNA never has to repair what the editor produced.
+                  const keepMove=(i,d)=>{
+                    const a=[...dnaDraft.keep],j=i+d;
+                    if(j<0||j>=a.length)return;
+                    [a[i],a[j]]=[a[j],a[i]];
+                    setDnaStore({...dnaStore,draft:{...dnaStore.draft,keep:a}});
+                  };
                   const modeDiffs=DNA_MODE_FIELDS.filter(([o,f])=>(o==='fe'?fe:dr)[f]!==(o==='fe'?r.fe:r.dr)[f]);
                   return(<>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:8}}>
@@ -5522,13 +5541,39 @@ function App(){
                     </div>
                     <div style={{fontSize:9,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:6,letterSpacing:0.5}}>
                       {dnaEdited?<>EDITED FROM {dnaRef.name} · <span style={{cursor:'pointer',textDecoration:'underline'}}
-                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes}}})}>REVERT</span></>
+                        onClick={()=>setDnaStore({...dnaStore,draft:{...dnaStore.draft,axes:{...dnaRef.axes},keep:[...dnaKeepRef]}})}>REVERT</span></>
                         :<>EDITING {dnaName}</>}</div>
                     {DNA_AXIS_UI.map(({k,label,step})=>(
                       <FeelSlider key={k} label={label} value={dnaDraft.axes[k]}
                         onChange={v=>setAxis(k,v)} min={DNA_AXES[k].min} max={DNA_AXES[k].max} step={step}
                         box={{unit:(DNA_AXIS_UI.find(a=>a.k===k).unit||'').trim()||undefined,dp:DNA_AXIS_UI.find(a=>a.k===k).dp}}/>
                     ))}
+                    {/* PRIORITY — the draft's `keep` order, most protected first. The resolver
+                        only ever spends an axis ranked BELOW the one it is trying to reach, so
+                        this list decides which target survives when they conflict. Only the five
+                        yieldable axes appear: the setting axes are written verbatim and bump ratio
+                        rides on rebound ζ's rank. See docs/DNA.md. */}
+                    <div style={{borderTop:'1px solid #1e293b',paddingTop:6,marginTop:4,marginBottom:6}}>
+                      <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:1}}>PRIORITY</div>
+                      <div style={{fontSize:8,color:'#475569',marginBottom:4}}>
+                        Most protected first — the lowest gives way when targets conflict.</div>
+                      {dnaDraft.keep.map((k,i)=>{
+                        const moved=r.moves.some(m=>m.axis===k),missed=r.misses.some(m=>m.axis===k);
+                        return(
+                          <div key={k} style={{display:'flex',alignItems:'center',gap:6,fontSize:9,lineHeight:1.9}}>
+                            <span style={{color:'#475569',width:12,flexShrink:0,textAlign:'right'}}>{i+1}</span>
+                            <span style={{color:missed||moved?'#f59e0b':'#94a3b8',flex:1,minWidth:0}}>
+                              {labelOf(k)}{moved&&' · gave way'}{missed&&' · missed'}</span>
+                            <button className="tbtn" disabled={i===0} onClick={()=>keepMove(i,-1)}
+                              aria-label={`Protect ${labelOf(k)} more`} title="More protected"
+                              style={{fontSize:8,padding:'0 5px',opacity:i===0?0.25:1}}>▲</button>
+                            <button className="tbtn" disabled={i===dnaDraft.keep.length-1} onClick={()=>keepMove(i,1)}
+                              aria-label={`Protect ${labelOf(k)} less`} title="Less protected"
+                              style={{fontSize:8,padding:'0 5px',opacity:i===dnaDraft.keep.length-1?0.25:1}}>▼</button>
+                          </div>
+                        );
+                      })}
+                    </div>
                     <div style={{borderTop:'1px solid #1e293b',paddingTop:6}}>
                       <div style={{fontSize:9,letterSpacing:2,color:'#334155',marginBottom:3}}>ON THIS CHASSIS</div>
                       {DNA_AXIS_UI.map(({k,label})=>{
@@ -8516,7 +8561,8 @@ function App(){
                               setRestoreData(ents);
                               setRestoreSel({chassis:ents.some(e=>kindOf(e)==='chassis'),
                                              build:  ents.some(e=>kindOf(e)==='build'),
-                                             car:    ents.some(e=>kindOf(e)==='car')});
+                                             car:    ents.some(e=>kindOf(e)==='car'),
+                                             dna:    ents.some(e=>kindOf(e)==='dna')});
                               setRestoreErr('');
                             }catch{setRestoreErr('Invalid backup file.');}
                           };
