@@ -6866,7 +6866,14 @@ function App(){
               );
             })()}
             {uiMode==='pro'&&<div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,padding:'5px 10px',marginTop:6,display:'flex',alignItems:'center',gap:6}}>
-              <button className="tbtn" style={{fontSize:11,color:ch.useMeasuredNatBal?'#60a5fa':'#475569',flexShrink:0}}
+              {/* Unset, this used to sit at #475569 on a #060c17 panel and read as disabled
+                  rather than as the entry point it is — it is the only way in to the
+                  measured-balance workflow. Idle now carries .tbtn's normal weight; set
+                  keeps the blue that matches the reading shown beside it. */}
+              <button className="tbtn" style={{fontSize:11,flexShrink:0,fontWeight:600,
+                      color:ch.useMeasuredNatBal?'#60a5fa':'#cbd5e1',
+                      borderColor:ch.useMeasuredNatBal?'#60a5fa55':'#334155',
+                      background:ch.useMeasuredNatBal?'transparent':'#0f172a'}}
                 onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>MEASURE NAT BAL</button>
               <Hint text="An alternative to entering track widths — the game's Mech Balance already accounts for your car's real geometry, including track width upgrades. Wheelbase is still used separately for flat-ride Hz and brake balance. Open Tune Check and switch to MEASURE for step-by-step setup. CHASSIS = geometry prediction (track widths required). MEASURED = your in-game reading."/>
               {ch.useMeasuredNatBal&&<>
