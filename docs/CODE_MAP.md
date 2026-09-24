@@ -242,7 +242,7 @@ the initialiser against every `open.*` and `tog('...')` use in the source.
 ## Header layout: `headerCompact`
 
 The full header row — brand, UNITS, the game-mode dropdown, BEG/INT/PRO, then
-`?` / TERMS / GARAGE — needed roughly 975px once the four divider margins
+`?` / TERMS / the GitHub source link / GARAGE — needed roughly 975px once the four divider margins
 and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
 cutoff, so between those widths the desktop header used to render and push
 GARAGE and its neighbours off-screen: that row has no wrap and no horizontal

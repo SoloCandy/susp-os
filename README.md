@@ -40,7 +40,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 ## Complexity Tiers
 
-A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more) — not tied to any tier, available any time you forget what a word means.
+A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more) — not tied to any tier, available any time you forget what a word means. The GitHub mark beside it opens this repository in a new tab.
 
 Every slider's value can be typed as well as dragged, in the number box beside its label.
 
