@@ -11,6 +11,52 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — RESTORE says what it is about to replace, and takes two taps
+
+RESTORE is the most destructive action in the app: it replaces whole garage kinds,
+and the garage is outside undo history (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)),
+so a replaced entry is gone. It was four tick rows with fixed subtitles and a
+single RESTORE click, and it never said how much was arriving or how much of yours
+was leaving — "Tune-only entries" reads exactly the same whether the file holds one
+build or ninety, and nothing anywhere named the number that actually matters: how
+many of your saves stop existing.
+
+That is the reverse of the standard the rest of the app had already settled on.
+LOAD CODE next door stages a pasted code, prints its real values, tags the parts
+that already match, and applies only what is ticked — on a path where getting it
+wrong costs one undo. RESTORE, where getting it wrong costs the garage, asked for
+less.
+
+Each row now carries the file's count for that kind beside its label, and a second
+line stating the trade as it currently stands — `3 restored, replacing your 1
+entry`, `12 here, not taken — your 4 entries kept`, `None in this backup — your 2
+entries kept` — amber only on the rows that actually drop something. A summary box
+gives the net: what the garage becomes, how much came from the file, how much of
+yours was kept, and, when anything is replaced, an amber line saying it cannot be
+recovered and to BACKUP first. RESTORE is a two-tap `ConfirmBtn` (a new module-scope
+wrapper around the existing `useTwoTap`, since the caller is an IIFE inside a render
+and cannot hold a hook), matching the garage's own delete.
+
+One `chosen(kind)` predicate drives the printed counts and the entries actually
+dropped, so the summary cannot describe a different restore than the one that runs.
+It keeps the existing rule that a kind the file has none of never counts as chosen
+however its tick is left; that guard was already correct and is now also stated on
+the row.
+
+Verified against a garage of 4 cars / 2 builds / 1 chassis / 1 DNA restoring a file
+of 12 cars / 0 builds / 3 chassis / 2 DNA: with CARS unticked the panel promised
+11 entries — 5 from the file, 6 kept, 2 replaced — and the garage afterwards held
+exactly that, ids unique.
+
+**Unrelated, but found while verifying this:** driving the panel from the console
+with `document.querySelector('select')` hit the *header's* game-mode combobox
+instead of the modal's, set it to a non-option, and produced the persistent blank
+page that [KNOWN_ISSUES.md](KNOWN_ISSUES.md)'s `gameMode` entry describes — by the
+same mechanism it was originally found by. Still filed rather than fixed, and still
+only reachable from the console. Hand-writing entries into `suspos_garage_v2` also
+crashes the garage cards, because that path skips `parseBackup`'s `normalizeEntry`;
+that one is expected, and is noted in [PERSISTENCE.md](PERSISTENCE.md).
+
 ## Changed — DECODE is two numbered steps, and prints no decode until one is typed
 
 The DECODE tab was the shape MEASURE had just been lifted out of, unchanged: five

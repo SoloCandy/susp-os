@@ -4197,6 +4197,23 @@ const useTwoTap=(callback,delay=2000)=>{
   return[pending,handle];
 };
 
+// A full-width two-tap button, for an action that cannot be undone. OverwriteBtn below is the
+// same idea as a glyph; this one is for a labelled button that has to say what it is about to do,
+// and it exists as a component because useTwoTap is a hook and the callers are IIFEs inside a
+// render. `label` reads normally, `confirm` is what the armed tap says (SURE?, matching the
+// section RESET buttons).
+const ConfirmBtn=({label,confirm='SURE?',onConfirm,disabled=false,title,style})=>{
+  const[pending,handle]=useTwoTap(onConfirm);
+  return(
+    <button className={'tbtn'+(pending?'':' on')} disabled={disabled}
+      onClick={handle}
+      title={pending?'Click again to confirm':title}
+      style={{fontSize:11,...style,
+              ...(pending?{color:'#f59e0b',borderColor:'#f59e0b44'}:null)}}>
+      {pending?confirm:label}</button>
+  );
+};
+
 const OverwriteBtn=({onConfirm})=>{
   const[pending,handle]=useTwoTap(onConfirm);
   return(
@@ -8969,7 +8986,7 @@ function App(){
                     share:'Generates a compact code for the current tune — chassis, springs, dampers, ARBs, and all feel settings. COPY LINK wraps the same code in a URL that opens SUSP.OS with it ready to load. Does not include your garage entries.',
                     load:'Paste a code or link from another device or user, then READ CODE to stage it — nothing on your tune moves until you APPLY SELECTED. Only the parts you tick are taken; the rest keep your values. TO GARAGE saves the result as a new garage entry instead, without touching your current tune.',
                     backup:'Downloads a JSON file of your garage entries. Use this to move your collection to another device or keep a local copy. Does not include the current unsaved tune.',
-                    restore:'Loads garage entries from a backup file — older backups from before the garage was unified are read too. Pick which kinds to restore; the kinds you leave unticked are kept as they are. Does not affect the current unsaved tune.',
+                    restore:'Loads garage entries from a backup file — older backups from before the garage was unified are read too. Pick which kinds to restore: each row says how many the file holds and how many of yours it replaces, and the summary gives the net. A replaced entry is gone — the garage is outside undo — so RESTORE takes two taps. Does not affect the current unsaved tune.',
                   };
                   return<div style={{fontSize:10,color:'#94a3b8',lineHeight:1.6,marginBottom:12,letterSpacing:0.3}}>{hints[dataMode]}</div>;
                 })()}
@@ -9161,24 +9178,72 @@ function App(){
                       }}>CHOOSE FILE</button>
                     </div>
                   </>)}
-                  {restoreData&&(<>
+                  {restoreData&&(()=>{
+                    // RESTORE replaces whole kinds and the garage is outside undo history (see
+                    // docs/KNOWN_ISSUES.md), so it is the most destructive action in the app. It used
+                    // to be four ticks with fixed subtitles and one RESTORE click, and it never said
+                    // how much was coming in or how much of yours was going out — "Tune-only entries"
+                    // reads the same whether the file holds one build or ninety. LOAD CODE next door
+                    // already stages a code and prints its actual values before anything moves; this
+                    // is the same idea on the path where getting it wrong costs more.
+                    const KINDS=[
+                      {key:'chassis',label:'CHASSIS',what:'Chassis-only entries'},
+                      {key:'build',  label:'BUILDS', what:'Tune-only entries'},
+                      {key:'car',    label:'CARS',   what:'Chassis + tune entries'},
+                      {key:'dna',    label:'DNA',    what:'Saved handling DNAs'},
+                    ];
+                    const inFile=k=>restoreData.filter(e=>kindOf(e)===k).length;
+                    const mine=k=>entries.filter(e=>kindOf(e)===k).length;
+                    // Mirrors the apply below exactly: a kind the file has none of never counts as
+                    // chosen, however its tick is left, so it can't be read as "delete mine".
+                    const chosen=k=>restoreSel[k]&&inFile(k)>0;
+                    const picked=KINDS.filter(({key})=>chosen(key));
+                    const incoming=picked.reduce((a,{key})=>a+inFile(key),0);
+                    const replaced=picked.reduce((a,{key})=>a+mine(key),0);
+                    const kept=entries.length-replaced;
+                    const n=(c,one,many)=>`${c} ${c===1?one:many}`;
+                    return(<>
                     <div style={{fontSize:9,color:'#475569',marginBottom:8,letterSpacing:0.5,lineHeight:1.5}}>
-                      Select what to restore. Ticked kinds are replaced by the file's entries;
-                      unticked kinds in your garage are kept.
+                      This backup holds {n(restoreData.length,'entry','entries')}.
+                      Ticked kinds are replaced by the file's; unticked kinds of yours are kept untouched.
                     </div>
-                    {[
-                      {key:'chassis',label:'CHASSIS',sub:'Chassis-only entries'},
-                      {key:'build',  label:'BUILDS', sub:'Tune-only entries'},
-                      {key:'car',    label:'CARS',   sub:'Chassis + tune entries'},
-                    {key:'dna',    label:'DNA',    sub:'Saved handling DNAs'},
-                    ].map(({key,label,sub})=>chkRow(key,label,sub,restoreSel[key],
-                      e=>setRestoreSel(s=>({...s,[key]:e.target.checked})),
-                      !restoreData.some(e=>kindOf(e)===key)))}
+                    {KINDS.map(({key,label,what})=>{
+                      const f=inFile(key),m=mine(key);
+                      // What the kind is, then what ticking it does to this garage right now — so the
+                      // consequence sits on the row you are ticking rather than in a footnote. Amber
+                      // only on the rows that actually drop something of yours.
+                      const trade=f===0?`None in this backup — your ${n(m,'entry','entries')} kept`
+                        :!restoreSel[key]?`${f} here, not taken — your ${n(m,'entry','entries')} kept`
+                        :m===0?`${f} restored — nothing of yours to replace`
+                        :`${f} restored, replacing your ${n(m,'entry','entries')}`;
+                      const sub=<>{what}
+                        <div style={{marginTop:2,color:chosen(key)&&m>0?'#f59e0b':'#64748b'}}>{trade}</div></>;
+                      return chkRow(key,`${label}${f?'  '+f:''}`,sub,restoreSel[key],
+                        e=>setRestoreSel(s=>({...s,[key]:e.target.checked})),f===0);
+                    })}
+                    {/* The net effect in one line, because four rows of arithmetic is still arithmetic
+                        and the number that matters — how many of your entries stop existing — is not
+                        on any single row. */}
+                    <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.6,background:'#0a0f1a',
+                                 border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginTop:10}}>
+                      {picked.length===0
+                        ?'Nothing ticked — RESTORE would change nothing.'
+                        :<>Your garage becomes <span style={{color:'#e2e8f0'}}>{n(incoming+kept,'entry','entries')}</span>:
+                          {' '}{incoming} from this backup, {kept} of yours kept.</>}
+                      {replaced>0&&<div style={{color:'#f59e0b',marginTop:4}}>
+                        {n(replaced,'entry','entries')} of yours {replaced===1?'is':'are'} replaced
+                        and cannot be recovered — the garage is outside undo. BACKUP first if you want them.
+                      </div>}
+                    </div>
                     <div style={{display:'flex',gap:6,marginTop:14}}>
                       <button className="tbtn" style={{flex:1,fontSize:11}} onClick={close}>CANCEL</button>
-                      <button className="tbtn on" style={{flex:1,fontSize:11}}
-                        disabled={!restoreSel.chassis&&!restoreSel.build&&!restoreSel.car&&!restoreSel.dna}
-                        onClick={()=>{
+                      {/* Two taps, like deleting a garage entry, for the same reason: this one throws
+                          away more and there is nothing to undo it with. */}
+                      <ConfirmBtn label="RESTORE" style={{flex:1}}
+                        disabled={picked.length===0}
+                        title={replaced>0?`Replaces ${replaced} of your entries with ${incoming} from this backup.`
+                          :`Adds ${incoming} entries from this backup.`}
+                        onConfirm={()=>{
                           // Replace the selected kinds, KEEP the rest. The old per-list restore
                           // replaced one whole list and left the other alone; with a single list
                           // a naive setEntries(fromFile) would silently delete the unselected
@@ -9188,24 +9253,24 @@ function App(){
                           // approach unifyLegacy uses for legacy imports, but here against the
                           // live garage rather than a second legacy list. v2 entries carry explicit
                           // createdAt/updatedAt (unlike legacy ones), so bumping id alone is safe.
-                          // A kind the file has none of is greyed out but can still be ticked, and
-                          // replacing it would delete that kind outright. Every backup made before
-                          // saved DNAs existed is one of those, so a kind only counts as selected
-                          // when the file actually carries it.
-                          const chosen=k=>restoreSel[k]&&restoreData.some(e=>kindOf(e)===k);
-                          const kept=entries.filter(e=>!chosen(kindOf(e)));
-                          const usedIds=new Set(kept.map(e=>e.id));
-                          const incoming=restoreData.filter(e=>chosen(kindOf(e))).map(e=>{
+                          // `chosen` above is the single definition of what is being replaced: the
+                          // counts printed to the user and the entries actually dropped read the
+                          // same predicate, so the summary can never describe a different restore
+                          // than the one that runs.
+                          const keptEntries=entries.filter(e=>!chosen(kindOf(e)));
+                          const usedIds=new Set(keptEntries.map(e=>e.id));
+                          const incomingEntries=restoreData.filter(e=>chosen(kindOf(e))).map(e=>{
                             let nid=e.id;
                             while(usedIds.has(nid))nid++;
                             usedIds.add(nid);
                             return nid===e.id?e:{...e,id:nid};
                           });
-                          setEntries([...incoming,...kept].sort((a,b)=>b.createdAt-a.createdAt));
+                          setEntries([...incomingEntries,...keptEntries].sort((a,b)=>b.createdAt-a.createdAt));
                           close();
-                        }}>RESTORE</button>
+                        }}/>
                     </div>
-                  </>)}
+                    </>);
+                  })()}
                 </>)}
               </div>
               </div>

@@ -158,6 +158,21 @@ everything would silently delete the kinds the user didn't tick. A kind the file
 carries none of is not replaced even if its greyed-out box is still ticked — see
 [HISTORY.md](HISTORY.md).
 
+Because it replaces and the garage is **outside undo history** (see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md)), the panel states the trade before it runs
+rather than after: each row carries the file's count for that kind and how many of
+yours it replaces, amber on the rows that actually drop something; a summary line
+gives the net garage size, what came from the file, and what was kept; and RESTORE
+itself is a two-tap `ConfirmBtn`. One `chosen(kind)` predicate drives both the
+printed counts and the entries actually dropped, so the summary cannot describe a
+different restore than the one that runs.
+
+Incoming ids are deduped against the entries being kept by bumping on collision —
+the same approach `unifyLegacy` uses for legacy imports, but against the live
+garage rather than a second legacy list. Entries are normalised by `parseBackup`
+on the way in; writing to `suspos_garage_v2` directly bypasses that and can crash
+the garage cards, which is worth knowing before hand-editing the key.
+
 The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
 `suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, …) is per-device and
 deliberately not included.
