@@ -11,6 +11,71 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — DECODE is two numbered steps, and prints no decode until one is typed
+
+The DECODE tab was the shape MEASURE had just been lifted out of, unchanged: five
+cards in the same `auto-fit` grid, one of them a HOW TO USE card carrying all four
+stages of instruction — PURPOSE, ENTER, IMPORT TUNE, IMPORT AS DNA — as prose,
+beside the fields rather than on them. The grid wrapped by window width, so the
+card explaining what to do could land after the cards it explained.
+
+Two things were worse here than in MEASURE.
+
+**The card printed a decode of numbers nobody entered.** `ckSpr` / `ckDmp` /
+`ckArb` seed from stock figures observed on a test vehicle (400/300 lb/in and so
+on) because `Field` needs a number to render. DECODED TUNE read those seeds on
+open and showed a complete, confident Hz + ζ breakdown, with IMPORT TUNE and
+IMPORT AS DNA live beside it — a full decode of the placeholder, indistinguishable
+from a decode of a real tune. The same class of problem as the ARB reading boxes
+opening at 0.50 with nothing to say they were unset, and it is fixed the same way:
+`ckEntered` flips the first time a spring, damper or ARB field is edited, step 2's
+chip reads WAITING until it does, and the readouts and both buttons are not
+rendered at all until then. Hidden rather than dimmed, because the point is that
+there is no decode yet and a greyed-out number is still a number on screen.
+Vehicle Mass deliberately does not flip it: those fields write to `ch` and are
+shared with the sidebar, so editing one is not entering a tune.
+
+**The two destinations differed only in a paragraph far from the buttons.**
+IMPORT TUNE overwrites this car's RIDE, DAMPERS and ANTI-ROLL BARS; IMPORT AS DNA
+touches this car not at all and replaces a draft in a different modal. That is the
+only real decision in the tab, and at the point of clicking it was two adjacent
+buttons of equal weight with the distinction three cards away. They now stack
+under a **WHERE IT GOES** phase, each with a line of its own saying what it keeps
+and what it touches.
+
+The rest follows MEASURE: an intro strip, `STEP 1 · TUNE INPUTS` with `CkPhase`
+dividers per input group (mass, springs, damping, bars), then `STEP 2 · DECODED
+TUNE`. The step-2 title keeps DECODED TUNE below the number because
+[TUTORIALS.md](TUTORIALS.md), the glossary and [DNA.md](DNA.md) all name it.
+Nothing was dropped: the ±50 Damping Bias warning, the ARB unit explanation, the
+mass-sync note and both button tooltips all survive, attached to what they
+describe. `Phase` / `Chip` / `Note` / `Warn` were local to the MEASURE block and
+are now module-scope `CkPhase` / `CkChip` / `CkNote` / `CkWarn` / `CkIntro`, since
+two tabs have to read as one procedure language.
+
+## Changed — Tune Check no longer closes on a backdrop click
+
+Every modal in the app closes when you click the dim margin around it. For
+`CheckerModal` that was a way to lose work with no warning and no trace.
+
+MEASURE step 2's two ARB readings live in the component's own state — they are
+scratch values until `MEASURED` is tapped, and deliberately so. The procedure the
+card describes is: set the bars in Forza, come back, type reading 1, go set the
+other pair, come back, type reading 2. It requires leaving and returning, and the
+card says outright to take both in one sitting. A single click that missed the
+660px panel discarded both, reset Measure Hz, and left no sign anything had been
+there.
+
+The backdrop handler is gone from this modal only; ✕ is the way out. The other
+modals keep theirs — none of them holds anything you would mind losing.
+
+The readings were left as component state rather than lifted into `App`, which
+would have survived a close as well. `probeHz` re-seeds from *this car's* saved
+`measuredNatBalHz` on every open, and `App` has no car identity to re-seed
+against, so lifting it would make loading a different garage entry silently keep
+the previous car's Measure Hz — reintroducing, from the other direction, the bug
+the entry below this one fixed.
+
 ## Fixed — MEASURE ARB solved on springs the reading was never taken on
 
 `solveArbScale` was handed the live Measure Hz field. The natural-balance offset

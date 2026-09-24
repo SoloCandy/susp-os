@@ -3232,6 +3232,26 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
   );
 };
 
+// Tune Check's step vocabulary, shared by both tabs. Defined here rather than inside the MEASURE
+// block that first grew them, because DECODE is now numbered steps too and the two tabs have to
+// read as one procedure language: a divider per "do this next" break, a state chip in the card
+// header, a boxed note for a precondition, amber for something worth looking at.
+const CkPhase=({children})=>(
+  <div style={{fontSize:9,letterSpacing:1.5,color:'#64748b',margin:'10px 0 4px',
+               paddingTop:7,borderTop:'1px solid #0f172a'}}>{children}</div>);
+const CkChip=({on,warn,children})=>(
+  <span style={{fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
+                color:warn?'#f59e0b':on?'#60a5fa':'#475569'}}>{children}</span>);
+const CkNote=({children})=>(
+  <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5,background:'#0a0f1a',
+               border:'1px solid #1e293b',borderRadius:2,padding:'5px 8px',marginTop:6}}>{children}</div>);
+const CkWarn=({children})=>(
+  <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:6}}>{children}</div>);
+// The paragraph that opens each tab: what the procedure is for, before any control.
+const CkIntro=({children})=>(
+  <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,background:'#060c17',
+               border:'1px solid #1e293b',borderRadius:2,padding:'8px 12px'}}>{children}</div>);
+
 const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=>{
   const mMass=units.mass==='kg',su=springUnit(units.spring);
   // A physical-unit game mode has no click ceiling, so the inputs here take BeamNG's own
@@ -3266,9 +3286,17 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   const[imported,setImported]=useState(false);
   const[dnaSet,setDnaSet]=useState(false);
   const flash=set=>{set(true);setTimeout(()=>set(false),2000);};
-  const pS=k=>v=>setCkSpr(p=>({...p,[k]:v}));
-  const pD=k=>v=>setCkDmp(p=>({...p,[k]:v}));
-  const pA=k=>v=>setCkArb(p=>({...p,[k]:v}));
+  // Whether anything in DECODE's step 1 has actually been typed. The spring/damper/ARB fields open
+  // on stock figures (see the seeds above) because Field needs a number, so before this flips the
+  // card below would otherwise print a complete, confident decode of a tune nobody entered, with
+  // both import buttons live beside it. Step 2 stays empty until it flips — the same choice MEASURE
+  // makes with its NOT SET readings rather than letting 0.50 read as a measurement.
+  // Vehicle Mass is excluded on purpose: it writes to ch and is shared with the sidebar, so editing
+  // it is not entering a tune.
+  const[ckEntered,setCkEntered]=useState(false);
+  const pS=k=>v=>{setCkEntered(true);setCkSpr(p=>({...p,[k]:v}));};
+  const pD=k=>v=>{setCkEntered(true);setCkDmp(p=>({...p,[k]:v}));};
+  const pA=k=>v=>{setCkEntered(true);setCkArb(p=>({...p,[k]:v}));};
   const masses=useMemo(()=>cornerMasses(ch),[ch]);
   const ck=useMemo(()=>computeCheck(ckSpr,ckDmp,masses,phys?1:DAMPING_CALIBRATION),[ckSpr,ckDmp,masses,phys]);
   // The Damping Bias the decoded front/rear ζ split asks for, before the slider's ±50 clamps it.
@@ -3342,12 +3370,13 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   // produce on their own.
   const arbScaleSpread=arbScaleNew!=null&&arbScaleNew>0?Math.abs(arbScaleA-arbScaleB)/arbScaleNew:null;
   return(
+    // No backdrop close here, unlike the other modals: MEASURE's two ARB readings live in this
+    // component's state and are taken one at a time with a trip into the game between them, so a
+    // stray click on the dim margin used to discard them silently. ✕ is the only way out.
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:999,
-                 display:'flex',alignItems:'center',justifyContent:'center'}}
-         onClick={onClose}>
+                 display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,
-                   width:660,maxWidth:'calc(100vw - 20px)',maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden'}}
-           onClick={e=>e.stopPropagation()}>
+                   width:660,maxWidth:'calc(100vw - 20px)',maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
                      padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
           <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>TUNE CHECK</span>
@@ -3361,96 +3390,142 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
           </div>
         </div>
         <div style={{padding:14,flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
-          {ckMode==='decode'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:10,marginBottom:10}}>
-            <Card title="HOW TO USE">
-              <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>PURPOSE</div>
-                <div style={{marginBottom:8}}>Bring in a tune you don't have a share code for — copied off a screenshot, a forum post, or read straight from the game's values — by matching its raw spring/damper/ARB numbers here.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>ENTER</div>
-                <div style={{marginBottom:8}}>Fill in the cards below with those raw values. Vehicle Mass stays synced with the sidebar; the rest are the tune's numbers as-is.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT TUNE</div>
-                <div style={{marginBottom:8}}>Keeps the numbers. DECODED TUNE is how the app reads them in its own Hz + ζ model; IMPORT TUNE writes that onto this car, replacing its RIDE, DAMPERS and ANTI-ROLL BARS. It comes back close rather than exact, so review those sections afterward.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>IMPORT AS DNA <span style={{color:'#475569'}}>· PRO</span></div>
-                <div>Keeps the handling. IMPORT AS DNA reads the decoded tune back as handling targets and loads them into the DNA editor (sidebar DNA button) — this car doesn't change. APPLY it here, or on another car to carry the handling across.</div>
-              </div>
-            </Card>
-            <Card title="VEHICLE MASS" hint="Synced with the CHASSIS Weight and Front Weight Bias fields in the sidebar — editing either place updates both.">
-              <Field noSlider label="Weight"
-                value={mMass?ch.weight/KG_TO_LB:ch.weight}
-                onChange={mMass?v=>setCh(p=>({...p,weight:v*KG_TO_LB})):v=>setCh(p=>({...p,weight:v}))}
-                min={mMass?45:100} max={mMass?8165:18000} step={1}
-                unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}/>
-              <Field label="Front Bias" value={ch.frontBias} onChange={v=>setCh(p=>({...p,frontBias:v}))} min={30} max={70} step={1} unit="%"/>
-              <Stat label="Corner mass front" value={masses.front} unit="kg"/>
-              <Stat label="Corner mass rear" value={masses.rear} unit="kg"/>
-            </Card>
-            <Card title="ARB INPUTS" hint={phys
-              ?"Anti-Roll Spring Rate in N/m, copied straight off BeamNG's slider. Converted to roll stiffness internally by rs = k·track²/2, so the chassis track widths matter here."
-              :"ARB clicks are entered directly — no conversion needed, same units as the in-game tune."}>
-              {[['ARB Front','f'],['ARB Rear','r']].map(([lbl,k])=>(
-                <Field noSlider key={k} label={lbl} value={ckArb[k]} onChange={pA(k)}
-                  min={phys?0:1} max={phys?200000:lim.arb} step={phys?500:0.1}
-                  unit={phys?'N/m':`/ ${lim.arb}`}/>
-              ))}
-            </Card>
-            <Card title="SPRING INPUTS">
-              {/* Physical modes always take N/m regardless of the UNITS spring choice, because that
-                  is the unit BeamNG's slider and this mode's SPRINGS card both use — asking
-                  for lb/in here while printing N/m there would break the round-trip.
-                  LB_IN_TO_NM is N/m per lb/in; NMM_PER_LBIN is the MET toggle's N/mm.
-                  One `conv` drives value/onChange/min/max so the round-trip stays symmetric.
-                  MET carries a decimal and a 0.1 step to match Forza's own "N/mm" readout
-                  (which is 10× true N/mm — see NMM_PER_LBIN). */}
-              {[['Spring Rate Front','f'],['Spring Rate Rear','r']].map(([lbl,k])=>{
-                const conv=phys?LB_IN_TO_NM:su.f;
-                const dp=phys?0:su.dp;
-                const converted=conv!==1;
-                return <Field noSlider key={k} label={lbl}
-                  value={converted?+(ckSpr[k]*conv).toFixed(dp):ckSpr[k]}
-                  onChange={converted?v=>pS(k)(v/conv):pS(k)}
-                  min={+(50*conv).toFixed(dp)} max={+(2500*conv).toFixed(dp)}
-                  step={phys?100:su.step} unit={phys?'N/m':su.label}/>;
-              })}
-            </Card>
-            <Card title="DAMPING INPUTS">
-              {[['Rebound Front','rebF'],['Rebound Rear','rebR'],
-                ['Bump Front','bumpF'],['Bump Rear','bumpR']].map(([lbl,k])=>(
-                <Field noSlider key={k} label={lbl} value={ckDmp[k]} onChange={pD(k)}
-                  min={phys?0:1} max={phys?40000:lim.damping} step={phys?50:0.1}
-                  unit={phys?'N/m/s':`/ ${lim.damping}`}/>
-              ))}
-            </Card>
-            <Card title="DECODED TUNE" accent
-              hint={`The app reads these as a front Hz plus rear multiplier, and a front rebound ζ plus one Damping Bias. That bias sets both the rebound and bump splits and stops at ±50, so some damper splits land close rather than exact. IMPORT TUNE sets the ARB ${phys?'roll stiffness':'clicks'} directly (ANTI-ROLL BARS switches to MAN); IMPORT AS DNA turns them into ARB share and balance targets.`}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
-                <Readout label="Hz FRONT" value={ck.hF} unit="Hz"/>
-                <Readout label="Hz REAR" value={ck.hR} unit="Hz"/>
-              </div>
-              <Stat label="Rebound ratio front" value={ck.zRebF} unit="%" decimals={1}/>
-              <Stat label="Rebound ratio rear"  value={ck.zRebR} unit="%" decimals={1}/>
-              <Stat label="Bump ratio front"    value={ck.zBmpF} unit="%" decimals={1}/>
-              <Stat label="Bump ratio rear"     value={ck.zBmpR} unit="%" decimals={1}/>
-              <Stat label="ARB front" value={ckArb.f} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
-              <Stat label="ARB rear"  value={ckArb.r} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
-              {Math.abs(biasWanted)>50&&<div style={{fontSize:9,color:'#f59e0b',marginTop:6,letterSpacing:0.3,lineHeight:1.5}}>
-                This split needs a Damping Bias of {biasWanted>0?'+':''}{biasWanted}, past the slider's ±50.
-                The front axle is matched and the rear lands as close as the slider reaches.</div>}
-              <div style={{display:'flex',gap:4,marginTop:8}}>
-                {/* Each label names where the decode lands, since that is the only thing that
-                    differs between them. No trailing ? — elsewhere in the app that marks a second
-                    click (SURE?), and both of these act on the first one. */}
-                <button className={`tbtn${imported?' saved':''}`} style={{flex:1,fontSize:10}}
-                  title="Overwrites this car's RIDE, DAMPERS and ANTI-ROLL BARS with these numbers. Review them afterward — the conversion is a close match, not an exact one."
-                  onClick={importDecoded}>{imported?'IMPORTED ✓':'IMPORT TUNE'}</button>
-                <button className={`tbtn${dnaSet?' saved':''}`} disabled={!onImportDna}
-                  style={{flex:1,fontSize:10,opacity:onImportDna?1:0.35}}
-                  title={onImportDna
-                    ?"Reads this tune back as a handling DNA and replaces the DNA editor's draft. This car's own settings are left alone — edit the axes there, then APPLY, or carry the DNA onto another car."
-                    :'Vehicle DNA is PRO only — switch tier to use it.'}
-                  onClick={importDecodedDna}>{dnaSet?'DNA SET ✓':'IMPORT AS DNA'}</button>
-              </div>
-            </Card>
-          </div>}
+          {/* DECODE is one procedure in a fixed order — enter the tune, then choose where it lands —
+              so it reads as two numbered steps in one column, matching MEASURE next door. It used to
+              be five side-by-side cards with a HOW TO USE card among them carrying all four stages of
+              instruction in prose: the guidance sat beside the fields instead of on them, the two
+              destinations differed only in a paragraph nobody reads at the point of clicking, and the
+              DECODED TUNE card printed a full decode of the seed numbers the moment it opened. The
+              card title keeps DECODED TUNE below the step number: the tutorials and glossary name it. */}
+          {ckMode==='decode'&&(()=>{
+            const destHint=onImportDna
+              ?'Two destinations. IMPORT TUNE keeps the numbers; IMPORT AS DNA keeps the handling.'
+              :'IMPORT TUNE writes these numbers onto this car. IMPORT AS DNA needs PRO.';
+            return(
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:10}}>
+              <CkIntro>
+                Bring in a tune you have no share code for — copied off a screenshot, a forum post, or
+                read straight out of the game — by typing its raw numbers here.
+                <span style={{color:'#e2e8f0'}}> Step 1</span> takes the tune exactly as the game shows
+                it.<span style={{color:'#e2e8f0'}}> Step 2</span> reads it back in the app's own Hz + ζ
+                model and sends it where you choose. Nothing moves until you pick a destination there.
+              </CkIntro>
+
+              <Card title="STEP 1 · TUNE INPUTS" accent
+                headerRight={<CkChip on={ckEntered}>{ckEntered?'ENTERED':'NOT SET'}</CkChip>}>
+                <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
+                  The tune's numbers as-is, in the units the game prints them in. The fields open on
+                  stock figures so you can see the shape of what goes where — overwrite them.
+                </div>
+                <CkNote>Vehicle Mass is the car, not the tune. It stays synced with the sidebar's
+                  CHASSIS fields, and a spring rate only means a frequency against the right mass — so
+                  get it right before reading step 2.</CkNote>
+                <CkPhase>VEHICLE MASS — SHARED WITH THE SIDEBAR</CkPhase>
+                <Field noSlider label="Weight"
+                  value={mMass?ch.weight/KG_TO_LB:ch.weight}
+                  onChange={mMass?v=>setCh(p=>({...p,weight:v*KG_TO_LB})):v=>setCh(p=>({...p,weight:v}))}
+                  min={mMass?45:100} max={mMass?8165:18000} step={1}
+                  unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}/>
+                <Field label="Front Bias" value={ch.frontBias} onChange={v=>setCh(p=>({...p,frontBias:v}))} min={30} max={70} step={1} unit="%"/>
+                <Stat label="Corner mass front" value={masses.front} unit="kg"/>
+                <Stat label="Corner mass rear" value={masses.rear} unit="kg"/>
+                {/* Physical modes always take N/m regardless of the UNITS spring choice, because that
+                    is the unit BeamNG's slider and this mode's SPRINGS card both use — asking
+                    for lb/in here while printing N/m there would break the round-trip.
+                    LB_IN_TO_NM is N/m per lb/in; NMM_PER_LBIN is the MET toggle's N/mm.
+                    One `conv` drives value/onChange/min/max so the round-trip stays symmetric.
+                    MET carries a decimal and a 0.1 step to match Forza's own "N/mm" readout
+                    (which is 10x true N/mm — see NMM_PER_LBIN). */}
+                <CkPhase>SPRING RATES</CkPhase>
+                {[['Spring Rate Front','f'],['Spring Rate Rear','r']].map(([lbl,k])=>{
+                  const conv=phys?LB_IN_TO_NM:su.f;
+                  const dp=phys?0:su.dp;
+                  const converted=conv!==1;
+                  return <Field noSlider key={k} label={lbl}
+                    value={converted?+(ckSpr[k]*conv).toFixed(dp):ckSpr[k]}
+                    onChange={converted?v=>pS(k)(v/conv):pS(k)}
+                    min={+(50*conv).toFixed(dp)} max={+(2500*conv).toFixed(dp)}
+                    step={phys?100:su.step} unit={phys?'N/m':su.label}/>;
+                })}
+                <CkPhase>DAMPING</CkPhase>
+                {[['Rebound Front','rebF'],['Rebound Rear','rebR'],
+                  ['Bump Front','bumpF'],['Bump Rear','bumpR']].map(([lbl,k])=>(
+                  <Field noSlider key={k} label={lbl} value={ckDmp[k]} onChange={pD(k)}
+                    min={phys?0:1} max={phys?40000:lim.damping} step={phys?50:0.1}
+                    unit={phys?'N/m/s':`/ ${lim.damping}`}/>
+                ))}
+                <CkPhase>ANTI-ROLL BARS</CkPhase>
+                <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginBottom:4}}>{phys
+                  ?"Anti-Roll Spring Rate in N/m, copied straight off BeamNG's slider. Converted to roll stiffness internally by rs = k*track^2/2, so the chassis track widths matter here."
+                  :'Clicks, entered directly — same units as the in-game tune, no conversion.'}</div>
+                {[['ARB Front','f'],['ARB Rear','r']].map(([lbl,k])=>(
+                  <Field noSlider key={k} label={lbl} value={ckArb[k]} onChange={pA(k)}
+                    min={phys?0:1} max={phys?200000:lim.arb} step={phys?500:0.1}
+                    unit={phys?'N/m':`/ ${lim.arb}`}/>
+                ))}
+              </Card>
+
+              <Card title="STEP 2 · DECODED TUNE" accent
+                headerRight={<CkChip on={ckEntered}>{ckEntered?'READY':'WAITING'}</CkChip>}
+                hint={`The app reads these as a front Hz plus rear multiplier, and a front rebound ζ plus one Damping Bias. That bias sets both the rebound and bump splits and stops at ±50, so some damper splits land close rather than exact. IMPORT TUNE sets the ARB ${phys?'roll stiffness':'clicks'} directly (ANTI-ROLL BARS switches to MAN); IMPORT AS DNA turns them into ARB share and balance targets.`}>
+                {/* Hidden rather than dimmed while nothing is entered: the point of the gate is that
+                    there is no decode yet, and a greyed-out number is still a number on screen. */}
+                {!ckEntered
+                  ?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
+                    Waiting on step 1 — the decode appears here once the tune's own springs, dampers or
+                    bars are typed. The fields up there are still showing their stock seeds, and a decode
+                    of those would only tell you about the seeds.</div>
+                  :<>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
+                    <Readout label="Hz FRONT" value={ck.hF} unit="Hz"/>
+                    <Readout label="Hz REAR" value={ck.hR} unit="Hz"/>
+                  </div>
+                  <Stat label="Rebound ratio front" value={ck.zRebF} unit="%" decimals={1}/>
+                  <Stat label="Rebound ratio rear"  value={ck.zRebR} unit="%" decimals={1}/>
+                  <Stat label="Bump ratio front"    value={ck.zBmpF} unit="%" decimals={1}/>
+                  <Stat label="Bump ratio rear"     value={ck.zBmpR} unit="%" decimals={1}/>
+                  <Stat label="ARB front" value={ckArb.f} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
+                  <Stat label="ARB rear"  value={ckArb.r} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
+                  {Math.abs(biasWanted)>50&&<CkWarn>
+                    This split needs a Damping Bias of {biasWanted>0?'+':''}{biasWanted}, past the slider's ±50.
+                    The front axle is matched and the rear lands as close as the slider reaches.</CkWarn>}
+                  {/* The two destinations are a fork, not a pair of similar buttons, and which one you
+                      want is the only real decision in this tab — so each says in a line what it keeps
+                      and what it touches, where a shared HOW TO USE card used to say it once, far away
+                      and before the reader had anything to apply it to.
+                      No trailing ? on either label — elsewhere in the app that marks a second click
+                      (SURE?), and both of these act on the first one. */}
+                  <CkPhase>WHERE IT GOES</CkPhase>
+                  <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginBottom:6}}>{destHint}</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    <div>
+                      <button className={`tbtn${imported?' saved':''}`} style={{width:'100%',fontSize:10}}
+                        title="Overwrites this car's RIDE, DAMPERS and ANTI-ROLL BARS with these numbers. Review them afterward — the conversion is a close match, not an exact one."
+                        onClick={importDecoded}>{imported?'IMPORTED ✓':'IMPORT TUNE'}</button>
+                      <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5,marginTop:4}}>
+                        Keeps the numbers. Replaces this car's RIDE, DAMPERS and ANTI-ROLL BARS, and
+                        comes back close rather than exact — review those sections afterward.
+                      </div>
+                    </div>
+                    <div>
+                      <button className={`tbtn${dnaSet?' saved':''}`} disabled={!onImportDna}
+                        style={{width:'100%',fontSize:10,opacity:onImportDna?1:0.35}}
+                        title={onImportDna
+                          ?"Reads this tune back as a handling DNA and replaces the DNA editor's draft. This car's own settings are left alone — edit the axes there, then APPLY, or carry the DNA onto another car."
+                          :'Vehicle DNA is PRO only — switch tier to use it.'}
+                        onClick={importDecodedDna}>{dnaSet?'DNA SET ✓':'IMPORT AS DNA'}
+                        {!onImportDna&&<span style={{color:'#475569'}}> · PRO</span>}</button>
+                      <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5,marginTop:4}}>
+                        Keeps the handling. Loads these as targets into the DNA editor (sidebar DNA
+                        button) and leaves this car alone — APPLY it there, or on another car to carry
+                        the handling across.
+                      </div>
+                    </div>
+                  </div>
+                </>}
+              </Card>
+            </div>);
+          })()}
           {/* MEASURE is two procedures in a fixed order — natural balance first, because the ARB
               scale is solved against it — so it reads as two numbered steps in one column rather
               than the three side-by-side cards it used to be. Those put a HOW TO USE card beside
@@ -3464,52 +3539,38 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
             // apply, or a scale already applied (so the toggle still reads as a pair when the modal
             // is reopened on a calibrated car and nothing has been typed yet).
             const arbCanMeasure=arbScaleNew!=null||arbDone;
-            // One divider + caption per "do this next" break, so both steps have the same rhythm:
-            // what to set in the game, then what to type back from it.
-            const Phase=({children})=>(
-              <div style={{fontSize:9,letterSpacing:1.5,color:'#64748b',margin:'10px 0 4px',
-                           paddingTop:7,borderTop:'1px solid #0f172a'}}>{children}</div>);
-            const Chip=({on,warn,children})=>(
-              <span style={{fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
-                            color:warn?'#f59e0b':on?'#60a5fa':'#475569'}}>{children}</span>);
-            const Note=({children})=>(
-              <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5,background:'#0a0f1a',
-                           border:'1px solid #1e293b',borderRadius:2,padding:'5px 8px',marginTop:6}}>{children}</div>);
-            const Warn=({children})=>(
-              <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:6}}>{children}</div>);
             return(
             <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:10}}>
-              <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,background:'#060c17',
-                           border:'1px solid #1e293b',borderRadius:2,padding:'8px 12px'}}>
+              <CkIntro>
                 Two readings taken in the game, once per car, replacing what the calculator would
                 otherwise infer with what Forza actually shows.
                 <span style={{color:'#e2e8f0'}}> Step 1</span> stands in for the track widths natural
                 balance is normally derived from.<span style={{color:'#e2e8f0'}}> Step 2</span> finds
                 what a single ARB click is worth on this car. Both save with the chassis and travel in
                 its build code. Step 2 is solved against step 1, so take them in order, in one sitting.
-              </div>
+              </CkIntro>
 
               <Card title="STEP 1 · NAT BAL SETUP" accent
-                headerRight={<Chip on={natDone}>{natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</Chip>}>
+                headerRight={<CkChip on={natDone}>{natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</CkChip>}>
                 <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
                   What this car's Mech Balance reads on equal springs with the bars backed off — the
                   figure the calculator otherwise predicts from track widths. Once it is set those
                   fields hide, since your reading replaces them. Wheelbase stays: flat ride and brake
                   balance still use it.
                 </div>
-                <Phase>SPRINGS TO SOLVE FOR</Phase>
+                <CkPhase>SPRINGS TO SOLVE FOR</CkPhase>
                 <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"
                   hint="The ride frequency the probe springs are solved for. Softer is more accurate — at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins both this and the ARB click scale harder. Go as soft as the game will let you set on this car; the spring rates below are what to enter."/>
                 <div style={{fontSize:10,color:'#475569',lineHeight:1.5}}>
                   Softer sharpens both steps — use the lowest Hz whose rates the game accepts.
                   Corner mass {probeMasses.front.toFixed(0)} kg front, {probeMasses.rear.toFixed(0)} kg rear.
                 </div>
-                <Phase>SET THESE FOUR IN FORZA</Phase>
+                <CkPhase>SET THESE FOUR IN FORZA</CkPhase>
                 <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
                 <Stat label="Spring rear"  value={probeRateR*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
                 <Stat label="ARB front" value={1} unit=""/>
                 <Stat label="ARB rear"  value={1} unit=""/>
-                <Phase>THEN TYPE THE MECH BALANCE IT SHOWS</Phase>
+                <CkPhase>THEN TYPE THE MECH BALANCE IT SHOWS</CkPhase>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MEAS. NAT BAL</span>
                   <span style={{display:'flex',alignItems:'center',gap:6}}>
@@ -3532,10 +3593,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               </Card>
 
               <Card title="STEP 2 · ARB SCALE SETUP" accent
-                headerRight={!lim?.arb?<Chip>N/A</Chip>
-                  :<Chip on={arbDone} warn={arbScaleStale(ch)}>
+                headerRight={!lim?.arb?<CkChip>N/A</CkChip>
+                  :<CkChip on={arbDone} warn={arbScaleStale(ch)}>
                     {arbScaleStale(ch)?'RE-MEASURE '+Math.round(arbScaleOf(ch))
-                      :arbDone?'SET '+Math.round(arbScaleOf(ch)):'DEFAULT '+ARB_RS_SCALE}</Chip>}>
+                      :arbDone?'SET '+Math.round(arbScaleOf(ch)):'DEFAULT '+ARB_RS_SCALE}</CkChip>}>
                 {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
                 :!natDone?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Locked until step 1 is set — this reading is solved against it, on the same springs.
                   {/* A scale measured against a NAT BAL that has since been cleared is still being
@@ -3543,8 +3604,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       step 1 back. Dropping to the default was unreachable from anywhere, so the
                       stale scale stayed in force. DEFAULT is the escape hatch, so it lives here too. */}
                   {arbScaleStale(ch)&&<>
-                    <Warn>A measured scale ({Math.round(arbScaleOf(ch))}) is still in use but its NAT BAL was cleared.
-                      Set step 1 again to re-measure, or drop to the default.</Warn>
+                    <CkWarn>A measured scale ({Math.round(arbScaleOf(ch))}) is still in use but its NAT BAL was cleared.
+                      Set step 1 again to re-measure, or drop to the default.</CkWarn>
                     <button className="tog on" style={{fontSize:10,marginTop:6}}
                       title={'Use the default click scale ('+ARB_RS_SCALE+'), the same for every car.'}
                       onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>
@@ -3555,12 +3616,12 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                     Forza scales its ARB slider differently on every car. This finds what one click is
                     worth on this one, so bar-driven balance lands where the game shows it.
                   </div>
-                  <Note>Leave step 1's springs on the car. Springs, ride height and tyres must not move
-                    between the two readings, or they won't agree.</Note>
-                  {arbHzMismatch&&<Warn>
+                  <CkNote>Leave step 1's springs on the car. Springs, ride height and tyres must not move
+                    between the two readings, or they won't agree.</CkNote>
+                  {arbHzMismatch&&<CkWarn>
                     Measure Hz is {probeHz.toFixed(2)}, but step 1 was read at {arbSolveHz.toFixed(2)} — these
                     readings are solved on the {arbSolveHz.toFixed(2)} Hz springs, not the rates shown above.
-                    To measure at {probeHz.toFixed(2)}, take step 1 again first.</Warn>}
+                    To measure at {probeHz.toFixed(2)}, take step 1 again first.</CkWarn>}
                   {/* Each reading's own solved scale is shown, not just their average, because
                       averaging hid the one thing worth seeing: whether the two agree. The average of
                       a good reading and a mistyped one is bad and nothing said so. The gap itself is
@@ -3569,7 +3630,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]]
                     .map(([k,f,r,val,set,sc],i)=>(
                     <React.Fragment key={k}>
-                      <Phase>READING {i+1} — SET FRONT {f} · REAR {r}</Phase>
+                      <CkPhase>READING {i+1} — SET FRONT {f} · REAR {r}</CkPhase>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                         <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MECH BALANCE SHOWN</span>
                         <span style={{display:'flex',alignItems:'center',gap:6}}>
@@ -3589,15 +3650,15 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       </div>
                     </React.Fragment>))}
                   {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
-                    <Warn>That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</Warn>}
+                    <CkWarn>That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</CkWarn>}
                   {arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN&&
-                    <Warn>The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
+                    <CkWarn>The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
                       Some of that is normal — rounding to two decimals alone can spread them by a quarter, and a car
                       whose front and rear bars aren't worth the same per click will read wider still.
                       Past about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% it's worth a look: check the springs didn't move between readings,
                       that MEAS. NAT BAL was taken on these same springs, and that both numbers are typed as Forza
-                      showed them. If they are, the average is still the best estimate — take it.</Warn>}
-                  <Phase>RESULT</Phase>
+                      showed them. If they are, the average is still the best estimate — take it.</CkWarn>}
+                  <CkPhase>RESULT</CkPhase>
                   {arbScaleNew!=null
                     ?<Stat label="Click scale from these readings" value={arbScaleNew} unit="" decimals={0}/>
                     :<div style={{fontSize:10,color:'#475569',lineHeight:1.5}}>
@@ -3610,7 +3671,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       sanitizeTune holds the invariant that the flag being off means those fields are
                       null — the typed readings stay in this modal, so flipping back is one tap while
                       it is open. */}
-                  <Phase>SCALE IN USE</Phase>
+                  <CkPhase>SCALE IN USE</CkPhase>
                   <div style={{display:'flex',gap:3}}>
                     <button className={'tog'+(arbDone?'':' on')} style={{fontSize:10}}
                       title={'Use the default click scale ('+ARB_RS_SCALE+'), the same for every car.'}
@@ -3630,9 +3691,9 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                     <div style={{fontSize:10,color:'#60a5fa',lineHeight:1.5,marginTop:6}}>
                       The readings above now give {Math.round(arbScaleNew)}, and {Math.round(arbScaleOf(ch))} is in use —
                       tap MEASURED again to move to it.</div>}
-                  {arbScaleStale(ch)&&<Warn>
+                  {arbScaleStale(ch)&&<CkWarn>
                     MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
-                    It's still in use; take both readings again and tap MEASURED.</Warn>}
+                    It's still in use; take both readings again and tap MEASURED.</CkWarn>}
                 </>}
               </Card>
             </div>);
