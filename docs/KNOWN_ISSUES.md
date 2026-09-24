@@ -55,6 +55,27 @@ not a wild number. What is wrong is the MAN entry field, which shows 25947 under
 `/ 65` maximum, and the fact that the user asked for the sender's bars and silently
 got "maximum" instead.
 
+**The harm is confined to an incoming `arbMode` of MAN**, which is narrower than it
+first looks. `computeTune` reads `arbManF`/`arbManR` only in its MAN branch, so under
+any other stiffness mode the wrong-unit pair rides along inert and the solver
+recomputes bars from the intent fields. Measured, same BeamNG code, only `arb`
+ticked, varying the sender's `arbMode`:
+
+| incoming `arbMode` | `arbManF` after merge | ARB output |
+|---|---|---|
+| `man` | 25947 | **65 / 65** (pinned at the ceiling) |
+| `auto` | 25947 | 9.9 / 9.5 |
+| `share` | 25947 | 8.8 / 8.5 |
+| `roll` | 25947 | 15.4 / 14.7 |
+
+Nor is the inert value a landmine: the MAN button reseeds `arbManF`/`arbManR` from
+the solved, already-clamped output, so switching to MAN afterwards overwrites it.
+
+So the whole condition is `arb` ticked **and** `ride` not ticked **and** the
+incoming `arbMode` is `man` **and** the two modes differ in physicality. That is
+narrow enough that a check on it would essentially never fire spuriously, which is
+what makes the warn and refuse options below cheap.
+
 **This became visible by fixing a worse bug.** Until `sanitizeTune` learned about
 `gameMode` (see [HISTORY.md](HISTORY.md)), the value was crushed to 65 before the
 merge ever ran, so the cross-part case landed on a legal number by accident. The
@@ -77,11 +98,16 @@ Each option is a decision about what a share part promises, not a bug fix:
   surprising one. It also breaks the property that each part maps onto a sidebar
   section, which is what makes the tick list legible.
 - **Convert in `mergeTune`** when the incoming and current `gameMode` differ in
-  physicality, using the same `arbScaleOf(ch)·track²` the App effect uses. Keeps
-  the parts where they are and is invisible when it is not needed. But `mergeTune`
-  is pure and currently knows nothing about `ch` geometry or game modes, and the
-  conversion needs both — and which `ch` to use is itself ambiguous when the `ch`
-  part is ticked in the same apply.
+  physicality, using the same `arbScaleOf(ch)·track²` the App effect uses. Keeps the
+  parts where they are and is invisible when it is not needed. `mergeTune` can do
+  this: it holds both chassis objects and `SHARE_PARTS` orders `ch` before `arb`, so
+  `out.ch` is already final when the ARB keys are copied. The real objection is
+  *which* chassis that is. `arbScaleOf` is a per-car calibration (MEASURE ARB), so
+  the conversion is only right when the `ch` part is ticked too — otherwise it
+  converts the sender's bars using the reader's click scale and is quietly wrong by
+  whatever those two differ by. It also turns `mergeTune` from a dumb key copy into
+  something semantic, which is what currently makes the disjointness property
+  `tests-share.js` enforces worth anything.
 - **Refuse the combination**: disable the ARB tick, with a reason, when the staged
   code's `gameMode` differs in physicality from the current one and `ride` is not
   also ticked. Smallest change, no silent conversion, and it makes the dependency
