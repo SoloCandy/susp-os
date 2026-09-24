@@ -263,6 +263,15 @@ const GAME_LIMITS={horizon:{damping:20,arb:65},motorsport:{damping:40,arb:40},
 // Branch on the capability, never on the string 'beamng' — a fourth physical-unit game
 // should cost nothing but a GAME_LIMITS entry.
 const isPhysical=gm=>!!GAME_LIMITS[gm]?.physical;
+// GAME_LIMITS for a mode, falling back to the default mode's entry when `gm` names no mode at
+// all. Only a corrupt PERSISTED value reaches that branch — both writers of fe.gameMode are
+// constrained (the header select offers three options, sanitizeTune gates a decoded code through
+// GAME_MODE_DEC) — but computeTune and App both dereference the result unguarded, so `undefined`
+// there is a blank page on every reload until localStorage is edited by hand. App's repair effect
+// fixes the stored value; this keeps the render that happens FIRST from throwing, which a
+// useEffect cannot do. Not merged into isPhysical: that one already answers false for an unknown
+// mode, which is the right answer for a fallback to a click mode. See docs/HISTORY.md.
+const limitsOf=gm=>GAME_LIMITS[gm]??GAME_LIMITS[DEF_FE.gameMode];
 // Nominal full-scale used ONLY as CO-SOLVE's utilisation denominator when the game mode
 // has no click ceiling. It is NOT a reintroduced limit and nothing is clamped to it —
 // see the derivation at the Auto Spring Share binary search for why the value cancels.
@@ -1069,10 +1078,10 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
 };
 const computeTune=(ch,phys,gameMode)=>{
   // lim is read unguarded below (lim.damping in the click-fitting branch, lim.arb in the ARB
-  // ones), so gameMode must name a real GAME_LIMITS entry. Both writers constrain it, but
-  // nothing enforces it here and a persisted bad value blanks the app — see
-  // docs/KNOWN_ISSUES.md, "a persisted field with a bad value survives rehydration".
-  const lim=GAME_LIMITS[gameMode],m=cornerMasses(ch);
+  // ones), so gameMode must name a real GAME_LIMITS entry. limitsOf guarantees one rather than
+  // trusting the argument — a contract nothing else enforces, and a persisted bad value used to
+  // blank the app here. See docs/HISTORY.md.
+  const lim=limitsOf(gameMode),m=cornerMasses(ch);
   // Physical-unit modes (BeamNG) emit the values this solver already works in — springs
   // stay lb/in and dampers/ARBs come out as real coefficients, instead of being compressed
   // into a click scale that has no counterpart in the target game. The display layer then
@@ -2038,16 +2047,27 @@ const computeCheck=(spr,damp,masses,calib=DAMPING_CALIBRATION)=>{
 // get NO default-filling from usePersist and must be normalized on read instead —
 // see normalizeEntry below, and the array-key section in docs/PERSISTENCE.md.
 // Fills keys the stored object is MISSING. A key that is present but invalid wins over its
-// default — there is no per-key validation here, unlike sanitizeTune on the codec path. See
-// docs/KNOWN_ISSUES.md, "a persisted field with a bad value survives rehydration".
+// default — there is no per-key validation here, unlike sanitizeTune on the codec path. A caller
+// that needs one passes usePersist a `repair` (only fe does, for gameMode — see repairFe). See
+// docs/KNOWN_ISSUES.md, "rehydration still validates only one persisted enum".
 const mergeDefaults=(initial,parsed)=>
   (initial&&typeof initial==='object'&&!Array.isArray(initial)
     &&parsed&&typeof parsed==='object'&&!Array.isArray(parsed))
     ?{...initial,...parsed}:parsed;
-const usePersist=(key,initial)=>{
+// `repair`, when given, runs ONCE on the rehydrated value before the first render. mergeDefaults
+// fills MISSING keys but never validates the ones that are present, so a persisted enum holding a
+// nonsense value beats its DEF_* and wins every reload. Repairing here rather than in a mount
+// effect is deliberate: `set` below closes over the render-time value, so two effects writing the
+// same key in one tick clobber each other (see the NOTE), and an effect-based repair lost that
+// race to the ARB ceiling effect, which also runs on mount and also writes fe. This happens before
+// any render, so nothing can race it. It does not rewrite localStorage — the stored value stays
+// bad until the next ordinary write to the key, which is harmless because the repair is
+// idempotent and runs on every load.
+const usePersist=(key,initial,repair)=>{
   const[val,setVal]=useState(()=>{
     try{const s=localStorage.getItem(key);
-      return s?mergeDefaults(initial,JSON.parse(s)):initial;}
+      const v=s?mergeDefaults(initial,JSON.parse(s)):initial;
+      return repair?repair(v):v;}
     catch(e){return initial;} // private browsing or parse error — use defaults
   });
   // NOTE: `set` closes over the render-time `val`, so two set() calls on the SAME key
@@ -4079,6 +4099,16 @@ const partDiffers=(current,incoming,partId)=>{
   return p.keys.some(k=>k in b&&a[k]!==b[k]);
 };
 
+// sanitizeTune's counterpart for PLAIN PERSISTED state, which never passes through it. Only
+// gameMode, deliberately: every persisted enum has the same rehydration hole (arbMode,
+// arbBalMode, dampBalMode, rearHzMode, rideStiffMode, uiMode...), but gameMode is the only one
+// whose bad value CRASHED rather than falling through to a default branch, because it is the only
+// one that indexes a table whose result is dereferenced unguarded. limitsOf now stops that being
+// fatal; this stops the bad value being live at all. Widening this into a per-key validator for
+// every persisted key is the general fix, and is a decision about every key — see
+// docs/KNOWN_ISSUES.md.
+const repairFe=fe=>GAME_MODE_DEC.includes(fe?.gameMode)?fe:{...fe,gameMode:DEF_FE.gameMode};
+
 const sanitizeTune=({ch,fe,dr})=>{
   const n=(v,def)=>(typeof v==='number'&&isFinite(v))?v:def;
   const cl=(v,lo,hi,def)=>Math.max(lo,Math.min(hi,n(v,def)));
@@ -4935,7 +4965,7 @@ function App(){
   // HEIGHT → CG sync, tier fallbacks, BOTTOM G, ARB unit conversion) and the restore itself use
   // them. Everything a user does goes through setCh/setFe/setDr/setAl below, which record.
   const[ch,setChRaw]=usePersist('suspos_ch_v8',DEF_CH);
-  const[fe,setFeRaw]=usePersist('suspos_fe_v8',DEF_FE);
+  const[fe,setFeRaw]=usePersist('suspos_fe_v8',DEF_FE,repairFe);
   const[dr,setDrRaw]=usePersist('suspos_dr_v8',DEF_DR);
   const[al,setAlRaw]=usePersist('suspos_al_v2',DEF_AL);
   // Declared this early because the tier effects below list restoreTick as a dependency, and
@@ -5643,7 +5673,9 @@ function App(){
     if(bTotFull>8&&base==='race') return 'sport';
     return base;
   })();
-  const lim=GAME_LIMITS[fe.gameMode];
+  // limitsOf, not GAME_LIMITS[...], for the same reason computeTune uses it: everything below
+  // and the whole output column dereference this without a guard. See docs/HISTORY.md.
+  const lim=limitsOf(fe.gameMode);
   // True when the active game mode outputs real physical units instead of Forza clicks.
   // Anything keyed off a ceiling (warnings, "/ N" suffixes, context badges, the ARB dial,
   // BASIC stiffness mode, MAN click entry) has to null-check or hide under this.

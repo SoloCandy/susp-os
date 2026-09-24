@@ -11,6 +11,68 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a blank `fe.gameMode` blanked the app on every reload
+
+Originally found by accident: a console command meant for the SHARE modal's mode
+`<select>` hit the **first** select in the DOM instead — the header's game-mode
+combobox — and set it to a value that is not one of its options. Per the DOM spec
+the select's value became `''`, the change handler carried that through, and
+`fe.gameMode` was `""` from then on. Reproduced a second time, by the same
+mechanism and equally by accident, while verifying the RESTORE panel.
+
+Two independent weaknesses turned that into a permanent blank page.
+
+**1. `computeTune` and `App` read `lim` unguarded.** `GAME_LIMITS[""]` is
+`undefined`, and both dereference it — `lim.damping` in the click-fitting branch,
+`lim.arb` in the ARB branches, `dampOut(v,lim)` in the output column. The guards
+that existed nearby were for a different hazard: `feelToPhysics` writes
+`lim?.arb??ARB_UTIL_REF` and `isPhysical` optional-chains, because BeamNG's entry
+is `{damping:null,arb:null,physical:true}` — a *known* mode with null ceilings.
+None of that helps against a value that is not a mode at all.
+
+`limitsOf(gm)` now returns `GAME_LIMITS[gm] ?? GAME_LIMITS[DEF_FE.gameMode]`, and
+both origins use it. Note there were **two** origins, not the one the issue
+originally named: fixing only `computeTune` gets past the first throw and straight
+into `dampOut`'s, for the same blank page.
+
+**2. Rehydration never validated the value.** `mergeDefaults` is a plain spread,
+so `gameMode:""` beat `DEF_FE.gameMode` on every reload until localStorage was
+edited by hand.
+
+`repairFe` now fixes it, passed to `usePersist` as a new optional `repair`
+argument that runs once on the rehydrated value **before the first render**.
+
+**Why not a mount effect, which is what this was first written as.** `usePersist`'s
+`set` closes over the render-time value — its own NOTE says so — so two effects
+writing the same key in one tick clobber each other. An effect-based repair set the
+state correctly and then lost the persisted value to the ARB ceiling effect, which
+also runs on mount, also writes `fe`, and computed from the pre-repair value.
+Measured: after a poisoned reload the header select read `horizon` while
+localStorage still held `""`, so the app looked fixed and was poisoned again next
+load. Repairing at rehydration happens before any effect exists to race it, and
+`lim` is already correct on render 1 — which an effect could never achieve, since
+effects run after the render that would have thrown.
+
+`repair` does not itself rewrite localStorage; the stored value heals on the next
+ordinary write to the key. That is harmless because the repair is idempotent and
+runs on every load, and in practice the first mount effect to touch `fe` heals it
+immediately — verified.
+
+Verified by poisoning `suspos_fe_v8` to `gameMode:""` and reloading: no crash, the
+sidebar and output column render, the header select reads `horizon`, and storage
+read `horizon` again after load. Two cases added to `tests-beamng.js`'s mode
+plumbing section — `limitsOf` never returns undefined for junk (`''`, an unknown
+name, wrong case, `null`, `undefined`, `0`, `{}`) and passes real modes straight
+through, and `computeTune` survives a junk mode with output identical to the
+default mode. The second was confirmed to fail with the guard removed.
+
+**Only `gameMode` is repaired.** Every persisted enum has the same rehydration
+hole, but `gameMode` is the only one whose bad value crashes rather than falling
+through to a default branch, because it is the only one indexing a table whose
+result is dereferenced unguarded. The general per-key validator stays open in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md), rewritten to describe what is left rather than
+what was fixed.
+
 ## Fixed — a shared BeamNG tune with ARB mode MAN arrived with no bars
 
 `fe.arbManF`/`arbManR` are the one pair of `fe` fields whose **units** depend on

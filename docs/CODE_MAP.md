@@ -348,7 +348,10 @@ Special ones — a three-deep migration chain plus its two sentinels:
 
 `usePersist` merges a stored object over the defaults (`{...initial,
 ...parsed}`), so a partial object in storage is valid and missing keys fall
-back to their default.
+back to their default. A key that is *present but invalid* is not checked —
+`usePersist`'s optional third argument `repair` is the opt-in for that, run once
+before the first render; only `fe` passes one (`repairFe`, `gameMode` only). See
+[PERSISTENCE.md](PERSISTENCE.md).
 
 ---
 

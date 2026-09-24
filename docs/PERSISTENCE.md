@@ -1,12 +1,25 @@
 # SUSP.OS — localStorage Persistence Keys
 
-All persisted state uses the `usePersist(key, initial)` hook, which merges
+All persisted state uses the `usePersist(key, initial, repair?)` hook, which merges
 stored JSON over the default object
 (`{...initial, ...parsed}`) — so adding a new field to a default object is
 automatically picked up for existing users without a migration step. Only
 bump the version suffix when a field's **meaning** changes in a way that
 old stored values would misrepresent (see [CODEC.md](CODEC.md) for recent
 examples of that).
+
+The merge fills keys the stored object is **missing**; it does not check the ones
+that are present, so a persisted value that is invalid rather than absent beats its
+default on every reload. The optional third argument, `repair`, runs once on the
+rehydrated value **before the first render** for callers that need a key validated.
+Only `suspos_fe_v8` passes one (`repairFe`, for `gameMode`), and only because that
+one key's bad value used to crash the app rather than fall through to a default —
+see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the rest, which still have the hole.
+
+A repair must live here rather than in a mount effect: `usePersist`'s setter closes
+over the render-time value, so two effects writing the same key in one tick clobber
+each other, and an effect also runs too late to protect the first render. See
+[HISTORY.md](HISTORY.md).
 
 | Key | Holds | Default |
 |---|---|---|

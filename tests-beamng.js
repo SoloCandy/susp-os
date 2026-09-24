@@ -41,7 +41,7 @@ const M = new Function(
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
-  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale};'
+  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -74,6 +74,33 @@ t('beamng is a registered game mode with no ceiling', () => {
 t('the Forza modes are not physical', () => {
   if (M.isPhysical('horizon') || M.isPhysical('motorsport'))
     throw new Error('a click-scale mode must not report physical');
+});
+// A persisted fe.gameMode that names no mode used to blank the app on every reload:
+// GAME_LIMITS[bad] is undefined and computeTune dereferences it. limitsOf is the contract
+// that stops it; App's repair effect puts the stored value back. See docs/HISTORY.md.
+t('limitsOf never returns undefined, and falls back to the default mode', () => {
+  const want = M.GAME_LIMITS[M.DEF_FE.gameMode];
+  if (!want) throw new Error(`DEF_FE.gameMode (${M.DEF_FE.gameMode}) is not in GAME_LIMITS`);
+  for (const bad of ['', 'forza', 'HORIZON', null, undefined, 0, {}]) {
+    const got = M.limitsOf(bad);
+    if (got !== want)
+      throw new Error(`limitsOf(${JSON.stringify(bad)}) gave ${JSON.stringify(got)}, expected the ${M.DEF_FE.gameMode} entry`);
+  }
+  for (const gm of Object.keys(M.GAME_LIMITS))
+    if (M.limitsOf(gm) !== M.GAME_LIMITS[gm]) throw new Error(`limitsOf(${gm}) must pass a real mode straight through`);
+});
+t('computeTune survives a junk gameMode and matches the default mode', () => {
+  const ch = { ...M.DEF_CH }, fe = { ...M.DEF_FE };
+  const phys = M.feelToPhysics(ch, fe);
+  const good = M.computeTune(ch, phys, M.DEF_FE.gameMode);
+  for (const bad of ['', 'forza', undefined]) {
+    let out;
+    try { out = M.computeTune(ch, phys, bad); }
+    catch (e) { throw new Error(`computeTune threw on gameMode ${JSON.stringify(bad)}: ${e.message}`); }
+    for (const k of ['springF', 'springR', 'arbF', 'arbR'])
+      if (out[k] !== good[k])
+        throw new Error(`gameMode ${JSON.stringify(bad)} gave ${k}=${out[k]}, default mode gives ${good[k]}`);
+  }
 });
 t('NMM_PER_LBIN matches Forza "N/mm" (10x true N/mm), KGFMM_PER_LBIN is Forza kgf/mm (also 10x)', () => {
   // Forza's metric spring label is N/mm but its number is N/cm — verified in-game
