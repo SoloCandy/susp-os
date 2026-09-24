@@ -197,7 +197,16 @@ const arbScaleStale=ch=>!!(ch.useMeasuredArbClick&&ch.measuredArbNat!=null&&(!ch
 const ARB_SCALE_MIN=150,ARB_SCALE_MAX=1500;
 // MEASURE ARB's two readings each solve for a scale on their own. Past this fractional gap between
 // them the pair is flagged rather than quietly averaged — see arbScaleSpread.
-const ARB_SCALE_SPREAD_WARN=0.25;
+// 0.45, not the 0.25 this was first set to. That figure was reasoned rather than measured and
+// sat BELOW the noise floor: 2-decimal rounding alone, on a car the model fits exactly, already
+// spreads the two solves by up to 29.5% (swept over eight cars at the 2.20 Hz default — the two
+// bar configs have different sensitivities, so the same ±0.005 lands very differently in scale
+// space). A front/rear scale asymmetry the single-scale model can't express adds to that: ~34%
+// at 5%, ~38% at 10%. Probing at the ceiling widens it again, since any nonlinearity in Forza's
+// slider shows up as A/B disagreement. A real mistake is far louder — a mistyped reading runs
+// 70%+ — so the threshold sits where it catches those without crying at a legitimately
+// asymmetric car. A warning that fires on good data is a warning people learn to ignore.
+const ARB_SCALE_SPREAD_WARN=0.45;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
 // ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
 // roll angle the springs alone would give — 7% per degree. One definition for every solver
@@ -3301,16 +3310,22 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   const probeMasses=useMemo(()=>cornerMasses(ch),[ch]);
   const probeRateF=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.front/LB_IN_TO_NM,[probeHz,probeMasses]);
   const probeRateR=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.rear /LB_IN_TO_NM,[probeHz,probeMasses]);
-  // MEASURE ARB's two setups: one bar at 70% of the ceiling, the other at 1, then swapped.
+  // MEASURE ARB's two setups: one bar at the ceiling, the other at 1, then swapped.
   // Each reading solves for a scale on its own; they are averaged because a single 2dp reading
   // moves the answer by several percent, and the swap cancels any front/rear bias in the model.
-  const arbProbeHi=lim?.arb?Math.round(0.7*lim.arb):null;
+  // The ceiling, not the 70% of it this used, because the wider the bar spread the more of the
+  // displayed balance the bars account for and the harder a 2dp reading pins the scale: ±5.3%
+  // against ±5.8% at the 2.20 Hz default. The gain shrinks and reverses on very soft springs —
+  // by 1.0 Hz the balance is far enough toward the extremes that the tyre-in-series term
+  // compresses it — so this and the probe Hz are not additive. No car's reading leaves the
+  // 0.05–0.95 entry bounds at any scale in ARB_SCALE_MIN..MAX.
+  const arbProbeHi=lim?.arb??null;
   const arbScaleA=arbProbeHi&&arbReadA!=null?solveArbScale(ch,probeHz,1,arbProbeHi,arbReadA):null;
   const arbScaleB=arbProbeHi&&arbReadB!=null?solveArbScale(ch,probeHz,arbProbeHi,1,arbReadB):null;
   const arbScaleNew=arbScaleA!=null&&arbScaleB!=null?(arbScaleA+arbScaleB)/2:null;
-  // How far apart the two independent solves are, as a fraction of their mean. Each reading is
-  // worth roughly +-6% on its own, so their difference has about 10% of spread in it before
-  // anything is wrong; the warn threshold sits well clear of that rather than crying at noise.
+  // How far apart the two independent solves are, as a fraction of their mean. A wide gap is not
+  // by itself an error — see ARB_SCALE_SPREAD_WARN for how much rounding and front/rear asymmetry
+  // produce on their own.
   const arbScaleSpread=arbScaleNew!=null&&arbScaleNew>0?Math.abs(arbScaleA-arbScaleB)/arbScaleNew:null;
   return(
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:999,
@@ -3475,11 +3490,11 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   </ol>
                   <div style={{marginTop:6}}>Type exactly what Forza displays (two decimals). Both readings are needed; the scale is their average.
                   RESET goes back to the default. If you change MEAS. NAT BAL later, re-measure this too.</div></div>
-                {/* Each reading's own solved scale is shown, not just their average. A 2dp reading
-                    carries about +-6% into the scale on its own, so two that disagree by much more
-                    than that are not noise — they mean the springs moved between readings, NAT BAL
-                    was taken on a different setup, or a number was mistyped. Averaging silently
-                    hid exactly that, and the average of a good reading and a bad one is bad. */}
+                {/* Each reading's own solved scale is shown, not just their average, because
+                    averaging hid the one thing worth seeing: whether the two agree. The average of
+                    a good reading and a mistyped one is bad and nothing said so. The gap itself is
+                    not evidence of a mistake — rounding and front/rear asymmetry account for a lot
+                    of it, see ARB_SCALE_SPREAD_WARN — so the wording below suggests, not accuses. */}
                 {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]].map(([k,f,r,val,set,sc])=>(
                   <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                     <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>
@@ -3494,9 +3509,11 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                 {arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN&&
                   <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
                     The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
-                    More than about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% apart is more than reading noise — check the springs
-                    didn't move between them, that MEAS. NAT BAL was taken on these same springs, and that both
-                    numbers are typed as Forza showed them. APPLY still averages them.</div>}
+                    Some of that is normal — rounding to two decimals alone can spread them by a quarter, and a car
+                    whose front and rear bars aren't worth the same per click will read wider still.
+                    Past about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% it's worth a look: check the springs didn't move between readings,
+                    that MEAS. NAT BAL was taken on these same springs, and that both numbers are typed as Forza
+                    showed them. If they are, the average is still the best estimate — APPLY it.</div>}
                 {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
                   <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
                     That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</div>}

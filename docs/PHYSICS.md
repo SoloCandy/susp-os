@@ -139,7 +139,8 @@ flat from there, so it agrees with the springs' 3.94 without pinning it.
 
 MEASURE ARB (TUNE CHECK's measure mode, beside NAT BAL SETUP) finds the
 per-car value. On the NAT BAL springs, the user sets the bars to `1 / H`
-then `H / 1` (`H` = 70% of the ARB ceiling) and types Forza's mech balance
+then `H / 1` (`H` = the ARB ceiling, `lim.arb` — 65 in Horizon, 40 in
+Motorsport) and types Forza's mech balance
 for each. `solveArbScale` bisects for the scale at which the display model
 (tyres, `tireCorr` and the MEASURE NAT BAL offset, which is why that must be
 set first) reads what Forza showed. The two results are averaged: one
@@ -147,14 +148,35 @@ set first) reads what Forza showed. The two results are averaged: one
 cancels any front/rear bias. A reading no scale between 150 and 1500 can
 produce is rejected.
 
-Each reading's own solved scale is shown beside its box, not just the average.
-Swept over four representative cars at the default probe Hz, a single 2-decimal
-reading is worth roughly **±6%** of the scale, so the difference between the two
-carries about 10% of spread before anything is wrong. Past
-`ARB_SCALE_SPREAD_WARN` (**0.25**, comfortably clear of that) the pair is
-flagged: that far apart means the springs moved between readings, MEAS. NAT BAL
-was taken on a different setup, or a number was mistyped. APPLY still averages
-them — the warning informs, it does not block.
+Each reading's own solved scale is shown beside its box, not just the average,
+because averaging hid the one thing worth seeing: whether the two agree. The
+average of a good reading and a mistyped one is bad, and nothing said so.
+
+**A wide gap between them is not by itself an error.** Swept over eight cars at
+the 2.20 Hz default, 2-decimal rounding *alone* — on a car the model fits
+exactly — spreads the two solves by up to **29.5%** (14–25% on most), because the
+two bar configurations have different sensitivities and the same ±0.005 lands
+very differently in scale space. A front/rear scale asymmetry the single-scale
+model cannot express adds to that: ~34% at 5% asymmetry, ~38% at 10%, ~49% at
+20%. Probing at the ceiling widens it again, since any nonlinearity in Forza's
+slider surfaces as A/B disagreement.
+
+`ARB_SCALE_SPREAD_WARN` is therefore **0.45** — above rounding noise plus a
+healthy asymmetry, and still well clear of a genuine mistake, which is much
+louder (a mistyped reading runs 70%+). It was first set to 0.25, which was
+reasoned rather than measured and sat *below* the noise floor: it would have
+fired on flawless data, and a warning that fires on good data is one people learn
+to ignore. The flag suggests rather than accuses, and APPLY still averages the
+pair — it informs, it does not block.
+
+`H` is the ceiling rather than a fraction of it because the wider the bar
+spread, the more of the displayed balance the bars account for: **±5.3%** of the
+scale against ±5.8% at 70% of the ceiling, at the 2.20 Hz default. That gain
+shrinks and then reverses as the springs soften — by 1.0 Hz the balance sits far
+enough toward the extremes that the tyre-in-series term compresses it, and 70%
+reads better — so the ceiling and the probe Hz below are **not** additive. No
+car's reading leaves the card's 0.05–0.95 entry bounds at any scale in
+`ARB_SCALE_MIN..MAX`.
 
 **Softer probe springs sharpen the reading.** The lower the Measure Hz, the more
 of the displayed balance the bars account for, so the same 2-decimal reading pins

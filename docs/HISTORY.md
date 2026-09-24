@@ -18,9 +18,22 @@ and the card averaged them into one number. Both per-reading solves existed in
 state and neither was ever rendered, so a pair that disagreed by 70% looked
 exactly like a pair that agreed — and the average of a good reading and a bad one
 is a bad scale that nothing flags. Each reading's scale now sits beside its box,
-and past `ARB_SCALE_SPREAD_WARN` (0.25) the pair is called out with what usually
-causes it: springs moved between readings, MEAS. NAT BAL taken on a different
-setup, or a typo. APPLY still averages — the warning informs, it does not block.
+and past `ARB_SCALE_SPREAD_WARN` the pair is called out with what usually causes
+it: springs moved between readings, MEAS. NAT BAL taken on a different setup, or
+a typo. APPLY still averages — the warning informs, it does not block.
+
+**That threshold shipped wrong and was corrected the same day.** It was first
+0.25, reasoned from "each reading is worth about ±6%, so their difference carries
+about 10%" — a figure never measured. Measuring it: 2-decimal rounding *alone*,
+on a car the model fits exactly, spreads the two solves by up to 29.5% over eight
+cars, because the two bar configurations have different sensitivities and the
+same ±0.005 lands very differently in scale space. A front/rear scale asymmetry
+the single-scale model can't express pushes it to ~34% at 5% and ~38% at 10%, and
+probing at the ceiling widens it again. 0.25 sat *below* the noise floor and
+would have fired on flawless data. It is now **0.45**, still far below a real
+mistake (a mistyped reading runs 70%+), and the wording suggests rather than
+accuses. The lesson is the ordinary one: a tolerance is a measurement, not an
+intuition, and a warning that fires on good data is one people learn to ignore.
 
 The probe default also moved **2.5 Hz → 2.20**. Softer probe springs leave the
 bars accounting for more of the displayed balance, so the same 2-decimal reading
@@ -28,6 +41,15 @@ pins the scale harder: swept over four representative cars, ±6.8% of the scale 
 2.5 Hz, ±6.0% at 2.20, ±4.8% at 1.5. Not lower by default because the spring rate
 it asks for has to still exist in the game's range on a heavy car; the field
 already went to 1.0 and now says softer is better.
+
+The probe's high bar also moved from **70% of the ARB ceiling to the ceiling**
+(`lim.arb`): a wider bar spread leaves the bars accounting for more of the
+displayed balance, ±5.3% of the scale against ±5.8% at the new default Hz. The
+two changes are not additive — the ceiling's advantage shrinks and reverses as
+the springs soften, since by 1.0 Hz the balance sits far enough toward the
+extremes for the tyre-in-series term to compress it. No car's reading leaves the
+card's 0.05–0.95 entry bounds at any scale in `ARB_SCALE_MIN..MAX`, which is what
+made the ceiling safe to use.
 
 `NAT_BAL_REF_HZ` stayed at 2.5 deliberately. It is the Hz that readings taken
 before `measuredNatBalHz` existed were taken at — frozen history, not the card's
