@@ -111,7 +111,10 @@ natural balance moves slightly with Hz on an uneven car (about 0.01 per Hz on
 the Ultima), so the Hz a reading was taken at is stored with it
 (`ch.measuredNatBalHz`, set from NAT BAL SETUP's Measure Hz) and
 `displayNatOffsetOf` anchors the display to the reading at that Hz. Readings
-saved before the field existed use `NAT_BAL_REF_HZ` (2.5, the card's default).
+saved before the field existed use `NAT_BAL_REF_HZ` (2.5, which was the card's
+default when those readings were taken). The card now defaults to **2.20 Hz**;
+`NAT_BAL_REF_HZ` is frozen at 2.5 and must not follow it, or every legacy
+reading is reinterpreted at springs it was never taken on.
 
 ### ARB click scale (MEASURE ARB)
 
@@ -142,7 +145,23 @@ for each. `solveArbScale` bisects for the scale at which the display model
 set first) reads what Forza showed. The two results are averaged: one
 2-decimal reading moves the answer by several percent, and swapping the bars
 cancels any front/rear bias. A reading no scale between 150 and 1500 can
-produce is rejected. Scales measured before the tyre term (codec ids 70/71)
+produce is rejected.
+
+Each reading's own solved scale is shown beside its box, not just the average.
+Swept over four representative cars at the default probe Hz, a single 2-decimal
+reading is worth roughly **±6%** of the scale, so the difference between the two
+carries about 10% of spread before anything is wrong. Past
+`ARB_SCALE_SPREAD_WARN` (**0.25**, comfortably clear of that) the pair is
+flagged: that far apart means the springs moved between readings, MEAS. NAT BAL
+was taken on a different setup, or a number was mistyped. APPLY still averages
+them — the warning informs, it does not block.
+
+**Softer probe springs sharpen the reading.** The lower the Measure Hz, the more
+of the displayed balance the bars account for, so the same 2-decimal reading pins
+the scale harder: about ±6.8% of the scale at 2.5 Hz, ±6.0% at 2.20 and ±4.8% at
+1.5. The field's default is 2.20 rather than lower because the spring rate it
+asks for still has to exist in the game's range on a heavy car; the field goes
+down to 1.0 for anyone whose car allows it, and the card says so. Scales measured before the tyre term (codec ids 70/71)
 are dropped, not converted.
 
 Changing the scale moves clicks, not stiffness: AUTO, SHARE, ROLL and the

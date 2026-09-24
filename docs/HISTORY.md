@@ -11,6 +11,29 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — MEASURE ARB averaged two readings without showing either
+
+`solveArbScale` solves each of the two bar readings for a click scale on its own,
+and the card averaged them into one number. Both per-reading solves existed in
+state and neither was ever rendered, so a pair that disagreed by 70% looked
+exactly like a pair that agreed — and the average of a good reading and a bad one
+is a bad scale that nothing flags. Each reading's scale now sits beside its box,
+and past `ARB_SCALE_SPREAD_WARN` (0.25) the pair is called out with what usually
+causes it: springs moved between readings, MEAS. NAT BAL taken on a different
+setup, or a typo. APPLY still averages — the warning informs, it does not block.
+
+The probe default also moved **2.5 Hz → 2.20**. Softer probe springs leave the
+bars accounting for more of the displayed balance, so the same 2-decimal reading
+pins the scale harder: swept over four representative cars, ±6.8% of the scale at
+2.5 Hz, ±6.0% at 2.20, ±4.8% at 1.5. Not lower by default because the spring rate
+it asks for has to still exist in the game's range on a heavy car; the field
+already went to 1.0 and now says softer is better.
+
+`NAT_BAL_REF_HZ` stayed at 2.5 deliberately. It is the Hz that readings taken
+before `measuredNatBalHz` existed were taken at — frozen history, not the card's
+current default. Moving it with the default would have silently reinterpreted
+every legacy reading at springs it was never measured on.
+
 ## Fixed — MANUAL diff crammed accel and decel into two columns on a narrow sidebar
 
 PRO's MANUAL differential laid each accel/decel pair out as a two-column grid,

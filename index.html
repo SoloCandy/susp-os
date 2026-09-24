@@ -195,6 +195,9 @@ const arbScaleOf=ch=>ch.useMeasuredArbClick&&ch.measuredArbClick!=null
 const arbScaleStale=ch=>!!(ch.useMeasuredArbClick&&ch.measuredArbNat!=null&&(!ch.useMeasuredNatBal
   ||ch.measuredNatBal!==ch.measuredArbNat||(ch.measuredNatBalHz??NAT_BAL_REF_HZ)!==(ch.measuredArbNatHz??NAT_BAL_REF_HZ)));
 const ARB_SCALE_MIN=150,ARB_SCALE_MAX=1500;
+// MEASURE ARB's two readings each solve for a scale on their own. Past this fractional gap between
+// them the pair is flagged rather than quietly averaged — see arbScaleSpread.
+const ARB_SCALE_SPREAD_WARN=0.25;
 const rollCenterHeight=ch=>ch.cgHeight*0.20; // scales with CG height; ~0.09m for typical sports cars
 // ARB Stiffness Mode AUTO: the bars' fraction (0.05–0.50) of total roll stiffness, from the
 // roll angle the springs alone would give — 7% per degree. One definition for every solver
@@ -220,7 +223,9 @@ const displayRsBalance=(ch,kF,kR)=>{
   const eF=inSeries(kF,tyreRollStiffness(mc.front,ch.trackF)),eR=inSeries(kR,tyreRollStiffness(mc.rear,ch.trackR));
   return eF+eR>0?eR/(eF+eR):1-ch.frontBias/100;
 };
-// MEASURE NAT BAL readings taken before the Hz was recorded were taken at this Hz (the card's default).
+// MEASURE NAT BAL readings taken before the Hz was recorded were taken at this Hz — it was the
+// card's default at the time. The card now defaults to 2.20; this constant is frozen history and
+// must not follow it, or every legacy reading is reinterpreted at springs it was never taken on.
 const NAT_BAL_REF_HZ=2.5;
 const DAMPING_CALIBRATION=0.00135;
 // Mech-balance model (tyre load sensitivity). See mechBalanceLLT.
@@ -3227,7 +3232,14 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   // are the stock figures observed on a test vehicle.
   const phys=lim.damping==null;
   const[ckMode,setCkMode]=useState(initialMode??'decode');
-  const[probeHz,setProbeHz]=useState(2.5);
+  // 2.20 Hz, not the 2.5 this defaulted to: the softer the probe springs, the more of the
+  // displayed balance the bars account for, so the same 2-decimal reading pins the ARB click
+  // scale harder. Measured against solveArbScale over four representative cars, a 2dp reading
+  // is worth about +-6.8% of the scale at 2.5 Hz, +-6.0% at 2.20 and +-4.8% at 1.5. Not lower
+  // by default because the spring rate this asks for has to still exist in the game's range on
+  // a heavy car; the field goes to 1.0 for anyone whose car allows it. NAT_BAL_REF_HZ stays
+  // 2.5 — it is what unrecorded legacy readings were taken at, not this default.
+  const[probeHz,setProbeHz]=useState(2.20);
   // MEASURE ARB: Forza's mech balance with the bars rear-biased (A) and front-biased (B).
   const[arbReadA,setArbReadA]=useState(null);
   const[arbReadB,setArbReadB]=useState(null);
@@ -3296,6 +3308,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   const arbScaleA=arbProbeHi&&arbReadA!=null?solveArbScale(ch,probeHz,1,arbProbeHi,arbReadA):null;
   const arbScaleB=arbProbeHi&&arbReadB!=null?solveArbScale(ch,probeHz,arbProbeHi,1,arbReadB):null;
   const arbScaleNew=arbScaleA!=null&&arbScaleB!=null?(arbScaleA+arbScaleB)/2:null;
+  // How far apart the two independent solves are, as a fraction of their mean. Each reading is
+  // worth roughly +-6% on its own, so their difference has about 10% of spread in it before
+  // anything is wrong; the warn threshold sits well clear of that rather than crying at noise.
+  const arbScaleSpread=arbScaleNew!=null&&arbScaleNew>0?Math.abs(arbScaleA-arbScaleB)/arbScaleNew:null;
   return(
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:999,
                  display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -3418,7 +3434,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               </div>
             </Card>
             <Card title="NAT BAL SETUP" accent>
-              <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"/>
+              <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"
+                hint="The ride frequency the probe springs are solved for. Softer is more accurate — at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins both this and the ARB click scale harder. Go as soft as the game will let you set on this car; the spring rates below are what to enter."/>
+              <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginBottom:4}}>
+                Softer springs sharpen both readings. Use the lowest Hz whose spring rates the game accepts.</div>
               <Stat label="Corner mass front" value={probeMasses.front} unit="kg" decimals={1}/>
               <Stat label="Corner mass rear"  value={probeMasses.rear}  unit="kg" decimals={1}/>
               <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
@@ -3456,14 +3475,28 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   </ol>
                   <div style={{marginTop:6}}>Type exactly what Forza displays (two decimals). Both readings are needed; the scale is their average.
                   RESET goes back to the default. If you change MEAS. NAT BAL later, re-measure this too.</div></div>
+                {/* Each reading's own solved scale is shown, not just their average. A 2dp reading
+                    carries about +-6% into the scale on its own, so two that disagree by much more
+                    than that are not noise — they mean the springs moved between readings, NAT BAL
+                    was taken on a different setup, or a number was mistyped. Averaging silently
+                    hid exactly that, and the average of a good reading and a bad one is bad. */}
                 {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]].map(([k,f,r,val,set,sc])=>(
                   <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                     <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>
                     <span style={{display:'flex',alignItems:'center',gap:6}}>
                       {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
+                      {sc!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,
+                                               color:arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN?'#f59e0b':'#60a5fa'}}>
+                        → {Math.round(sc)}</span>}
                       <NumBox value={val??NaN} placeholder="0.00" min={0.05} max={0.95} dp={2} label={`Mech balance with ARB ${f} / ${r}`} onCommit={set}/>
                     </span>
                   </div>))}
+                {arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN&&
+                  <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
+                    The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
+                    More than about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% apart is more than reading noise — check the springs
+                    didn't move between them, that MEAS. NAT BAL was taken on these same springs, and that both
+                    numbers are typed as Forza showed them. APPLY still averages them.</div>}
                 {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
                   <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
                     That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</div>}
