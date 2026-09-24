@@ -530,6 +530,53 @@ pressure sweep at two spring stiffnesses, front and rear separately, then with
 bars, on the same three cars. Until it's done, keep pressures at stock while
 measuring or comparing against the game.
 
+## Open — a persisted field with a bad value survives rehydration, and `computeTune` trusts `gameMode`
+
+Found by accident while verifying the share-parts work: a console command meant for the
+SHARE modal's mode `<select>` hit the **first** select in the DOM instead — the header's
+game-mode combobox — and set it to a value that is not one of its options. Per the DOM
+spec the select's value became `''`, the change handler carried that through, and
+`fe.gameMode` was `""` from then on. Two independent weaknesses turned that into a
+persistent blank page.
+
+**1. `mergeDefaults` fills missing keys, not bad ones.** Rehydration is a plain spread:
+
+```js
+?{...initial,...parsed}:parsed;
+```
+
+so a key that is *present* but nonsense beats its `DEF_*` value. `gameMode:""` was written
+to `suspos_fe_v8` and then won every reload — the app came back to the ErrorBoundary screen
+until localStorage was edited by hand. Nothing in the rehydrate path validates a value
+against the enum the way `sanitizeTune` does for a share code.
+
+**2. `computeTune` reads `lim` unguarded.** It opens with
+`const lim=GAME_LIMITS[gameMode]` and then reads `lim.damping` in the Forza click-fitting
+branch, and `lim.arb` in the ARB compression and MAN branches. `GAME_LIMITS[""]` is
+`undefined`, so it throws on every render.
+
+The guards that *do* exist nearby are for a different hazard: `feelToPhysics` writes
+`lim?.arb??ARB_UTIL_REF` and the App-level read is followed by `physMode` checks, because
+BeamNG's entry is `{damping:null,arb:null,physical:true}` — a known mode with null
+ceilings. None of that helps against a mode with no entry at all, and the `lim.damping`
+reads sit inside a `!physUnits` branch that is correct for every real mode and defenceless
+against a value that is not a mode.
+
+**Why this is filed rather than fixed.** Both writers of `fe.gameMode` are constrained:
+the header select offers three options, and `sanitizeTune` gates a decoded code through
+`GAME_MODE_DEC.includes(...)`, so neither a share code nor the UI can reach this state. It
+took console access. But the two weaknesses are general — any persisted enum has the same
+rehydration hole, and `computeTune` trusting its `gameMode` argument is a contract nothing
+enforces.
+
+Either fix stands alone:
+
+- **Narrow:** default in `computeTune` (`GAME_LIMITS[gameMode]??GAME_LIMITS.horizon`), or
+  validate `fe.gameMode` in the one-time migration effect that already runs in `App`.
+- **Broad:** give `usePersist` a per-key validator so rehydration can reject a value, not
+  just a missing key. That is a decision about every persisted key, not just this one —
+  which is why it was not made in passing.
+
 ## Open — code review findings (2026-09-18)
 
 Found in a full review of `index.html`. Items marked *reproduced* were run against the

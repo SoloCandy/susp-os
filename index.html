@@ -1054,6 +1054,10 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
   return{S,R_baseline,targetRsBalance,rsSpF_cs};
 };
 const computeTune=(ch,phys,gameMode)=>{
+  // lim is read unguarded below (lim.damping in the click-fitting branch, lim.arb in the ARB
+  // ones), so gameMode must name a real GAME_LIMITS entry. Both writers constrain it, but
+  // nothing enforces it here and a persisted bad value blanks the app — see
+  // docs/KNOWN_ISSUES.md, "a persisted field with a bad value survives rehydration".
   const lim=GAME_LIMITS[gameMode],m=cornerMasses(ch);
   // Physical-unit modes (BeamNG) emit the values this solver already works in — springs
   // stay lb/in and dampers/ARBs come out as real coefficients, instead of being compressed
@@ -2019,6 +2023,9 @@ const computeCheck=(spr,damp,masses,calib=DAMPING_CALIBRATION)=>{
 // per-element merging. Array-valued persisted keys (the GARAGE entry list) therefore
 // get NO default-filling from usePersist and must be normalized on read instead —
 // see normalizeEntry below, and the array-key section in docs/PERSISTENCE.md.
+// Fills keys the stored object is MISSING. A key that is present but invalid wins over its
+// default — there is no per-key validation here, unlike sanitizeTune on the codec path. See
+// docs/KNOWN_ISSUES.md, "a persisted field with a bad value survives rehydration".
 const mergeDefaults=(initial,parsed)=>
   (initial&&typeof initial==='object'&&!Array.isArray(initial)
     &&parsed&&typeof parsed==='object'&&!Array.isArray(parsed))
