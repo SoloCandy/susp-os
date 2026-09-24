@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the ARB scale is picked with a toggle, not an APPLY/RESET pair
+
+Which click scale a car uses is a mode — the shared default, or this car's
+measured one — but step 2 ended in two action buttons that named what they did
+and never what was in force. Nothing on the card said which scale the ARBs were
+currently being computed against. RESET read as "throw away my work" rather than
+"use the default", which is what it actually selected. APPLY sat there looking
+available with nothing to apply, disabled only by opacity. And the readings' own
+result and the car's current setting were collapsed into one `Click scale` row
+that quietly changed meaning depending on whether both readings were in.
+
+It is now a **SCALE IN USE** toggle, `DEFAULT 540` against `MEASURED n`, the same
+idiom as every other either/or in the app, under a RESULT row that only ever
+reports what the readings give. `MEASURED` is disabled until there is something
+to select — a fresh pair of readings, or a scale already applied — and carries the
+number it would switch to, so the choice is visible before it is made.
+
+`DEFAULT` still nulls `measuredArbClick`/`measuredArbNat`/`measuredArbNatHz`, as
+RESET did, because `sanitizeTune` holds the invariant that `useMeasuredArbClick`
+being false means those fields are null; a toggle that left them populated would
+round-trip differently through a share code than it looked on screen. The typed
+readings live in the modal's own state, so flipping back is one tap for as long
+as it is open — which is the part a toggle promises and this keeps.
+
+One thing the old pair could not say: with a scale applied and a reading then
+edited, the card now points out that the readings give a different number than
+the one in use, and which tap moves to it. Before, the stale value simply stayed.
+
 ## Changed — MEASURE is two numbered steps instead of three side-by-side cards
 
 The measure tab presented HOW TO USE, NAT BAL SETUP and ARB SCALE SETUP as three

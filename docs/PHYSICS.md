@@ -163,6 +163,13 @@ model cannot express adds to that: ~34% at 5% asymmetry, ~38% at 10%, ~49% at
 20%. Probing at the ceiling widens it again, since any nonlinearity in Forza's
 slider surfaces as A/B disagreement.
 
+Which scale the car uses is a **SCALE IN USE** toggle, `DEFAULT 540` against
+`MEASURED n`, rather than an APPLY/RESET pair. `DEFAULT` nulls the stored
+reading, holding `sanitizeTune`'s invariant that `useMeasuredArbClick` being
+false means `measuredArbClick`/`measuredArbNat`/`measuredArbNatHz` are null; the
+typed readings live in the modal, so flipping back costs one tap while it is
+open. `MEASURED` is disabled until there is a scale to select.
+
 `ARB_SCALE_SPREAD_WARN` is therefore **0.45** — above rounding noise plus a
 healthy asymmetry, and still well clear of a genuine mistake, which is much
 louder (a mistyped reading runs 70%+). It was first set to 0.25, which was

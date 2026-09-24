@@ -3446,6 +3446,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
           {ckMode==='probe'&&(()=>{
             const natDone=!!ch.useMeasuredNatBal;
             const arbDone=!!ch.useMeasuredArbClick;
+            // MEASURED is selectable once there is something to select: a fresh pair of readings to
+            // apply, or a scale already applied (so the toggle still reads as a pair when the modal
+            // is reopened on a calibrated car and nothing has been typed yet).
+            const arbCanMeasure=arbScaleNew!=null||arbDone;
             // One divider + caption per "do this next" break, so both steps have the same rhythm:
             // what to set in the game, then what to type back from it.
             const Phase=({children})=>(
@@ -3563,24 +3567,40 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       whose front and rear bars aren't worth the same per click will read wider still.
                       Past about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% it's worth a look: check the springs didn't move between readings,
                       that MEAS. NAT BAL was taken on these same springs, and that both numbers are typed as Forza
-                      showed them. If they are, the average is still the best estimate — APPLY it.</Warn>}
+                      showed them. If they are, the average is still the best estimate — take it.</Warn>}
                   <Phase>RESULT</Phase>
-                  <Stat label={arbScaleNew!=null?'Click scale — average of the two':'Click scale — in use'}
-                    value={arbScaleNew??arbScaleOf(ch)} unit="" decimals={0}/>
-                  <div style={{display:'flex',gap:4,marginTop:8}}>
-                    <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
-                      title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
-                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew),
-                        measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}))}>APPLY</button>
-                    <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbDone?1:0.35}} disabled={!arbDone}
-                      title={'Go back to the default click scale ('+ARB_RS_SCALE+').'}
-                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>RESET</button>
+                  {arbScaleNew!=null
+                    ?<Stat label="Click scale from these readings" value={arbScaleNew} unit="" decimals={0}/>
+                    :<div style={{fontSize:10,color:'#475569',lineHeight:1.5}}>
+                      Both readings are needed before a scale can be measured.</div>}
+                  {/* Which scale the car actually uses is a mode, so it is a toggle, the way every
+                      other either/or in the app is. It replaces an APPLY/RESET pair that named the
+                      actions but never the state: nothing said which scale was in force, RESET read
+                      as "clear my work" rather than "use the default", and APPLY looked available
+                      when there was nothing to apply. DEFAULT nulls the stored reading because
+                      sanitizeTune holds the invariant that the flag being off means those fields are
+                      null — the typed readings stay in this modal, so flipping back is one tap while
+                      it is open. */}
+                  <Phase>SCALE IN USE</Phase>
+                  <div style={{display:'flex',gap:3}}>
+                    <button className={'tog'+(arbDone?'':' on')} style={{fontSize:10}}
+                      title={'Use the default click scale ('+ARB_RS_SCALE+'), the same for every car.'}
+                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>
+                      DEFAULT {ARB_RS_SCALE}</button>
+                    <button className={'tog'+(arbDone?' on':'')} style={{fontSize:10,opacity:arbCanMeasure?1:0.35}} disabled={!arbCanMeasure}
+                      title={arbCanMeasure?"Use the scale measured from these readings. Saved with the chassis and shared in its build code."
+                        :'Type both readings above first.'}
+                      onClick={()=>{if(arbScaleNew!=null)setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew),
+                        measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}));}}>
+                      MEASURED {arbDone||arbScaleNew!=null?Math.round(arbScaleNew??arbScaleOf(ch)):'—'}</button>
                   </div>
-                  {arbScaleNew==null&&<div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:6}}>
-                    Both readings are needed before APPLY does anything.</div>}
+                  {arbDone&&arbScaleNew!=null&&Math.round(arbScaleNew)!==ch.measuredArbClick&&
+                    <div style={{fontSize:10,color:'#60a5fa',lineHeight:1.5,marginTop:6}}>
+                      The readings above now give {Math.round(arbScaleNew)}, and {ch.measuredArbClick} is in use —
+                      tap MEASURED again to move to it.</div>}
                   {arbScaleStale(ch)&&<Warn>
                     MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
-                    It's still in use; take both readings again and APPLY.</Warn>}
+                    It's still in use; take both readings again and tap MEASURED.</Warn>}
                 </>}
               </Card>
             </div>);
@@ -4374,7 +4394,7 @@ const TUTORIALS={
      body:'MEASURE NAT BAL (below the Balance Guide) opens Tune Check\'s MEASURE tab — it walks you through applying specific spring/ARB values in Forza, then you dial in the Mech Balance the game reports. Once set, the calculator uses your reading everywhere — Balance Guide, GRIP BIAS, natural balance — instead of the geometry prediction. The MEASURE tab lays this out as two numbered steps — natural balance first, then the ARB scale that is solved against it. The spring Hz you measured at is saved with the reading (default 2.20 Hz; softer readings are sharper), and CLEAR in the step, or ✕ in the sidebar, drops it. Track width fields hide while active since they\'re no longer needed; wheelbase stays visible for flat-ride Hz and brake balance.'},
     {title:'Calibrating ARB Scale',
      focus:['balance-target'],
-     body:'ARB clicks don\'t map to the same stiffness on every car. STEP 2 · ARB SCALE SETUP, in Tune Check\'s MEASURE tab, finds your car\'s value: set the bars each reading lists (1 front / full rear, then the reverse), type the Mech Balance Forza shows for each, and press APPLY. Each reading solves for a scale of its own and both are shown, so you can see whether they agree before applying their average. RESET goes back to the default. Worth doing on any car where bar-driven balance needs to be exact. Scales saved before the tyre-model update were cleared on purpose, so re-measure those cars.'},
+     body:'ARB clicks don\'t map to the same stiffness on every car. STEP 2 · ARB SCALE SETUP, in Tune Check\'s MEASURE tab, finds your car\'s value: set the bars each reading lists (1 front / full rear, then the reverse), type the Mech Balance Forza shows for each, then pick MEASURED on the SCALE IN USE toggle. Each reading solves for a scale of its own and both are shown, so you can see whether they agree before taking their average. DEFAULT on that toggle goes back to the shared default. Worth doing on any car where bar-driven balance needs to be exact. Scales saved before the tyre-model update were cleared on purpose, so re-measure those cars.'},
     {title:'Mech Balance Target',
      focus:['balance-target'],
      body:'How far to move Forza\'s Mech Balance from your car\'s natural balance (NAT). 0 = stay natural; positive = more rotation; negative = more stable. The result is kept inside 0.20–0.90.\n\nStart from the BALANCE GUIDE below — its range is built from this car\'s geometry and build type. Set this before picking an ARB mode: all three solve toward it.'},
