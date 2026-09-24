@@ -29,6 +29,78 @@ History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:
 
 ---
 
+## Open — the ARB share part is not self-describing without the SPRINGS part
+
+`SHARE_PARTS` puts `gameMode` in the **`ride`** part (labelled SPRINGS) and
+`arbManF`/`arbManR` in the **`arb`** part. Those two ids are the only ones in the
+codec whose *units* depend on `gameMode` — clicks in a click mode, roll stiffness
+in a physical one (see [CODEC.md](CODEC.md) ids 46/47). So a part that claims to be
+independently applicable carries values that cannot be interpreted without a
+different part.
+
+Ticking **only ARB** from a BeamNG code while in a Forza mode (or the reverse)
+imports numbers in the wrong units. Measured, default chassis, their tune BeamNG
+MAN at 25947/24952, mine HORIZON, only `arb` ticked:
+
+```
+my gameMode after merge : horizon      (unchanged — gameMode rides with `ride`)
+my arbMode  after merge : man
+my arbManF  after merge : 25947        (ceiling is 65)
+resulting ARB clicks    : 65 65        (computeTune clamps the output)
+```
+
+**Severity is display, not output.** `computeTune` clamps to `lim.arb` on the way
+out, so the tune the user takes into the game is a legal 65 clicks — maximum bar,
+not a wild number. What is wrong is the MAN entry field, which shows 25947 under a
+`/ 65` maximum, and the fact that the user asked for the sender's bars and silently
+got "maximum" instead.
+
+**This became visible by fixing a worse bug.** Until `sanitizeTune` learned about
+`gameMode` (see [HISTORY.md](HISTORY.md)), the value was crushed to 65 before the
+merge ever ran, so the cross-part case landed on a legal number by accident. The
+old behaviour was not better — it destroyed the value on *every* path, including
+the all-parts one — but it did mask this.
+
+Nothing warns. The LOAD CODE staging panel summarises the `arb` part as
+`arbMode · bias · spring share` and has no cross-part check; `partDiffers` compares
+keys within one part and cannot see that a *different* part changes what this one
+means.
+
+### Why this is filed rather than fixed
+
+Each option is a decision about what a share part promises, not a bug fix:
+
+- **Move `arbManF`/`arbManR` into `ride`.** Makes the unit and its meaning
+  inseparable, which is correct in principle. But it puts ARB values in the part
+  labelled SPRINGS, so a reader ticking SPRINGS to take someone's ride frequency
+  silently takes their bars too — trading a rare cross-unit case for a common
+  surprising one. It also breaks the property that each part maps onto a sidebar
+  section, which is what makes the tick list legible.
+- **Convert in `mergeTune`** when the incoming and current `gameMode` differ in
+  physicality, using the same `arbScaleOf(ch)·track²` the App effect uses. Keeps
+  the parts where they are and is invisible when it is not needed. But `mergeTune`
+  is pure and currently knows nothing about `ch` geometry or game modes, and the
+  conversion needs both — and which `ch` to use is itself ambiguous when the `ch`
+  part is ticked in the same apply.
+- **Refuse the combination**: disable the ARB tick, with a reason, when the staged
+  code's `gameMode` differs in physicality from the current one and `ride` is not
+  also ticked. Smallest change, no silent conversion, and it makes the dependency
+  visible rather than handling it. But it is the first cross-part constraint in a
+  UI whose whole premise is that the ticks are independent.
+- **Warn and allow.** Same detection, no restriction. Cheapest, and consistent with
+  how the app treats the A/B spread in MEASURE — say what looks wrong, let the user
+  decide.
+
+The last two need the same detection, so either can ship first and the other is a
+change of what the detection does. No option is obviously right, and all of them
+touch the promise the LOAD CODE panel makes.
+
+`tests-share.js` cannot catch this class as written: every assertion merges parts
+of a code into a tune of the *same* mode. A test that pins the current behaviour
+would be pinning the bug.
+
+---
+
 ## Open — Balance Guide RANGE's sub-1 fractions rank builds by correction, not by rotation
 
 The RANGE band scales its deltas with `balanceBandDelta(frac, gap)` (collected

@@ -38,7 +38,8 @@ const M = new Function(
   slice('const CODEC_FIELDS=', 'const sanitizeTune=') + '\n' +
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
-  'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune};'
+  'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
+  'GAME_LIMITS,arbScaleOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -187,6 +188,64 @@ t('one part of a decoded code leaves the others alone', () => {
     'ARB or springs moved on a dampers-only load');
   assert(out.ch.weight === cur.ch.weight && out.dr.buildType === cur.dr.buildType,
     'chassis or drivetrain moved on a dampers-only load');
+});
+
+// arbManF/arbManR are the only fe fields whose UNITS depend on gameMode, so sanitizeTune's
+// clamp has to read it. A hardcoded 1..65 crushed every shared BeamNG MAN tune to 65 and
+// applied Horizon's ceiling to MOTORSPORT; see docs/HISTORY.md. Nothing crashed, which is
+// why the round-trip tests above passed throughout — they compare two sanitized tunes, and
+// both were wrong in the same way.
+section('gameMode-dependent ARB MAN bounds');
+const manTune = (gameMode, arbManF, arbManR) => ({
+  ch: { ...M.DEF_CH },
+  fe: { ...M.DEF_FE, gameMode, arbMode: 'man', arbManF, arbManR },
+  dr: { ...M.DEF_DR },
+});
+const roundTrip = tune => M.sanitizeTune(M.decodeTune(M.encodeTune(tune.ch, tune.fe, tune.dr, 'pro')));
+
+t('a physical-mode MAN tune survives a share code exactly', () => {
+  // What App's physMode conversion effect actually writes: clicks × arbScaleOf(ch)·track².
+  const ch = M.DEF_CH;
+  const f = Math.round(20 * M.arbScaleOf(ch) * ch.trackF * ch.trackF);
+  const r = Math.round(20 * M.arbScaleOf(ch) * ch.trackR * ch.trackR);
+  assert(f > 1000 && r > 1000, `fixture is not in physical units: ${f}/${r}`);
+  const out = roundTrip(manTune('beamng', f, r));
+  assert(out.fe.arbManF === f && out.fe.arbManR === r,
+    `roll stiffness was clamped away: sent ${f}/${r}, got ${out.fe.arbManF}/${out.fe.arbManR}`);
+  assert(out.fe.gameMode === 'beamng' && out.fe.arbMode === 'man', 'mode did not survive');
+});
+
+t('each click mode clamps MAN to its own ceiling, not the Horizon ceiling', () => {
+  for (const gm of ['horizon', 'motorsport']) {
+    const ceiling = M.GAME_LIMITS[gm].arb;
+    const out = roundTrip(manTune(gm, 65, 65));
+    assert(out.fe.arbManF === ceiling && out.fe.arbManR === ceiling,
+      `${gm}: 65 clicks should clamp to ${ceiling}, got ${out.fe.arbManF}/${out.fe.arbManR}`);
+  }
+});
+
+t('a legal click value in each mode is untouched', () => {
+  for (const gm of ['horizon', 'motorsport']) {
+    const out = roundTrip(manTune(gm, 31, 28));
+    assert(out.fe.arbManF === 31 && out.fe.arbManR === 28,
+      `${gm}: legal clicks were moved to ${out.fe.arbManF}/${out.fe.arbManR}`);
+  }
+});
+
+t('the click floor stays 1 and the physical floor stays 0', () => {
+  const clicks = M.sanitizeTune(manTune('horizon', 0, -5));
+  assert(clicks.fe.arbManF === 1 && clicks.fe.arbManR === 1,
+    `clicks should floor at 1, got ${clicks.fe.arbManF}/${clicks.fe.arbManR}`);
+  const phys = M.sanitizeTune(manTune('beamng', 0, -5));
+  assert(phys.fe.arbManF === 0 && phys.fe.arbManR === 0,
+    `physical should floor at 0 (computeTune reads Math.max(0, …)), got ${phys.fe.arbManF}/${phys.fe.arbManR}`);
+});
+
+t('a junk gameMode falls back to the default mode bounds, not a crash', () => {
+  const out = M.sanitizeTune(manTune('', 65, 65));
+  assert(out.fe.gameMode === M.DEF_FE.gameMode, `gameMode should fall back, got ${JSON.stringify(out.fe.gameMode)}`);
+  const ceiling = M.GAME_LIMITS[M.DEF_FE.gameMode].arb;
+  assert(out.fe.arbManF === Math.min(65, ceiling), `bounds should follow the fallback mode, got ${out.fe.arbManF}`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

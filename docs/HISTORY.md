@@ -11,6 +11,67 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a shared BeamNG tune with ARB mode MAN arrived with no bars
+
+`fe.arbManF`/`arbManR` are the one pair of `fe` fields whose **units** depend on
+`fe.gameMode`: Forza clicks in a click mode, roll stiffness in a physical one. The
+App effect that runs on a mode switch converts between them by
+`arbScaleOf(ch)·track²`, so 20 clicks becomes about 26,000 on the default chassis.
+
+`sanitizeTune` clamped both to a hardcoded `1..65`:
+
+```js
+arbManF: cl(fe?.arbManF, 1, 65, 20),
+arbManR: cl(fe?.arbManR, 1, 65, 20),
+```
+
+Measured round trip through `encodeTune` → `decodeTune` → `sanitizeTune` on the
+default chassis:
+
+| | front | rear |
+|---|---|---|
+| BeamNG MAN roll stiffness | 25947 | 24952 |
+| decoded raw | 25947 | 24952 |
+| after `sanitizeTune` | **65** | **65** |
+| ARB output before sharing | 25947 | 24952 |
+| ARB output after sharing | **65** | **65** |
+
+The codec was never the problem — it carried the numbers exactly. The reader's
+bars collapsed to roughly nothing, and `gameMode` and `arbMode` both survived, so
+the tune *looked* intact and only one section was wrong. Nothing threw, which is
+why no suite noticed: `tests-share.js` proved `decode(encode(x))` merges
+identically to `x`, and it did — both sides were sanitized, so both were wrong the
+same way. A round-trip test that sanitizes both ends cannot see a sanitize bug.
+
+The same constant was Horizon's ceiling applied to **MOTORSPORT**, whose limit is
+40. A Motorsport code carrying `arbManF: 65` passed through unchanged; `computeTune`
+clamped the *output* to 40 in its MAN branch, so the tune was right
+while the MAN entry field displayed 65 under a `/ 40` maximum. That is exactly the
+stale-field state the ARB ceiling effect in `App` exists to prevent — but that
+effect keys on `fe.gameMode` *changing*, and loading a Motorsport code while
+already in Motorsport does not change it.
+
+`sanitizeTune` now resolves `gameMode` into `sgm` before the object literal (it was
+already resolving it correctly two lines further down — the clamp simply never
+asked) and derives the bounds from it: `0..200000` in a physical mode, matching
+`computeTune`'s own `Math.max(0, arbManF ?? 0)` floor, and `1..GAME_LIMITS[mode].arb`
+in a click one. Both mirror the MAN entry field's `min`/`max`, so what a code can
+carry and what the UI can type are one range.
+
+Five cases added to `tests-share.js` under **gameMode-dependent ARB MAN bounds**,
+confirmed to fail against the old clamp (3 of 5 failing, the other 2 pinning
+behaviour that was already correct). The floor case is the one worth keeping in
+mind: clicks floor at 1, physical at 0, and the old clamp returned 1 for both.
+
+## Documented — the ARB share part is not self-describing
+
+Fixing the above unmasks a second issue rather than creating one: `gameMode` rides
+with the `ride` part and ids 46/47 ride with `arb`, so ticking ARB alone from a
+code written in a different kind of mode now imports a preserved value in the wrong
+units. The output stays clamped, so it is a stale-display problem rather than a
+wrong-tune one. Filed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) with the options, since
+which way to resolve it is a decision about what a share part promises.
+
 ## Changed — RESTORE says what it is about to replace, and takes two taps
 
 RESTORE is the most destructive action in the app: it replaces whole garage kinds,

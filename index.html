@@ -4082,6 +4082,20 @@ const partDiffers=(current,incoming,partId)=>{
 const sanitizeTune=({ch,fe,dr})=>{
   const n=(v,def)=>(typeof v==='number'&&isFinite(v))?v:def;
   const cl=(v,lo,hi,def)=>Math.max(lo,Math.min(hi,n(v,def)));
+  // Resolved here rather than inline below, because arbManF/arbManR need it too.
+  const sgm=GAME_MODE_DEC.includes(fe?.gameMode)?fe.gameMode:DEF_FE.gameMode;
+  // arbManF/arbManR are the one pair of fe fields whose UNITS depend on gameMode: Forza clicks
+  // in a click mode, roll stiffness in a physical one (App's conversion effect multiplies by
+  // arbScaleOf(ch)*track^2, so 20 clicks becomes ~26,000). Clamping both to a hardcoded 1..65
+  // silently destroyed every shared BeamNG tune with ARB mode MAN -- the bars arrived at 65 and
+  // nothing said so, because gameMode and arbMode themselves survived the trip. That same
+  // constant was also Horizon's ceiling applied to MOTORSPORT, whose limit is 40, leaving a MAN
+  // field displaying a value computeTune then clamped back out of the output. Bounds mirror the
+  // MAN entry Field's own min/max, so what a code can carry and what the UI can type are one
+  // range. See docs/HISTORY.md and docs/CODEC.md ids 46/47.
+  const arbManB=isPhysical(sgm)
+    ?{lo:0,hi:200000,def:0}                                 // physical: computeTune reads Math.max(0,arbManF??0)
+    :{lo:1,hi:GAME_LIMITS[sgm].arb,def:DEF_FE.arbManF};     // clicks: THIS mode's ceiling, not Horizon's
   const sch={
       weight:       cl(ch?.weight,        100,  18000, DEF_CH.weight),
       frontBias:    cl(ch?.frontBias,      30,   70,   DEF_CH.frontBias),
@@ -4141,7 +4155,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       // see docs/CODEC.md ids 48/49/62.
       ...migrateDampBalMode(fe),
       targetSpeed:      cl(fe?.targetSpeed,       60,  200,  DEF_FE.targetSpeed),
-      gameMode:         GAME_MODE_DEC.includes(fe?.gameMode)?fe.gameMode:DEF_FE.gameMode,
+      gameMode:         sgm,
       dampingMode:      DAMPING_MODE_DEC.includes(fe?.dampingMode)?fe.dampingMode:DEF_FE.dampingMode,
       reboundZeta:      cl(fe?.reboundZeta,       10,  200,  DEF_FE.reboundZeta),
       bumpRatio:        cl(fe?.bumpRatio,         10,  100,  DEF_FE.bumpRatio),
@@ -4160,8 +4174,8 @@ const sanitizeTune=({ch,fe,dr})=>{
       rideRef:          ['front','rear','shared'].includes(fe?.rideRef)?fe.rideRef:'front',
       rideStiffMode:    ['hz','bottomG'].includes(fe?.rideStiffMode)?fe.rideStiffMode:'hz',
       rideBottomG:      (typeof fe?.rideBottomG==='number'&&isFinite(fe.rideBottomG)&&fe.rideBottomG>0)?fe.rideBottomG:null,
-      arbManF:          cl(fe?.arbManF,             1,   65,   20),
-      arbManR:          cl(fe?.arbManR,             1,   65,   20),
+      arbManF:          cl(fe?.arbManF, arbManB.lo, arbManB.hi, arbManB.def),
+      arbManR:          cl(fe?.arbManR, arbManB.lo, arbManB.hi, arbManB.def),
       settleTarget:     cl(fe?.settleTarget,      0.10,  1.50,  DEF_FE.settleTarget),
       dampCharMode:     fe?.dampCharMode==='settle'?'settle':'zeta',
       arbBalTargetMode: ['manual','grip'].includes(fe?.arbBalTargetMode)?fe.arbBalTargetMode:DEF_FE.arbBalTargetMode,

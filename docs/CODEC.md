@@ -64,8 +64,8 @@ future version might not carry.
 | 43 | fe | springShare | raw number |
 | 44 | fe | rideRef | enum (`RIDE_REF_ENC/DEC`) |
 | 45 | dr | diffComplement | bool |
-| 46 | fe | arbManF | raw number |
-| 47 | fe | arbManR | raw number |
+| 46 | fe | arbManF | raw number — **units depend on id 10**, see note |
+| 47 | fe | arbManR | raw number — **units depend on id 10**, see note |
 | 48 | fe | settleBias | raw number — **decode-only**, see semantic-change note below |
 | 49 | fe | settleMode | bool — **decode-only**, see semantic-change note below |
 | 50 | fe | settleTarget | raw number |
@@ -259,6 +259,28 @@ independent mechanisms already make it safe:
 `gameMode` gained `beamng:2` for the physical-unit output mode. An older client
 handed a `10:2` code decodes it to `horizon` rather than throwing — verified, not
 assumed. The same reasoning applies to any future enum append.
+
+### ids 46/47 (`arbManF`/`arbManR`) are the one pair whose units follow id 10
+
+Everything else the codec carries means the same thing in every game mode. These
+two do not: they are **Forza clicks** (1..that mode's ceiling) when `gameMode` is
+a click mode, and **roll stiffness** when it is a physical one. The App effect
+that runs on a mode switch converts between the two by `arbScaleOf(ch)·track²`, so
+20 clicks becomes roughly 26,000 on a default chassis.
+
+`sanitizeTune` therefore resolves `gameMode` **before** clamping them, and picks
+bounds from it: `0..200000` in a physical mode, `1..GAME_LIMITS[mode].arb` in a
+click one. Those mirror the MAN entry field's own `min`/`max`, so a code can carry
+exactly what the UI can type.
+
+It did not always. A hardcoded `1..65` clamp — Horizon's ceiling, applied to every
+mode — crushed every shared BeamNG MAN tune to 65 and let a MOTORSPORT code keep a
+value above its real 40-click limit. See [HISTORY.md](HISTORY.md).
+
+**A consequence worth knowing when editing `SHARE_PARTS`:** `gameMode` rides with
+`ride` and ids 46/47 ride with `arb`, so the ARB part is not self-describing —
+taking it alone from a code written in a different kind of mode imports numbers in
+the wrong units. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Enum indices are as permanent as ids.** Renumbering `GAME_MODE_DEC` would
 silently reinterpret every code already in circulation. Append only.
