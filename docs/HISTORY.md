@@ -11,6 +11,38 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — MEASURE is two numbered steps instead of three side-by-side cards
+
+The measure tab presented HOW TO USE, NAT BAL SETUP and ARB SCALE SETUP as three
+equal cards in an `auto-fit` grid. Nothing about that said the two procedures are
+ordered, though they strictly are: `solveArbScale` needs the natural-balance
+reading, taken on the same springs, before it can solve anything. The grid wrapped
+them 2-across, so reading order depended on window width; HOW TO USE described the
+first procedure only, while the second carried its own numbered list, so one
+procedure's instructions lived apart from its controls and the other's lived with
+them; and the only progress signal anywhere was the words NOT SET.
+
+MEASURE is now a single column: a short strip saying what the two readings buy and
+that they must be taken in order, then `STEP 1 · NAT BAL SETUP` and `STEP 2 ·
+ARB SCALE SETUP`. Each step's header carries a state chip — NOT SET / SET 0.47 /
+DEFAULT 540 / RE-MEASURE 612 — so the tab's state is readable without parsing any
+prose. Step 2 states that it is locked until step 1 is set, rather than silently
+offering nothing. Within a step, `Phase` dividers break the work into the same two
+beats both procedures actually have: what to set in the game, then what to type
+back from it, which replaced the ARB card's four-item prose list with captions
+attached to the inputs they describe (`READING 1 — SET FRONT 1 · REAR 65` above
+the box for that reading). Step 1 gained a CLEAR button; clearing previously meant
+finding the ✕ in the sidebar.
+
+**Nothing was dropped to make it shorter.** Every warning survives with more
+prominence, not less: the unsolvable-reading CHECK flag, the A/B spread warning,
+the stale-scale RE-MEASURE notice, the both-readings-needed note under a disabled
+APPLY, and the corner masses, which moved into the Hz caption rather than being
+deleted as clutter. The card titles keep their old names under the step numbers
+because the tutorials and docs cite them by name; the tutorial bodies were
+refreshed to describe the stepped layout and the 2.20 Hz default they still called
+2.5.
+
 ## Changed — MEASURE ARB averaged two readings without showing either
 
 `solveArbScale` solves each of the two bar readings for a click scale on its own,

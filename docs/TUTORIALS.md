@@ -269,8 +269,8 @@ every step title of its guide, in order.
 | 1 | Welcome — Pro Mode | — | | What PRO adds. |
 | 2 | Chassis Geometry | `chassis` | | Tyres, wheelbase, track widths; CHASSIS BAL., GRIP BIAS, STABILITY; GEOMETRY GAP. |
 | 3 | Manual Differential | `drivetrain` | | Per-axle accel/decel lock, range hints, MATCH CHASSIS, AWD split breakdown. |
-| 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE; ✕ clears. |
-| 5 | Calibrating ARB Scale | `balance-target` | | ARB SCALE SETUP, APPLY / RESET. |
+| 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE's step 1; saved Hz, CLEAR / ✕. |
+| 5 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, APPLY / RESET. |
 | 6 | Mech Balance Target | `balance-target` | | Offset from NAT, 0.20–0.90 clamp, BALANCE GUIDE. |
 | 7 | Balance Target Mode | `balance-target` | | TARGET vs GRIP, Balance Offset, GEOMETRY GAP. |
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share. |

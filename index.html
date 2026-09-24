@@ -3437,33 +3437,65 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               </div>
             </Card>
           </div>}
-          {ckMode==='probe'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:10,marginBottom:10}}>
-            <Card title="HOW TO USE">
-              <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>SETUP</div>
-                <div style={{marginBottom:8}}>Apply the spring and ARB values shown in the setup to your car in Forza.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>MEASURE</div>
-                <div style={{marginBottom:8}}>Open the tune menu and note the <span style={{color:'#e2e8f0'}}>Mech Balance</span> value.</div>
-                <div style={{color:'#e2e8f0',letterSpacing:1,fontSize:9,marginBottom:2}}>RECORD</div>
-                <div>Dial the <span style={{color:'#e2e8f0'}}>MEAS. NAT BAL</span> slider to match, then close this window. No track widths needed for balance — the calculator uses your reading in their place. Wheelbase is still used separately for the flat-ride and brake balance calculations.</div>
+          {/* MEASURE is two procedures in a fixed order — natural balance first, because the ARB
+              scale is solved against it — so it reads as two numbered steps in one column rather
+              than the three side-by-side cards it used to be. Those put a HOW TO USE card beside
+              the thing it described, split one procedure's instructions across two places, and gave
+              no sense of which came first or how far through you were. The card titles are
+              unchanged below the step number: the tutorials and docs name them. */}
+          {ckMode==='probe'&&(()=>{
+            const natDone=!!ch.useMeasuredNatBal;
+            const arbDone=!!ch.useMeasuredArbClick;
+            // One divider + caption per "do this next" break, so both steps have the same rhythm:
+            // what to set in the game, then what to type back from it.
+            const Phase=({children})=>(
+              <div style={{fontSize:9,letterSpacing:1.5,color:'#64748b',margin:'10px 0 4px',
+                           paddingTop:7,borderTop:'1px solid #0f172a'}}>{children}</div>);
+            const Chip=({on,warn,children})=>(
+              <span style={{fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
+                            color:warn?'#f59e0b':on?'#60a5fa':'#475569'}}>{children}</span>);
+            const Note=({children})=>(
+              <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5,background:'#0a0f1a',
+                           border:'1px solid #1e293b',borderRadius:2,padding:'5px 8px',marginTop:6}}>{children}</div>);
+            const Warn=({children})=>(
+              <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:6}}>{children}</div>);
+            return(
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:10}}>
+              <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,background:'#060c17',
+                           border:'1px solid #1e293b',borderRadius:2,padding:'8px 12px'}}>
+                Two readings taken in the game, once per car, replacing what the calculator would
+                otherwise infer with what Forza actually shows.
+                <span style={{color:'#e2e8f0'}}> Step 1</span> stands in for the track widths natural
+                balance is normally derived from.<span style={{color:'#e2e8f0'}}> Step 2</span> finds
+                what a single ARB click is worth on this car. Both save with the chassis and travel in
+                its build code. Step 2 is solved against step 1, so take them in order, in one sitting.
               </div>
-            </Card>
-            <Card title="NAT BAL SETUP" accent>
-              <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"
-                hint="The ride frequency the probe springs are solved for. Softer is more accurate — at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins both this and the ARB click scale harder. Go as soft as the game will let you set on this car; the spring rates below are what to enter."/>
-              <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginBottom:4}}>
-                Softer springs sharpen both readings. Use the lowest Hz whose spring rates the game accepts.</div>
-              <Stat label="Corner mass front" value={probeMasses.front} unit="kg" decimals={1}/>
-              <Stat label="Corner mass rear"  value={probeMasses.rear}  unit="kg" decimals={1}/>
-              <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
-              <Stat label="Spring rear"  value={probeRateR*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
-              <Stat label="ARB front" value={1} unit=""/>
-              <Stat label="ARB rear"  value={1} unit=""/>
-              <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #1e293b'}}>
+
+              <Card title="STEP 1 · NAT BAL SETUP" accent
+                headerRight={<Chip on={natDone}>{natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</Chip>}>
+                <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
+                  What this car's Mech Balance reads on equal springs with the bars backed off — the
+                  figure the calculator otherwise predicts from track widths. Once it is set those
+                  fields hide, since your reading replaces them. Wheelbase stays: flat ride and brake
+                  balance still use it.
+                </div>
+                <Phase>SPRINGS TO SOLVE FOR</Phase>
+                <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"
+                  hint="The ride frequency the probe springs are solved for. Softer is more accurate — at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins both this and the ARB click scale harder. Go as soft as the game will let you set on this car; the spring rates below are what to enter."/>
+                <div style={{fontSize:10,color:'#475569',lineHeight:1.5}}>
+                  Softer sharpens both steps — use the lowest Hz whose rates the game accepts.
+                  Corner mass {probeMasses.front.toFixed(0)} kg front, {probeMasses.rear.toFixed(0)} kg rear.
+                </div>
+                <Phase>SET THESE FOUR IN FORZA</Phase>
+                <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
+                <Stat label="Spring rear"  value={probeRateR*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
+                <Stat label="ARB front" value={1} unit=""/>
+                <Stat label="ARB rear"  value={1} unit=""/>
+                <Phase>THEN TYPE THE MECH BALANCE IT SHOWS</Phase>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MEAS. NAT BAL</span>
                   <span style={{display:'flex',alignItems:'center',gap:6}}>
-                    {!ch.useMeasuredNatBal&&<span style={{fontSize:10,color:'#475569',letterSpacing:1}}>NOT SET</span>}
+                    {!natDone&&<span style={{fontSize:10,color:'#475569',letterSpacing:1}}>NOT SET</span>}
                     <NumBox value={ch.measuredNatBal??0.50} min={0.30} max={0.90} dp={2} label="Measured natural balance"
                       onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz}))}/>
                   </span>
@@ -3472,70 +3504,80 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   value={ch.measuredNatBal??0.50}
                   onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz}))}
                   style={{width:'100%'}}/>
-              </div>
-            </Card>
-            <Card title="ARB SCALE SETUP" accent>
-              {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
-              :!ch.useMeasuredNatBal?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Set MEAS. NAT BAL first. This reading is measured against it, on the same springs.
-                {arbScaleStale(ch)&&<div style={{fontSize:10,color:'#f59e0b',marginTop:4}}>A measured scale ({Math.round(arbScaleOf(ch))}) is still in use but its NAT BAL was cleared — RE-MEASURE.</div>}</div>
-              :<>
-                <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,marginBottom:8}}>
-                  Forza scales its ARB slider differently on every car. This finds how much one click is worth on this one,
-                  so bar-driven balance lands where the game shows it.
-                  <ol style={{margin:'6px 0 0',paddingLeft:18}}>
-                    <li>In Forza, keep the springs from NAT BAL SETUP above. Don't touch springs, ride height or tyres between readings.</li>
-                    <li>Set front ARB {1} and rear ARB {arbProbeHi}. Type the Mech Balance Forza shows into the first box, then press Enter.</li>
-                    <li>Swap them: front {arbProbeHi}, rear {1}. Type that reading into the second box.</li>
-                    <li>Once both are in, Click scale updates. Press APPLY. It's saved with this car's chassis.</li>
-                  </ol>
-                  <div style={{marginTop:6}}>Type exactly what Forza displays (two decimals). Both readings are needed; the scale is their average.
-                  RESET goes back to the default. If you change MEAS. NAT BAL later, re-measure this too.</div></div>
-                {/* Each reading's own solved scale is shown, not just their average, because
-                    averaging hid the one thing worth seeing: whether the two agree. The average of
-                    a good reading and a mistyped one is bad and nothing said so. The gap itself is
-                    not evidence of a mistake — rounding and front/rear asymmetry account for a lot
-                    of it, see ARB_SCALE_SPREAD_WARN — so the wording below suggests, not accuses. */}
-                {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]].map(([k,f,r,val,set,sc])=>(
-                  <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB {f} / {r}</span>
-                    <span style={{display:'flex',alignItems:'center',gap:6}}>
-                      {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
-                      {sc!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,
-                                               color:arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN?'#f59e0b':'#60a5fa'}}>
-                        → {Math.round(sc)}</span>}
-                      <NumBox value={val??NaN} placeholder="0.00" min={0.05} max={0.95} dp={2} label={`Mech balance with ARB ${f} / ${r}`} onCommit={set}/>
-                    </span>
-                  </div>))}
-                {arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN&&
-                  <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
-                    The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
-                    Some of that is normal — rounding to two decimals alone can spread them by a quarter, and a car
-                    whose front and rear bars aren't worth the same per click will read wider still.
-                    Past about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% it's worth a look: check the springs didn't move between readings,
-                    that MEAS. NAT BAL was taken on these same springs, and that both numbers are typed as Forza
-                    showed them. If they are, the average is still the best estimate — APPLY it.</div>}
-                {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
-                  <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
-                    That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</div>}
-                <Stat label="Click scale" value={arbScaleNew??arbScaleOf(ch)} unit="" decimals={0}/>
-                <div style={{display:'flex',gap:4,marginTop:8}}>
-                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
-                    title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew),
-                      measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}))}>APPLY</button>
-                  <button className="tbtn" style={{flex:1,fontSize:10,opacity:ch.useMeasuredArbClick?1:0.35}} disabled={!ch.useMeasuredArbClick}
-                    title={`Go back to the default click scale (${ARB_RS_SCALE}).`}
-                    onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>RESET</button>
-                </div>
-                <div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6}}>
-                  {ch.useMeasuredArbClick?`MEASURED ${Math.round(arbScaleOf(ch))}`:`DEFAULT ${ARB_RS_SCALE}`}
-                  {arbScaleStale(ch)&&<span style={{color:'#f59e0b'}}> · RE-MEASURE</span>}</div>
-                {arbScaleStale(ch)&&<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:4}}>
-                  MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
-                  It's still in use; take both readings again and APPLY.</div>}
-              </>}
-            </Card>
-          </div>}
+                {natDone&&<div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6,
+                                       display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span>SAVED AT {(ch.measuredNatBalHz??NAT_BAL_REF_HZ).toFixed(2)} HZ</span>
+                  <button className="tbtn" style={{fontSize:10,padding:'2px 6px',color:'#6b7280'}}
+                    title="Clear this reading and go back to the track-width prediction."
+                    onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null}))}>CLEAR</button>
+                </div>}
+              </Card>
+
+              <Card title="STEP 2 · ARB SCALE SETUP" accent
+                headerRight={!lim?.arb?<Chip>N/A</Chip>
+                  :<Chip on={arbDone} warn={arbScaleStale(ch)}>
+                    {arbScaleStale(ch)?'RE-MEASURE '+Math.round(arbScaleOf(ch))
+                      :arbDone?'SET '+Math.round(arbScaleOf(ch)):'DEFAULT '+ARB_RS_SCALE}</Chip>}>
+                {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
+                :!natDone?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Locked until step 1 is set — this reading is solved against it, on the same springs.
+                  {arbScaleStale(ch)&&<Warn>A measured scale ({Math.round(arbScaleOf(ch))}) is still in use but its NAT BAL was cleared — RE-MEASURE.</Warn>}</div>
+                :<>
+                  <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
+                    Forza scales its ARB slider differently on every car. This finds what one click is
+                    worth on this one, so bar-driven balance lands where the game shows it.
+                  </div>
+                  <Note>Leave step 1's springs on the car. Springs, ride height and tyres must not move
+                    between the two readings, or they won't agree.</Note>
+                  {/* Each reading's own solved scale is shown, not just their average, because
+                      averaging hid the one thing worth seeing: whether the two agree. The average of
+                      a good reading and a mistyped one is bad and nothing said so. The gap itself is
+                      not evidence of a mistake — rounding and front/rear asymmetry account for a lot
+                      of it, see ARB_SCALE_SPREAD_WARN — so the wording below suggests, not accuses. */}
+                  {[['A',1,arbProbeHi,arbReadA,setArbReadA,arbScaleA],['B',arbProbeHi,1,arbReadB,setArbReadB,arbScaleB]]
+                    .map(([k,f,r,val,set,sc],i)=>(
+                    <React.Fragment key={k}>
+                      <Phase>READING {i+1} — SET FRONT {f} · REAR {r}</Phase>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MECH BALANCE SHOWN</span>
+                        <span style={{display:'flex',alignItems:'center',gap:6}}>
+                          {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
+                          {sc!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,
+                                                   color:arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN?'#f59e0b':'#60a5fa'}}>
+                            → {Math.round(sc)}</span>}
+                          <NumBox value={val??NaN} placeholder="0.00" min={0.05} max={0.95} dp={2} label={'Mech balance with ARB '+f+' / '+r} onCommit={set}/>
+                        </span>
+                      </div>
+                    </React.Fragment>))}
+                  {((arbReadA!=null&&arbScaleA==null)||(arbReadB!=null&&arbScaleB==null))&&
+                    <Warn>That reading doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</Warn>}
+                  {arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN&&
+                    <Warn>The two readings disagree by {Math.round(100*arbScaleSpread)}% ({Math.round(arbScaleA)} vs {Math.round(arbScaleB)}).
+                      Some of that is normal — rounding to two decimals alone can spread them by a quarter, and a car
+                      whose front and rear bars aren't worth the same per click will read wider still.
+                      Past about {Math.round(100*ARB_SCALE_SPREAD_WARN)}% it's worth a look: check the springs didn't move between readings,
+                      that MEAS. NAT BAL was taken on these same springs, and that both numbers are typed as Forza
+                      showed them. If they are, the average is still the best estimate — APPLY it.</Warn>}
+                  <Phase>RESULT</Phase>
+                  <Stat label={arbScaleNew!=null?'Click scale — average of the two':'Click scale — in use'}
+                    value={arbScaleNew??arbScaleOf(ch)} unit="" decimals={0}/>
+                  <div style={{display:'flex',gap:4,marginTop:8}}>
+                    <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbScaleNew!=null?1:0.35}} disabled={arbScaleNew==null}
+                      title="Use this click scale for this car's ARBs. Saved with the chassis and shared in its build code."
+                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:true,measuredArbClick:Math.round(arbScaleNew),
+                        measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}))}>APPLY</button>
+                    <button className="tbtn" style={{flex:1,fontSize:10,opacity:arbDone?1:0.35}} disabled={!arbDone}
+                      title={'Go back to the default click scale ('+ARB_RS_SCALE+').'}
+                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null}))}>RESET</button>
+                  </div>
+                  {arbScaleNew==null&&<div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:6}}>
+                    Both readings are needed before APPLY does anything.</div>}
+                  {arbScaleStale(ch)&&<Warn>
+                    MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
+                    It's still in use; take both readings again and APPLY.</Warn>}
+                </>}
+              </Card>
+            </div>);
+          })()}
         </div>
       </div>
     </div>
@@ -4322,10 +4364,10 @@ const TUTORIALS={
      body:'MANUAL diff exposes individual accel and decel lock percentages per axle, grouped under FRONT AXLE / REAR AXLE / CENTER headers on AWD. Range hints below each field show typical values for your selected diff type — Rally and Offroad diffs need higher % than Race to achieve equivalent lock because their curves are less aggressive. MATCH CHASSIS (AUTO mode only, sits directly above the EXIT/ENTRY sliders it affects) biases the diff solver toward your Mech Balance Target so the differential reinforces the balance set by your springs and ARBs. The AWD center split recommendation factors in build type, weight distribution, natural mechanical balance, and front/rear tyre diameter — PRO mode shows a factor breakdown below the recommended value.'},
     {title:'Calibrating Natural Balance',
      focus:['balance-target'],
-     body:'MEASURE NAT BAL (below the Balance Guide) opens Tune Check\'s MEASURE tab — it walks you through applying specific spring/ARB values in Forza, then you dial in the Mech Balance the game reports. Once set, the calculator uses your reading everywhere — Balance Guide, GRIP BIAS, natural balance — instead of the geometry prediction. The spring Hz you measured at is saved with the reading (default 2.5 Hz), and ✕ clears it. Track width fields hide while active since they\'re no longer needed; wheelbase stays visible for flat-ride Hz and brake balance.'},
+     body:'MEASURE NAT BAL (below the Balance Guide) opens Tune Check\'s MEASURE tab — it walks you through applying specific spring/ARB values in Forza, then you dial in the Mech Balance the game reports. Once set, the calculator uses your reading everywhere — Balance Guide, GRIP BIAS, natural balance — instead of the geometry prediction. The MEASURE tab lays this out as two numbered steps — natural balance first, then the ARB scale that is solved against it. The spring Hz you measured at is saved with the reading (default 2.20 Hz; softer readings are sharper), and CLEAR in the step, or ✕ in the sidebar, drops it. Track width fields hide while active since they\'re no longer needed; wheelbase stays visible for flat-ride Hz and brake balance.'},
     {title:'Calibrating ARB Scale',
      focus:['balance-target'],
-     body:'ARB clicks don\'t map to the same stiffness on every car. ARB SCALE SETUP, also in Tune Check\'s MEASURE tab, finds your car\'s value: set the bars it lists (soft front / stiff rear, then the reverse), type the Mech Balance Forza shows for each, and press APPLY. RESET goes back to the default. Worth doing on any car where bar-driven balance needs to be exact. Scales saved before the tyre-model update were cleared on purpose, so re-measure those cars.'},
+     body:'ARB clicks don\'t map to the same stiffness on every car. STEP 2 · ARB SCALE SETUP, in Tune Check\'s MEASURE tab, finds your car\'s value: set the bars each reading lists (1 front / full rear, then the reverse), type the Mech Balance Forza shows for each, and press APPLY. Each reading solves for a scale of its own and both are shown, so you can see whether they agree before applying their average. RESET goes back to the default. Worth doing on any car where bar-driven balance needs to be exact. Scales saved before the tyre-model update were cleared on purpose, so re-measure those cars.'},
     {title:'Mech Balance Target',
      focus:['balance-target'],
      body:'How far to move Forza\'s Mech Balance from your car\'s natural balance (NAT). 0 = stay natural; positive = more rotation; negative = more stable. The result is kept inside 0.20–0.90.\n\nStart from the BALANCE GUIDE below — its range is built from this car\'s geometry and build type. Set this before picking an ARB mode: all three solve toward it.'},

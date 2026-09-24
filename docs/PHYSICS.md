@@ -137,8 +137,10 @@ the tyre refit) gave ratios within noise of 1, so the front/rear split and the
 with each car's scale free, prefers a tyre frequency of 3.5 Hz or more and is
 flat from there, so it agrees with the springs' 3.94 without pinning it.
 
-MEASURE ARB (TUNE CHECK's measure mode, beside NAT BAL SETUP) finds the
-per-car value. On the NAT BAL springs, the user sets the bars to `1 / H`
+MEASURE ARB (TUNE CHECK's MEASURE mode, **step 2**, below NAT BAL SETUP) finds
+the per-car value. MEASURE presents the two procedures as numbered steps in one
+column, in the order they have to happen: step 2 is solved against step 1's
+reading, on step 1's springs, and is locked until that reading exists. On the NAT BAL springs, the user sets the bars to `1 / H`
 then `H / 1` (`H` = the ARB ceiling, `lim.arb` — 65 in Horizon, 40 in
 Motorsport) and types Forza's mech balance
 for each. `solveArbScale` bisects for the scale at which the display model
