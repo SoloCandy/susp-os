@@ -11,6 +11,63 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — LOAD CODE warns when ARB is taken without the part that gives it units
+
+`arbManF`/`arbManR` are the only codec fields whose units depend on another
+field — clicks under a click-scale `gameMode`, roll stiffness under a physical
+one — and `gameMode` rides with the `ride` part while they ride with `arb` (see
+[CODEC.md](CODEC.md) ids 46/47). So ticking ARB without SPRINGS across that
+boundary copies numbers the receiving mode reads as a different quantity.
+
+This became reachable by fixing the `sanitizeTune` clamp in the entry below: until
+then the value was crushed to 65 before any merge ran, so the cross-part case
+landed on a legal number by accident.
+
+**The condition is four terms, and all four are needed:**
+
+```js
+pending && importSel.arb && !importSel.ride
+  && pending.tune.fe.arbMode === 'man'
+  && isPhysical(pending.tune.fe.gameMode) !== isPhysical(cur.fe.gameMode)
+```
+
+`computeTune` reads the MAN pair only in its `arbMode==='man'` branch, so under
+any other stiffness mode the wrong-unit values ride along inert while the solver
+recomputes bars from the intent fields. Measured, one BeamNG code read in HORIZON
+with only `arb` ticked:
+
+| incoming `arbMode` | ARB output |
+|---|---|
+| `man` | **65 / 65** — pinned at the ceiling |
+| `auto` | 9.9 / 9.5 |
+| `share` | 8.8 / 8.5 |
+| `roll` | 15.4 / 14.7 |
+
+Nor is an inert value a landmine: the MAN button reseeds the pair from the solved,
+already-clamped output.
+
+**Warned, not blocked.** The output is clamped to something legal either way, and
+this picker's ticks are deliberately independent — a cross-part refusal would be
+the first control here that overrides the reader. Same choice MEASURE makes with
+its A/B spread warning, and RESTORE with its replace counts: state the consequence,
+let the user decide. The text names what actually happens rather than the
+mechanism — *"Taking ARB without SPRINGS would pin both bars at the 65-click
+ceiling"* — and the ceiling comes from `limitsOf(cur.fe.gameMode).arb`, so it is
+right in MOTORSPORT too.
+
+Three options were weighed and rejected; the reasoning is kept in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md), which now records the parts split as a
+deliberate limitation with a guard rather than an open defect. One of those —
+converting inside `mergeTune` — was first filed with a wrong objection (that
+`mergeTune` cannot see the chassis; it holds both, and `SHARE_PARTS` orders `ch`
+before `arb`). The real objection is that `arbScaleOf` is a per-car calibration, so
+the conversion is only right when `ch` is ticked too.
+
+Verified in the browser across all four terms: fires for a BeamNG MAN code read in
+HORIZON with SPRINGS unticked; silent with SPRINGS ticked, with ARB unticked, for a
+HORIZON MAN code read in HORIZON, and for a BeamNG code whose `arbMode` is AUTO
+(carrying the same out-of-range `arbManF`).
+
 ## Fixed — a blank `fe.gameMode` blanked the app on every reload
 
 Originally found by accident: a console command meant for the SHARE modal's mode

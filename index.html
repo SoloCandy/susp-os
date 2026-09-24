@@ -9081,6 +9081,26 @@ function App(){
                     dr:  t=>`${up(t.dr.buildType)} · ${up(t.dr.diffType)} diff`,
                   };
                   const none=!SHARE_PART_IDS.some(id=>importSel[id]);
+                  // arbManF/arbManR are the only codec fields whose UNITS depend on another
+                  // part's field: clicks under a click-scale gameMode, roll stiffness under a
+                  // physical one, and gameMode rides with `ride` (see docs/CODEC.md ids 46/47).
+                  // So ARB without SPRINGS, across that boundary, copies numbers the receiving
+                  // mode reads as a different quantity.
+                  //
+                  // All four terms are needed, and together they almost never fire. computeTune
+                  // reads the MAN pair ONLY in its arbMode==='man' branch — under auto/roll/share
+                  // the pair rides along inert while the solver recomputes bars from the intent
+                  // fields, and the MAN button reseeds from the clamped output, so an inert value
+                  // never becomes live. Ticking `ride` too brings gameMode and the units agree.
+                  //
+                  // Warned, not blocked: the output is clamped to a legal value either way, and
+                  // the ticks in this picker are deliberately independent — a cross-part refusal
+                  // would be the first thing here that overrides the reader. Same choice MEASURE
+                  // makes with its A/B spread, which suggests rather than accuses.
+                  // See docs/KNOWN_ISSUES.md for the options that were weighed.
+                  const arbUnitClash=!!pending&&!!importSel.arb&&!importSel.ride
+                    &&pending.tune.fe.arbMode==='man'
+                    &&isPhysical(pending.tune.fe.gameMode)!==isPhysical(cur.fe.gameMode);
                   // Everything below works off one merge, so APPLY and TO GARAGE can never
                   // disagree about what the ticks mean.
                   const merged=pending?mergeTune(cur,pending.tune,importSel):null;
@@ -9124,6 +9144,18 @@ function App(){
                           {pending?(same?'same as yours':'from the code'):'yours now'}</span></>,
                       !!importSel[p.id],e=>setImportSel(s=>({...s,[p.id]:e.target.checked})));
                   })}
+                  {arbUnitClash&&(()=>{
+                    const theirs=GAME_MODE_LABEL[pending.tune.fe.gameMode];
+                    const lands=isPhysical(cur.fe.gameMode)
+                      ?'sit far below anything that moves the car'
+                      :`pin both bars at the ${limitsOf(cur.fe.gameMode).arb}-click ceiling`;
+                    return<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.5,marginTop:8,
+                                       letterSpacing:0.3}}>
+                      This code sets its bars by hand in {theirs}, whose ARB values are a different
+                      unit from yours. Taking ARB without SPRINGS would {lands}. Tick SPRINGS too —
+                      it carries the game mode — or take the whole code.
+                    </div>;
+                  })()}
                   {/* Tier is recorded by the code and shown, never applied — it has no tick.
                       Applying a sender's tier would rewrite the tune being loaded (the BEG/INT
                       fallback effects) and can demand a tier the reader can't reach. */}

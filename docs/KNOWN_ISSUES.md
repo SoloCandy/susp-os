@@ -29,7 +29,7 @@ History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:
 
 ---
 
-## Open — the ARB share part is not self-describing without the SPRINGS part
+## Limitation — the ARB share part is not self-describing, and is guarded rather than fixed
 
 `SHARE_PARTS` puts `gameMode` in the **`ride`** part (labelled SPRINGS) and
 `arbManF`/`arbManR` in the **`arb`** part. Those two ids are the only ones in the
@@ -87,9 +87,23 @@ Nothing warns. The LOAD CODE staging panel summarises the `arb` part as
 keys within one part and cannot see that a *different* part changes what this one
 means.
 
-### Why this is filed rather than fixed
+### What ships: a warning, not a fix
 
-Each option is a decision about what a share part promises, not a bug fix:
+The staging panel detects the exact combination and says what it would cost
+(`arbUnitClash` in the LOAD CODE picker) — see [HISTORY.md](HISTORY.md). That
+leaves the split itself in place, which is why this entry stays: the structural
+problem is still true, it is merely no longer silent.
+
+Warning was chosen over the three structural options below because the output is
+clamped to something legal either way, and because this picker's ticks are
+deliberately independent — a cross-part refusal would be the first control here
+that overrides the reader. The same reasoning the app already applies to MEASURE's
+A/B spread and RESTORE's replace counts: state the consequence, let the user
+decide.
+
+### The options that were rejected
+
+Each is a decision about what a share part promises, not a bug fix:
 
 - **Move `arbManF`/`arbManR` into `ride`.** Makes the unit and its meaning
   inseparable, which is correct in principle. But it puts ARB values in the part
@@ -117,13 +131,16 @@ Each option is a decision about what a share part promises, not a bug fix:
   how the app treats the A/B spread in MEASURE — say what looks wrong, let the user
   decide.
 
-The last two need the same detection, so either can ship first and the other is a
-change of what the detection does. No option is obviously right, and all of them
-touch the promise the LOAD CODE panel makes.
+The last two share the detection that shipped, so switching from warning to
+refusing is a change of what that detection does, not new work. None of the three
+is obviously right, and all of them touch the promise the LOAD CODE panel makes,
+which is why the non-structural option went first.
 
 `tests-share.js` cannot catch this class as written: every assertion merges parts
-of a code into a tune of the *same* mode. A test that pins the current behaviour
-would be pinning the bug.
+of a code into a tune of the *same* mode, and the guard that shipped lives in the
+picker's JSX rather than in `mergeTune`, so it is out of reach of a module-level
+suite either way. It is verified in the browser across all four terms of the
+condition — see [HISTORY.md](HISTORY.md).
 
 ---
 

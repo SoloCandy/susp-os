@@ -280,7 +280,11 @@ value above its real 40-click limit. See [HISTORY.md](HISTORY.md).
 **A consequence worth knowing when editing `SHARE_PARTS`:** `gameMode` rides with
 `ride` and ids 46/47 ride with `arb`, so the ARB part is not self-describing —
 taking it alone from a code written in a different kind of mode imports numbers in
-the wrong units. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+the wrong units. The split is unchanged; the LOAD CODE picker warns on the exact
+combination that bites (`arbUnitClash`), which is an incoming `arbMode` of `man`
+plus a physicality mismatch plus `arb` ticked without `ride`. If you move either
+field between parts, that guard is what to revisit. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Enum indices are as permanent as ids.** Renumbering `GAME_MODE_DEC` would
 silently reinterpret every code already in circulation. Append only.
