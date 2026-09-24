@@ -145,7 +145,11 @@ then `H / 1` (`H` = the ARB ceiling, `lim.arb` — 65 in Horizon, 40 in
 Motorsport) and types Forza's mech balance
 for each. `solveArbScale` bisects for the scale at which the display model
 (tyres, `tireCorr` and the MEASURE NAT BAL offset, which is why that must be
-set first) reads what Forza showed. The two results are averaged: one
+set first) reads what Forza showed. It is handed the Hz **step 1 was read at**
+(`ch.measuredNatBalHz`, falling back to `NAT_BAL_REF_HZ`), not the live Measure
+Hz field: step 2 is defined to be taken on step 1's springs, and the offset the
+solve subtracts is isolated at that same Hz. The card seeds Measure Hz from it on
+open, and says so if the field is later moved away from it. The two results are averaged: one
 2-decimal reading moves the answer by several percent, and swapping the bars
 cancels any front/rear bias. A reading no scale between 150 and 1500 can
 produce is rejected.

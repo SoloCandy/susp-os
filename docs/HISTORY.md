@@ -11,6 +11,49 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MEASURE ARB solved on springs the reading was never taken on
+
+`solveArbScale` was handed the live Measure Hz field. The natural-balance offset
+it subtracts, `displayNatOffsetOf`, is isolated at `ch.measuredNatBalHz` — the Hz
+the step 1 reading was actually recorded at. Those are the same number only while
+the field has not moved since step 1 was taken, and `probeHz` reset to a flat 2.20
+on **every open**. So any car whose MEAS. NAT BAL was saved at another Hz — every
+car measured before the default moved from 2.5, and any car the user chose a
+different Hz for — reopened the card showing spring rates for 2.20, told the user
+to keep step 1's springs, and then solved whichever springs were on the car
+against an offset from a different frequency.
+
+Swept over three cars, taking the readings exactly as the card instructs:
+
+| step 1 saved at | solved scale | correct |
+|---|---|---|
+| 2.5 Hz | 325–370 | 495–545 (−31 to −34%) |
+| 3.0 Hz | 200–213 | 485–611 (−59 to −65%) |
+| 1.8 Hz | 970–1092 | 510–546 (+90 to +102%) |
+
+Silently, too. Both readings shift the same way, so the A/B spread stays narrow
+and `ARB_SCALE_SPREAD_WARN` never fires — the one check that might have caught it
+is the one guaranteed not to. An error of 30–100% dwarfs the ±5% of reading noise
+the rest of this card is built to manage.
+
+`arbSolveHz` now anchors both solves to `ch.measuredNatBalHz ?? NAT_BAL_REF_HZ`,
+the springs step 2 is defined to be taken on. `probeHz` seeds from the same value
+on open, so a calibrated car reopens showing the rates its reading belongs to. If
+the field is then moved without re-taking step 1, `arbHzMismatch` says which Hz
+the solve is using and that step 1 has to be retaken to measure at the new one —
+rather than quietly solving against rates the card itself is printing.
+
+Two smaller things found in the same pass. A scale measured against a NAT BAL
+that was later cleared stayed in force with **no way back to the default**: that
+state renders step 2's locked branch, and every route to the DEFAULT toggle runs
+through step 1, so the only advice on offer was RE-MEASURE, which needs step 1
+back. The locked branch now carries its own `USE DEFAULT` button. And the
+"readings now give n" hint compared `Math.round(arbScaleNew)` against a raw
+`ch.measuredArbClick`; the toggle always stores a rounded value, but codec id 74
+decodes a raw number, so a fractional scale from an old or hand-made code would
+have nagged forever on a car already exactly where it wanted to be. Both sides
+are rounded now.
+
 ## Changed — the ARB scale is picked with a toggle, not an APPLY/RESET pair
 
 Which click scale a car uses is a mode — the shared default, or this car's
