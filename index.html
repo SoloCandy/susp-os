@@ -6626,7 +6626,11 @@ function App(){
               const dt=dr.diffType??'race';
               const ranges=DIFF_TYPE_RANGES[dt];
               const RangeHint=({r})=>r?<div style={{fontSize:10,color:'#475569',marginTop:1,marginBottom:4}}>typical: {r[0]}–{r[1]}%</div>:null;
-              const pairCols=dt!=='sport'?'1fr 1fr':'1fr';
+              // Accel/decel sit side by side only when the sidebar is wide enough for two
+              // Fields plus their "typical: n–n%" hints. Below that they stack, so the AWD
+              // block reads front accel / front decel / rear accel / rear decel / center
+              // split top to bottom instead of squeezing the labels and number boxes.
+              const pairCols=dt!=='sport'&&sidebarWidth>=400?'1fr 1fr':'1fr';
               return ch.layout==='AWD'?(
                 <>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>

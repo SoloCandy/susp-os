@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MANUAL diff crammed accel and decel into two columns on a narrow sidebar
+
+PRO's MANUAL differential laid each accel/decel pair out as a two-column grid,
+fixed at `1fr 1fr` regardless of how much room there was. In the sidebar that is
+at most `sidebarWidth` wide — 340px at the desktop minimum, less than that on a
+phone — so each column had to hold a `Field` label, its number box, its unit and
+a `typical: n–n%` hint in about 150px. The labels wrapped and the boxes collided.
+
+The grid now falls back to a single column below `sidebarWidth` 400, so the AWD
+block reads front accel, front decel, rear accel, rear decel, center split top to
+bottom. Nothing about the fields themselves changed, and the wide layout is
+untouched. SPORT was already single-column there, because it has no decel field
+to pair with.
+
 ## Changed — a code is staged in parts, and a link can carry one
 
 Loading a share code used to be all-or-nothing on the three codec groups: paste, tick
