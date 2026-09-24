@@ -3540,11 +3540,18 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                         <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MECH BALANCE SHOWN</span>
                         <span style={{display:'flex',alignItems:'center',gap:6}}>
+                          {val==null&&<span style={{fontSize:10,color:'#475569',letterSpacing:1}}>NOT SET</span>}
                           {val!=null&&sc==null&&<span style={{fontSize:10,color:'#f59e0b',letterSpacing:1}}>CHECK</span>}
                           {sc!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,
                                                    color:arbScaleSpread!=null&&arbScaleSpread>ARB_SCALE_SPREAD_WARN?'#f59e0b':'#60a5fa'}}>
                             → {Math.round(sc)}</span>}
-                          <NumBox value={val??NaN} placeholder="0.00" min={0.05} max={0.95} dp={2} label={'Mech balance with ARB '+f+' / '+r} onCommit={set}/>
+                          {/* Starts at 0.50 with a NOT SET marker, exactly as step 1's box does — the two
+                              readings are the same kind of entry and shouldn't open differently. An empty
+                              box (value NaN, placeholder "0.00") read as a reading of zero rather than as
+                              somewhere to type. NumBox only calls onCommit when the draft differs from
+                              what it opened with, so tabbing through a NOT SET box leaves it unset rather
+                              than committing a fictitious 0.50. */}
+                          <NumBox value={val??0.50} min={0.05} max={0.95} dp={2} label={'Mech balance with ARB '+f+' / '+r} onCommit={set}/>
                         </span>
                       </div>
                     </React.Fragment>))}
