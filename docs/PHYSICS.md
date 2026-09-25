@@ -28,6 +28,7 @@ Key empirical constants calibrated from real Forza data:
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
 | `DIFF_TYPE_SCALE` | race 1.00 / sport 0.88 / rally 0.76 / offroad 0.52 / drift 1.10 | AUTO solver multipliers per diff type. Community-estimated: same slider % produces less effective lock on Rally/Offroad than Race, more on Drift. Sport is accel-only (no decel slider in-game) |
 | `BRAKE_BIAS_SCALE` | 0.20 | Brake balance deviation → handling bias contribution |
+| `FIT_HZ` / `FIT_CORNER_KG` / `FIT_TYRE_W` | 2.5–3.5 Hz / 269–476 kg / 215–335 mm | Not calibration — the *bounds of the calibration*. The spans of spring frequency, corner mass and section width the tyre-series fit was taken over, read by `balanceEnvelope` so the app can say when a figure is extrapolated. Nothing is clamped to them. See [Calibration envelope](#calibration-envelope-balanceenvelope) |
 
 Constants validated through a structured test protocol across three cars —
 2017 Mazda MX-5 Cup, 2015 Ultima Evolution Coupe 1020, and 2011 Volkswagen
@@ -966,6 +967,46 @@ helper: converts a roll-stiffness rear fraction into the equivalent
 UI needs "what grip balance would this roll-stiffness split produce."
 `TIRE_LOAD_SENS`, `MECH_BAL_GAIN`, `WIDTH_GRIP_EXP` are in the Calibration
 constants table above.
+
+### Where the model stops being monotonic
+
+`fy` floors at `max(0, Fz)`, so once an axle's lateral load transfer exceeds its
+static wheel load the inside wheel is held at zero and further transfer only loads
+the outside one — where load sensitivity means the axle's *total* capacity starts
+rising again. Past that point `mechBalanceLLT` turns around and predicts **less**
+oversteer for more rear roll stiffness, which is backwards. `tests-balance.js` pins
+the turning point to exactly this condition (it reverses nowhere else), and
+`balanceEnvelope` raises a hard `LIFT` flag when the current split reaches it. On a
+0.68 m-CG chassis the rear inside wheel lifts around `rsBalance` 0.55, so this is
+not an edge case — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+## Calibration envelope (`balanceEnvelope`)
+
+Every constant in the mech-balance chain was fitted over a bounded set of cars and
+states, and the app used to present a figure from outside those bounds with exactly
+the confidence of one from inside. `balanceEnvelope(ch, tune, gameMode)` returns the
+bounds the current tune is outside, as `{tag, detail, hard}`, and the FIT? badge in
+the Handling Balance header shows them.
+
+| Tag | Severity | Raised when |
+|---|---|---|
+| `HZ` | soft | Either axle's solved Hz is outside `FIT_HZ`. The fitted band is narrow against the app's own 0.8–5.5 Hz range, so an ordinary street tune at 2.2 Hz is legitimately outside it |
+| `MASS` | soft | Either corner mass is outside `FIT_CORNER_KG`, where the √load tyre scaling is extrapolated |
+| `TYRE` | soft | Either section width is outside `FIT_TYRE_W` |
+| `LIFT` | hard | An inside wheel unloads completely at 1 g — past the turning point above |
+| `CG` | hard | The RIDE HEIGHT → CG estimate (`cgEstMmOf`) is past the CG Height field's 200–1500 mm range, so CG has stopped responding to ride-height edits |
+
+**Soft is not amber.** A soft flag says the model is behaving but unverified here; a
+hard flag says it has stopped answering correctly. Only a hard flag colours the badge,
+because a badge that is amber on a default build teaches people to ignore amber.
+
+`HZ`/`MASS`/`TYRE` belong to the tyre-series display model, which only the Forza
+modes run, so they are skipped for a physical game mode. `LIFT` and `CG` belong to
+the LLT model, which runs in every mode, and are not.
+
+**Tyre pressure is deliberately not a check.** The whole fit is pressure-conditional
+in every state, so a flag that is always on would say nothing; that caveat lives in the
+badge's tooltip instead.
 
 **Balance Guide RANGE.** The PRO Balance Guide's recommended mech-balance
 band is a fraction of the gap between `natMechBalance` (NATURAL) and

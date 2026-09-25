@@ -127,6 +127,7 @@ node tests-docs.js     # documentation drift checks (reads index.html and docs/)
 node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
 node tests-history.js  # undo / redo history core tests (reads index.html directly)
 node tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
+node tests-balance.js  # mech-balance model properties (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

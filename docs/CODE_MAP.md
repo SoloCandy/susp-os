@@ -124,6 +124,14 @@ endpoints, since a negative gap makes the delta V-shaped with its minimum at
 grip-neutral),
 `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
 balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
+`balanceEnvelope` (which fitted bounds the current tune sits outside, each flag
+carrying a `hard` severity — feeds the FIT? badge in the Handling Balance header,
+the only place the app says a figure is extrapolated; `hard:false` is an
+unverified extrapolation of a fit, `hard:true` means the model has stopped
+answering correctly, and only the second turns the badge amber) and `cgEstMmOf`
+(the unclamped RIDE HEIGHT → CG estimate, shared by App's sync effect and the
+envelope's saturation check so the clamp and the flag for hitting it cannot
+disagree),
 `computeOscillation`
 (damped step response — sample points for the VISUALS DYNAMICS chart; pure,
 takes Hz + rebound/bump ζ + a duration), `measureSettle` (the ±10%-band
@@ -513,6 +521,18 @@ commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap.
 isolation, an empty parts map changing nothing, no mutation of the current tune, and a
 decode/encode round trip merging identically. A codec field added without a part fails
 here — that is the check the split exists to keep honest.
+
+**`tests-balance.js` reads `index.html` the same way**, and is the only suite that
+tests a model rather than a mechanism. It asserts the mech-balance chain's *shape* —
+monotonicity, Kf/Kr scale invariance, front/rear mirror symmetry, continuity and
+non-saturation, the balance band's overshoot direction, and continuity across the
+gap's sign crossover just under 50% front bias — rather than expected values, because
+most of that chain has no measured ground truth and pinning today's numbers would make
+every legitimate recalibration a failure. The two properties with history are the
+DRIFT band's sign inversion and `balanceBandRange`'s V-shape miss; both are now
+properties rather than anecdotes. It also covers `balanceEnvelope`. Writing it found
+the `mechBalanceLLT` lift non-monotonicity recorded in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it

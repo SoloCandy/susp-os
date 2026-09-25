@@ -11,6 +11,39 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — the app now says when a balance figure is extrapolated
+
+Every limit of the mech-balance calibration was documented and none of it was visible:
+the tyre-series fit's 2.5–3.5 Hz / 269–476 kg / 215–335 mm bounds, and the CG estimate
+silently saturating at 1500 mm. A figure from outside them was displayed exactly like
+one from inside.
+
+`balanceEnvelope` now returns the bounds the current tune is outside and the FIT? badge
+in the Handling Balance header shows them. The part worth remembering is the severity
+split: a default build sits below the fitted Hz band (its 2.2 Hz against a 2.5 Hz floor),
+so a single-severity badge would have been amber on a fresh load — which is how a warning
+colour stops meaning anything. Soft flags (extrapolation of a fit) are muted; only hard
+ones (the model has stopped answering — `LIFT`, `CG`) colour it amber.
+
+## Added — property tests for the mech-balance model, and what they found
+
+`tests-balance.js` asserts the model's shape rather than its values — monotonicity,
+Kf/Kr scale invariance, mirror symmetry, continuity, the balance band's overshoot
+direction and continuity across the gap's sign crossover. Shape rather than values
+because most of the chain has no measured ground truth, so pinned numbers would make
+every legitimate recalibration a test failure; the two properties with history (the
+DRIFT band sign inversion, `balanceBandRange`'s V-shape miss) are now properties
+instead of anecdotes.
+
+The first run failed on the most basic one: `balanceFromRsBal` is not monotonic. The
+cause is `fy`'s zero-load floor and it is recorded in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) — open, surfaced in the UI as a hard `LIFT` flag,
+not silently fixed. A second failure that run *was* the test's own fault (the LLT
+convention is that balance FALLS with front roll-stiffness share, since the return is
+front-minus-rear grip capacity and a stiffer front understeers); it is kept as an
+explicitly-worded test because getting that sign backwards would invert every
+recommendation the app makes.
+
 ## Fixed — a MEAS. NAT BAL reading kept being used after the chassis moved out from under it
 
 `arbScaleStale` guards step 2 against step 1 drifting. Step 1 had no guard against
