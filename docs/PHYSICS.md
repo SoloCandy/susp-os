@@ -1089,7 +1089,7 @@ is measured from. `resolveFeEffective` turns each one into the absolute
 | GRIP (`'grip'`) | `gripNeutralOf(ch, gameMode, K) + arbBalDelta` |
 | MANUAL (`'abs'`) | `arbBalAbs`, absolute |
 
-All four are clamped to 0.20–0.90. RANGE and GRIP depend on grip-neutral, which in a
+All four are clamped to 0.05–0.95 (`clampBalTarget`, `BAL_TARGET_MIN`/`BAL_TARGET_MAX`). RANGE and GRIP depend on grip-neutral, which in a
 Forza mode moves with total roll stiffness K, so `solveTune` re-evaluates both at each
 run's own K (`balTargetAnchoredOf`), not only at the probe springs. RANGE uses the
 clamped band, the same numbers the RANGE row draws, so its target sits in the middle
@@ -1104,7 +1104,7 @@ stiffness), not a flat offset:
 ```js
 gap = gripNeutral - natMechBalance
 [dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
-lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.20-0.90, hi ≥ lo + 0.03
+lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.05-0.95, hi ≥ lo + 0.03
 // all of the above is balanceBandOf(nat, gn, layout, build)
 
 balanceBandDelta = (frac, gap) => frac <= 1 || gap >= 0 ? frac*gap

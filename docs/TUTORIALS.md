@@ -271,7 +271,7 @@ every step title of its guide, in order.
 | 3 | Manual Differential | `drivetrain` | | Per-axle accel/decel lock, range hints, MATCH CHASSIS, AWD split breakdown. |
 | 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE's step 1; saved Hz, CLEAR / ✕. |
 | 5 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
-| 6 | Mech Balance Target | `balance-target` | | Offset from NAT, 0.20–0.90 clamp, BALANCE GUIDE. |
+| 6 | Mech Balance Target | `balance-target` | | Offset from NAT, 0.05–0.95 clamp, BALANCE GUIDE. |
 | 7 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset, GEOMETRY GAP. |
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share. |
 | 9 | Hz MECH & Balance Target Mode | `arb`, `visuals` | | Hz MECH; target mode applies to all three. |

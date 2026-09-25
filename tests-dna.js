@@ -45,7 +45,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
-  'resolveArbBalTarget,balTargetModeOf,balanceBandOf,MECH_BALANCE_TARGET,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
+  'resolveArbBalTarget,balTargetModeOf,balanceBandOf,MECH_BALANCE_TARGET,BAL_TARGET_MIN,BAL_TARGET_MAX,clampBalTarget,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
 
@@ -117,12 +117,12 @@ t("NATURAL mode resolves through resolveArbBalTarget — and so does a stored le
   assert(M.sanitizeTune({ fe: { arbBalTargetMode: 'manual' } }).fe.arbBalTargetMode === 'natural', "sanitizeTune keeps 'manual'");
 });
 
-t('MANUAL mode resolves to the raw arbBalAbs, clamped 0.20..0.90', () => {
+t('MANUAL mode resolves to the raw arbBalAbs, clamped 0.05..0.95', () => {
   for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);
     for (const arbBalAbs of [0.1, 0.45, 0.6, 0.73, 0.95]) {
       const got = M.resolveFeEffective(ch, feOf('horizon', { arbBalTargetMode: 'abs', arbBalAbs, arbBalTarget: 0.1, arbBalDelta: 0.1 })).arbBalTarget;
-      assert(got === Math.max(0.20, Math.min(0.90, arbBalAbs)), `arbBalAbs ${arbBalAbs}: got ${got}`);
+      assert(got === M.clampBalTarget(arbBalAbs), `arbBalAbs ${arbBalAbs}: got ${got}`);
     }
     const dflt = M.resolveFeEffective(ch, { ...feOf('horizon'), arbBalTargetMode: 'abs', arbBalAbs: undefined }).arbBalTarget;
     assert(dflt === M.MECH_BALANCE_TARGET, `missing arbBalAbs: got ${dflt}`);
@@ -136,18 +136,18 @@ t('RANGE mode resolves to the middle of the Balance Guide RANGE + Balance Offset
       const b = M.balanceBandOf(M.natDisplayOf(ch, mode), M.gripNeutralOf(ch, mode), ch.layout, build);
       for (const arbBalDelta of [-0.2, 0, 0.05]) {
         const got = M.resolveFeEffective(ch, feOf(mode, { arbBalTargetMode: 'range', arbBalDelta }), build).arbBalTarget;
-        const want = Math.max(0.20, Math.min(0.90, (b.lo + b.hi) / 2 + arbBalDelta));
+        const want = M.clampBalTarget((b.lo + b.hi) / 2 + arbBalDelta);
         near(got, want, 1e-12, `${mode} ${build} delta ${arbBalDelta} ${JSON.stringify(over)}`);
       }
     }
 });
 
-t('GRIP mode resolves to grip-neutral + Balance Offset, clamped 0.20..0.90', () => {
+t('GRIP mode resolves to grip-neutral + Balance Offset, clamped 0.05..0.95', () => {
   for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);
     for (const arbBalDelta of [-0.2, -0.05, 0, 0.07, 0.2]) {
       const got = M.resolveFeEffective(ch, feOf('horizon', { arbBalTargetMode: 'grip', arbBalDelta })).arbBalTarget;
-      const want = Math.max(0.20, Math.min(0.90, M.gripNeutralOf(ch, 'horizon') + arbBalDelta));
+      const want = M.clampBalTarget(M.gripNeutralOf(ch, 'horizon') + arbBalDelta);
       assert(got === want, `delta ${arbBalDelta}: got ${got}, want ${want}`);
     }
   }
@@ -158,7 +158,7 @@ t('gripNeutralOf: a GRIP tune at offset 0 reads grip-neutral', () => {
   // resolver (so the bars can actually reach the split) and read the grip model back. It used to be
   // the natural's grip lean mirrored about 0.5, which missed by up to 0.064; then the Forza value
   // was taken at the probe springs, which missed by up to 0.04 on a real tune at other stiffness.
-  // Cases whose balance misses (bar reach, or neutral outside 0.20..0.90) prove nothing here.
+  // Cases whose balance misses (bar reach, or neutral outside 0.05..0.95) prove nothing here.
   const cases = [{ frontBias: 57 }, { tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 },
     ...Object.values(FIXTURES)];
   const keep = ['balanceOffset', 'pitchRatio', 'arbShare', 'platformHz', 'reboundZeta'];
@@ -184,7 +184,7 @@ t('solveTune: Forza GRIP aims at the neutral at the tune stiffness, and returns 
     if (!tune.mechBalClamped) near(tune.mechBalance, target, 0.01, `${rideStiffness} Hz landed`);
   }
   const bfe = M.resolveFeEffective(ch, feOf('beamng', { arbBalMode: 'mech', arbBalTargetMode: 'grip', arbBalDelta: 0 }));
-  near(M.solveTune(ch, bfe, 'beamng').target, Math.max(0.20, Math.min(0.90, bfe.arbBalTarget)), 0, 'BeamNG keeps the resolved target');
+  near(M.solveTune(ch, bfe, 'beamng').target, M.clampBalTarget(bfe.arbBalTarget), 0, 'BeamNG keeps the resolved target');
 });
 
 t('solveTune: Forza RANGE aims at the band middle at the tune stiffness', () => {
@@ -414,7 +414,7 @@ t('share hit ⇔ !shareClamped, balance hit ⇔ !mechBalClamped, !dampingClamped
     const shareHit = Math.abs(e.measured.arbShare - share) <= e.tol.arbShare;
     assert(shareHit === !e.tune.shareClamped, `${mode}/${a.name} share ${share}: DNA hit=${shareHit}, shareClamped=${e.tune.shareClamped}`);
     const tgt = M.gripNeutralOf(ch, mode) + off;
-    if (tgt >= 0.20 && tgt <= 0.90 && e.tune.rsAbF + e.tune.rsAbR > 0) {
+    if (tgt >= M.BAL_TARGET_MIN && tgt <= M.BAL_TARGET_MAX && e.tune.rsAbF + e.tune.rsAbR > 0) {
       const balHit = Math.abs(e.measured.balanceOffset - off) <= e.tol.balanceOffset;
       // mechBalClamped compares against the clamped target with a strict > 0.01; allow the exact
       // boundary to fall either way rather than asserting floating-point equality at 0.01.
@@ -531,16 +531,16 @@ t('fixture gaps still cover both signs and the near-zero case', () => {
 
 t('BeamNG: an archetype that protects balance lands it on every fixture that has one', () => {
   // No bar ceiling in a physical mode, so a miss here would be the model's fault, not the game's.
-  // Except where grip-neutral itself is outside 0.20..0.90: WideRear's 100 mm stagger leaves the
+  // Except where grip-neutral itself is outside 0.05..0.95: WideRear's 100 mm stagger leaves the
   // grip model understeering with every bit of roll stiffness at the rear, so there is no neutral
   // car to aim at, and the miss must say so rather than move axes chasing it.
   for (const a of M.DNA_ARCHETYPES.filter(x => x.keep.indexOf('balanceOffset') <= 1))
     for (const [fn, over] of Object.entries(FIXTURES)) {
       const ch = chOf(over), want = M.gripNeutralOf(ch, 'beamng') + a.axes.balanceOffset;
       const res = M.applyDNA(ch, feOf('beamng'), M.DEF_DR, a);
-      if (want < 0.20 || want > 0.90) {
+      if (want < M.BAL_TARGET_MIN || want > M.BAL_TARGET_MAX) {
         const m = res.misses.find(x => x.axis === 'balanceOffset');
-        assert(m && /outside the 0\.20–0\.90/.test(m.cause), `${a.name} on ${fn}: out-of-range balance not reported`);
+        assert(m && /outside the 0\.05–0\.95/.test(m.cause), `${a.name} on ${fn}: out-of-range balance not reported`);
         continue;
       }
       assert(!res.misses.some(m => m.axis === 'balanceOffset'), `${a.name} on ${fn}: balance missed`);
@@ -670,9 +670,9 @@ t('slack lets an axis land off its target rather than spending a more protected 
   assert(loose.accept.arbShare === loose.tol.arbShare + 3, 'accept should be the quantisation allowance plus the slack');
 });
 
-t('a balance target outside 0.20..0.90 is accepted, never chased', () => {
+t('a balance target outside 0.05..0.95 is accepted, never chased', () => {
   const ch = chOf(FIXTURES.WideFront);                       // grip-neutral sits low here
-  const off = 0.20 - M.gripNeutralOf(ch, 'beamng') - 0.05;   // below the 0.20 floor
+  const off = M.BAL_TARGET_MIN - M.gripNeutralOf(ch, 'beamng') - 0.05;   // below the floor
   if (off < -0.20) return;                                   // not constructible on this fixture
   const res = M.applyDNA(ch, feOf('beamng'), M.DEF_DR, { axes: { ...M.sanitizeDNA({}).axes, balanceOffset: off }, keep: ['balanceOffset'] });
   assert(!res.moves.some(m => m.protects === 'balanceOffset'), 'moved an axis to chase an unreachable target');

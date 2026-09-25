@@ -93,7 +93,9 @@ computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 
 Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),
 `balanceBandOf` (the Balance Guide RANGE band — the RANGE row, GRIP GAP and RANGE mode all
-read it), `balTargetAnchoredOf` (RANGE/GRIP target at a given K).
+read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP anchor at a given K — Balance Offset is
+measured from it, and the BALANCE card's mode switch subtracts it to seed that offset),
+`balTargetAnchoredOf` (RANGE/GRIP target at a given K: anchor + offset, clamped).
 
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 `solveSpring`, `solveDampRaw`, `settleZetas`/`forceZetas`/`balModeZetas`
@@ -102,7 +104,7 @@ dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT bump anchor), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
-`rollMomentOf`, `clampBalTarget` (the Balance Target's stored 0.20..0.90 band;
+`rollMomentOf`, `clampBalTarget` (the Balance Target's stored `BAL_TARGET_MIN..BAL_TARGET_MAX` band, 0.05..0.95, which the Balance Guide strip also spans; its controls step and round by `BAL_TARGET_STEP`, 0.005, through `roundBalStep`;
 `sanitizeTune` clamps the stored DELTA instead), `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
 REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
 solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz

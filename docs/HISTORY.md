@@ -11,6 +11,39 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — every Balance Target switch keeps the target where it is
+
+NATURAL and MANUAL were seeded from the live target on a mode switch, but RANGE and GRIP kept
+their shared Balance Offset, on the reasoning that picking an anchor was the point of those two.
+So NATURAL at 0.48 → GRIP jumped to grip-neutral plus whatever offset was left over, and RANGE ↔
+GRIP jumped between two anchors. A switch now changes only what the target is measured from:
+RANGE and GRIP seed Balance Offset as the live target minus their anchor (`balTargetAnchorOf`,
+split out of `balTargetAnchoredOf` for this) at the tune's own roll stiffness, which is the anchor
+`solveTune` aims at. The offset is still capped at ±0.20, so a target further than that from the
+anchor lands at the cap. Clicking the mode that is already active no longer reseeds anything, so it
+cannot nudge the target by a rounding step.
+
+## Changed — Balance Target steps in 0.005, not 0.01
+
+The NATURAL, MANUAL and Balance Offset controls stepped and rounded to 0.01, coarser than the
+solver needs: `solveTune` iterates until the displayed balance is within 0.0005 of its target.
+They now step by `BAL_TARGET_STEP` (0.005) and round through `roundBalStep`, which is also what
+seeds NATURAL and MANUAL on a mode switch. The Balance Guide's TARGET readout and its Δ from
+natural went to three decimals with it; at two, a single 0.005 nudge could read as no change.
+The range figures beside it (NAT, GRIP TARGET, RANGE) stay at two, since they are readings,
+not settings.
+
+## Changed — Balance Target range and Balance Guide strip widened to 0.05–0.95
+
+The Balance Target was clamped to 0.20–0.90 and the Balance Guide strip was drawn over
+0.10–0.90, so the strip showed ground no control could reach, and a car whose natural or
+grip-neutral sat past either end had its target pinned at the clamp. Both now span 0.05–0.95.
+The range is declared once, as `BAL_TARGET_MIN`/`BAL_TARGET_MAX` beside `clampBalTarget`, and the
+strip, its end labels, the NATURAL and MANUAL Fields, `sanitizeTune`'s clamps, the RANGE band
+clamp in `balanceBandOf` and Vehicle DNA's "target outside the balance range" miss all read it,
+so they cannot drift apart again. The measured-natural-balance entry keeps its own 0.30–0.90
+Field and 0.10–0.90 storage clamp; it is a reading, not a target.
+
 ## Changed — Balance Target gained RANGE and MANUAL; TARGET became NATURAL
 
 PRO's Balance Target had two modes, TARGET (an offset from natural) and GRIP. It now has four:

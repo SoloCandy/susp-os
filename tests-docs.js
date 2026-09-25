@@ -92,6 +92,8 @@ const SRC_NC = stripComments(SRC);
 // because check() bodies run as they are declared, before the later top-level statements.
 const HZ_BAND = /const HZ_MIN=([\d.]+),HZ_MAX=([\d.]+)/.exec(SRC_NC);
 if (!HZ_BAND) throw new Error('cannot parse HZ_MIN/HZ_MAX from index.html');
+const BAL_BAND = /const BAL_TARGET_MIN=([\d.]+),BAL_TARGET_MAX=([\d.]+)/.exec(SRC_NC);
+if (!BAL_BAND) throw new Error('cannot parse BAL_TARGET_MIN/BAL_TARGET_MAX from index.html');
 
 // ── codec ───────────────────────────────────────────────────────────────────
 const codecBlockStart = SRC.indexOf('const CODEC_FIELDS=[');
@@ -423,7 +425,7 @@ if (sanStart < 0 || sanEnd < 0)
   throw new Error('cannot bound sanitizeTune in index.html: its declaration or the ' +
                   'following `const useTwoTap` anchor moved — re-anchor this slice');
 const sanitize = SRC.slice(sanStart, sanEnd);
-const CONSTS = { HZ_MIN: HZ_BAND[1], HZ_MAX: HZ_BAND[2] };
+const CONSTS = { HZ_MIN: HZ_BAND[1], HZ_MAX: HZ_BAND[2], BAL_TARGET_MIN: BAL_BAND[1], BAL_TARGET_MAX: BAL_BAND[2] };
 const clamps = new Map();
 for (const m of sanitize.matchAll(/(\w+):\s*cl\((ch|fe|dr)\?\.(\w+),\s*([^,]+?),\s*([^,]+?),/g)) {
   const resolve = v => (CONSTS[v.trim()] ?? v.trim());

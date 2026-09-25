@@ -103,7 +103,7 @@ const DIFF_TYPE_SCALE = { race: 1.00, sport: 0.88, rally: 0.76, offroad: 0.52, d
 // The delta is taken from the DISPLAY-space natural, like the target it becomes.
 const resolveArbBalTarget = (ch, fe) => fe.arbBalTarget == null
   ? MECH_BALANCE_TARGET
-  : Math.max(0.20, Math.min(0.90, natDisplayOf(ch, fe.gameMode) + fe.arbBalTarget));
+  : Math.max(0.05, Math.min(0.95, natDisplayOf(ch, fe.gameMode) + fe.arbBalTarget));
 
 const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   const rB = 1 - ch.frontBias / 100;

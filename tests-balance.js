@@ -434,7 +434,7 @@ t('every shipped BALANCE_BAND_FRACS pair produces a usable band on every chassis
         ok(Number.isFinite(dlo) && Number.isFinite(dhi), `${name} ${layout}/${build}: non-finite band`);
         ok(dlo <= dhi + 1e-12, `${name} ${layout}/${build}: inverted band`);
         const c = v => M.clampBalTarget(NAT(ch) + v);
-        ok(c(dlo) >= 0.20 && c(dhi) <= 0.90, `${name} ${layout}/${build}: band escapes clampBalTarget`);
+        ok(c(dlo) >= 0.05 && c(dhi) <= 0.95, `${name} ${layout}/${build}: band escapes clampBalTarget`);
       }
   }
 });
@@ -499,10 +499,10 @@ t('gripNeutralOf and the natural in both spaces stay inside the 0-1 scale', () =
   }
 });
 
-t('clampBalTarget is idempotent and covers the documented 0.20-0.90 band', () => {
-  for (const v of [-5, 0, 0.1, 0.2, 0.5, 0.9, 1.4, 99]) {
+t('clampBalTarget is idempotent and covers the documented 0.05-0.95 band', () => {
+  for (const v of [-5, 0, 0.04, 0.1, 0.2, 0.5, 0.9, 0.96, 1.4, 99]) {
     const c = M.clampBalTarget(v);
-    ok(c >= 0.20 && c <= 0.90, `${v} clamped to ${c}, outside 0.20-0.90`);
+    ok(c >= 0.05 && c <= 0.95, `${v} clamped to ${c}, outside 0.05-0.95`);
     near(M.clampBalTarget(c), c, 0, `clamp of clamped ${v}`);
   }
   near(M.clampBalTarget(M.MECH_BALANCE_TARGET), M.MECH_BALANCE_TARGET, 0,

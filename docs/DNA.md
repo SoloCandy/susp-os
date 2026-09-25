@@ -152,7 +152,7 @@ arbBalDelta = balanceOffset             // with arbBalTargetMode:'grip'
 It measures back as `tune.mechBalance − gripTarget`; the grip model behind
 `balanceFromRsBal` is in [PHYSICS.md](PHYSICS.md#mech-balance-grip-model-axlelatgmechbalancelltbalancefromrsbal).
 The axis range is `arbBalDelta`'s own ±0.20 `sanitizeTune` clamp, so the one clamp
-left that can stop it landing is the GRIP target's 0.20..0.90, which the resolver
+left that can stop it landing is the GRIP target's 0.05..0.95 (`clampBalTarget`), which the resolver
 treats as a balance miss. On a heavily staggered car grip-neutral itself can sit
 outside that range (every bit of roll stiffness at one end still leaves the grip model
 leaning), and the miss says so rather than moving axes to chase it.
@@ -410,7 +410,7 @@ hit is exactly `!mechBalClamped`, and no damping miss is reported while
 | `pitchRatio` | `platformHz · pitchRatio` outside `HZ_MIN`..`HZ_MAX` | `pitchRatio`, `platformHz` |
 | `reboundZeta` or `bumpRatio` | `tune.dampingClamped` — a pair was scaled to fit the click range (down at the ceiling, up off the 1-click floor) | `reboundZeta`, `platformHz` (lower Hz needs fewer clicks, higher Hz more). `bumpRatio` is not ranked; the row uses `reboundZeta`'s rank |
 | `arbShare` | `tune.shareClamped` — a bar at its ceiling ("at their limit") or its 1-click floor, often because MECH pushed the split to one end | `arbShare`, `platformHz` (softer springs let the bars reach a larger share) |
-| `balanceOffset` | `tune.mechBalClamped`, or the GRIP target's 0.20..0.90 clamp | `balanceOffset`, `pitchRatio` (springs take part of the correction), `arbShare` (a bigger bar budget gives the split more authority) |
+| `balanceOffset` | `tune.mechBalClamped`, or the GRIP target's 0.05..0.95 clamp | `balanceOffset`, `pitchRatio` (springs take part of the correction), `arbShare` (a bigger bar budget gives the split more authority) |
 
 The rows are in **dependency order** and are handled top to bottom. Balance depends
 on the bar budget: MECH can only split what SHARE supplies, and a bar pinned at its
