@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — VISUALS dials replaced by the RIDE · ROLL · DAMPING tracks
+
+The ARB and RIDE / DAMPERS groups were three 120px arc dials (`ArbDial`, `SpringDial`,
+`DampingDial`) and a roll seesaw. The dials showed values only on hover, put front and rear on
+separate arcs so their split had to be judged by angle, and showed only front damping.
+One group now replaces them, drawn in the same chart frame as DYNAMICS and SAG. It holds a
+ROLL SPLIT bar and ride Hz, ARB and damping ζ tracks. The bar's divide sits at
+`tune.mechBalance`, so it lands where the MECH BALANCE strip's CUR does, and it shows NAT and
+target ticks. In each track, front and rear share one scale and every value is printed.
+Rear damping is now shown. The ghost-ring formulas are unchanged. The `open` keys `visArb` and
+`visRideDampers` became `visRide`.
+
 ## Changed — every Balance Target switch keeps the target where it is
 
 NATURAL and MANUAL were seeded from the live target on a mode switch, but RANGE and GRIP kept

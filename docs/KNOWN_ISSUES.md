@@ -577,7 +577,7 @@ k = 2·rs / (track² · mr²)
 Both constraints the specification set were met:
 
 - Applied at **every** N/m ↔ roll-stiffness site — `arbOut` (the ARB rows and the
-  dial), MAN-mode entry, and the TUNE CHECK import. Display and entry were checked
+  VISUALS ARB track), MAN-mode entry, and the TUNE CHECK import. Display and entry were checked
   to invert each other exactly across track widths, ratios and rates, because an
   asymmetry between them caused a real bug during the spring motion-ratio work.
 - A **separate** field from `motionRatioF`/`motionRatioR`, on codec ids 68/69.

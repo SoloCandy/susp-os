@@ -203,7 +203,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `Readout`, `Stat` | Tune Check and sidebar readouts — **not** the output panel any more (it moved to `OutRow` so each value is one scannable line to transcribe into a tuning menu) |
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH) |
 | `DirSeg` | a contributor with a direction but no calibrated size — PRO's diff lock and damping rows. Shows toward OS / toward US / — and a NO SIZE label |
-| `SpringDial`, `ArbDial`, `DampingDial` | the pinned VISUALS card — its ARB and RIDE/DAMPERS groups. The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
+| `VisRollSplit`, `VisSuspTracks` (over `VisTrack` and the `visGhost` helper) | the pinned VISUALS card — its RIDE · ROLL · DAMPING group (`open.visRide`). `VisRollSplit` draws the split divide at `tune.mechBalance`, the display-space value the MECH BALANCE strip plots, so its NAT/TGT ticks match that strip; the springs/ARBs shading within each end uses model-space stiffnesses and is a share of that end only. `VisSuspTracks` renders ride Hz, ARB and damping ζ as F/R rows on shared tracks; the Hz and ARB ghost rings (NAT grey, target green) sit on the derived axle, the one Ride Reference does not fix. These replaced the `SpringDial` / `ArbDial` / `DampingDial` arc dials. The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
 | `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. The brakes tip refers to the recommended brake balance in the BRAKES card, which every tier shows |
 | `mechReachNote` | a plain helper, not a component: the cause-and-fix sentence both `mechBalClamped` warnings (ARB card and the warnings strip) end with. It works out which bar is at its ceiling or floor from `tune.arbF`/`arbR` against `lim.arb`, and names the fix for the active stiffness mode and CO-SOLVE's Spring Share |
 | `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null |
@@ -221,7 +221,7 @@ The GARAGE drawer itself is inline JSX in `App` (it needs a dozen handlers off
 hardcoded prose — verify it rather than trusting it after any section change.
 
 Note `HandlingVerdict` / `PhaseVerdict` and the RESPONSE factor breakdown render **only** when
-the handling-balance panel is expanded, the dials render **only** inside
+the handling-balance panel is expanded, the RIDE · ROLL · DAMPING tracks render **only** inside
 VISUALS (hidden entirely in BEG), and the GARAGE drawer renders behind a toolbar
 toggle. None of them are reachable from a cold page load, which matters when
 testing.
@@ -473,7 +473,7 @@ must not move when a motion ratio is entered. A grep for these keys inside
 **`ch.arbMotionRatioF` / `arbMotionRatioR`** — the same arrangement for the ARB
 drop link, and equally absent from `computeTune`. Read at exactly three places,
 which must stay in agreement or a value will not round-trip: `arbOut` (the N/m the
-ARB rows and the dial print), the MAN-mode entry field that inverts it, and the
+ARB rows and the VISUALS ARB track print), the MAN-mode entry field that inverts it, and the
 TUNE CHECK import that converts a pasted N/m back to roll stiffness. Separate from
 `motionRatioF`/`motionRatioR` on purpose — spring mount and drop link are
 independent geometry.

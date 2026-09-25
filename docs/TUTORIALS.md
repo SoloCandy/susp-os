@@ -251,10 +251,10 @@ every step title of its guide, in order.
 | 7 | AWD Center Diff | `drivetrain` | | Power Split recommendation, Front Exit Push. |
 | 8 | Build Type | `build` | | What build type sets. |
 | 9 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
-| 10 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the ARB dial lives. |
+| 10 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
 | 11 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; MULTIPLIER / FLAT RIDE / INDEPENDENT. |
 | 12 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and the DAMP row. |
-| 13 | VISUALS Card | `visuals` | | ARB, RIDE/DAMPERS, DYNAMICS, SAG readouts. |
+| 13 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS, SAG readouts. |
 | 14 | Handling Balance Bar | `balance-bar` | close | Per-contributor breakdown incl. DIFF and DAMP. |
 | 15 | Reading the Results | `output` | close | The six result cards. |
 | 16 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |

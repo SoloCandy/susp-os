@@ -328,7 +328,7 @@ const parseTyre=str=>{
 //   natDisplayOf(ch, gameMode)  display space — what the game SHOWS for the natural setup. For
 //                               anything compared against a Mech Balance Target or tune.mechBalance:
 //                               the stored target delta, the Balance Guide, MATCH CHASSIS, the MECH
-//                               alignment nudge, the dials' NAT marker.
+//                               alignment nudge, the VISUALS roll-split NAT tick.
 //
 // Measured, the two differ by exactly tireCorr and natDisplayOf returns the reading verbatim.
 // Unmeasured, natDisplayOf is the model's prediction of what MEASURE NAT BAL would read.
@@ -3136,225 +3136,156 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
   );
 };
 
-const DampingDial=({rebound,bump})=>{
-  const[hover,setHover]=useState(null); // 'rebound'|'bump'|null
-  const SIZE=120,CX=60,CY=58,R=46;
-  const GAP_DEG=60; // gap at bottom
-  const START=180+GAP_DEG/2;  // 210° from top-clockwise = lower-left
-  const SWEEP=360-GAP_DEG;
-  const MIN_Z=10,MAX_Z=200;
-  const zetaToAngle=z=>START+((z-MIN_Z)/(MAX_Z-MIN_Z))*SWEEP;
-  const polar=(deg,r=R)=>{
-    const rad=((deg-90)*Math.PI)/180; // SVG: 0deg = top, clockwise
-    return[CX+r*Math.cos(rad),CY+r*Math.sin(rad)];
-  };
-  const arcPath=(a1,a2,r=R)=>{
-    const[x1,y1]=polar(a1,r);
-    const[x2,y2]=polar(a2,r);
-    const sweep=((a2-a1)+360)%360;
-    const large=sweep>180?1:0;
-    return`M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
-  };
-  const rebA=zetaToAngle(rebound);
-  const bumpA=zetaToAngle(bump);
-  const endA=START+SWEEP;
-  const [rxSvg,rySvg]=polar(rebA);
-  const [bxSvg,bySvg]=polar(bumpA);
-  const bumpPct=rebound>0?Math.round((bump/rebound)*100):0;
-  const label=hover==='rebound'?`${Math.round(rebound)}%`
-             :hover==='bump'   ?`${Math.round(bump)}%`
-             :`${bumpPct}%`;
-  const labelSub=hover==='rebound'?'REBOUND'
-                :hover==='bump'   ?'BUMP'
-                :'B/R';
-  const loA=Math.min(rebA,bumpA), hiA=Math.max(rebA,bumpA);
-  const crossed=bump>rebound;
-  // Background zone bands use the same UNDER/BWORTH/OVER thresholds (40/70/100) as the
-  // Rebound ζ/Bump ζ sliders elsewhere, styled like SpringDial's SOFT→RACE bands.
-  const a40=zetaToAngle(40),a70=zetaToAngle(70),a100=zetaToAngle(100);
+// ── VISUALS: ride · roll · damping tracks ──────────────────────────────────
+// Replaced SpringDial / ArbDial / DampingDial (three 120px arc dials whose values showed only
+// on hover). Everything here is a straight track in the DYNAMICS / SAG chart frame: front and
+// rear share one scale per quantity, so they are compared by position, and every value is
+// printed. Colours follow the SAG chart's COL_F / COL_R.
+const VIS_COL_F='#60a5fa',VIS_COL_R='#fb923c';
+const VIS_W=280,VIS_TX0=16,VIS_TX1=218; // track spans x 16..218; values right-aligned at 280
+const VIS_MONO='JetBrains Mono, monospace';
+
+// Ghost positions: where the DERIVED axle (the one the ride ref isn't) would sit for this
+// component's own F/R split to carry a given rear roll-stiffness fraction. `pow` is 2 for
+// springs (roll stiffness ∝ Hz², so Hz scales by √ratio) and 1 for ARBs (∝ clicks). These are
+// the same formulas the old dials' ghost rings used, unchanged.
+const visGhost=(frac,{vF,vR,rsF,rsR,rideRef,sqrt,lo,hi})=>{
+  if(frac==null||rsF<=0||rsR<=0)return null;
+  const f=Math.max(0.05,Math.min(0.95,frac));
+  const k=rideRef==='rear'?((1-f)/f*rsR)/rsF:(f/(1-f)*rsF)/rsR;
+  const v=(rideRef==='rear'?vF:vR)*(sqrt?Math.sqrt(k):k);
+  return(v>=lo&&v<=hi)?v:null;
+};
+
+// One quantity, two rows (F, R) on a shared zone-tinted track. `bands` is [[from,to,colour]…];
+// `rows` items: {v, v2?, text, warn, ghosts:[{v,col}]}. v2 draws a second, hollow marker joined
+// to v by a bar — the damper rows use it for bump (hollow) against rebound (filled).
+const VisTrack=({title,summary,summaryWarn,lo,hi,bands,rows,hint})=>{
+  const RY=[7,21],H=bands.some(b=>b[3])?36:28;
+  const x=v=>VIS_TX0+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*(VIS_TX1-VIS_TX0);
   return(
-    <div style={{display:'flex',justifyContent:'center',marginBottom:4}}>
-      <div style={{position:'relative',display:'inline-block'}}>
-        <svg width={SIZE} height={SIZE} style={{overflow:'visible'}}>
-          {/* background track — zone-tinted like SpringDial's SOFT→RACE bands */}
-          <path d={arcPath(START,a40)}  fill="none" stroke="#1e3a5f" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a40,a70)}    fill="none" stroke="#14532d" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a70,a100)}   fill="none" stroke="#713f12" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a100,endA)}  fill="none" stroke="#7f1d1d" strokeWidth={4} strokeLinecap="round"/>
-          {/* rebound arc: START → rebA, red */}
-          <path d={arcPath(START,rebA)} fill="none" stroke="#ef4444" strokeWidth={4} strokeLinecap="round" opacity={0.7}/>
-          {/* bump arc: START → bumpA, blue */}
-          <path d={arcPath(START,bumpA)} fill="none" stroke="#3b82f6" strokeWidth={4} strokeLinecap="round" opacity={0.7}/>
-          {/* fill between thumbs */}
-          <path d={arcPath(loA,hiA)} fill="none"
-            stroke={crossed?'#f59e0b':'#7c3aed'} strokeWidth={3} strokeLinecap="round" opacity={0.5}/>
-          {/* rebound thumb */}
-          <circle cx={rxSvg} cy={rySvg} r={5} fill="#ef4444" stroke="#0f172a" strokeWidth={1.5}
-            style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('rebound')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='rebound'?null:'rebound');}}/>
-          {/* bump thumb */}
-          <circle cx={bxSvg} cy={bySvg} r={5} fill="#3b82f6" stroke="#0f172a" strokeWidth={1.5}
-            style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('bump')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='bump'?null:'bump');}}/>
-          {/* center label */}
-          <text x={CX} y={CY-4} textAnchor="middle" fill={crossed?'#f59e0b':'#e2e8f0'}
-            fontSize={16} fontFamily="JetBrains Mono, monospace" fontWeight="700">{label}</text>
-          <text x={CX} y={CY+11} textAnchor="middle" fill="#475569"
-            fontSize={9} fontFamily="sans-serif" letterSpacing={2}>{labelSub}</text>
-          <text x={CX} y={CY+32} textAnchor="middle" fill="#334155"
-            fontSize={8} fontFamily="sans-serif" letterSpacing={2}>DAMPERS</text>
-        </svg>
-        <span style={{position:'absolute',top:2,right:2,lineHeight:1}}>
-          <Hint text="Red dot = rebound damping %, blue dot = bump damping %, both on a 10–200 range. Hover or tap a dot to read its value. Center shows the bump-to-rebound ratio. The fill between them turns amber if bump exceeds rebound — bump should generally be softer (lower %) than rebound for a compliant, predictable ride. The background ring is tinted by zone: blue = under-damped (bouncy), green = approaching Butterworth, amber = at or past Butterworth (≈70% ζ), red = overdamped (sluggish) — same thresholds as the Rebound ζ/Bump ζ sliders."/>
-        </span>
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-mono)',fontSize:9,marginBottom:1}}>
+        <span style={{color:'#64748b',letterSpacing:1.5}}>{title}</span>
+        {hint&&<Hint text={hint}/>}
+        <span style={{marginLeft:'auto',color:summaryWarn?'#f59e0b':'#cbd5e1'}}>{summary}</span>
       </div>
+      <svg viewBox={`0 0 ${VIS_W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+        {rows.map((r,i)=>{
+          const y=RY[i],col=i?VIS_COL_R:VIS_COL_F;
+          return(<g key={i}>
+            <rect x={VIS_TX0} y={y-2} width={VIS_TX1-VIS_TX0} height={4} fill="#1e293b"/>
+            {bands.map(([a,b,c],j)=><rect key={j} x={x(a)} y={y-2} width={Math.max(0,x(b)-x(a))} height={4} fill={c} opacity={0.28}/>)}
+            <text x={0} y={y+3} fontSize={9} fill={col} fontFamily={VIS_MONO}>{i?'R':'F'}</text>
+            {(r.ghosts||[]).map((g,j)=>g.v==null?null:
+              <circle key={j} cx={x(g.v)} cy={y} r={3.6} fill="none" stroke={g.col} strokeWidth={1.3} opacity={0.85}/>)}
+            {r.v2!=null&&<>
+              <line x1={x(r.v2)} y1={y} x2={x(r.v)} y2={y} stroke={r.crossed?'#f59e0b':col} strokeWidth={2} opacity={0.7}/>
+              <circle cx={x(r.v2)} cy={y} r={3.4} fill="#0a0f1a" stroke={r.crossed?'#f59e0b':col} strokeWidth={1.4}/>
+            </>}
+            <circle cx={x(r.v)} cy={y} r={4} fill={r.warn?'#f59e0b':col} stroke="#0a0f1a" strokeWidth={1}/>
+            <text x={VIS_W} y={y+3} textAnchor="end" fontSize={9} fill={r.warn?'#f59e0b':'#e2e8f0'} fontFamily={VIS_MONO}>{r.text}</text>
+          </g>);
+        })}
+        {bands.map(([a,b,c,lbl],j)=>lbl&&x(b)-x(a)>=24?
+          <text key={j} x={(x(a)+x(b))/2} y={H-1} textAnchor="middle" fontSize={6.5} fill="#64748b" fontFamily={VIS_MONO} letterSpacing={0.5}>{lbl}</text>:null)}
+      </svg>
     </div>
   );
 };
 
-const _dialBase=(SIZE=120,CX=60,CY=58,R=46,GAP_DEG=60)=>{
-  const START=180+GAP_DEG/2, SWEEP=360-GAP_DEG;
-  const polar=(deg,r=R)=>{const rad=((deg-90)*Math.PI)/180;return[CX+r*Math.cos(rad),CY+r*Math.sin(rad)];};
-  const arcPath=(a1,a2,r=R)=>{
-    const[x1,y1]=polar(a1,r);const[x2,y2]=polar(a2,r);
-    const sweep=((a2-a1)+360)%360;const large=sweep>180?1:0;
-    return`M${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
-  };
-  return{START,SWEEP,polar,arcPath,CX,CY,SIZE};
-};
-
-const SpringDial=({fHz,rHz,rsSpF,rsSpR,clamped,natBal,target,rideRef})=>{
-  const[hover,setHover]=useState(null);
-  const{START,SWEEP,polar,arcPath,CX,CY,SIZE}=_dialBase();
-  const MIN_HZ=HZ_MIN,MAX_HZ=HZ_MAX;
-  const toA=hz=>START+((Math.min(Math.max(hz,MIN_HZ),MAX_HZ)-MIN_HZ)/(MAX_HZ-MIN_HZ))*SWEEP;
-  const endA=START+SWEEP;
-  const a12=toA(HZ_BANDS[0]),a18=toA(HZ_BANDS[1]),a25=toA(HZ_BANDS[2]);
-  const fA=toA(fHz),rA=toA(rHz);
-  const[fxS,fyS]=polar(fA);const[rxS,ryS]=polar(rA);
-  // Ghost dots: where the derived axle (the one the ride ref ISN'T) would sit for the
-  // spring split to carry a given rear roll-stiffness fraction. Roll stiffness ∝ Hz², so
-  // hold the reference axle fixed and scale the derived axle's Hz by √(target rs / current rs).
-  const derived=rideRef==='rear'?'front':'rear';
-  const ghostHz=frac=>{
-    if(frac==null||rsSpF<=0||rsSpR<=0)return null;
-    const f=Math.max(0.05,Math.min(0.95,frac));
-    const hz=derived==='rear'
-      ? rHz*Math.sqrt((f/(1-f)*rsSpF)/rsSpR)
-      : fHz*Math.sqrt(((1-f)/f*rsSpR)/rsSpF);
-    return(hz>=MIN_HZ&&hz<=MAX_HZ)?hz:null;
-  };
-  const natG=ghostHz(natBal),tgtG=ghostHz(target);
-  const showTgtG=tgtG!=null&&(natG==null||Math.abs(tgtG-natG)>0.03);
-  const ghostDot=(hz,col,key)=>{if(hz==null)return null;const[x,y]=polar(toA(hz));
-    return<circle key={key} cx={x} cy={y} r={4} fill="none" stroke={col} strokeWidth={1.5} opacity={0.75}/>;};
-  const dispVal=hover==='front'?fHz.toFixed(2):hover==='rear'?rHz.toFixed(2)
-    :(fHz>0?`×${(rHz/fHz).toFixed(2)}`:'-');
-  const dispSub=hover==='front'?'FRONT':hover==='rear'?'REAR':'F/R';
-  const centerCol=clamped?'#f59e0b':'#e2e8f0';
+// The card's headline: the whole car's F/R roll-stiffness split in the display space the MECH
+// BALANCE strip uses (`mechBalance` = rear fraction as the game shows it), so its divide lands
+// exactly where that strip's CUR does and the NAT / TGT ticks mean the same thing on both.
+// Each end is then shaded springs vs ARBs by that axle's own model-space stiffnesses — a share
+// OF that end, not a second balance, so the two spaces never get compared with each other.
+const VisRollSplit=({mechBal,natBal,target,rsSpF,rsAbF,rsSpR,rsAbR,rollDeg,rollClamped,rollTarget,arbShare})=>{
+  const H=30,Y=4,BH=10,x=v=>Math.min(1,Math.max(0,v))*VIS_W;
+  const rear=Math.min(1,Math.max(0,mechBal)),divX=x(1-rear);
+  const spFracF=rsSpF+rsAbF>0?rsSpF/(rsSpF+rsAbF):1,spFracR=rsSpR+rsAbR>0?rsSpR/(rsSpR+rsAbR):1;
+  // Springs sit at the outer ends, ARBs toward the divide, so the ARB contribution reads as
+  // the part that moves the divide.
+  const fSpW=divX*spFracF,rSpW=(VIS_W-divX)*spFracR;
+  const tick=(v,col,w,key)=>v==null?null:<line key={key} x1={x(1-v)} y1={Y-3} x2={x(1-v)} y2={Y+BH+3} stroke={col} strokeWidth={w}/>;
+  const showTgt=target!=null&&(natBal==null||Math.abs(target-natBal)>=0.005);
   return(
-    <div style={{display:'flex',justifyContent:'center',marginBottom:0}}>
-      <div style={{position:'relative',display:'inline-block'}}>
-        <svg width={SIZE} height={SIZE-20} style={{overflow:'visible',display:'block'}}>
-          <path d={arcPath(START,endA)} fill="none" stroke="#1e293b" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(START,a12)} fill="none" stroke="#1e3a5f" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a12,a18)}   fill="none" stroke="#14532d" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a18,a25)}   fill="none" stroke="#713f12" strokeWidth={4} strokeLinecap="round"/>
-          <path d={arcPath(a25,endA)}  fill="none" stroke="#7f1d1d" strokeWidth={4} strokeLinecap="round"/>
-          {ghostDot(natG,'#64748b','natG')}
-          {showTgtG&&ghostDot(tgtG,'#4ade80','tgtG')}
-          <circle cx={fxS} cy={fyS} r={5} fill="#818cf8" stroke="#0f172a" strokeWidth={1.5} style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('front')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='front'?null:'front');}}/>
-          <circle cx={rxS} cy={ryS} r={5} fill="#f97316" stroke="#0f172a" strokeWidth={1.5} style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('rear')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='rear'?null:'rear');}}/>
-          <text x={CX} y={CY-4} textAnchor="middle" fill={centerCol}
-            fontSize={15} fontFamily="JetBrains Mono, monospace" fontWeight="700">{dispVal}</text>
-          <text x={CX} y={CY+11} textAnchor="middle" fill="#475569"
-            fontSize={9} fontFamily="sans-serif" letterSpacing={2}>{dispSub}</text>
-          <text x={CX} y={CY+32} textAnchor="middle" fill="#334155"
-            fontSize={8} fontFamily="sans-serif" letterSpacing={2}>RIDE</text>
-        </svg>
-        <span style={{position:'absolute',top:2,right:2,lineHeight:1}}>
-          <Hint text="Purple dot = front spring Hz, orange dot = rear Hz, plotted on a SOFT→RACE arc. Hover or tap a dot to read its value. Hollow rings mark where the derived axle would need to sit for natural balance (grey) and your target (green) — close the gap to green to hit your balance target."/>
-        </span>
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-mono)',fontSize:9,marginBottom:1}}>
+        <span style={{color:'#64748b',letterSpacing:1.5}}>ROLL SPLIT</span>
+        <Hint text="The car's front/rear share of roll stiffness, as the game's Mech Balance shows it — the divide sits where the MECH BALANCE strip's CUR does. Solid = springs, light = ARBs, each as a share of its own end. Grey tick = NAT (the chassis's natural balance), green tick = your Balance Target. Divide right of green = more front roll stiffness than targeted (toward understeer); left = toward oversteer. The line below gives body roll at 1 g (in ROLL mode, your Roll Target after the slash) and the springs/ARBs share of total roll stiffness."/>
+        <span style={{marginLeft:'auto',color:'#cbd5e1'}}>F {Math.round((1-rear)*100)} · R {Math.round(rear*100)}</span>
       </div>
+      <svg viewBox={`0 0 ${VIS_W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+        <rect x={0} y={Y} width={fSpW} height={BH} fill={VIS_COL_F} opacity={0.85}/>
+        <rect x={fSpW} y={Y} width={divX-fSpW} height={BH} fill={VIS_COL_F} opacity={0.35}/>
+        <rect x={divX} y={Y} width={VIS_W-divX-rSpW} height={BH} fill={VIS_COL_R} opacity={0.35}/>
+        <rect x={VIS_W-rSpW} y={Y} width={rSpW} height={BH} fill={VIS_COL_R} opacity={0.85}/>
+        <line x1={divX} y1={Y-1} x2={divX} y2={Y+BH+1} stroke="#0a0f1a" strokeWidth={1.5}/>
+        {tick(natBal,'#94a3b8',1.2,'nat')}
+        {showTgt&&tick(target,'#4ade80',1.8,'tgt')}
+        <text x={0} y={H-1} fontSize={8} fill={rollClamped?'#f59e0b':'#94a3b8'} fontFamily={VIS_MONO}>roll {rollDeg.toFixed(1)}°{rollTarget!=null&&<tspan fill="#64748b"> / {rollTarget.toFixed(1)}</tspan>}</text>
+        <text x={VIS_W/2} y={H-1} textAnchor="middle" fontSize={8} fontFamily={VIS_MONO}>
+          <tspan fill="#94a3b8">nat</tspan><tspan fill="#64748b"> {natBal!=null?natBal.toFixed(2):'—'}</tspan>
+          {showTgt&&<><tspan fill="#4ade80">  tgt</tspan><tspan fill="#64748b"> {target.toFixed(2)}</tspan></>}
+        </text>
+        <text x={VIS_W} y={H-1} textAnchor="end" fontSize={8} fill="#94a3b8" fontFamily={VIS_MONO}>
+          spr {Math.round(100-arbShare)} · arb {Math.round(arbShare)}%</text>
+      </svg>
     </div>
   );
 };
 
-// `arbLimit` is the arc's full scale. In the Forza modes that's the game's click ceiling,
-// which is what makes the 50/75/90% bands and the amber warning meaningful. Physical modes
-// have no ceiling, so the caller passes a dynamic scale and sets `physical` — the arc then
-// reads purely as an F/R split (which is what the centre readout shows anyway) and the
-// bands, which would otherwise imply a limit that doesn't exist, are suppressed.
-const ArbDial=({arbF,arbR,arbLimit,rsAbF,rsAbR,natBal,target,rideRef,physical=false,dispF,dispR})=>{
-  const[hover,setHover]=useState(null);
-  const{START,SWEEP,polar,arcPath,CX,CY,SIZE}=_dialBase();
-  const toA=v=>START+(Math.min(Math.max(v,0),arbLimit)/arbLimit)*SWEEP;
-  const endA=START+SWEEP;
-  const a50=toA(arbLimit*0.50),a75=toA(arbLimit*0.75),a90=toA(arbLimit*0.90);
-  const fA=toA(arbF),rA=toA(arbR);
-  const[fxS,fyS]=polar(fA);const[rxS,ryS]=polar(rA);
-  const abTot=rsAbF+rsAbR;
-  const rearAbFrac=abTot>0?rsAbR/abTot:0.5;
-  // Ghost dots: where the derived axle's ARB clicks would land for the ARB split to carry a
-  // given rear roll-stiffness fraction. ARB roll stiffness ∝ clicks, so scale linearly.
-  const derived=rideRef==='rear'?'front':'rear';
-  const ghostClicks=frac=>{
-    if(frac==null||rsAbF<=0||rsAbR<=0)return null;
-    const f=Math.max(0.05,Math.min(0.95,frac));
-    const v=derived==='rear'
-      ? arbR*((f/(1-f)*rsAbF)/rsAbR)
-      : arbF*(((1-f)/f*rsAbR)/rsAbF);
-    return(v>=0&&v<=arbLimit)?v:null;
+// `arbLimit` is the ARB track's full scale. In the Forza modes that's the game's click
+// ceiling, which is what makes the 50/75/90% bands and the amber >88% warning meaningful.
+// Physical modes have no ceiling, so the caller passes a dynamic scale and sets `physical` —
+// the track then reads purely as an F/R comparison, and the bands, which would otherwise imply
+// a limit that doesn't exist, are suppressed. `dispF`/`dispR` carry the N/m the ARB card
+// prints in physical mode, so the printed value can't contradict what you'd type in.
+const VisSuspTracks=({tune,physics,natBal,target,arbLimit,physical,dispF,dispR,hzClamped})=>{
+  const{fHz,rHz,rsSpF,rsSpR,rsAbF,rsAbR,arbF,arbR}=tune;
+  const ref=physics.rideRef;
+  const ghostSet=(o,tol)=>{
+    const n=visGhost(natBal,o),t=visGhost(target,o);
+    return[{v:n,col:'#94a3b8'},{v:t!=null&&(n==null||Math.abs(t-n)>tol)?t:null,col:'#4ade80'}];
   };
-  const natG=ghostClicks(natBal),tgtG=ghostClicks(target);
-  const showTgtG=tgtG!=null&&(natG==null||Math.abs(tgtG-natG)>arbLimit*0.02);
-  const ghostDot=(v,col,key)=>{if(v==null)return null;const[x,y]=polar(toA(v));
-    return<circle key={key} cx={x} cy={y} r={4} fill="none" stroke={col} strokeWidth={1.5} opacity={0.75}/>;};
-  const rearPct=Math.round(rearAbFrac*100);
-  // In physical mode the dial's own values are roll stiffness; `dispF`/`dispR` carry the
-  // N/m figures the ARB card shows, so hovering here can't contradict what you'd type in.
-  const hv=hover==='front'?(physical?(dispF??arbF):arbF):(physical?(dispR??arbR):arbR);
-  const dispVal=hover?hv.toFixed(physical?0:1):`${rearPct}%`;
-  const dispSub=hover==='front'?(physical?'N/m F':`/ ${arbLimit} F`)
-               :hover==='rear' ?(physical?'N/m R':`/ ${arbLimit} R`):'R SPLIT';
+  const hzO={vF:fHz,vR:rHz,rsF:rsSpF,rsR:rsSpR,rideRef:ref,sqrt:true,lo:HZ_MIN,hi:HZ_MAX};
+  const abO={vF:arbF,vR:arbR,rsF:rsAbF,rsR:rsAbR,rideRef:ref,sqrt:false,lo:0,hi:arbLimit};
+  const hzG=ghostSet(hzO,0.03),abG=ghostSet(abO,arbLimit*0.02);
+  const derivedR=ref!=='rear';
   const warnF=!physical&&arbF>arbLimit*0.88,warnR=!physical&&arbR>arbLimit*0.88;
-  const centerCol=warnF||warnR?'#f59e0b':'#e2e8f0';
+  const Lim=arbLimit;
+  const zF=physics.zetaF,zR=physics.zetaR,bF=physics.bumpZetaF,bR=physics.bumpZetaR;
+  const pctBR=(b,r)=>r>0?Math.round(b/r*100):0;
+  const crossF=bF>zF,crossR=bR>zR;
+  const HZ_ZONES=[[HZ_MIN,HZ_BANDS[0],HZ_BAND_COLS[0],'SOFT'],[HZ_BANDS[0],HZ_BANDS[1],HZ_BAND_COLS[1],'ROAD'],
+                  [HZ_BANDS[1],HZ_BANDS[2],HZ_BAND_COLS[2],'FIRM'],[HZ_BANDS[2],HZ_MAX,HZ_BAND_COLS[3],'RACE']];
+  const ZETA_ZONES=[[10,40,'#60a5fa','UNDER'],[40,70,'#22c55e','→BW'],[70,100,'#f59e0b','BWORTH+'],[100,200,'#ef4444','OVER']];
+  const ARB_ZONES=physical?[]:[[Lim*0.5,Lim*0.75,'#f59e0b'],[Lim*0.75,Lim*0.9,'#f97316'],[Lim*0.9,Lim,'#ef4444']];
+  const fmtArb=(v,d)=>physical?Math.round(d??v).toString():v.toFixed(1);
   return(
-    <div style={{display:'flex',justifyContent:'center',marginBottom:0}}>
-      <div style={{position:'relative',display:'inline-block'}}>
-        <svg width={SIZE} height={SIZE-20} style={{overflow:'visible',display:'block'}}>
-          <path d={arcPath(START,endA)} fill="none" stroke="#1e293b" strokeWidth={4} strokeLinecap="round"/>
-          {!physical&&<>
-            <path d={arcPath(START,a50)} fill="none" stroke="#1e3a5f" strokeWidth={4} strokeLinecap="round"/>
-            <path d={arcPath(a50,a75)}   fill="none" stroke="#713f12" strokeWidth={4} strokeLinecap="round"/>
-            <path d={arcPath(a75,a90)}   fill="none" stroke="#7c2d12" strokeWidth={4} strokeLinecap="round"/>
-            <path d={arcPath(a90,endA)}  fill="none" stroke="#7f1d1d" strokeWidth={4} strokeLinecap="round"/>
-          </>}
-          {ghostDot(natG,'#64748b','natG')}
-          {showTgtG&&ghostDot(tgtG,'#4ade80','tgtG')}
-          <circle cx={fxS} cy={fyS} r={5} fill={warnF?'#f59e0b':'#818cf8'} stroke="#0f172a" strokeWidth={1.5} style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('front')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='front'?null:'front');}}/>
-          <circle cx={rxS} cy={ryS} r={5} fill={warnR?'#f59e0b':'#f97316'} stroke="#0f172a" strokeWidth={1.5} style={{cursor:'default'}}
-            onMouseEnter={()=>setHover('rear')} onMouseLeave={()=>setHover(null)}
-            onTouchStart={e=>{e.stopPropagation();setHover(h=>h==='rear'?null:'rear');}}/>
-          <text x={CX} y={CY-4} textAnchor="middle" fill={centerCol}
-            fontSize={15} fontFamily="JetBrains Mono, monospace" fontWeight="700">{dispVal}</text>
-          <text x={CX} y={CY+11} textAnchor="middle" fill="#475569"
-            fontSize={9} fontFamily="sans-serif" letterSpacing={2}>{dispSub}</text>
-          <text x={CX} y={CY+32} textAnchor="middle" fill="#334155"
-            fontSize={8} fontFamily="sans-serif" letterSpacing={2}>ARB</text>
-        </svg>
-        <span style={{position:'absolute',top:2,right:2,lineHeight:1}}>
-          <Hint text="Purple dot = front ARB clicks, orange dot = rear ARB clicks, plotted from 0 to your ceiling. Hover or tap a dot to read its value. Hollow rings mark where the derived axle would need to sit for natural balance (grey) and your target (green)."/>
-        </span>
-      </div>
+    <div style={{display:'flex',flexDirection:'column',gap:7}}>
+      <VisTrack title="RIDE Hz" lo={HZ_MIN} hi={HZ_MAX} bands={HZ_ZONES}
+        summary={fHz>0?`R/F ×${(rHz/fHz).toFixed(2)}`:'—'} summaryWarn={hzClamped}
+        hint={`Front and rear ride frequency on one SOFT→RACE scale (${HZ_MIN}–${HZ_MAX} Hz), so the gap between the dots is the F/R split. Hollow rings sit on the derived axle (the one Ride Reference doesn't fix): where it would need to be for the springs alone to carry your chassis's natural balance (grey) or your Balance Target (green). Amber = the rear Hz hit a limit.`}
+        rows={[
+          {v:fHz,text:fHz.toFixed(2),ghosts:derivedR?[]:hzG},
+          {v:rHz,text:rHz.toFixed(2),warn:hzClamped,ghosts:derivedR?hzG:[]},
+        ]}/>
+      <VisTrack title="ARB" lo={0} hi={Lim} bands={ARB_ZONES}
+        summary={physical?'N/m':`of ${Lim}`} summaryWarn={warnF||warnR}
+        hint={physical?"Front and rear anti-roll bar stiffness on one shared scale (no game ceiling here, so the scale is the stiffer bar plus headroom and there are no warning bands). Values in N/m, as the ARB card prints them. Hollow rings on the derived axle: where it would sit for the bars alone to carry natural balance (grey) or your Balance Target (green)."
+          :"Front and rear ARB clicks on one track from 0 to the game's ceiling. Bands mark 50 / 75 / 90% of the ceiling, and a dot goes amber past 88%. Hollow rings on the derived axle: where it would sit for the bars alone to carry natural balance (grey) or your Balance Target (green)."}
+        rows={[
+          {v:arbF,text:fmtArb(arbF,dispF),warn:warnF,ghosts:derivedR?[]:abG},
+          {v:arbR,text:fmtArb(arbR,dispR),warn:warnR,ghosts:derivedR?abG:[]},
+        ]}/>
+      <VisTrack title="DAMPING ζ" lo={10} hi={200} bands={ZETA_ZONES}
+        summary={`B/R ${pctBR(bF,zF)}% · ${pctBR(bR,zR)}%`} summaryWarn={crossF||crossR}
+        hint="Damping ratio per axle on a 10–200% scale. Filled dot = rebound, hollow dot = bump, joined by a bar; the header gives bump as a share of rebound, front then rear. Bump normally sits below rebound — the bar turns amber if it crosses above. Zones use the Rebound ζ / Bump ζ sliders' thresholds: blue under-damped (bouncy), green approaching Butterworth, amber at or past Butterworth (≈70%), red overdamped (sluggish)."
+        rows={[
+          {v:zF,v2:bF,crossed:crossF,text:`${Math.round(bF)}/${Math.round(zF)}`},
+          {v:zR,v2:bR,crossed:crossR,text:`${Math.round(bR)}/${Math.round(zR)}`},
+        ]}/>
     </div>
   );
 };
@@ -5057,7 +4988,7 @@ const TUTORIALS={
      body:'Stiffness Mode sets total ARB: AUTO from the car\'s roll tendency, BASIC as a direct level, ROLL ° for a target roll angle, SHARE % as a fraction of roll stiffness, MAN for direct front/rear values. Balance Mode splits it front to rear: WEIGHT follows weight distribution; NEUTRAL cancels the springs\' effect on the balance bar.'},
     {title:'ARB Bias & Visuals',
      focus:['arb','visuals'],
-     body:'The ARB Bias slider fine-tunes the split either way — push toward front for more understeer resistance, toward rear for more rotation. PRO adds CHASSIS, MECH and CO-SOLVE balance modes. The ARB dial, ROLL/ARB SHARE readout, and SPRINGS/ARBs split bar live in the pinned VISUALS card at the bottom of the sidebar — check there for the live visual.'},
+     body:'The ARB Bias slider fine-tunes the split either way — push toward front for more understeer resistance, toward rear for more rotation. PRO adds CHASSIS, MECH and CO-SOLVE balance modes. The live F/R roll split (with NAT and target ticks), body roll, springs/ARBs share and the front/rear ARB track live in the RIDE · ROLL · DAMPING group of the pinned VISUALS card at the bottom of the sidebar.'},
     {title:'Ride Ref & Rear Hz',
      focus:['feel'],
      body:'RIDE REF. sets which axle the stiffness slider anchors — FRONT, SHARED, or REAR. The secondary axle frequency is derived by the Hz mode: MULTIPLIER (a fixed ratio of the anchored axle, the default), FLAT RIDE (the mathematically ideal pitch-cancelling ratio for a target speed), or INDEPENDENT (set manually, free of the other axle).'},
@@ -5066,7 +4997,7 @@ const TUTORIALS={
      body:'REBOUND MODE and BUMP MODE toggles sit above their sliders. Rebound ζ defaults to 70% — Butterworth, the ratio with no resonant peak (see TERMS): about 4% overshoot and no wallow. Below 40% is bouncy, above 100% is sluggish. Bump Ratio sets compression as a fraction of rebound (40–65% typical). Damping Bias splits front/rear: FRONT keeps the front firm while the rear softens (planted entry); REAR softens the front (easier direction changes) — shown in the DAMP row of Handling Balance.'},
     {title:'VISUALS Card',
      focus:['visuals'],
-     body:'VISUALS is pinned to the bottom of the sidebar so it never scrolls away, and holds four collapsible readouts: ARB (front/rear dial, roll seesaw, SPRINGS/ARBs split bar), RIDE/DAMPERS (your frequencies and damping ratios), DYNAMICS (step response — settle speed, overshoot, ride/damping interaction, with the ±10% settle band drawn), and SAG (suspension travel vs. load). Tap any header to collapse it and give the others more room.'},
+     body:'VISUALS is pinned to the bottom of the sidebar so it never scrolls away, and holds three collapsible readouts: RIDE · ROLL · DAMPING (the front/rear roll-stiffness split, then front and rear ride Hz, ARB and bump/rebound damping on shared tracks), DYNAMICS (step response — settle speed, overshoot, ride/damping interaction, with the ±10% settle band drawn), and SAG (suspension travel vs. load). Tap any header to collapse it and give the others more room.'},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],sidebar:'close',
      body:'The Handling Balance bar is pinned at the bottom of the results panel. It shows your total oversteer or understeer tendency as a number and a bar, colour-zoned neutral / mild / aggressive. Tap it to expand a full per-contributor breakdown — every input you\'ve touched in the sidebar shows up here as a row, including the DIFF rows from the drivetrain sliders and the DAMP row from Damping Bias, so you can see which change actually moved the balance.'},
@@ -5113,7 +5044,7 @@ const TUTORIALS={
      body:'PRO unlocks CHASSIS, MECH, and CO-SOLVE balance modes. CHASSIS is WEIGHT\'s formula anchored to your real natural balance instead of raw weight %. MECH solves the ARB split alone to hit your Mech Balance Target exactly — as Forza displays it. CO-SOLVE adjusts rear spring Hz and ARB split together — Spring Share controls the mix. A target the car can\'t reach within game limits is flagged.'},
     {title:'Hz MECH & Balance Target Mode',
      focus:['arb','visuals'],
-     body:'Hz MECH mode derives rear Hz from the target directly. Balance Target mode (NATURAL, RANGE, GRIP or MANUAL) applies to all three solving modes above. The ARB dial itself lives in the pinned VISUALS card at the bottom of the sidebar.'},
+     body:'Hz MECH mode derives rear Hz from the target directly. Balance Target mode (NATURAL, RANGE, GRIP or MANUAL) applies to all three solving modes above. The resulting F/R split and the ARB tracks live in the pinned VISUALS card at the bottom of the sidebar.'},
     {title:'Alignment Mode',
      focus:['alignment'],
      body:'BUILD (default) computes camber, toe, and caster from build type, layout, weight bias, and roll angle only. MECH nudges camber and toe toward your Mech Balance Target\'s gap from natural — reinforcing whatever oversteer/understeer intent you\'ve dialed in. GRIP nudges to counteract the chassis\'s own natural grip tendency instead, independent of ARB mode. Nudge Strength (shown for MECH/GRIP) scales how far the nudge goes — 0% matches BUILD exactly. MANUAL lets you type exact camber, toe, and caster values, bypassing the solver entirely.'},
@@ -5769,7 +5700,7 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visArb:true,visRideDampers:true,visDynamics:true,visSag:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true});
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
   // parse to a full radius, and only when the rounded-mm result actually changed, so this
@@ -6247,7 +6178,7 @@ function App(){
   // and the whole output column dereference this without a guard. See docs/HISTORY.md.
   const lim=limitsOf(fe.gameMode);
   // True when the active game mode outputs real physical units instead of Forza clicks.
-  // Anything keyed off a ceiling (warnings, "/ N" suffixes, context badges, the ARB dial,
+  // Anything keyed off a ceiling (warnings, "/ N" suffixes, context badges, the VISUALS ARB track,
   // BASIC stiffness mode, MAN click entry) has to null-check or hide under this.
   const physMode=isPhysical(fe.gameMode);
   const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
@@ -6416,8 +6347,8 @@ function App(){
            trackF_rec,trackR_rec,dTrackF,dTrackR,trackFfeas,trackRfeas};
   })();
   const{twF:_twF,twR:_twR}=tyreWidths(ch);
-  // Display space: the NAT that targets, the Balance Guide, the MECH BALANCE strip and the dials'
-  // ghost markers are all measured against.
+  // Display space: the NAT that targets, the Balance Guide, the MECH BALANCE strip and the VISUALS
+  // roll-split ticks and ghost rings are all measured against.
   const natMechBalance=natDisplayOf(ch,fe.gameMode);
   // Gap-dependent chassis recommendations — use natMechBalance so measured mode takes effect here too
   const _sgap=chassisAnalysis.targetBal-natMechBalance;
@@ -8714,9 +8645,9 @@ function App(){
 
           </>}
         </div>
-        {/* PINNED — stays put while the scrollable content above it scrolls, so graphs/dials
+        {/* PINNED — stays put while the scrollable content above it scrolls, so the graphs
             here stay visible regardless of which input section is currently open. BEG mode has
-            its own simplified panel with no ARB/RIDE/DAMPERS sections for these dials to relate
+            its own simplified panel with no ARB/RIDE/DAMPERS sections for these readouts to relate
             to, so VISUALS stays hidden there. */}
         {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')}>
@@ -8749,87 +8680,39 @@ function App(){
                 </div>
               </div>}
               </>}
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visArb:!p.visArb}))}
+              {(()=>{
+                // RIDE · ROLL · DAMPING — replaced the ARB (ArbDial + roll seesaw) and RIDE /
+                // DAMPERS (SpringDial + DampingDial) groups. The split divide is the display-space
+                // mech balance the MECH BALANCE strip plots; a null falls back to the raw roll-
+                // stiffness rear fraction so the card still draws.
+                const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
+                const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
+                return<>
+              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRide:!p.visRide}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>ARB</span>
-                <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visArb?'▲':'▼'}</span>
+                <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
+                {!open.visRide&&<span style={{fontSize:9,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
+                  R {Math.round(mechBal*100)}% · ×{tune.fHz>0?(tune.rHz/tune.fHz).toFixed(2):'—'} · {tune.rollDeg.toFixed(1)}°</span>}
+                <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visRide?'▲':'▼'}</span>
               </div>
-              {open.visArb&&<>
-              <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:18}}>
-                <div style={{flex:1,minWidth:0,display:'flex',justifyContent:'center'}}>
-                  {/* No ceiling in physical modes, so the arc gets a dynamic full scale with
-                      25% headroom above the stiffer bar. It reads as an F/R split rather than
-                      a percentage-of-max; ArbDial hides its warning bands under `physical`. */}
-                  <ArbDial arbF={tune.arbF} arbR={tune.arbR}
-                    arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
-                    dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF).value}
-                    dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR).value}
-                    rsAbF={tune.rsAbF} rsAbR={tune.rsAbR}
-                    natBal={natMechBalance} target={feEffective.arbBalTarget} rideRef={physics.rideRef}/>
-                </div>
-                <div style={{flex:1,minWidth:0,display:'flex',justifyContent:'center'}}>
-                <div style={{width:120,flexShrink:0,display:'flex',flexDirection:'column',gap:6}}>
-                  {/* roll seesaw preview */}
-                  <div style={{padding:'0 4px'}}>
-                    <svg width="100%" height="24" viewBox="0 0 100 24" style={{overflow:'visible'}}>
-                      <line x1="5" y1="20" x2="95" y2="20" stroke="#1e293b" strokeWidth="2" strokeLinecap="round"/>
-                      {arbMode==='roll'&&(
-                        <g transform={`rotate(${-Math.min(tune.rollTarget*4,25)} 50 20)`}>
-                          <line x1="15" y1="14" x2="85" y2="14" stroke="#3b82f6" strokeWidth="1.5"
-                            strokeDasharray="3 2" opacity="0.4" strokeLinecap="round"/>
-                        </g>
-                      )}
-                      <g transform={`rotate(${-Math.min(tune.rollDeg*4,25)} 50 20)`}
-                         style={{transition:'transform 0.15s ease-out'}}>
-                        <line x1="20" y1="14" x2="80" y2="14"
-                          stroke={tune.rollClamped?'#f59e0b':'#e2e8f0'} strokeWidth="1.5" strokeLinecap="round"/>
-                        <rect x="15" y="10" width="5" height="8" rx="1.5" fill="#0f172a"
-                          stroke={tune.rollClamped?'#f59e0b':'#cbd5e1'} strokeWidth="1.5"/>
-                        <rect x="80" y="10" width="5" height="8" rx="1.5" fill="#0f172a"
-                          stroke={tune.rollClamped?'#f59e0b':'#cbd5e1'} strokeWidth="1.5"/>
-                      </g>
-                    </svg>
-                  </div>
-                  {/* roll value */}
-                  <div style={{display:'flex',alignItems:'center',gap:6,padding:'0 4px'}}>
-                    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ROLL</span>
-                    <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,
-                                  color:tune.rollClamped?'#f59e0b':'#e2e8f0'}}>{tune.rollDeg.toFixed(1)}</span>
-                    <span style={{fontSize:10,color:'#94a3b8'}}>°</span>
-                  </div>
-                  {/* springs/ARBs contribution bar — also serves as the ARB SHARE readout */}
-                  <div style={{padding:'0 4px'}}>
-                    <div style={{display:'flex',height:3,borderRadius:2,overflow:'hidden',marginBottom:4}}>
-                      <div style={{flex:Math.max(0,100-tune.arbShare),background:'#3b82f6',opacity:0.55,transition:'flex .2s'}}/>
-                      <div style={{flex:Math.max(0,tune.arbShare),background:'#f59e0b',opacity:0.75,transition:'flex .2s'}}/>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#94a3b8'}}>
-                      <span>SPRINGS {Math.round(100-tune.arbShare)}%</span>
-                      <span>ARBs {Math.round(tune.arbShare)}%</span>
-                    </div>
-                  </div>
-                </div>
-                </div>
-              </div>
-              </>}
-
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRideDampers:!p.visRideDampers}))}
-                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>RIDE / DAMPERS</span>
-                <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visRideDampers?'▲':'▼'}</span>
-              </div>
-              {open.visRideDampers&&
-              <div style={{display:'flex',gap:8,marginBottom:2}}>
-                <div style={{flex:1,minWidth:0,display:'flex',justifyContent:'center'}}>
-                  <SpringDial fHz={tune.fHz} rHz={tune.rHz}
-                    rsSpF={tune.rsSpF} rsSpR={tune.rsSpR}
-                    clamped={physics.rearHzClamped}
-                    natBal={natMechBalance} target={feEffective.arbBalTarget} rideRef={physics.rideRef}/>
-                </div>
-                <div style={{flex:1,minWidth:0,display:'flex',justifyContent:'center'}}>
-                  <DampingDial rebound={Math.round(physics.zetaF)} bump={Math.round(physics.bumpZetaF)}/>
-                </div>
+              {open.visRide&&
+              <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:10,display:'flex',flexDirection:'column',gap:8}}>
+                <VisRollSplit mechBal={mechBal} natBal={natMechBalance} target={feEffective.arbBalTarget}
+                  rsSpF={tune.rsSpF} rsAbF={tune.rsAbF} rsSpR={tune.rsSpR} rsAbR={tune.rsAbR}
+                  rollDeg={tune.rollDeg} rollClamped={tune.rollClamped}
+                  rollTarget={arbMode==='roll'?tune.rollTarget:null} arbShare={tune.arbShare}/>
+                <div style={{height:1,background:'#1e293b'}}/>
+                {/* No ceiling in physical modes, so the ARB track gets a dynamic full scale
+                    with 25% headroom above the stiffer bar; VisSuspTracks hides its bands. */}
+                <VisSuspTracks tune={tune} physics={physics}
+                  natBal={natMechBalance} target={feEffective.arbBalTarget}
+                  arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
+                  dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF).value}
+                  dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR).value}
+                  hzClamped={physics.rearHzClamped}/>
               </div>}
+                </>;
+              })()}
 
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDynamics:!p.visDynamics}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>

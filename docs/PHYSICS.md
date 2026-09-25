@@ -123,7 +123,7 @@ chassis's own balance at equal springs and no bars:
 | Function | Space | Measured | Unmeasured | Used by |
 |---|---|---|---|---|
 | `natRsOf(ch)` | roll stiffness — the real car's rear roll-stiffness fraction | reading − `tireCorr` | `natGeomOf` | `gripNeutralOf`/`natGripBalance` (the grip model), CHASSIS ARB split, the GRIP GAP tyre suggestion |
-| `natDisplayOf(ch, gameMode)` | display — what the game shows | the reading, verbatim | `natDisplayModelOf` | Balance Target deltas and `sanitizeTune`'s clamp, Balance Guide, MECH BALANCE strip, dials, MATCH CHASSIS, MECH alignment nudge |
+| `natDisplayOf(ch, gameMode)` | display — what the game shows | the reading, verbatim | `natDisplayModelOf` | Balance Target deltas and `sanitizeTune`'s clamp, Balance Guide, MECH BALANCE strip, the VISUALS roll-split ticks and ghost rings, MATCH CHASSIS, MECH alignment nudge |
 
 `natDisplayModelOf` is the model's prediction of what MEASURE NAT BAL would read: the
 tyre-series display (`displayRsBalance`) at equal springs of `NAT_BAL_PROBE_HZ` (2.20, the
