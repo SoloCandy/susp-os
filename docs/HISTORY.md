@@ -11,6 +11,35 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MECH + AUTO could not reach targets a stiff spring split leaned away from
+
+With ARB Balance MECH and AUTO stiffness, the bars split AUTO's budget, which is sized for roll
+feel. That budget could move the balance only a short way from where the springs alone put it,
+so a ×1.2 rear multiplier on the default car stopped at 0.47 against a 0.45 target. ROLL got
+there with a larger budget. `computeTune` now grows the AUTO budget, under MECH only, to the
+smallest one that reaches the target, capped at the spring roll stiffness (see PHYSICS.md,
+"How far the ARB split can reach"). CO-SOLVE is left alone, because its spring-share search
+simulates the plain AUTO budget.
+
+The `mechBalClamped` warning used to say "Widen the ARB range" or suggest the budget control
+for SHARE and BASIC, even when that was the wrong fix. It now comes from `mechReachNote`. That
+names the cause: a bar at its click ceiling, or a bar at its floor with those springs already
+past the target. It gives the spring-side fix and, only for a floor, the stiffness mode's budget control.
+
+## Fixed — BEG/INT balance tips named controls the tier could not see, and two pointed the wrong way
+
+`HandlingVerdict`'s SPRINGS and ARB tips said "Reduce the Mech Balance Target or use CO-SOLVE".
+Both are PRO controls, and PRO shows `PhaseVerdict`, not this panel. Every tip now names
+something the tier shows. BEG gets the Balance slider. INT gets ARB Bias, the RIDE multiplier,
+Damping Bias and EXIT/ENTRY by their on-screen end labels. The brakes tip, which used to be
+PRO-gated in a panel PRO never renders, now points every tier at the recommended brake balance
+in the BRAKES card.
+
+Two tips were backwards. The damping tip said "toward positive" to firm the front, but the
+slider's positive side is REAR. The AWD front-diff tip had both directions reversed: it said
+less front lock for oversteer and more for understeer. More front drive lock pushes the nose wide,
+so the fix for oversteer is toward PUSH and the fix for understeer is toward NEUTRAL.
+
 ## Changed — PRO's Handling Balance reads grip margin by corner phase
 
 PRO showed the same point total as BEG/INT (`bTotFull`): five contributors summed on one bar.

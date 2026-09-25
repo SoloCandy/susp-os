@@ -630,16 +630,6 @@ damping have no size in PRO at all: `DIFF_BIAS_SCALE` is uncalibrated (see the B
 above), and damping acts in transients a steady-state model cannot size. Sizing either needs
 at-limit data the three-car protocol does not collect.
 
-## Open — the springs and ARB tips point BEG/INT at PRO-only controls
-
-`HandlingVerdict`'s dominant-contributor tips for SPRINGS and ARB say "Reduce the Mech Balance
-Target or use CO-SOLVE" and similar, in BEG and INT. PRO uses `PhaseVerdict`, where naming
-those controls is correct. The Mech Balance Target and CO-SOLVE are
-PRO controls; a BEG or INT user is being told to use something they cannot see. The BRAKES
-tip is already PRO-gated and the CHASSIS tip has a per-tier wording, so the pattern exists —
-the springs and ARB tips just predate it. Kept out of the chassis-term change as a
-separate wording pass.
-
 ## Open — the unmeasured natural reads low against Forza
 
 In-game measurement on three cars found the geometric estimate (`natGeomOf`) reads
@@ -745,8 +735,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
   to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
   arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **HandlingVerdict damping tip is backwards** (BEG/INT; `PhaseVerdict` has no damping tip). It says "Damping Bias toward positive" to add
-  front rebound, but the slider's positive side is REAR.
 - **"NaN% ARB" when both bars solve to 0** *(reproduced)*. The ARB row's `% ARB` meta has no
   zero guard; TRACK preset in BeamNG shows it on both suspension cards.
 - **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for

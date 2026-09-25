@@ -157,6 +157,21 @@ t('solveTune: Forza GRIP aims at the neutral at the tune stiffness, and returns 
   near(M.solveTune(ch, bfe, 'beamng').target, Math.max(0.20, Math.min(0.90, bfe.arbBalTarget)), 0, 'BeamNG keeps the resolved target');
 });
 
+t('MECH + AUTO widens the bar budget far enough to reach a target the springs lean away from', () => {
+  // A ×1.2 rear multiplier puts the springs alone well rearward of 0.45. AUTO's plain budget
+  // could only split a narrow band around that; it now grows (capped at the spring roll
+  // stiffness) until the target is reachable, as ROLL already could.
+  const ch = chOf({});
+  for (const arbMode of ['auto', 'roll']) {
+    const fe = { ...M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbMode, rearHzMode: 'multiplier', rearHzMult: 1.2, arbBalTargetMode: 'abs' })), arbBalTarget: 0.45 };
+    const { tune } = M.solveTune(ch, fe, 'horizon');
+    assert(!tune.mechBalClamped, `${arbMode}: clamped at ${tune.mechBalance}`);
+    near(tune.mechBalance, 0.45, 0.01, `${arbMode} landed`);
+  }
+  // The expansion is AUTO + MECH only; CO-SOLVE's spring share simulates the plain AUTO budget.
+  assert(/if\(arbMode==='auto'&&arbBalMode==='mech'\)\{\s*const bReq=/.test(src), 'AUTO-only MECH budget expansion is gone or widened');
+});
+
 t('gripNeutralOf: in BeamNG (physical) it is the grip-neutral split plus the tyre term', () => {
   for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);

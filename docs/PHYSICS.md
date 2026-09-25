@@ -845,6 +845,22 @@ frequency (dispatch lives in `feelToPhysics`):
   the CO-SOLVE `Kcs` pre-inversion's `Rbl`, `computeTune`'s ARB-split
   `_mechTgt`/`mechBalance`, and MECH's own `rsBalTgt`).
 
+  **How far the ARB split can reach.** With ARB Balance MECH the bars split a fixed budget
+  `B` front/rear on top of the springs, so the reachable balance is bounded by one bar at its
+  floor and the other taking all of `B`. Under AUTO stiffness that budget is sized for roll
+  feel, not for balance, so it covered only a narrow band around where the springs alone put
+  the balance: a rear multiplier of ×1.2 on the default car could not get below 0.47. With
+  MECH + AUTO, `computeTune` now grows `B` to the smallest value that reaches the target,
+  `max(rsSpR/K − rsSpF, K·rsSpF − rsSpR)` with `K = Kr/Kf` the target's rear/front ratio
+  (plus 1%), capped at the spring roll stiffness. This mirrors NEUTRAL's expansion.
+  ROLL, SHARE and BASIC keep the budget the user set, because there the budget *is* the
+  setting. CO-SOLVE is excluded too: `resolveCoSolveSpringShare` simulates the plain AUTO
+  budget when it picks the spring share, and a larger budget would break that match.
+  When the target is still out of reach, the `mechBalClamped` warning (`mechReachNote`) names
+  the cause: which bar is at its click ceiling, or which bar is at its floor with those springs
+  already past the target. It then gives the spring-side fix (RIDE multiplier, Hz MECH, or
+  Spring Share under CO-SOLVE) and, for a floor, the budget control of the active stiffness mode.
+
   **Auto Spring Share** (`fe.springShareAuto`, the default) picks `S`
   itself instead of taking it from the slider: `resolveCoSolveSpringShare`
   binary-searches `S ∈ [0,1]` for the point where spring utilisation equals

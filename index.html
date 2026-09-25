@@ -1510,6 +1510,20 @@ const computeTune=(ch,phys,gameMode)=>{
   if((arbBalMode==='mech'||arbBalMode==='coSolve')&&rsAbBudget>0){
     const _mechTgt=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset)); // pre-compensate for tyre-width and NAT-BAL calibration offsets
     _rsBalK=_mechTgt/(1-_mechTgt); // convert rsBalance to Kr/Kf ratio
+    // MECH on AUTO: the natural-roll budget reaches only a narrow band around where the springs
+    // alone put the balance, so a stiff-rear multiplier left a front-leaning target unreachable with the
+    // rear bar on its floor. Same answer NEUTRAL gives AUTO: grow the budget just past the point
+    // the split stops clamping, capped at rsSp (bars at most half the roll stiffness, the ceiling
+    // autoShareTarget itself never exceeds). The unclamped split goes below 0 when
+    // K·(rsSpF+B) < rsSpR and above 1 when B < K·rsSpF − rsSpR; each bound solves for the B that
+    // just clears it. ROLL/SHARE/BASIC budgets are the user's own choice and stay untouched, and
+    // CO-SOLVE is left out because resolveCoSolveSpringShare's AUTO share simulates the plain
+    // AUTO budget — growing it here would split the correction against a budget the springs
+    // never saw.
+    if(arbMode==='auto'&&arbBalMode==='mech'){
+      const bReq=Math.max(rsSpR/_rsBalK-rsSpF,_rsBalK*rsSpF-rsSpR);
+      if(bReq>rsAbBudget) rsAbBudget=Math.min(bReq*1.01,rsSp);
+    }
     rF=Math.max(0,Math.min(1,(_rsBalK*(rsSpF+rsAbBudget)-rsSpR)/(rsAbBudget*(1+_rsBalK))));
   } else if(arbBalMode==='neutral'&&arbNeutralEqual){
     // EQUAL ROLL: split the bars in the springs' own F/R proportion, so each axle's ARB
@@ -3494,6 +3508,31 @@ const BiasSeg=({label,val,hint,primary,totalAbs,scale=15,dead=0.5,muted})=>{
   );
 };
 
+// Why a MECH/CO-SOLVE balance target was missed, and what would reach it — the text after
+// "achieved x" in both mechBalClamped warnings (ARB card and the warnings list). The split misses
+// in one of two ways: the bar on the side the target leans away from is on its floor and the
+// springs alone already carry too much of that end's roll stiffness, or the bar on the other side
+// is on its click ceiling. More bar budget cures the first and not the second; spring balance
+// cures both. MECH on AUTO grows its own budget (computeTune) up to half the roll stiffness, so a
+// miss there already means the springs are the lever. arbLim is null in physical modes (no ceiling).
+const mechReachNote=({tune,target,arbMode,arbBalMode,springShareAuto,arbLim})=>{
+  const tooRear=tune.mechBalance>target;
+  const far=tooRear?'rear':'front',near=tooRear?'front':'rear';
+  const atCeil=arbLim!=null&&(tooRear?tune.arbF:tune.arbR)>=arbLim-0.05;
+  const cause=atCeil
+    ?` The ${near} bar is at its ${arbLim}-click ceiling.`
+    :` The ${far} bar is at its floor and the ${far} springs alone already carry more than the target allows.`;
+  const springs=arbBalMode==='coSolve'
+    ?(springShareAuto?' Disable AUTO Spring Share and raise it, so CO-SOLVE moves more of the correction into the springs.'
+                     :' Raise Spring Share, so CO-SOLVE moves more of the correction into the springs.')
+    :` ${tooRear?'Soften':'Stiffen'} the rear springs relative to the front (the RIDE multiplier), or set the Hz mode to MECH so the springs aim at the target too.`;
+  const budget=atCeil?''
+    :arbMode==='roll'?' Or lower Target Roll Angle, so the bars get a larger budget to split.'
+    :arbMode==='share'?' Or raise ARB Share %, so the bars get a larger budget to split.'
+    :arbMode==='basic'?' Or raise ARB Stiffness, so the bars get a larger budget to split.'
+    :'';
+  return cause+springs+budget;
+};
 const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear,diffLayout,bBrakeEntry,bDampBias,gripBalance,uiMode})=>{
   const abs=Math.abs(total);
   // positive = oversteer, negative = understeer
@@ -3513,27 +3552,37 @@ const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,
   const sorted=[...contributors].sort((a,b)=>Math.abs(b.val)-Math.abs(a.val));
   const dom=sorted[0];
   const domBig=Math.abs(dom.val)>2;
-  // Actionable tip per dominant contributor
+  // Actionable tip per dominant contributor. Only BEG and INT reach this panel (PRO renders
+  // PhaseVerdict), so every tip names a control those tiers can see: BEG has one Balance slider
+  // for all of the springs/bars/damping split and no diff sliders, INT has ARB Bias, the RIDE
+  // multiplier, Damping Bias and the diff EXIT/ENTRY sliders. Directions follow each slider's own
+  // end labels, which are laid out so right always leans oversteer.
+  const beg=uiMode==='beginner';
+  const os=total>0;
+  const begBal=os?'Move Balance toward UNDERSTEER to counter it.':'Move Balance toward OVERSTEER to counter it.';
+  const begDiff='In BEG the diff lock comes from Build Type and Layout. INT adds the EXIT and ENTRY sliders to tune it directly.';
   const domTips={
-    // Tyre sizes and track widths are PRO inputs, so only PRO is pointed at them. Every tier can
-    // answer a chassis lean with stiffness balance, which is what the term is measured in.
-    chassis:   uiMode==='pro'
-      ?(total>0?'The chassis itself leans toward oversteer (tyre stagger, track widths, CG, weight split). Counter it with more front roll stiffness, or narrow a front-favouring stagger (wider fronts add front grip).'
-                :'The chassis itself leans toward understeer (tyre stagger, track widths, CG, weight split). Counter it with more rear roll stiffness, or narrow a rear-favouring stagger (wider rears add rear grip).')
-      :(total>0?'The car itself leans toward oversteer — its build, not your settings. Move the balance toward the front to counter it.'
-                :'The car itself leans toward understeer — its build, not your settings. Move the balance toward the rear to counter it.'),
-    springs:   total>0?'Reduce the Mech Balance Target or use CO-SOLVE to balance spring stiffness.':'Raise the Mech Balance Target — springs are biased toward the front.',
-    ARB:       total>0?'Reduce the Mech Balance Target or shift ARB Bias toward front-heavy.':'Raise the Mech Balance Target or shift ARB Bias toward rear-heavy.',
-    'diff exit':  total>0?'Reduce rear exit lock in the Differential section.':'Increase rear exit lock to add rotation under power.',
-    'diff entry': total>0?`Increase ${diffLayout==='FWD'?'front':'rear'} entry lock — more decel lock resists oversteer.`:`Reduce ${diffLayout==='FWD'?'front':'rear'} entry lock to allow freer rotation on entry.`,
-    'diff front': total>0?'Reduce front accel lock in the AWD Differential section.':'Raise front accel lock.',
-    'diff rear':  total>0?'Reduce rear accel lock in the AWD Differential section.':'Raise rear accel lock.',
-    ...(uiMode==='pro'?{brakes:total>0?'Add more front brake bias to reduce entry rotation.':'Reduce front brake bias to add entry rotation.'}:{}),
-    damping:   total>0?'Increase front rebound (Damping Bias toward positive) to resist forward weight transfer.':'Reduce front rebound bias.',
+    chassis:   os?'The car itself leans toward oversteer — its build, not your settings. Move the balance toward the front to counter it.'
+                 :'The car itself leans toward understeer — its build, not your settings. Move the balance toward the rear to counter it.',
+    springs:   beg?(os?'The rear springs are stiff for the weight they carry. ':'The front springs are stiff for the weight they carry. ')+begBal
+                  :(os?'The rear springs are stiff for the weight they carry. Lower the rear Hz relative to the front (the RIDE multiplier), or offset it with ARB Bias toward FRONT HEAVY.'
+                      :'The front springs are stiff for the weight they carry. Raise the rear Hz relative to the front (the RIDE multiplier), or offset it with ARB Bias toward REAR HEAVY.'),
+    ARB:       beg?(os?'The rear bar carries more than its share. ':'The front bar carries more than its share. ')+begBal
+                  :(os?'Move ARB Bias toward FRONT HEAVY (in MAN, raise ARB F relative to ARB R).'
+                      :'Move ARB Bias toward REAR HEAVY (in MAN, raise ARB R relative to ARB F).'),
+    'diff exit':  beg?begDiff:(os?'Move EXIT toward GRIP — less lock on throttle calms exit rotation.':'Move EXIT toward ROTATE to add rotation under power.'),
+    'diff entry': beg?begDiff:(os?'Move ENTRY toward STABLE — more decel lock resists lift-off rotation.':'Move ENTRY toward LOOSE to allow freer rotation on entry.'),
+    'diff front': beg?begDiff:(os?'Move the FRONT AXLE EXIT toward PUSH — more front lock pulls the nose out of the corner.':'Move the FRONT AXLE EXIT toward NEUTRAL to free the front on throttle.'),
+    'diff rear':  beg?begDiff:(os?'Move the REAR AXLE EXIT toward GRIP, or ENTRY toward STABLE.':'Move the REAR AXLE EXIT toward ROTATE to add rotation under power.'),
+    brakes:    os?'The recommended brake balance (BRAKES card) is rear-leaning for this car. In game, move it forward to calm entry rotation.'
+                 :'The recommended brake balance (BRAKES card) is front-heavy for this car. In game, move it rearward for more turn-in.',
+    damping:   beg?begBal
+                  :(os?'Move Damping Bias toward FRONT — firmer front damping resists weight transfer off the front.'
+                      :'Move Damping Bias toward REAR to let the front take weight more freely.'),
   };
   const tip=abs<3
     ? 'Setup is well balanced.'+(domBig?' Keep an eye on '+dom.name.toUpperCase()+' if the car feels inconsistent.':'')
-    : (domBig?(domTips[dom.name]||'Adjust the dominant contributor.'):'Adjust Balance Target or ARB Bias.');
+    : (domBig?(domTips[dom.name]||'Adjust the dominant contributor.'):(beg?'Adjust the Balance slider.':'Adjust ARB Bias.'));
   const hints={
     chassis:'The car\'s own at-limit lean before any tuning: tyre widths, track widths, CG height and weight split, read from the grip model. Shown as the stiffness bias it takes to cancel it, so −10 means this car needs 10 points of rear-biased roll stiffness just to reach neutral. Springs and ARBs are measured against the weight split; this is the correction from there to where the car is actually neutral.',
     springs:'Spring roll-stiffness bias vs weight distribution. + = oversteer (rear springs relatively stiffer). − = understeer (front springs relatively stiffer).',
@@ -8995,19 +9044,7 @@ function App(){
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f9731633'}}>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{arbMode==='share'
-                ?(arbBalMode==='coSolve'&&fe.springShareAuto!==false
-                  ?' ARB Share % limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
-                  :arbBalMode==='coSolve'
-                  ?' ARB Share % limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Share % to give the bars more range.'
-                  :' ARB Share % limits the total ARB budget — raise ARB Share % to give the bars more range.')
-                :arbMode==='basic'
-                ?(arbBalMode==='coSolve'&&fe.springShareAuto!==false
-                  ?' ARB Stiffness limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
-                  :arbBalMode==='coSolve'
-                  ?' ARB Stiffness limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Stiffness % to give the bars more range.'
-                  :' ARB Stiffness limits the total ARB budget — raise ARB Stiffness % to give the bars more range.')
-                :' ARB floor/ceiling limits prevented the required front/rear split. Widen the ARB range or reduce the balance target.'}
+              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})}
             </div>}
           </Card>
 
@@ -9253,19 +9290,7 @@ function App(){
             </>));
             if(tune.mechBalClamped)warnings.push(warnBox('mechbal','#f97316',<>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{arbMode==='share'
-                ?(arbBalMode==='coSolve'&&fe.springShareAuto!==false
-                  ?' ARB Share % limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
-                  :arbBalMode==='coSolve'
-                  ?' ARB Share % limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Share % to give the bars more range.'
-                  :' ARB Share % limits the total ARB budget — raise ARB Share % to give the bars more range.')
-                :arbMode==='basic'
-                ?(arbBalMode==='coSolve'&&fe.springShareAuto!==false
-                  ?' ARB Stiffness limits the total ARB budget — disable AUTO and increase Spring Share to let CO-SOLVE contribute more correction from springs.'
-                  :arbBalMode==='coSolve'
-                  ?' ARB Stiffness limits the total ARB budget — increase Spring Share so CO-SOLVE contributes more spring correction, or raise ARB Stiffness % to give the bars more range.'
-                  :' ARB Stiffness limits the total ARB budget — raise ARB Stiffness % to give the bars more range.')
-                :' ARB floor/ceiling limits prevented the required front/rear split. Widen the ARB range or reduce the balance target.'}
+              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})}
             </>));
             if(hzClampNote)warnings.push(warnBox('rearhz','#f59e0b',hzClampNote));
             if(tune.coSolveLiftRisk)warnings.push(warnBox('lift','#f59e0b',<>
