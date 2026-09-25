@@ -41,7 +41,8 @@ const M = new Function(
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
-  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf};'
+  'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf,' +
+  'natGeomOf,naturalMechBalanceOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL};'
 )();
 
 let pass = 0, fail = 0;
@@ -524,6 +525,97 @@ t('a bar pinned at a click limit holds the roll balance the unclamped split aske
   const h = solve({ frontBias: 40 }, fe, 'horizon').tune, b = solve({ frontBias: 40 }, fe, 'beamng').tune;
   if (h.arbF < 65) throw new Error(`front bar no longer pinned (${h.arbF})`);
   near(rb(h), rb(b), 0.005, 'roll balance vs unclamped');
+});
+
+// MEAS. NAT BAL replaces the geometry outright (naturalMechBalanceOf returns the reading and
+// never looks at the chassis), so a chassis edit after the reading leaves the app reporting a
+// number the car no longer produces. natBalStale is the guard; NAT_BAL_STALE_TOL is the reading's
+// own 2dp resolution. See docs/HISTORY.md.
+console.log('\n── MEAS. NAT BAL staleness ──');
+const measured = (over = {}) => {
+  const base = { ...M.DEF_CH, ...over };
+  return { ...base, useMeasuredNatBal: true, measuredNatBal: 0.47,
+           measuredNatBalHz: 2.2, measuredNatBalRef: M.natBalRefOf(base) };
+};
+t('a reading on an unchanged chassis is not stale', () => {
+  if (M.natBalStale(measured())) throw new Error('flagged with nothing changed');
+});
+t('a legacy reading with no reference is never stale', () => {
+  const ch = { ...measured(), measuredNatBalRef: null };
+  if (M.natBalStale(ch)) throw new Error('a reading with no reference must not be flagged');
+});
+t('an unmeasured chassis is never stale', () => {
+  if (M.natBalStale({ ...M.DEF_CH })) throw new Error('flagged without a reading');
+  if (M.natBalStale({ ...measured(), useMeasuredNatBal: false }))
+    throw new Error('flagged with the reading switched off');
+});
+t('front bias, track and tyres each trip it once they move the prediction', () => {
+  const ch = measured();
+  const ref = ch.measuredNatBalRef;
+  for (const [what, over] of [
+    ['frontBias', { frontBias: M.DEF_CH.frontBias + 8 }],
+    ['trackR',    { trackR: M.DEF_CH.trackR + 0.10 }],
+    ['trackF',    { trackF: M.DEF_CH.trackF + 0.10 }],
+    ['tyreR',     { tyreR: '335/30R18' }],
+  ]) {
+    const moved = { ...ch, ...over };
+    const delta = Math.abs(M.natBalRefOf(moved) - ref);
+    if (delta < 0.01) throw new Error(`${what} fixture moved the prediction only ${delta} — pick a bigger change`);
+    if (!M.natBalStale(moved)) throw new Error(`${what} moved the prediction by ${delta} and was not flagged`);
+  }
+});
+t('a real change below the reading resolution is not flagged', () => {
+  const ch = measured();
+  // Half a point of front bias: a genuine edit that genuinely moves the prediction (~0.005),
+  // but by less than the 0.01 the reading itself is typed at. Deliberately NOT a weight nudge —
+  // weight cancels exactly (see below), so that would test floating-point noise, not a change.
+  const nudged = { ...ch, frontBias: ch.frontBias + 0.5 };
+  const delta = Math.abs(M.natBalRefOf(nudged) - ch.measuredNatBalRef);
+  if (delta < 1e-4) throw new Error(`fixture barely moved the prediction (${delta}) — test proves nothing`);
+  if (delta >= M.NAT_BAL_STALE_TOL) throw new Error(`fixture moved the prediction ${delta}, at or past the tolerance`);
+  if (M.natBalStale(nudged)) throw new Error(`flagged on a ${delta} move, under the ${M.NAT_BAL_STALE_TOL} tolerance`);
+});
+t('the tolerance lands where the docs say: ~1 point of front bias, ~3 cm of track', () => {
+  // Pins the practical sensitivity, so a change to natGeomOf or TIRE_MECH_SCALE that quietly
+  // makes the flag hair-trigger or useless fails here rather than in the field.
+  const ch = measured();
+  const moved = over => Math.abs(M.natBalRefOf({ ...ch, ...over }) - ch.measuredNatBalRef);
+  const cases = [
+    ['frontBias +1',   { frontBias: ch.frontBias + 1 },   false],
+    ['frontBias +2',   { frontBias: ch.frontBias + 2 },   true],
+    ['trackR +0.01 m', { trackR: ch.trackR + 0.01 },      false],
+    ['trackR +0.05 m', { trackR: ch.trackR + 0.05 },      true],
+  ];
+  for (const [what, over, shouldFlag] of cases) {
+    const got = M.natBalStale({ ...ch, ...over });
+    if (got !== shouldFlag)
+      throw new Error(`${what}: moved ${moved(over).toFixed(5)}, flag ${got}, expected ${shouldFlag}`);
+  }
+});
+t('the tolerance is the boundary, and it is inclusive', () => {
+  const ch = measured();
+  const just = { ...ch, measuredNatBalRef: M.natBalRefOf(ch) - M.NAT_BAL_STALE_TOL };
+  if (!M.natBalStale(just)) throw new Error('a move of exactly the tolerance should flag');
+  const under = { ...ch, measuredNatBalRef: M.natBalRefOf(ch) - M.NAT_BAL_STALE_TOL * 0.9 };
+  if (M.natBalStale(under)) throw new Error('a move just under the tolerance should not flag');
+});
+t('weight alone does not trip it — it scales both corners together', () => {
+  // Worth pinning: corner mass appears in numerator and denominator of natGeomOf, so a uniform
+  // weight change cancels. Only the SPLIT moves the prediction. If that ever stops being true,
+  // this test says so rather than the staleness flag quietly changing meaning.
+  const ch = measured();
+  const heavy = { ...ch, weight: ch.weight * 1.5 };
+  // Exactly zero, not merely small: corner mass is in both the numerator and the denominator.
+  if (Math.abs(M.natBalRefOf(heavy) - ch.measuredNatBalRef) > 1e-12)
+    throw new Error('uniform weight now moves the geometric prediction — revisit what stale means');
+});
+t('natGeomOf is what naturalMechBalanceOf falls back to', () => {
+  const ch = { ...M.DEF_CH };
+  if (M.naturalMechBalanceOf(ch) !== M.natGeomOf(ch))
+    throw new Error('the unmeasured branch and natGeomOf have diverged');
+  const m = measured();
+  if (M.naturalMechBalanceOf(m) !== m.measuredNatBal)
+    throw new Error('a reading must be returned verbatim, not blended with geometry');
 });
 
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);

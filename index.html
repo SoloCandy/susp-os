@@ -313,10 +313,16 @@ const parseTyre=str=>{
 // Uses the measured reading in place of the geometry prediction when MEASURE NAT BAL is active.
 // Mech Balance Target/Balance Offset are stored as deltas from this value so a saved/shared
 // build re-targets correctly against whatever chassis it's applied to.
-const naturalMechBalanceOf=ch=>{
-  if(ch.useMeasuredNatBal&&ch.measuredNatBal!=null)return Math.max(0.10,Math.min(0.90,ch.measuredNatBal));
+// The track-width/corner-mass estimate of natural balance — what the app predicts before any
+// measurement. Factored out because three things need the same expression: the unmeasured branch
+// below, natOffsetOf's subtraction, and natBalRefOf's staleness reference.
+const natGeomOf=ch=>{
   const mc=cornerMasses(ch);
   return mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
+};
+const naturalMechBalanceOf=ch=>{
+  if(ch.useMeasuredNatBal&&ch.measuredNatBal!=null)return Math.max(0.10,Math.min(0.90,ch.measuredNatBal));
+  return natGeomOf(ch);
 };
 // MEASURE NAT BAL's gap from the geometric estimate, as a constant rsBalance-space offset. The
 // measured value is read off Forza's display, which already includes the tyre-width effect, so
@@ -324,10 +330,31 @@ const naturalMechBalanceOf=ch=>{
 // counted it twice on cars with different front/rear tyre widths. 0 when not measuring.
 const natOffsetOf=ch=>{
   if(!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null))return 0;
-  const mc=cornerMasses(ch);
-  const geom=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
-  return naturalMechBalanceOf(ch)-geom-tireCorrOf(ch);
+  return naturalMechBalanceOf(ch)-natGeomOf(ch)-tireCorrOf(ch);
 };
+// What the model predicted for THIS chassis at the moment the reading was taken — the geometry
+// estimate plus the tyre-width term, which together are exactly the quantity a MEAS. NAT BAL
+// reading replaces. Stored with the reading so staleness is one subtraction.
+const natBalRefOf=ch=>natGeomOf(ch)+tireCorrOf(ch);
+// A MEAS. NAT BAL reading measures ONE car in ONE state. naturalMechBalanceOf returns it verbatim
+// and ignores the chassis entirely, so editing weight, front bias, track widths or tyres afterwards
+// changes what the car would really read while the app keeps reporting the old number — silently,
+// and with no way to tell a still-good reading from a stale one. This is the counterpart to
+// arbScaleStale, which guards step 2 against step 1 drifting; step 1 had no guard against the
+// chassis it stands in for.
+//
+// The threshold is the reading's OWN resolution. MEAS. NAT BAL is typed and displayed to two
+// decimals, so a predicted-balance move below 0.01 cannot be distinguished from the precision of
+// the measurement it would invalidate — flagging it would be noise. Exact equality (what
+// arbScaleStale uses) is right there because it compares two stored readings, not a live
+// floating-point model that a 1 lb weight edit perturbs.
+//
+// A reading saved before the reference existed has measuredNatBalRef == null and is never stale:
+// there is nothing to compare, and guessing would flag every pre-existing reading at once. Same
+// treatment measuredArbNatHz gets via NAT_BAL_REF_HZ.
+const NAT_BAL_STALE_TOL=0.01;
+const natBalStale=ch=>!!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null&&ch.measuredNatBalRef!=null
+  &&Math.abs(natBalRefOf(ch)-ch.measuredNatBalRef)>=NAT_BAL_STALE_TOL);
 // MEASURE NAT BAL's offset for the Forza display (displayRsBalance): the reading minus what the
 // tyre-series model shows at equal springs of the Hz it was measured at, minus tireCorr (already
 // inside the reading). The model's equal-Hz balance moves slightly with Hz, which is why the Hz
@@ -2335,7 +2362,7 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               trackF:1.55,trackR:1.52,
               tyreF:'265/35R18',tyreR:'265/35R18',
               useMeasuredNatBal:false,measuredNatBal:null,layout:'RWD',
-              measuredNatBalHz:null,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null,
+              measuredNatBalHz:null,measuredNatBalRef:null,useMeasuredArbClick:false,measuredArbClick:null,measuredArbNat:null,measuredArbNatHz:null,
               useRideHeightCG:true,rideHeightF:0.13,rideHeightR:0.12,
               // Spring/damper travel per unit wheel travel. 1.0 = direct-acting, which is
               // what Forza displays, so these are inert in the Forza modes and only affect
@@ -3554,6 +3581,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               unchanged below the step number: the tutorials and docs name them. */}
           {ckMode==='probe'&&(()=>{
             const natDone=!!ch.useMeasuredNatBal;
+            const natStale=natBalStale(ch);
             const arbDone=!!ch.useMeasuredArbClick;
             // MEASURED is selectable once there is something to select: a fresh pair of readings to
             // apply, or a scale already applied (so the toggle still reads as a pair when the modal
@@ -3571,7 +3599,9 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               </CkIntro>
 
               <Card title="STEP 1 · NAT BAL SETUP" accent
-                headerRight={<CkChip on={natDone}>{natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</CkChip>}>
+                headerRight={<CkChip on={natDone} warn={natStale}>
+                  {natStale?'RE-MEASURE '+(ch.measuredNatBal??0).toFixed(2)
+                    :natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</CkChip>}>
                 <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
                   What this car's Mech Balance reads on equal springs with the bars backed off — the
                   figure the calculator otherwise predicts from track widths. Once it is set those
@@ -3596,19 +3626,28 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   <span style={{display:'flex',alignItems:'center',gap:6}}>
                     {!natDone&&<span style={{fontSize:10,color:'#475569',letterSpacing:1}}>NOT SET</span>}
                     <NumBox value={ch.measuredNatBal??0.50} min={0.30} max={0.90} dp={2} label="Measured natural balance"
-                      onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz}))}/>
+                      onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz,
+                        measuredNatBalRef:natBalRefOf(p)}))}/>
                   </span>
                 </div>
                 <input type="range" className="sli" min={0.30} max={0.90} step={0.01}
                   value={ch.measuredNatBal??0.50}
-                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz}))}
+                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz,
+                    measuredNatBalRef:natBalRefOf(p)}))}
                   style={{width:'100%'}}/>
+                {natStale&&<CkWarn>
+                  The chassis has changed since this reading. It was taken on a car the app predicted
+                  at {ch.measuredNatBalRef.toFixed(2)}; the same prediction is now {natBalRefOf(ch).toFixed(2)}.
+                  A reading describes one car in one state, and this one is still being used as-is —
+                  take it again on the car as it stands now, or CLEAR it to go back to the prediction.
+                  {arbDone&&' The ARB scale below was solved against it and rests on the same reading.'}
+                </CkWarn>}
                 {natDone&&<div style={{fontSize:10,color:'#475569',letterSpacing:1,marginTop:6,
                                        display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <span>SAVED AT {(ch.measuredNatBalHz??NAT_BAL_REF_HZ).toFixed(2)} HZ</span>
                   <button className="tbtn" style={{fontSize:10,padding:'2px 6px',color:'#6b7280'}}
                     title="Clear this reading and go back to the track-width prediction."
-                    onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null}))}>CLEAR</button>
+                    onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>CLEAR</button>
                 </div>}
               </Card>
 
@@ -3961,6 +4000,9 @@ const CODEC_FIELDS=[
   // 75/76: the MEAS. NAT BAL and its Hz that 74 was measured against, so arbScaleStale can flag it.
   {id:75,group:'ch',key:'measuredArbNat'},
   {id:76,group:'ch',key:'measuredArbNatHz'},
+  // 78: the model's own prediction at the moment MEAS. NAT BAL was read, so natBalStale can tell
+  // a reading that still describes this chassis from one the chassis has moved out from under.
+  {id:78,group:'ch',key:'measuredNatBalRef'},
   // 77: the complexity tier the code was written in — metadata about the tune's authoring,
   // not an input to any solve. Decoding surfaces it for display only; nothing applies it.
   {id:77,group:'meta',key:'tier',enc:TIER_ENC,dec:TIER_DEC},
@@ -4056,7 +4098,7 @@ const SHARE_PARTS=[
   {id:'ch',group:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout',
    keys:['weight','frontBias','wheelbase','cgHeight','trackF','trackR','layout','tyreF','tyreR',
          'rideHeightF','rideHeightR','motionRatioF','motionRatioR','arbMotionRatioF','arbMotionRatioR',
-         'useMeasuredNatBal','measuredNatBal','measuredNatBalHz',
+         'useMeasuredNatBal','measuredNatBal','measuredNatBalHz','measuredNatBalRef',
          'useMeasuredArbClick','measuredArbClick','measuredArbNat','measuredArbNatHz']},
   {id:'ride',group:'fe',label:'SPRINGS',sub:'Ride stiffness · rear Hz · game mode',
    keys:['rideStiffness','rideStiffMode','rideBottomG','rideRef',
@@ -4146,6 +4188,10 @@ const sanitizeTune=({ch,fe,dr})=>{
       useMeasuredNatBal: !!(ch?.useMeasuredNatBal),
       measuredNatBal:    ch?.useMeasuredNatBal&&ch?.measuredNatBal!=null?cl(ch.measuredNatBal,0.10,0.90,null):null,
       measuredNatBalHz:  ch?.useMeasuredNatBal&&ch?.measuredNatBalHz!=null?cl(ch.measuredNatBalHz,HZ_MIN,HZ_MAX,null):null,
+      // Same flag-off-means-null invariant as the rest of the measured block. Bounds are the
+      // reading's own 0.10..0.90 plus room for the tyre term, which can push the prediction
+      // slightly outside it on a car with very uneven tyre widths.
+      measuredNatBalRef: ch?.useMeasuredNatBal&&ch?.measuredNatBalRef!=null?cl(ch.measuredNatBalRef,0.00,1.00,null):null,
       // useMeasuredArbScale/measuredArbScale (pre-tyre-model, retired codec ids 70/71) are
       // deliberately not carried over: read as the new scale they would halve the bars.
       useMeasuredArbClick: !!(ch?.useMeasuredArbClick),
@@ -7152,11 +7198,14 @@ function App(){
                 onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>MEASURE NAT BAL</button>
               <Hint text="An alternative to entering track widths — the game's Mech Balance already accounts for your car's real geometry, including track width upgrades. Wheelbase is still used separately for flat-ride Hz and brake balance. Open Tune Check and switch to MEASURE for step-by-step setup. CHASSIS = geometry prediction (track widths required). MEASURED = your in-game reading."/>
               {ch.useMeasuredNatBal&&<>
-                <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
+                <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:natBalStale(ch)?'#f59e0b':'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
                 <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
-                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null}))}>✕</button>
+                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>✕</button>
               </>}
             </div>}
+            {uiMode==='pro'&&natBalStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
+              title="The chassis has changed since MEAS. NAT BAL was read, and the reading is still being used as-is. Open MEASURE and take it again, or clear it."
+              onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>NAT BAL: RE-MEASURE</button>}
             {uiMode==='pro'&&arbScaleStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
               title="The ARB click scale was measured against a different MEAS. NAT BAL. Open MEASURE and take the ARB readings again."
               onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>ARB SCALE: RE-MEASURE</button>}

@@ -94,8 +94,9 @@ future version might not carry.
 | 75 | ch | measuredArbNat | raw number |
 | 76 | ch | measuredArbNatHz | raw number |
 | 77 | meta | tier | enum (`TIER_ENC/DEC`) |
+| 78 | ch | measuredNatBalRef | raw number — staleness reference, see note |
 
-**Next available id: 78.**
+**Next available id: 79.**
 
 Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
 only field in the `meta` group, and the only field that is not an input to any solve
@@ -165,6 +166,21 @@ click scale was measured against. `arbScaleStale` flags the scale (RE-MEASURE)
 when the chassis's current reading differs. Absent (older codes, scales applied
 before these ids) means unknown and is never flagged.
 
+Id 78 (`measuredNatBalRef`) is the same idea one level up: the model's own
+prediction — `natGeomOf(ch) + tireCorrOf(ch)`, the geometry estimate plus the
+tyre-width term — at the moment the MEAS. NAT BAL reading was taken. That is
+exactly the quantity the reading replaces, so `natBalStale` is one subtraction
+against the live prediction. It travels with the chassis because the prediction is
+a property of the chassis, and a reading without its reference would arrive
+permanently unflaggable.
+
+`NAT_BAL_STALE_TOL` is **0.01**, the resolution the reading is entered and shown
+at: a predicted-balance move smaller than that cannot be distinguished from the
+precision of the measurement it would invalidate. Exact equality is right for
+75/76 because those compare two stored readings; 78 compares against a live
+floating-point model that any weight edit perturbs. Absent (older codes, readings
+taken before this id) means unknown and is never flagged.
+
 ## Parts — how a decoded code is applied
 
 A code is **staged, not applied**. Decoding produces a `pending` tune that nothing on
@@ -179,7 +195,7 @@ choice, decided after the code is read.
 
 | Part | Group | Fields |
 |---|---|---|
-| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
+| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |

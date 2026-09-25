@@ -11,6 +11,66 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a MEAS. NAT BAL reading kept being used after the chassis moved out from under it
+
+`arbScaleStale` guards step 2 against step 1 drifting. Step 1 had no guard against
+the chassis it stands in for, and needed one more than step 2 did, because of how
+the reading is applied:
+
+```js
+const naturalMechBalanceOf=ch=>{
+  if(ch.useMeasuredNatBal&&ch.measuredNatBal!=null)return clamp(ch.measuredNatBal);
+  return natGeomOf(ch);
+};
+```
+
+The reading is returned **verbatim**. It does not correct the geometry estimate,
+it replaces it, and nothing downstream reconsiders it. So editing front weight
+bias, track widths or tyres after taking a reading left the app reporting a
+natural balance the car no longer has — silently, with no way to tell a reading
+that still describes the car from one that does not. Everything anchored to
+natural balance rides on it: the Balance Guide, GRIP BIAS, MECH and CO-SOLVE
+targets, and the ARB click scale solved against it.
+
+**What counts as stale.** `measuredNatBalRef` (codec id 78) records what the model
+itself predicted at the moment of the reading — `natGeomOf(ch) + tireCorrOf(ch)`,
+the geometry estimate plus the tyre term, which is exactly the quantity the reading
+replaces. `natBalStale` is then one subtraction against the live prediction.
+
+`NAT_BAL_STALE_TOL` is **0.01**: the resolution MEAS. NAT BAL is typed and shown
+at, so a smaller move cannot be distinguished from the precision of the measurement
+it would invalidate. Exact equality — what `arbScaleStale` uses — is right there
+because it compares two stored readings; this compares against a live
+floating-point model. On the default chassis 0.01 works out at about one point of
+front bias (1 pt ≈ 0.0100, so 2 flags and 1 does not) or three centimetres of
+track, both pinned in `tests-beamng.js`.
+
+**Uniform weight does not trip it, and that is correct rather than a gap.** Corner
+mass is in both the numerator and denominator of `natGeomOf`, so it cancels exactly
+— measured at 5.6e-17 for a 50% weight increase, i.e. zero. Only the front/rear
+split moves the prediction, which is also physically right: at equal Hz both axle
+roll stiffnesses scale by the same mass factor. This was worth measuring, because
+the first framing of this issue assumed a large weight change would invalidate a
+reading. It does not.
+
+Surfaced the way step 2 already surfaces its own staleness: the STEP 1 card's chip
+goes amber and reads RE-MEASURE 0.47 instead of SET 0.47, an amber block under the
+reading names both predictions and says the ARB scale below rests on the same
+reading, and the sidebar gains a NAT BAL: RE-MEASURE button beside the existing ARB
+one, with the reading's own number going amber.
+
+Readings saved before id 78 carry `null` and are never flagged — nothing to compare
+against, and guessing would flag every pre-existing reading at once. Same treatment
+`measuredArbNatHz` gets via `NAT_BAL_REF_HZ`.
+
+`natGeomOf` is factored out of what were three copies of the same expression
+(`naturalMechBalanceOf`'s fallback, `natOffsetOf`'s subtraction, and now
+`natBalRefOf`); a test pins that the fallback and `natGeomOf` stay identical.
+
+Eight cases in `tests-beamng.js`, and verified in the browser: taking a reading at
+52% front bias records a reference of 0.4703; 53% does not flag, 54% does, and
+returning to 52% clears it — matching the unit tests and the stated sensitivity.
+
 ## Changed — LOAD CODE warns when ARB is taken without the part that gives it units
 
 `arbManF`/`arbManR` are the only codec fields whose units depend on another

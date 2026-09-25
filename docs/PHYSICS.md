@@ -116,6 +116,33 @@ default when those readings were taken). The card now defaults to **2.20 Hz**;
 `NAT_BAL_REF_HZ` is frozen at 2.5 and must not follow it, or every legacy
 reading is reinterpreted at springs it was never taken on.
 
+**A reading describes one car in one state.** `naturalMechBalanceOf` returns the
+reading **verbatim** and never consults the chassis, so editing front bias, track
+widths or tyres afterwards leaves the app reporting a balance the car no longer
+has. `measuredNatBalRef` records what the model itself predicted at the moment of
+the reading — `natGeomOf(ch) + tireCorrOf(ch)`, the geometry estimate plus the
+tyre term, which is exactly the quantity the reading replaces — and `natBalStale`
+flags the reading when that prediction has since moved by `NAT_BAL_STALE_TOL`.
+
+The tolerance is **0.01**, the resolution MEAS. NAT BAL is typed and displayed at:
+a smaller move cannot be distinguished from the precision of the measurement it
+would invalidate. On the default chassis that is about **1 point of front weight
+bias** (1 pt ≈ 0.0100, so 2 pt flags and 1 does not) or **3 cm of track**
+(5 cm ≈ 0.0162 flags, 1 cm ≈ 0.0033 does not) — pinned in `tests-beamng.js` so a
+change to `natGeomOf` or `TIRE_MECH_SCALE` that makes the flag hair-trigger or
+useless fails there.
+
+**Uniform weight does not move it at all**, and that is not an approximation:
+corner mass appears in both the numerator and the denominator of `natGeomOf`, so
+it cancels exactly. Only the front/rear *split* does. Which is also physically
+right — at equal Hz the axle roll stiffnesses scale with the same mass factor, so
+the natural balance is genuinely unchanged.
+
+Readings taken before `measuredNatBalRef` existed carry `null` and are never
+flagged: there is nothing to compare against, and guessing would flag every
+pre-existing reading at once. Same treatment `measuredArbNatHz` gets via
+`NAT_BAL_REF_HZ`.
+
 ### ARB click scale (MEASURE ARB)
 
 One Forza ARB click adds `arbScaleOf(ch)·track²` of suspension roll stiffness
