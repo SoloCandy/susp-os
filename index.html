@@ -702,7 +702,16 @@ const latLoadTransfer=(ch,Kf,Kr)=>{
   const dWr=Mphi*(1-sF)/ch.trackR+Mr*g*a*RC/ch.trackR;   // rear
   return{dWf,dWr,Mf,Mr};
 };
-const mechBalanceLLT=(ch,Kf,Kr)=>{
+// The grip model's core: each axle's lateral capacity per unit of its own static weight — the
+// lateral g that axle can hold at 1 g of lateral load transfer. Steady cornering asks each axle
+// for lateral force in proportion to its static mass, so whichever axle has the smaller figure
+// runs out first. mechBalanceLLT maps the difference onto 0-1; gripMargin states it in percent.
+//
+// ax (in g, + = accelerating, − = braking) moves load between the axles by Mt·ax·h/L, and the
+// longitudinal force it takes — split by fxF, the front axle's share — comes out of each axle's
+// capacity by the friction circle. At ax=0 neither step runs, so mechBalanceLLT's figures are
+// exactly what they were before this function existed.
+const axleLatG=(ch,Kf,Kr,ax=0,fxF=0)=>{
   const g=9.81;
   const{twF,twR}=tyreWidths(ch);
   const{dWf,dWr,Mf,Mr}=latLoadTransfer(ch,Kf,Kr);
@@ -716,7 +725,10 @@ const mechBalanceLLT=(ch,Kf,Kr)=>{
   // change is a latent-cliff fix; the cap below is the half that fixed a live bug.
   // Denominator is (1-k)+k*z/FzRef, positive for any k<1 and any z>=0.
   const fy=Fz=>Fz/(1+TIRE_LOAD_SENS*(Fz/FzRef-1));
-  const wF=Mf*g/2,wR=Mr*g/2;                              // static wheel loads
+  // static wheel loads, then the pitch transfer — capped at the axle's own load for the reason the
+  // lateral cap below gives
+  let wF=Mf*g/2,wR=Mr*g/2;
+  if(ax){const dL=Math.max(-wR,Math.min(wF,(Mf+Mr)*g*ax*ch.cgHeight/ch.wheelbase/2));wF-=dL;wR+=dL;}
   // An axle cannot transfer more load than it carries: at dW = w the inside wheel is already off
   // the ground and there is nothing left to move. Without this cap the model went on
   // "transferring" past lift, which only added load to the outside wheel and made the axle GAIN
@@ -728,9 +740,68 @@ const mechBalanceLLT=(ch,Kf,Kr)=>{
   // line) wants the uncapped compression the springs would see. fy therefore no longer needs a
   // max(0,Fz) floor either — with the cap, w-t is zero at worst, never negative.
   const tF=Math.min(dWf,wF),tR=Math.min(dWr,wR);
-  const FyF=Math.pow(twF/265,WIDTH_GRIP_EXP)*(fy(wF+tF)+fy(wF-tF));
-  const FyR=Math.pow(twR/265,WIDTH_GRIP_EXP)*(fy(wR+tR)+fy(wR-tR));
-  return Math.max(0,Math.min(1,0.5+MECH_BAL_GAIN*(FyF/(Mf*g)-FyR/(Mr*g))));
+  let FyF=Math.pow(twF/265,WIDTH_GRIP_EXP)*(fy(wF+tF)+fy(wF-tF));
+  let FyR=Math.pow(twR/265,WIDTH_GRIP_EXP)*(fy(wR+tR)+fy(wR-tR));
+  if(ax){
+    // Friction circle per axle: what the brakes or the drive take is not there for cornering.
+    // An axle asked for more than its whole capacity has locked or spun up, with nothing lateral left.
+    const Fx=(Mf+Mr)*g*Math.abs(ax),xF=Fx*fxF,xR=Fx*(1-fxF);
+    FyF=Math.sqrt(Math.max(0,FyF*FyF-xF*xF));
+    FyR=Math.sqrt(Math.max(0,FyR*FyR-xR*xR));
+  }
+  return{gF:FyF/(Mf*g),gR:FyR/(Mr*g)};
+};
+const mechBalanceLLT=(ch,Kf,Kr)=>{
+  const{gF,gR}=axleLatG(ch,Kf,Kr);
+  return Math.max(0,Math.min(1,0.5+MECH_BAL_GAIN*(gF-gR)));
+};
+// Grip margin: how much more lateral g the front axle has to spare than the rear, as a percent of
+// the two axles' mean. + = the rear runs out first (oversteer). PRO's Handling Balance unit. It is
+// the grip model's own difference with MECH_BAL_GAIN left out — the gain only rescales that
+// difference onto 0-1, and nothing has calibrated it (docs/KNOWN_ISSUES.md), so a unit that skips it
+// claims nothing the model does not. rs is the REAL rear roll-stiffness fraction, as for
+// balanceFromRsBal, and the ratio is built the same way so the two always share a sign.
+const gripMargin=(ch,rs,ax=0,fxF=0)=>{
+  const r=Math.max(1e-4,Math.min(1-1e-4,rs));
+  const{gF,gR}=axleLatG(ch,1,r/(1-r),ax,fxF);
+  return gF+gR>0?200*(gF-gR)/(gF+gR):0;
+};
+// The reference longitudinal loads ENTRY and EXIT are read at. Arbitrary but stated, and shown
+// beside the figures: how hard someone trail-brakes or feeds in throttle is the driver's choice,
+// not the tune's, and the absolute ENTRY/EXIT margins scale with it far more than with any setting
+// (docs/FORMULAS.md "Phase margins"). Low enough that BRK and DRIVE stay readable.
+const ENTRY_G=0.3,EXIT_G=0.2;
+// PRO's Handling Balance, by phase, in grip-margin percent. MID is the grip model alone at the
+// tune's stiffness split; ENTRY adds what brake bias does to it, EXIT what the drive split does.
+// Each is measured against the load-proportional ("ideal") split at that phase's reference load,
+// so BRK and DRIVE are zero when the axles share the work in proportion to what they carry.
+// PITCH — the car's own weight transfer at that load — is reported but NOT added to the phase
+// total: it is not tunable, and at any realistic load it outweighs everything that is.
+//
+// MID is split into CHAS/SPR/ARB the way the bar splits its units: CHAS is the margin at the
+// weight-matched split, and the rest is shared between springs and ARBs in proportion to
+// bSp/bAb, which are exactly how far each moves the split (their sum is 100·(rsBalance−(1−nf))).
+// Diff lock and damping have no calibrated size (DIFF_BIAS_SCALE is a guess; damping acts only in
+// transients a steady-state model cannot size), so the readout gives them a direction only and
+// reads that from the BEG/INT bar terms.
+const phaseMargins=(ch,tune,brakeBias,diff)=>{
+  const nf=ch.frontBias/100,off=natOffsetOf(ch),hL=ch.cgHeight/ch.wheelbase;
+  const Kf=tune.rsSpF+tune.rsAbF,Kr=tune.rsSpR+tune.rsAbR;
+  const rs=(Kf+Kr>0?Kr/(Kf+Kr):1-nf)+off;
+  const mid=gripMargin(ch,rs),chas=gripMargin(ch,1-nf+off);
+  const bs=tune.bSp??0,ba=tune.bAb??0,moved=mid-chas;
+  const sp=Math.abs(bs+ba)>1e-9?moved*bs/(bs+ba):0,ab=moved-sp;
+  const idealBrakeF=Math.max(0,Math.min(1,nf+ENTRY_G*hL));
+  const idealDriveF=Math.max(0,Math.min(1,nf-EXIT_G*hL));
+  const driveF=diff?.layout==='FWD'?1:diff?.layout==='AWD'?1-Math.max(0,Math.min(1,(diff.center??65)/100)):0;
+  const eRef=gripMargin(ch,rs,-ENTRY_G,idealBrakeF),xRef=gripMargin(ch,rs,EXIT_G,idealDriveF);
+  const brk=gripMargin(ch,rs,-ENTRY_G,brakeBias/100)-eRef;
+  const drive=gripMargin(ch,rs,EXIT_G,driveF)-xRef;
+  return{
+    mid:{total:mid,chas,sp,ab},
+    entry:{total:mid+brk,brk,pitch:eRef-mid,idealBias:idealBrakeF*100},
+    exit:{total:mid+drive,drive,pitch:xRef-mid,driveF,idealDriveF},
+  };
 };
 // pure roll-stiffness rear fraction Kr/(Kf+Kr) → balance
 const balanceFromRsBal=(ch,rsBal)=>{
@@ -3389,13 +3460,15 @@ const DiffCard=({title,rows})=>(
   <Card title={title}><RowGroup style={{marginBottom:0}}>{rows}</RowGroup></Card>
 );
 
-const BiasSeg=({label,val,hint,primary,totalAbs})=>{
+// scale: the value at which the bar fills its half. dead: below this it reads as nothing. The
+// defaults are the BEG/INT points; PhaseVerdict passes grip-margin percent figures. muted greys a
+// row that is context rather than something to tune (PRO's PITCH).
+const BiasSeg=({label,val,hint,primary,totalAbs,scale=15,dead=0.5,muted})=>{
   // positive = oversteer (red/right), negative = understeer (blue/left)
-  const c=val>0.5?'#ef4444':val<-0.5?'#3b82f6':'#cbd5e1';
-  const scale=15;
+  const c=muted?'#64748b':val>dead?'#ef4444':val<-dead?'#3b82f6':'#cbd5e1';
   const pct=Math.min(50,Math.abs(val)/scale*50);
   const barStyle=val>=0?{left:'50%',width:`${pct}%`}:{right:'50%',width:`${pct}%`};
-  const pctOfTotal=totalAbs>0.5?Math.round(Math.abs(val)/totalAbs*100):null;
+  const pctOfTotal=totalAbs>dead?Math.round(Math.abs(val)/totalAbs*100):null;
   return(
     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,
                  ...(primary?{background:'#0a0f1a',borderLeft:'2px solid '+(val>0?'#ef444466':'#3b82f666'),
@@ -3407,7 +3480,7 @@ const BiasSeg=({label,val,hint,primary,totalAbs})=>{
       </div>
       <div style={{flex:1,position:'relative',height:8,background:'#0f172a',borderRadius:2}}>
         <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:1,background:'#1e293b'}}/>
-        {Math.abs(val)>0.5&&<div style={{position:'absolute',top:1,bottom:1,borderRadius:1,
+        {Math.abs(val)>dead&&<div style={{position:'absolute',top:1,bottom:1,borderRadius:1,
           background:c+(primary?'ee':'99'),...barStyle}}/>}
       </div>
       <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:c,width:34,textAlign:'right',flexShrink:0,
@@ -3505,6 +3578,108 @@ const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,
       </div>}
       <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:4}}>
         Roll-stiffness and differential contributions. Alignment also affects balance.
+      </div>
+    </div>
+  );
+};
+
+// A contributor with a direction but no calibrated size: diff lock and damping in PRO's phase
+// readout. dir is the sign of the BEG/INT bar term; + = oversteer.
+const DirSeg=({label,dir,hint})=>(
+  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+    <div style={{width:80,display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
+      <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,lineHeight:1.2,whiteSpace:'nowrap'}}>{label}</span>
+      <Hint text={hint}/>
+    </div>
+    <div style={{flex:1,fontSize:10,letterSpacing:1,fontFamily:'var(--font-mono)',
+                 textAlign:dir>0?'right':dir<0?'left':'center',
+                 color:dir>0?'#ef4444':dir<0?'#3b82f6':'#475569'}}>
+      {dir>0?'toward OS ▶':dir<0?'◀ toward US':'—'}
+    </div>
+    <span style={{width:62,flexShrink:0,fontSize:9,color:'#475569',textAlign:'right',letterSpacing:1}}>NO SIZE</span>
+  </div>
+);
+const PHASE_NEUTRAL=1;   // ±% grip margin that reads NEUTRAL — PRO's counterpart of the ±3-point band
+const signOf=v=>Math.abs(v??0)>0.3?Math.sign(v):0;
+const fmtPct=v=>`${v>=0?'+':''}${v.toFixed(1)}%`;
+// PRO's Handling Balance breakdown, by phase, in grip-margin percent (phaseMargins). Replaces
+// HandlingVerdict in PRO only; BEG/INT keep the point bar, which recommendedDiffType also reads.
+const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,gripBalance})=>{
+  const{mid,entry,exit}=phase;
+  const isAWD=diffLayout==='AWD';
+  const tips=[];
+  if(Math.abs(mid.total)>=PHASE_NEUTRAL){
+    const os=mid.total>0;
+    const dom=[['chassis',mid.chas],['springs',mid.sp],['ARB',mid.ab]].filter(([,v])=>Math.sign(v)===Math.sign(mid.total))
+      .sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0]?.[0]??'chassis';
+    tips.push({chassis:os?'Mid-corner: the chassis itself leans toward oversteer (tyre stagger, track widths, CG, weight split). Counter it with more front roll stiffness, or narrow a front-favouring stagger.'
+                          :'Mid-corner: the chassis itself leans toward understeer (tyre stagger, track widths, CG, weight split). Counter it with more rear roll stiffness, or narrow a rear-favouring stagger.',
+               springs:os?'Mid-corner oversteer, mostly from the springs. Lower the Mech Balance Target, or use CO-SOLVE.':'Mid-corner understeer, mostly from the springs. Raise the Mech Balance Target, or use CO-SOLVE.',
+               ARB:os?'Mid-corner oversteer, mostly from the bars. Lower the Mech Balance Target or move ARB Bias toward the front.':'Mid-corner understeer, mostly from the bars. Raise the Mech Balance Target or move ARB Bias toward the rear.'}[dom]);
+  }
+  if(Math.abs(entry.brk)>=PHASE_NEUTRAL)
+    tips.push(entry.brk>0
+      ?`Entry: brake bias ${brakeBias}% asks the rear for more than its share under braking. Move it toward ${Math.round(entry.idealBias)}% to calm the rear.`
+      :`Entry: brake bias ${brakeBias}% loads the fronts past their share under braking. Move it toward ${Math.round(entry.idealBias)}% for more turn-in.`);
+  if(Math.abs(exit.drive)>=PHASE_NEUTRAL)
+    tips.push(isAWD
+      ?(exit.drive>0?'Exit: the centre diff sends the rear more than its share of drive. Shift it toward the front to settle power-on oversteer.'
+                    :'Exit: the centre diff sends the front more than its share of drive. Shift it toward the rear for more rotation under power.')
+      :(exit.drive>0?'Exit: rear drive takes lateral grip from the rear under power. Only throttle and exit diff lock manage it.'
+                    :'Exit: front drive takes lateral grip from the front under power. Only throttle and exit diff lock manage it.'));
+  const hints={
+    chas:'The margin at the weight-matched stiffness split — the car\'s own lean before springs and bars move it: tyre widths, track widths, CG height and weight split, from the grip model.',
+    sp:'How far the springs move the MID margin from CHASSIS, by shifting the roll-stiffness split. Shares the move with ARB in proportion to how far each shifts the split.',
+    ab:'How far the anti-roll bars move the MID margin from CHASSIS. See SPRINGS.',
+    brk:`Brake bias against the load-proportional split at ${ENTRY_G} g braking (${Math.round(entry.idealBias)}% front on this car). Positive: the rear brakes more than its share and has less grip left to corner.`,
+    ePitch:`Load moving forward at ${ENTRY_G} g braking adds front grip and takes rear grip. Not tunable, and not in the ENTRY figure: its size depends on how hard you brake, and it would bury everything a setting can change.`,
+    drive:`The drive split against the load-proportional one at ${EXIT_G} g of drive (${Math.round((1-exit.idealDriveF)*100)}% rear on this car). Positive: the rear carries more than its share of drive and has less grip left to corner.`,
+    xPitch:`Load moving rearward at ${EXIT_G} g of drive. Not tunable, and not in the EXIT figure — see ENTRY's PITCH.`,
+    dEntry:'Off-throttle lock resists the car rotating on entry. Shown as a direction only: nothing has calibrated how much.',
+    dExit:'On-throttle lock. Whether it pushes the car wide or rotates it depends on the layout. Direction only: nothing has calibrated how much.',
+    damp:'Front vs rear damping. Acts only while load is moving — turn-in and direction changes — which a steady-state model cannot size. Direction only.',
+  };
+  const Head=({title,sub,val})=>(
+    <div style={{display:'flex',alignItems:'baseline',gap:6,fontSize:9,color:'#475569',letterSpacing:2,
+                 marginBottom:3,paddingBottom:2,borderBottom:'1px solid #0f172a'}}>
+      <span>{title}</span><span style={{letterSpacing:1,flex:1}}>{sub}</span>
+      {val!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:11,letterSpacing:0,fontWeight:700,
+        color:Math.abs(val)<PHASE_NEUTRAL?'#e2e8f0':val>0?'#ef4444':'#3b82f6'}}>{fmtPct(val)}</span>}
+    </div>
+  );
+  const Seg=p=><BiasSeg scale={10} dead={0.2} {...p}/>;
+  return(
+    <div>
+      <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,padding:'6px 8px',marginBottom:8,
+                   background:'#020617',borderRadius:2,border:'1px solid #0f172a'}}>
+        {tips.length?tips.map((t,i)=><div key={i}>{t}</div>):'Balanced through every phase the model reads.'}
+      </div>
+      <div style={{marginBottom:6}}>
+        <Head title="ENTRY" sub={`· ${ENTRY_G} g braking`} val={entry.total}/>
+        <Seg label="BRAKES" val={entry.brk} hint={hints.brk}/>
+        <DirSeg label="DIFF ENTRY" dir={signOf(bDiffDecel)} hint={hints.dEntry}/>
+        <Seg label="PITCH" val={entry.pitch} hint={hints.ePitch} muted/>
+      </div>
+      <div style={{marginBottom:6}}>
+        <Head title="MID" sub="· steady state" val={mid.total}/>
+        <Seg label="CHASSIS" val={mid.chas} hint={hints.chas}/>
+        <Seg label="SPRINGS" val={mid.sp} hint={hints.sp}/>
+        <Seg label="ARB" val={mid.ab} hint={hints.ab}/>
+      </div>
+      <div style={{marginBottom:6}}>
+        <Head title="EXIT" sub={`· ${EXIT_G} g drive`} val={exit.total}/>
+        <Seg label={isAWD?'CENTRE':'DRIVE'} val={exit.drive} hint={hints.drive}/>
+        <DirSeg label="DIFF EXIT" dir={signOf(bDiffAccel)} hint={hints.dExit}/>
+        <Seg label="PITCH" val={exit.pitch} hint={hints.xPitch} muted/>
+      </div>
+      <div style={{marginBottom:6}}>
+        <Head title="TRANSIENT" sub="· turn-in, direction changes"/>
+        <DirSeg label="DAMP" dir={signOf(bDampBias)} hint={hints.damp}/>
+      </div>
+      <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:4}}>
+        Grip margin: how much more lateral grip the front axle has left than the rear, as a percent of
+        their mean. + = the rear gives up first. ENTRY and EXIT are MID plus what brakes and drive change.
+        GRIP BIAS {gripBalance?.toFixed(2)} is the same model on its 0–1 scale. Alignment also affects balance.
       </div>
     </div>
   );
@@ -4845,7 +5020,7 @@ const TUTORIALS={
      body:'BUILD (default) computes camber, toe, and caster from build type, layout, weight bias, and roll angle only. MECH nudges camber and toe toward your Mech Balance Target\'s gap from natural — reinforcing whatever oversteer/understeer intent you\'ve dialed in. GRIP nudges to counteract the chassis\'s own natural grip tendency instead, independent of ARB mode. Nudge Strength (shown for MECH/GRIP) scales how far the nudge goes — 0% matches BUILD exactly. MANUAL lets you type exact camber, toe, and caster values, bypassing the solver entirely.'},
     {title:'Handling Balance Expanded',
      focus:['balance-bar'],
-     body:'Expand the Handling Balance bar (on phones, tap it then CONTRIBUTIONS) for the full per-contributor breakdown. Contributors are grouped into MECHANICAL (chassis, springs, ARBs) and DYNAMIC (diff, brakes, damping), each row showing its OS/US value and percentage of the total. An actionable tip at the top names the dominant contributor with a concrete fix, a RESPONSE breakdown rates transient character, and the MECH BALANCE strip marks your natural, current, and target roll-stiffness balance.'},
+     body:'Expand the Handling Balance bar (on phones, tap it then CONTRIBUTIONS) for the breakdown by corner phase. In PRO the figure is grip margin: how much more lateral grip the front has left than the rear, in percent. ENTRY adds brake bias at a stated braking load, MID splits into chassis, springs and ARBs, and EXIT adds the drive split; PITCH is shown under each but left out, and diff and damping show a direction only. Tips at the top name what to move, phase by phase, a RESPONSE breakdown rates transient character, and the MECH BALANCE strip marks your natural, current, and target roll-stiffness balance.'},
     {title:'Handling Balance Expanded (2/2)',
      focus:['balance-bar'],
      body:'Scroll down in the expanded panel for LOAD TRANSFER — corner weights and lateral load transfer at 1g cornering. XFER F/R shows how much weight shifts to the outer tyre per axle per g of cornering. OUT/IN show outer and inner wheel loads at 1g. Wider track and lower CG both reduce transfer. These inform ARB aggressiveness and how much camber the outer tyre needs under load.'},
@@ -4856,13 +5031,13 @@ const TUTORIALS={
   balance:[
     {title:'Handling Balance',
      focus:null,
-     body:'This breakdown shows how every tuning force combines into a single US/OS total. Positive (+) means oversteer tendency, negative (−) means understeer tendency. Each row is one contributor. The colour zones show neutral, mild, and aggressive ranges — but the right number depends entirely on your goal.'},
+     body:'This breakdown shows how every tuning force combines into a single US/OS total. Positive (+) means oversteer tendency, negative (−) means understeer tendency. Each row is one contributor. The colour zones show neutral, mild, and aggressive ranges — but the right number depends entirely on your goal. In PRO the figure is different: the mid-corner grip margin in percent, read by corner phase — ENTRY, MID and EXIT.'},
     {title:'Typical Targets by Build',
      focus:null,
-     body:'Rotation-heavy and drift builds typically run +15 to +35. Track builds often sit +5 to +20 for feel under power. Street and GT builds may prefer mild understeer for stability. Use the bar to understand where your balance is coming from, not as a target to hit zero.'},
+     body:'Rotation-heavy and drift builds typically run +15 to +35. Track builds often sit +5 to +20 for feel under power. Street and GT builds may prefer mild understeer for stability. Use the bar to understand where your balance is coming from, not as a target to hit zero. These ranges are in BEG/INT points; the PRO grip-margin percent is a smaller unit, where ±1% already reads NEUTRAL.'},
     {title:'Reading Each Row',
      focus:null,
-     body:'Contributors are split into two groups. MECHANICAL is the car\'s own lean (CHASSIS — tyre sizes, track widths, CG and weight split) plus the springs and ARBs you set against it. DYNAMIC (diff, brakes, damping) are phase and behaviour contributors. Each row shows its value and percentage of the total so you can see at a glance which is dominant. On the compact bar, each contributor appears as a colour-coded segment stacking outward from neutral.'},
+     body:'Contributors are split into two groups. MECHANICAL is the car\'s own lean (CHASSIS — tyre sizes, track widths, CG and weight split) plus the springs and ARBs you set against it. DYNAMIC (diff, brakes, damping) are phase and behaviour contributors. Each row shows its value and percentage of the total so you can see at a glance which is dominant. On the compact bar, each contributor appears as a colour-coded segment stacking outward from neutral. PRO groups the rows by phase instead: brakes under ENTRY, chassis, springs and ARBs under MID, drive under EXIT, with diff and damping shown as a direction only.'},
     {title:'Using the Correction Tip',
      focus:null,
      body:'The tip appears at the top of the expanded panel — above the contributor rows — and names the dominant contributor with a concrete adjustment suggestion. If your balance is further from your intended target than you want, the tip tells you which input to reach for first. For large shifts, your primary balance control has the most leverage — the Balance slider in BEG, or ARB Bias and balance settings in INT and PRO. For small residual adjustments, ARB Bias or Damping Bias give finer control.'},
@@ -5957,6 +6132,11 @@ function App(){
   // tune.bChassis is the chassis's own lean (see computeTune); without it the total measured the
   // stiffness split against the weight split, which is not where the car is actually neutral.
   const bTotFull=tune.bTot+(tune.bChassis??0)+diff.bDiffAccel+diff.bDiffDecel+bBrakeEntry+bDampBias;
+  // PRO reads Handling Balance by phase in grip-margin percent instead (phaseMargins). bTotFull
+  // stays the BEG/INT figure and recommendedDiffType's input in every tier.
+  const phase=useMemo(()=>uiMode==='pro'?phaseMargins(ch,tune,brakeBias,diff):null,[uiMode,ch,tune,brakeBias,diff]);
+  // The headline: MID % in PRO, points elsewhere, each against its own NEUTRAL band.
+  const hbVal=phase?phase.mid.total:bTotFull,hbBand=phase?PHASE_NEUTRAL:3;
   const recommendedDiffType=(()=>{
     const build=dr.buildType??'track';
     const base={track:'race',street:'sport',drift:'drift',rally:'rally',offroad:'offroad',drag:'race'}[build]??'race';
@@ -9683,15 +9863,18 @@ function App(){
               <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
                 <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,flex:1,minWidth:0,overflow:'hidden'}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>HANDLING BALANCE</span>
-                  <Hint text="Combined steady-state handling tendency from all tuning inputs. Positive (+) = oversteer tendency, negative (−) = understeer. Zero is weight-matched neutral — neither end saturates grip first. Tap to expand for contributor breakdown and actionable tip."/>
+                  <Hint text={phase
+                    ?'Mid-corner grip margin: how much more lateral grip the front axle has left than the rear at the limit, as a percent of their mean, from the grip model at this tune\'s roll-stiffness split. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% reads NEUTRAL. Tap to expand for ENTRY and EXIT, and what each setting contributes.'
+                    :'Combined steady-state handling tendency from all tuning inputs. Positive (+) = oversteer tendency, negative (−) = understeer. Zero is weight-matched neutral — neither end saturates grip first. Tap to expand for contributor breakdown and actionable tip.'}/>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flexShrink:0}}>·</span>
+                  {phase&&<span style={{fontSize:10,color:'#64748b',letterSpacing:1,flexShrink:0}}>MID</span>}
                   <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,flexShrink:0,
-                                color:Math.abs(bTotFull)<3?'#e2e8f0':bTotFull>0?'#ef4444':'#3b82f6'}}>
-                    {`${bTotFull>=0?'+':''}${bTotFull.toFixed(1)}`}
+                                color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
+                    {phase?fmtPct(hbVal):`${hbVal>=0?'+':''}${hbVal.toFixed(1)}`}
                   </span>
                   {!isMobile&&<span style={{fontSize:11,letterSpacing:2,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                                color:Math.abs(bTotFull)<3?'#e2e8f0':bTotFull>0?'#ef4444':'#3b82f6'}}>
-                    {Math.abs(bTotFull)<3?'NEUTRAL':bTotFull>0?'OVERSTEER':'UNDERSTEER'}
+                                color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
+                    {Math.abs(hbVal)<hbBand?'NEUTRAL':hbVal>0?'OVERSTEER':'UNDERSTEER'}
                   </span>}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
@@ -9736,8 +9919,14 @@ function App(){
               {(!isPhone||footerOpen)&&<>
               {/* compact stacked balance bar — each contributor rendered as a segment from centre */}
               {(()=>{
+                // PRO draws MID's own three terms in grip-margin percent, ×5 so ±10% fills a half;
+                // brakes, drive, diff and damping belong to other phases (the strip below).
                 const cl=v=>Math.max(-50,Math.min(50,v));
-                const allSegs=[
+                const allSegs=phase?[
+                  {key:'cs', val:phase.mid.chas*5, col:'#2dd4bf'},
+                  {key:'sp', val:phase.mid.sp*5,   col:'#60a5fa'},
+                  {key:'ab', val:phase.mid.ab*5,   col:'#818cf8'},
+                ].filter(s=>Math.abs(s.val)>0.3):[
                   {key:'cs', val:tune.bChassis??0, col:'#2dd4bf'}, // chassis — teal, the grip model's colour
                   {key:'sp', val:tune.bSp??0,   col:'#60a5fa'},  // springs — blue family
                   {key:'ab', val:tune.bAb??0,   col:'#818cf8'},  // ARBs — indigo
@@ -9783,21 +9972,47 @@ function App(){
               })()}
               {/* stacked bar legend — immediately below the bar it describes */}
               <div style={{display:'flex',gap:8,marginTop:3,paddingLeft:2,alignItems:'center',flexWrap:'wrap'}}>
-                {[
+                {(phase?[
+                  {key:'cs',col:'#2dd4bf',label:'CHAS', val:phase.mid.chas*5},
+                  {key:'sp',col:'#60a5fa',label:'SPR',  val:phase.mid.sp*5},
+                  {key:'ab',col:'#818cf8',label:'ARB',  val:phase.mid.ab*5},
+                ]:[
                   {key:'cs',col:'#2dd4bf',label:'CHAS', val:tune.bChassis??0},
                   {key:'sp',col:'#60a5fa',label:'SPR',  val:tune.bSp??0},
                   {key:'ab',col:'#818cf8',label:'ARB',  val:tune.bAb??0},
                   {key:'df',col:'#f59e0b',label:'DIFF', val:(diff.bDiffAccel??0)+(diff.bDiffDecel??0)},
                   {key:'br',col:'#34d399',label:'BRK',  val:bBrakeEntry},
                   {key:'dm',col:'#a78bfa',label:'DAMP', val:bDampBias},
-                ].filter(s=>Math.abs(s.val)>0.3).map(({key,col,label})=>(
+                ]).filter(s=>Math.abs(s.val)>0.3).map(({key,col,label})=>(
                   <span key={key} style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'#94a3b8'}}>
                     <span style={{display:'inline-block',width:8,height:4,borderRadius:1,background:col+'bb',flexShrink:0}}/>
                     {label}
                   </span>
                 ))}
-                <Hint text="Stacked bar shows each contributor as a coloured segment: CHAS (the car's own lean before tuning — tyre sizes, track widths, CG and weight split), SPR (springs), ARB (anti-roll bars), DIFF (differential), BRK (brakes), DAMP (damping bias). Segments stack outward from neutral — the bar's total reach is the combined handling balance."/>
+                <Hint text={phase
+                  ?'The mid-corner margin as coloured segments: CHAS (the car\'s own lean before tuning — tyre sizes, track widths, CG and weight split), SPR (springs), ARB (anti-roll bars). The bar\'s half-width is ±10%. Brakes, drive, diff and damping act in other phases — see the ENTRY / EXIT line and the expanded panel.'
+                  :"Stacked bar shows each contributor as a coloured segment: CHAS (the car's own lean before tuning — tyre sizes, track widths, CG and weight split), SPR (springs), ARB (anti-roll bars), DIFF (differential), BRK (brakes), DAMP (damping bias). Segments stack outward from neutral — the bar's total reach is the combined handling balance."}/>
               </div>
+              {/* PRO: the three phases on one line. ENTRY/EXIT are MID plus the brake or drive term;
+                  diff lock has a direction only. */}
+              {phase&&(()=>{
+                const col=v=>Math.abs(v)<PHASE_NEUTRAL?'#cbd5e1':v>0?'#ef4444':'#3b82f6';
+                const arrow=v=>{const d=signOf(v);return d>0?'▶':d<0?'◀':'';};
+                const Ph=({label,v,dv})=>(
+                  <span style={{display:'flex',alignItems:'baseline',gap:3}}>
+                    <span style={{fontSize:9,color:'#64748b',letterSpacing:1}}>{label}</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:col(v)}}>{fmtPct(v)}</span>
+                    {dv!=null&&arrow(dv)&&<span style={{fontSize:9,color:signOf(dv)>0?'#ef4444':'#3b82f6'}}
+                      title="Diff lock pushes this way — direction only">{arrow(dv)}</span>}
+                  </span>);
+                return(
+                  <div style={{display:'flex',gap:10,marginTop:3,paddingLeft:2,alignItems:'center',flexWrap:'wrap'}}>
+                    <Ph label="ENTRY" v={phase.entry.total} dv={diff.bDiffDecel}/>
+                    <Ph label="MID" v={phase.mid.total}/>
+                    <Ph label="EXIT" v={phase.exit.total} dv={diff.bDiffAccel}/>
+                    <Hint text={`ENTRY is MID plus what brake bias does at ${ENTRY_G} g braking; EXIT is MID plus what the drive split does at ${EXIT_G} g of drive. The weight transfer itself (PITCH) is left out of both — it depends on how hard you brake or accelerate, not on the tune. An arrow is the way diff lock pushes that phase; nothing has calibrated how far.`}/>
+                  </div>);
+              })()}
               {/* mech balance reference strip: NAT · CURRENT · TARGET on 0–1 scale */}
               {uiMode==='pro'&&tune.mechBalance!=null&&(()=>{
                 const cur=tune.mechBalance;
@@ -9914,12 +10129,15 @@ function App(){
                 </div>
                 {/* cap expanded height on all devices — ensures LOAD TRANSFER is reachable on short screens */}
                 <div style={{maxHeight:isPhone?'42vh':'60vh',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
-                <HandlingVerdict total={bTotFull} bChassis={tune.bChassis} bSp={tune.bSp} bAb={tune.bAb}
+                {phase?<PhaseVerdict phase={phase} diffLayout={diff.layout}
+                  bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel} bDampBias={bDampBias}
+                  brakeBias={brakeBias} gripBalance={tune.gripBalance}/>
+                :<HandlingVerdict total={bTotFull} bChassis={tune.bChassis} bSp={tune.bSp} bAb={tune.bAb}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel}
                   bDiffFront={diff.bDiffFront} bDiffRear={diff.bDiffRear}
                   diffLayout={diff.layout}
                   bBrakeEntry={bBrakeEntry} bDampBias={bDampBias}
-                  gripBalance={tune.gripBalance} uiMode={uiMode}/>
+                  gripBalance={tune.gripBalance} uiMode={uiMode}/>}
                 {/* RESPONSE factor breakdown */}
                 {(()=>{
                   const{score,fHzNorm,rHzNorm,dampFNorm,dampRNorm,toeNorm,casterNorm}=responseFactors;

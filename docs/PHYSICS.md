@@ -22,7 +22,7 @@ Key empirical constants calibrated from real Forza data:
 | `DAMPING_CALIBRATION` | 0.00135 | Maps damper click → critical damping coefficient. Empirically validated via SimHub telemetry: Forza uses lbf/ft/s internally, not N/mm/s — the ×1.35 correction factor confirmed by comparing suspension settling behaviour under baseline vs corrected damper values |
 | `TIRE_LOAD_SENS` | 0.15 | Grip falloff per unit Fz/Fz_ref — the tyre load sensitivity that lets roll stiffness shift balance |
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
-| `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale) |
+| `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale). Scales only the 0–1 figures; PRO's grip-margin percent leaves it out |
 | `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent. Uncalibrated, and since the CHASSIS contributor it sets how large a tyre stagger reads on the Handling Balance bar — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md) |
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
@@ -255,7 +255,7 @@ MAN clicks are taken as typed, so their stiffness, roll angle and balance
 change instead.
 
 The physical at-limit tendency (**GRIP BIAS**) is derived separately from a
-lateral-load-transfer model — see [Mech balance grip model](#mech-balance-grip-model-mechbalancelltbalancefromrsbal)
+lateral-load-transfer model — see [Mech balance grip model](#mech-balance-grip-model-axlelatgmechbalancelltbalancefromrsbal)
 below. The two are reconciled by bisection so a balance target round-trips to
 the spring/ARB split that achieves it.
 
@@ -969,7 +969,7 @@ drawn trace and so takes no position on feel at all. It is likewise absent from
 is what the rest of the app is calibrated against — an invented coefficient
 would move every saved tune's balance figure.
 
-## Mech balance grip model (`mechBalanceLLT`/`balanceFromRsBal`)
+## Mech balance grip model (`axleLatG`/`mechBalanceLLT`/`balanceFromRsBal`)
 
 ```js
 mechBalanceLLT(ch, Kf, Kr):
@@ -991,6 +991,20 @@ UI needs "what grip balance would this roll-stiffness split produce."
 `TIRE_LOAD_SENS`, `MECH_BAL_GAIN`, `WIDTH_GRIP_EXP` are in the Calibration
 constants table above.
 
+The per-axle figures before the gain come from `axleLatG(ch, Kf, Kr, ax, fxF)`, which returns
+`{gF, gR}`; `mechBalanceLLT` is that difference through `MECH_BAL_GAIN` and the 0–1 clamp. With
+`ax` (g, + accelerating, − braking) it also:
+
+- moves `Mt·g·ax·h/L / 2` per wheel from the front axle to the rear (capped at the axle's own
+  load, for the same reason as the lateral cap below), and
+- takes the longitudinal force `Mt·g·|ax|`, split by `fxF` (the front's share), out of each
+  axle's capacity by the friction circle, `Fy = √(Fy² − Fx²)`, floored at zero.
+
+At `ax = 0` neither step runs, so every 0–1 balance figure is bit-for-bit what it was. PRO's
+Handling Balance reads `axleLatG` directly as grip-margin percent — `gripMargin`, the difference
+with no gain — at `ENTRY_G = 0.3` g braking and `EXIT_G = 0.2` g drive
+([FORMULAS.md](FORMULAS.md), "Phase margins").
+
 ### The transfer cap, and what happens past lift
 
 `tF`/`tR` cap each axle's lateral load transfer at its own static wheel load. An axle
@@ -1006,7 +1020,7 @@ stops changing, so further roll stiffness on that end moves nothing. `balanceEnv
 raises a soft `LIFT` flag there — the figures are sound, but the axle has stopped
 responding, which is worth knowing while tuning.
 
-The cap lives in `mechBalanceLLT`, not in `latLoadTransfer`, whose other consumer (the
+The cap lives in `axleLatG` (under `mechBalanceLLT`), not in `latLoadTransfer`, whose other consumer (the
 SAG vs LOAD outside-wheel line) wants the uncapped compression the springs see.
 
 `fy` itself is hyperbolic rather than linear-with-a-floor: same value and same slope at
@@ -1161,7 +1175,7 @@ The main diagonal is still uniform-vertical-load-only — it does not include
 dynamic load transfer from cornering or braking, or bump loads. The chart
 now adds a second, fainter dashed line per axle that folds in *cornering*:
 the outside wheel's extra compression from lateral load transfer, reusing
-the same `latLoadTransfer` model as [`mechBalanceLLT`](#mech-balance-grip-model-mechbalancelltbalancefromrsbal):
+the same `latLoadTransfer` model as [`mechBalanceLLT`](#mech-balance-grip-model-axlelatgmechbalancelltbalancefromrsbal):
 
 ```js
 Kf, Kr = tune.rsSpF+tune.rsAbF, tune.rsSpR+tune.rsAbR   // total roll stiffness per axle

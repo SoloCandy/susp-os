@@ -50,7 +50,8 @@ const M = new Function(
   'displayRsBalance,natGeomOf,natRsOf,natDisplayOf,gripNeutralOf,clampBalTarget,' +
   'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
-  'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective};'
+  'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
+  'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G};'
 )();
 
 let pass = 0, fail = 0;
@@ -708,6 +709,104 @@ t('a chassis no stiffness split can neutralise saturates at the matching end', (
     const tn = tuneOf(ch);
     ok(Math.sign(tn.bSp + tn.bAb + tn.bChassis) === want, 'saturated case lost its sign');
   }
+});
+
+// -- 9. Phase margins (PRO Handling Balance) --------------------------------
+console.log('\nPhase margins (PRO Handling Balance)');
+
+const phaseOf = (ch, brakeBias, diff = { layout: 'RWD' }, feOver = {}) =>
+  M.phaseMargins(ch, tuneOf(ch, feOver), brakeBias, diff);
+
+t('MID is the grip model at the tune\'s split, and CHAS + SPR + ARB add up to it', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const arbBias of [-40, 0, 40]) {
+      const tn = tuneOf(ch, { arbBias, arbBalMode: 'weight' });
+      const { mid } = M.phaseMargins(ch, tn, 55, { layout: 'RWD' });
+      near(mid.chas + mid.sp + mid.ab, mid.total, 1e-9, `${name} ARB ${arbBias}: parts vs total`);
+      near(mid.total, M.gripMargin(ch, rsBalOfTune(tn) + M.natOffsetOf(ch)), 1e-9, `${name}: MID is not gripMargin at the tune's split`);
+      const g = tn.gripBalance - 0.5;
+      if (Math.abs(g) > 1e-6 && tn.gripBalance > 0 && tn.gripBalance < 1)
+        ok(Math.sign(mid.total) === Math.sign(g), `${name} ARB ${arbBias}: MID ${mid.total.toFixed(3)} vs GRIP BIAS ${tn.gripBalance.toFixed(4)}`);
+    }
+});
+
+t('CHAS is zero exactly where the chassis is grip-neutral at the weight split', () => {
+  for (const { name, ch } of CHASSIS) {
+    const nf = ch.frontBias / 100, sp = M.gripNeutralSplitOf(ch);
+    near(M.gripMargin(ch, sp), 0, 1e-6, `${name}: margin at the neutral split`);
+    const chas = phaseOf(ch, 55).mid.chas;
+    ok(Math.sign(chas) === Math.sign((1 - nf + M.natOffsetOf(ch)) - sp) || Math.abs(chas) < 1e-6,
+      `${name}: CHAS ${chas.toFixed(3)} has the wrong sign for a neutral split of ${sp.toFixed(3)}`);
+  }
+});
+
+t('BRK is zero at load-proportional bias and falls as front bias rises', () => {
+  for (const { name, ch } of CHASSIS) {
+    const tn = tuneOf(ch), ideal = M.phaseMargins(ch, tn, 50, { layout: 'RWD' }).entry.idealBias;
+    near(ideal, ch.frontBias + 100 * M.ENTRY_G * ch.cgHeight / ch.wheelbase, 1e-9, `${name}: ideal bias`);
+    near(M.phaseMargins(ch, tn, ideal, { layout: 'RWD' }).entry.brk, 0, 1e-9, `${name}: BRK at ideal`);
+    let prev = Infinity;
+    for (let b = 45; b <= 68; b++) {
+      const brk = M.phaseMargins(ch, tn, b, { layout: 'RWD' }).entry.brk;
+      ok(brk < prev, `${name}: BRK did not fall from ${b - 1}% to ${b}% front`);
+      prev = brk;
+    }
+  }
+});
+
+t('PITCH adds front grip on entry and takes it on exit, and stays out of both totals', () => {
+  for (const { name, ch } of CHASSIS) {
+    const ph = phaseOf(ch, 55);
+    ok(ph.entry.pitch > 0, `${name}: entry PITCH ${ph.entry.pitch}`);
+    ok(ph.exit.pitch < 0, `${name}: exit PITCH ${ph.exit.pitch}`);
+    near(ph.entry.total, ph.mid.total + ph.entry.brk, 1e-12, `${name}: ENTRY total`);
+    near(ph.exit.total, ph.mid.total + ph.exit.drive, 1e-12, `${name}: EXIT total`);
+  }
+});
+
+t('DRIVE: RWD oversteers on exit, FWD understeers, and AWD moves with the centre split', () => {
+  for (const { name, ch } of CHASSIS) {
+    const tn = tuneOf(ch), d = diff => M.phaseMargins(ch, tn, 55, diff).exit.drive;
+    ok(d({ layout: 'RWD' }) > 0, `${name}: RWD DRIVE ${d({ layout: 'RWD' })}`);
+    ok(d({ layout: 'FWD' }) < 0, `${name}: FWD DRIVE ${d({ layout: 'FWD' })}`);
+    let prev = -Infinity;
+    for (let c = 20; c <= 90; c += 10) {       // centre = rear torque share
+      const v = d({ layout: 'AWD', center: c });
+      ok(v > prev, `${name}: AWD DRIVE did not rise from ${c - 10} to ${c}% rear`);
+      prev = v;
+    }
+  }
+});
+
+t('the phase margins do not depend on MECH_BAL_GAIN, and mechBalanceLLT is axleLatG unchanged', () => {
+  const alt = src.split('const MECH_BAL_GAIN=1.8;').join('const MECH_BAL_GAIN=3.7;');
+  const M2 = new Function(
+    alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
+    alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
+    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbCtx=')) +
+    '\nreturn{phaseMargins};')();
+  for (const { name, ch } of CHASSIS) {
+    const tn = tuneOf(ch), a = M.phaseMargins(ch, tn, 60, { layout: 'AWD', center: 60 }), b = M2.phaseMargins(ch, tn, 60, { layout: 'AWD', center: 60 });
+    near(b.mid.total, a.mid.total, 1e-9, `${name}: MID moved with the gain`);
+    near(b.entry.total, a.entry.total, 1e-9, `${name}: ENTRY moved with the gain`);
+    near(b.exit.total, a.exit.total, 1e-9, `${name}: EXIT moved with the gain`);
+    for (const r of [0.3, 0.5, 0.7]) {
+      const { gF, gR } = M.axleLatG(ch, 1, r / (1 - r));
+      near(M.mechBalanceLLT(ch, 1, r / (1 - r)), Math.max(0, Math.min(1, 0.5 + 1.8 * (gF - gR))), 1e-12, `${name}: mechBalanceLLT at ${r}`);
+    }
+  }
+});
+
+t('at the same pitch, the axle doing the braking or driving has less lateral grip', () => {
+  // Compared at equal ax, not against a free car: the pitch transfer can outweigh the friction
+  // circle, so a tall car's driven rear gains more from the load moved onto it than drive takes.
+  for (const { name, ch } of CHASSIS)
+    for (const ax of [-1.2, -0.3, 0.2, 0.6]) {
+      const allF = M.axleLatG(ch, 1, 1, ax, 1), allR = M.axleLatG(ch, 1, 1, ax, 0);
+      for (const g of [allF, allR])
+        ok(g.gF >= 0 && g.gR >= 0 && Number.isFinite(g.gF + g.gR), `${name} ax ${ax}: non-finite or negative`);
+      ok(allF.gF < allR.gF && allR.gR < allF.gR, `${name} ax ${ax}: the working axle did not lose grip`);
+    }
 });
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passed, ${fail} failed\n`);

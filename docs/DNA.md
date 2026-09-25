@@ -150,7 +150,7 @@ arbBalDelta = balanceOffset             // with arbBalTargetMode:'grip'
 ```
 
 It measures back as `tune.mechBalance − gripTarget`; the grip model behind
-`balanceFromRsBal` is in [PHYSICS.md](PHYSICS.md#mech-balance-grip-model-mechbalancelltbalancefromrsbal).
+`balanceFromRsBal` is in [PHYSICS.md](PHYSICS.md#mech-balance-grip-model-axlelatgmechbalancelltbalancefromrsbal).
 The axis range is `arbBalDelta`'s own ±0.20 `sanitizeTune` clamp, so the one clamp
 left that can stop it landing is the GRIP target's 0.20..0.90, which the resolver
 treats as a balance miss. On a heavily staggered car grip-neutral itself can sit

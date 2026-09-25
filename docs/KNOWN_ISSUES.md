@@ -375,7 +375,13 @@ balance bar — there for a stronger reason still. That number is what every
 other recommendation in the app is calibrated against, so an invented bump
 coefficient would move the balance figure on every tune anyone has saved.
 
-## Open — Handling Balance bar's five contributors aren't on a comparable scale
+## Open — Handling Balance bar's five contributors aren't on a comparable scale (BEG/INT)
+
+BEG and INT only. PRO reads Handling Balance as grip-margin percent by phase
+(`phaseMargins`, [FORMULAS.md](FORMULAS.md) "Phase margins"), where springs, ARBs, chassis,
+brakes and drive all come out of one grip model in one unit, and diff and damping — the two with
+no defensible size — show a direction only. The point bar below is still what BEG/INT show and
+what `recommendedDiffType` reads.
 
 [FORMULAS.md](FORMULAS.md) documents each contributor's *sign* (oversteer
 vs understeer direction) but never claims they're comparable in
@@ -605,17 +611,30 @@ has the grip model's sign by construction and does not depend on `MECH_BAL_GAIN`
 much grip a wider tyre adds — and that exponent has no documented calibration. On the default
 chassis a 235/305 stagger reads about −37; a 255/285 one about −19. The direction is the
 textbook one (wider rears add rear grip, so understeer); whether a 70 mm stagger is worth 37
-points of stiffness bias or 20 is not something the app has measured.
+points of stiffness bias or 20 is not something the app has measured. PRO's MID CHASSIS row,
+in grip-margin percent, comes out of the same grip model and rests on the same exponent.
 
 It matters more now than it did: before the chassis term, `WIDTH_GRIP_EXP` only reached the
 PRO-only GRIP BIAS readout. It now moves the headline OS/US figure every tier sees. Calibrating
 it needs at-limit data — a skidpad balance or slip-angle comparison with only tyre width
 changed — which the three-car protocol does not collect.
 
-## Open — the springs and ARB tips point every tier at PRO-only controls
+## Open — PRO's ENTRY and EXIT figures are read at chosen loads
+
+`phaseMargins` reads ENTRY at `ENTRY_G = 0.3` g of braking and EXIT at `EXIT_G = 0.2` g of drive.
+Neither is measured; they are stated beside the figures because how hard someone trail-brakes or
+feeds in throttle is the driver's, not the tune's. BRK and DRIVE scale with them roughly
+linearly, and PITCH — the car's own weight transfer — scales faster and is larger than any
+setting at any realistic load, which is why it is shown but left out of both totals. Diff lock and
+damping have no size in PRO at all: `DIFF_BIAS_SCALE` is uncalibrated (see the BEG/INT entry
+above), and damping acts in transients a steady-state model cannot size. Sizing either needs
+at-limit data the three-car protocol does not collect.
+
+## Open — the springs and ARB tips point BEG/INT at PRO-only controls
 
 `HandlingVerdict`'s dominant-contributor tips for SPRINGS and ARB say "Reduce the Mech Balance
-Target or use CO-SOLVE" and similar, in every tier. The Mech Balance Target and CO-SOLVE are
+Target or use CO-SOLVE" and similar, in BEG and INT. PRO uses `PhaseVerdict`, where naming
+those controls is correct. The Mech Balance Target and CO-SOLVE are
 PRO controls; a BEG or INT user is being told to use something they cannot see. The BRAKES
 tip is already PRO-gated and the CHASSIS tip has a per-tier wording, so the pattern exists —
 the springs and ARB tips just predate it. Kept out of the chassis-term change as a
@@ -726,7 +745,7 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
   to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
   arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **HandlingVerdict damping tip is backwards.** It says "Damping Bias toward positive" to add
+- **HandlingVerdict damping tip is backwards** (BEG/INT; `PhaseVerdict` has no damping tip). It says "Damping Bias toward positive" to add
   front rebound, but the slider's positive side is REAR.
 - **"NaN% ARB" when both bars solve to 0** *(reproduced)*. The ARB row's `% ARB` meta has no
   zero guard; TRACK preset in BeamNG shows it on both suspension cards.

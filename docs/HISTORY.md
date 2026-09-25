@@ -11,6 +11,25 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PRO's Handling Balance reads grip margin by corner phase
+
+PRO showed the same point total as BEG/INT (`bTotFull`): five contributors summed on one bar.
+The points were not one unit. Springs and ARBs came from the grip model scaled by
+`MECH_BAL_GAIN`, and diff, brakes and damping from flat, uncalibrated constants. A sum of them
+said little, and brakes and diff were near-invisible next to a spring split.
+
+PRO now reads `phaseMargins`: the grip margin, `100·(gF−gR)/mean` straight from `axleLatG`,
+with no gain. MID is the headline, split into CHASSIS, SPRINGS and ARB. ENTRY adds brake bias,
+measured against the load-proportional split at `ENTRY_G` braking. EXIT adds the drive split
+at `EXIT_G`. Brakes and drive now get their size from the same friction circle as everything
+else, not from a scale constant. PITCH is shown but not added: it is the car's, not the tune's,
+and at any realistic load it would bury every setting. Diff lock and damping have no defensible
+size, so they show a direction only (`DirSeg`). `PhaseVerdict` replaces `HandlingVerdict` in
+PRO.
+
+BEG and INT are unchanged. `bTotFull` is still computed, because `recommendedDiffType` reads
+it. The reference loads are chosen, not measured; see KNOWN_ISSUES.
+
 ## Fixed — GRIP mode did not target a grip-neutral car
 
 GRIP mode's target at a 0 Balance Offset was `1 − natGripBalance`: the natural's grip reading

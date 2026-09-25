@@ -276,7 +276,7 @@ every step title of its guide, in order.
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share. |
 | 9 | Hz MECH & Balance Target Mode | `arb`, `visuals` | | Hz MECH; target mode applies to all three. |
 | 10 | Alignment Mode | `alignment` | | BUILD / MECH / GRIP / MANUAL, Nudge Strength. |
-| 11 | Handling Balance Expanded | `balance-bar` | | MECHANICAL / DYNAMIC groups, tip, RESPONSE, MECH BALANCE strip. |
+| 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT), PITCH shown not added, diff/damp direction-only; tips, RESPONSE, MECH BALANCE strip. |
 | 12 | Handling Balance Expanded (2/2) | `balance-bar` | | LOAD TRANSFER: XFER F/R, OUT / IN. |
 | 13 | Output Panel & Tune Check | `toolbar` | | CHECK, MEASURE tab, SHARE, RESET. |
 
@@ -286,9 +286,9 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. |
-| 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. |
-| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC; value and % share. |
+| 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
+| 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
+| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC; value and % share. PRO groups by phase instead, diff and damping direction-only. |
 | 4 | Using the Correction Tip | — | | Which input to reach for, per tier. |
 | 5 | Response Bar | — | | PLANTED ↔ REACTIVE, what it's weighted on. |
 

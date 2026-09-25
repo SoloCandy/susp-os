@@ -1,8 +1,9 @@
 # SUSP.OS — Handling Balance Formulas
 
 Ground-truth math behind every oversteer/understeer (OS/US) contribution
-shown in the Handling Balance bar. Convention: **positive = oversteer,
-negative = understeer** for every value below.
+shown in the Handling Balance bar — the BEG/INT point contributors, and PRO's phase margins
+(see "Phase margins"). Convention: **positive = oversteer, negative = understeer** for every
+value below.
 
 > This file exists because hint text and slider labels can drift out of
 > sync with the actual math. It has happened twice: Damping Bias, whose hint
@@ -146,7 +147,50 @@ const bTotFull = tune.bTot + tune.bChassis + diff.bDiffAccel + diff.bDiffDecel +
 ```
 
 This is the number shown as the overall Handling Balance total (and its
-color-coded OS/US label). `tune.bTot` already includes `bSp + bAb`.
+color-coded OS/US label) in **BEG and INT**, with ±3 reading NEUTRAL. `tune.bTot` already
+includes `bSp + bAb`. PRO shows the phase margins below instead; `bTotFull` is still computed in
+every tier because `recommendedDiffType` reads it.
+
+---
+
+## Phase margins (`phaseMargins`, PRO only)
+
+PRO's Handling Balance is not the point total above. It is read straight from the grip model, by
+corner phase, in **grip-margin percent**:
+
+```js
+gripMargin(ch, rs, ax = 0, fxF = 0) = 200 * (gF - gR) / (gF + gR)   // axleLatG(ch, 1, rs/(1-rs), ax, fxF)
+```
+
+`gF`/`gR` are each axle's lateral capacity per unit of its own static weight
+([PHYSICS.md](PHYSICS.md), `axleLatG`). The margin is how much more of it the front has than the
+rear, as a percent of their mean — + means the rear gives up first (oversteer). `rs` is the REAL
+rear roll-stiffness fraction, `Kr/(Kf+Kr) + natOffset`, as for `gripBalance`. It is the same
+difference `mechBalanceLLT` maps onto 0–1, **without `MECH_BAL_GAIN`**, so it always shares
+GRIP BIAS's sign and claims nothing the uncalibrated gain would add. `±PHASE_NEUTRAL` (1%) reads
+NEUTRAL.
+
+| Phase | Total | Parts |
+|---|---|---|
+| MID (headline) | `gripMargin(rs)` | CHAS = `gripMargin(1 − nf + natOffset)`, the margin at the weight-matched split; SPR and ARB share the rest in proportion to `bSp`/`bAb` |
+| ENTRY | MID + BRK | BRK = `gripMargin(rs, −ENTRY_G, bias/100) − gripMargin(rs, −ENTRY_G, idealBrakeF)` |
+| EXIT | MID + DRIVE | DRIVE = `gripMargin(rs, EXIT_G, driveF) − gripMargin(rs, EXIT_G, idealDriveF)` |
+
+- **Reference loads.** `ENTRY_G = 0.3` g braking, `EXIT_G = 0.2` g drive. Arbitrary but stated
+  on screen: how hard someone brakes or feeds in throttle is the driver's, not the tune's.
+- **Ideal splits** are load-proportional at that load: `idealBrakeF = nf + ENTRY_G·h/L` (front
+  brake share), `idealDriveF = nf − EXIT_G·h/L` (front drive share). BRK and DRIVE are zero when
+  the axles share the work in proportion to what they carry, so they measure the *setting*.
+- **Drive front share:** RWD 0, FWD 1, AWD `1 − center/100`.
+- **PITCH** — `gripMargin` at the ideal split minus MID — is shown per phase, muted, and **not
+  added** to either total. It is the car's own weight transfer (+ on entry, − on exit), not
+  tunable, and at any realistic load larger than everything that is.
+- **Diff lock and damping have a direction only** (`DirSeg`), read from the signs of
+  `bDiffDecel`, `bDiffAccel` and `bDampBias` above. `DIFF_BIAS_SCALE` is uncalibrated and damping
+  acts only in transients, which a steady-state model cannot size.
+- **The identities `tests-balance.js` asserts:** CHAS + SPR + ARB = MID; MID has GRIP BIAS's sign;
+  BRK is zero at `idealBrakeF` and falls as front bias rises; DRIVE is + for RWD, − for FWD and
+  rises with AWD rear share; none of it moves with `MECH_BAL_GAIN`.
 
 ---
 
