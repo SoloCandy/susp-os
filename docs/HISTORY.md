@@ -11,6 +11,61 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — the grip model reversed direction once an inside wheel lifted
+
+`mechBalanceLLT` predicted **less** oversteer for more rear roll stiffness past the
+point where an axle's inside wheel left the ground — from `rsBalance` 0.555 on a
+0.68 m-CG car, 0.745 at 60% front bias, 0.895 on the default chassis, and at the
+*low* end of the band on a rear-biased car, where the front inside wheel lifts
+instead. Everything reading `balanceFromRsBal` inherited it: `gripNeutralOf`, GRIP
+target mode, the Balance Guide band, DNA's `balanceOffset` axis.
+
+**The first diagnosis was wrong, and the wrong version shipped in a commit.** It
+blamed `fy`'s `max(0, Fz)` floor and proposed a saturating falloff as the cure.
+Prototyping both against the failing cases showed the falloff changes nothing at all
+— the reversal survives it identically. The actual cause is that
+`latLoadTransfer` has no upper bound: an axle went on "transferring" load past the
+point where its inside wheel carried any, and since that surplus could only land on
+the outside wheel, the axle *gained* capacity the harder it was stiffened.
+
+The fix is one line of physics — an axle cannot transfer more than it carries:
+
+```js
+const tF=Math.min(dWf,wF),tR=Math.min(dWr,wR);
+```
+
+Capped inside `mechBalanceLLT` rather than in `latLoadTransfer`, whose other consumer
+(the SAG vs LOAD outside-wheel line) wants the uncapped compression the springs see.
+
+Two things worth keeping from this:
+
+- **The cap is inert where nothing lifts.** On every chassis that does not lift at an
+  ordinary target the balance is unchanged to the last bit — it is a fix, not a silent
+  recalibration.
+- **The saturating falloff went in anyway, on its own merits.** `fy` is now
+  `Fz/(1+k*(Fz/FzRef-1))` instead of `Fz*max(0,1-k*(Fz/FzRef-1))`: same value and same
+  slope at `FzRef`, so `TIRE_LOAD_SENS` keeps its meaning and `MECH_BAL_GAIN` needed no
+  refit, but it saturates rather than turning over at `z/FzRef≈3.8` and going negative
+  at `≈7.7`. Neither clamp is reachable in the tunable band, so this half fixed nothing
+  live — it removes two clamps standing in for physics at the edge of a model whose
+  whole job is the edge. What it costs, measured where users see it: the grip-neutral point (`gripNeutralOf`) moves by up to 0.025, toward 0.5 on cars far from
+  an even weight split — 0.690 → 0.666 on a 63%-front FWD car, 0.371 → 0.388 at 41% front,
+  under 0.005 near 50/50. That is the figure that matters: GRIP-mode targets and DNA's
+  `balanceOffset` are stored as offsets from it, so a saved GRIP tune's absolute target moves
+  by exactly this much. Accepted deliberately (physics over compatibility); no migration.
+
+`LIFT` survives as a **soft** envelope flag rather than a hard one. The model is sound
+through lift now; what is still worth saying belongs to the car, not the model — an
+axle with a wheel in the air has stopped responding to roll stiffness, so more bar on
+that end buys nothing and the balance curve goes flat.
+
+`tests-balance.js` asserts monotonicity across the whole band with no exemption, names
+the five (chassis, rsBalance) points that used to reverse, and checks that the curve
+goes flat rather than backwards inside the lifted region. `tests.js`'s hand-maintained
+mirror of the model was updated in the same change — it would otherwise have kept the
+old formula and passed every one of its own assertions, which is the exact failure mode
+that file is documented as having.
+
 ## Added — the app now says when a balance figure is extrapolated
 
 Every limit of the mech-balance calibration was documented and none of it was visible:

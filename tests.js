@@ -30,10 +30,15 @@ const mechBalanceLLT = (ch, Kf, Kr) => {
   const dWf = Mphi * sF / ch.trackF + Mf * g * a * RC / ch.trackF;
   const dWr = Mphi * (1 - sF) / ch.trackR + Mr * g * a * RC / ch.trackR;
   const FzRef = Mt * g / 4;
-  const fy = Fz => { const z = Math.max(0, Fz); return z * Math.max(0, 1 - TIRE_LOAD_SENS * (z / FzRef - 1)); };
+  // Hyperbolic falloff, and transfer capped at the axle's static load — mirrors the app's
+  // mechBalanceLLT. Both arrived together in the lift fix; see docs/HISTORY.md. A mirror that
+  // kept the old linear form would still have passed every assertion below, which is exactly
+  // the failure mode this file is known for.
+  const fy = Fz => Fz / (1 + TIRE_LOAD_SENS * (Fz / FzRef - 1));
   const wF = Mf * g / 2, wR = Mr * g / 2;
-  const FyF = Math.pow(twF / 265, WIDTH_GRIP_EXP) * (fy(wF + dWf) + fy(wF - dWf));
-  const FyR = Math.pow(twR / 265, WIDTH_GRIP_EXP) * (fy(wR + dWr) + fy(wR - dWr));
+  const tF = Math.min(dWf, wF), tR = Math.min(dWr, wR);
+  const FyF = Math.pow(twF / 265, WIDTH_GRIP_EXP) * (fy(wF + tF) + fy(wF - tF));
+  const FyR = Math.pow(twR / 265, WIDTH_GRIP_EXP) * (fy(wR + tR) + fy(wR - tR));
   return Math.max(0, Math.min(1, 0.5 + MECH_BAL_GAIN * (FyF / (Mf * g) - FyR / (Mr * g))));
 };
 const balanceFromRsBal = (ch, rsBal) => {

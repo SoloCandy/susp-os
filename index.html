@@ -635,10 +635,29 @@ const mechBalanceLLT=(ch,Kf,Kr)=>{
   const{twF,twR}=tyreWidths(ch);
   const{dWf,dWr,Mf,Mr}=latLoadTransfer(ch,Kf,Kr);
   const FzRef=(Mf+Mr)*g/4;                                // avg static wheel load
-  const fy=Fz=>{const z=Math.max(0,Fz);return z*Math.max(0,1-TIRE_LOAD_SENS*(z/FzRef-1));};
+  // Tyre grip falls as vertical load rises. Hyperbolic, not the linear 1-k*(z/FzRef-1) this was
+  // until the lift fix: same VALUE and same SLOPE at FzRef, so TIRE_LOAD_SENS keeps its exact
+  // meaning and MECH_BAL_GAIN needed no refit, but it saturates instead of turning over. The
+  // linear form peaked at z/FzRef=(1+k)/2k (~3.8) and went negative past 1+1/k (~7.7), each
+  // caught by a Math.max(0,...) — two clamps standing in for physics at the edge of a model
+  // whose entire job is the edge. Neither is reachable in the tunable band, so this half of the
+  // change is a latent-cliff fix; the cap below is the half that fixed a live bug.
+  // Denominator is (1-k)+k*z/FzRef, positive for any k<1 and any z>=0.
+  const fy=Fz=>Fz/(1+TIRE_LOAD_SENS*(Fz/FzRef-1));
   const wF=Mf*g/2,wR=Mr*g/2;                              // static wheel loads
-  const FyF=Math.pow(twF/265,WIDTH_GRIP_EXP)*(fy(wF+dWf)+fy(wF-dWf));
-  const FyR=Math.pow(twR/265,WIDTH_GRIP_EXP)*(fy(wR+dWr)+fy(wR-dWr));
+  // An axle cannot transfer more load than it carries: at dW = w the inside wheel is already off
+  // the ground and there is nothing left to move. Without this cap the model went on
+  // "transferring" past lift, which only added load to the outside wheel and made the axle GAIN
+  // capacity — so more rear roll stiffness came back as LESS oversteer, backwards, from rsBalance
+  // 0.555 on a tall-CG car. It costs nothing on a chassis that never lifts: there the cap is
+  // inactive to the last bit. docs/HISTORY.md.
+  //
+  // Capped HERE and not in latLoadTransfer, whose other consumer (the SAG vs LOAD outside-wheel
+  // line) wants the uncapped compression the springs would see. fy therefore no longer needs a
+  // max(0,Fz) floor either — with the cap, w-t is zero at worst, never negative.
+  const tF=Math.min(dWf,wF),tR=Math.min(dWr,wR);
+  const FyF=Math.pow(twF/265,WIDTH_GRIP_EXP)*(fy(wF+tF)+fy(wF-tF));
+  const FyR=Math.pow(twR/265,WIDTH_GRIP_EXP)*(fy(wR+tR)+fy(wR-tR));
   return Math.max(0,Math.min(1,0.5+MECH_BAL_GAIN*(FyF/(Mf*g)-FyR/(Mr*g))));
 };
 // pure roll-stiffness rear fraction Kr/(Kf+Kr) → balance
@@ -695,20 +714,20 @@ const balanceEnvelope=(ch,tune,gameMode)=>{
     if(outside(FIT_TYRE_W,twF,twR))out.push({tag:'TYRE',hard:false,
       detail:`section widths ${twF}/${twR} mm sit outside the ${FIT_TYRE_W[0]}-${FIT_TYRE_W[1]} mm sampled, so the tyre-width balance term is extrapolated`});
   }
-  // Inside-wheel lift. Past the point where an axle's lateral load transfer exceeds its static
-  // wheel load, `fy`'s max(0,Fz) floor is holding the inside wheel at zero and further transfer
-  // only loads the outside one — where load sensitivity means the axle's TOTAL capacity starts
-  // rising again, so mechBalanceLLT turns around and predicts LESS oversteer for more rear roll
-  // stiffness. tests-balance.js pins the turning point to exactly this condition. It is not an
-  // extreme-only case: on a tall-CG car the rear lifts around rsBalance 0.55. Flagged in every
-  // game mode — the LLT model is not Forza-specific. docs/KNOWN_ISSUES.md.
+  // Inside-wheel lift. This used to be a HARD flag, because past lift the model reversed
+  // direction; mechBalanceLLT now caps transfer at the axle's static load and stays monotone
+  // through it, so the figures are sound again and the flag is soft. It is still worth saying,
+  // for a reason that belongs to the car rather than the model: an axle with a wheel in the air
+  // has stopped responding to roll stiffness at all, so further bar or spring on that end buys
+  // nothing and the balance curve goes flat. Flagged in every game mode — the LLT model is not
+  // Forza-specific. docs/HISTORY.md.
   if(tune){
     const kF=(tune.rsSpF??0)+(tune.rsAbF??0),kR=(tune.rsSpR??0)+(tune.rsAbR??0);
     if(kF+kR>0){
       const{dWf,dWr,Mf,Mr}=latLoadTransfer(ch,kF,kR);
       const liftF=dWf>=Mf*9.81/2,liftR=dWr>=Mr*9.81/2;
-      if(liftF||liftR)out.push({tag:'LIFT',hard:true,
-        detail:`at 1 g lateral the ${liftF&&liftR?'inside wheels of both axles':(liftF?'front':'rear')+' inside wheel'} unload completely, which is past the point where the grip model still responds correctly to roll stiffness — the GRIP target and Balance Guide figures are unreliable here`});
+      if(liftF||liftR)out.push({tag:'LIFT',hard:false,
+        detail:`at 1 g lateral the ${liftF&&liftR?'inside wheels of both axles':(liftF?'front':'rear')+' inside wheel'} unload completely, so that axle has stopped responding to roll stiffness — more bar or spring on that end will not move the balance further`});
     }
   }
   const est=ch.useRideHeightCG?cgEstMmOf(ch):null;

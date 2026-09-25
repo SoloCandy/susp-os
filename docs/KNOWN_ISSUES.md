@@ -13,49 +13,6 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
-## Open — the grip model reverses direction once an inside wheel lifts
-
-`mechBalanceLLT`'s tyre term floors at zero load:
-
-```js
-const fy=Fz=>{const z=Math.max(0,Fz);return z*Math.max(0,1-TIRE_LOAD_SENS*(z/FzRef-1));};
-```
-
-Once an axle's lateral load transfer exceeds its static wheel load, that floor is
-holding the inside wheel at zero and further transfer only adds load to the outside
-one — where load sensitivity means the axle's **total** capacity starts rising again.
-Past that point the model predicts **less** oversteer for more rear roll stiffness,
-which is backwards, and the same happens at the other end of the band: on a
-rear-biased car the *front* inside wheel lifts at a low `rsBalance` and the reversal
-appears there instead.
-
-It is not an extreme-only case. Measured across the tunable band:
-
-| Chassis | Turning point |
-|---|---|
-| default (0.45 m CG) | `rsBalance` 0.895 |
-| 60% front bias | 0.745 |
-| narrow track | 0.770 |
-| 0.68 m CG | **0.555** |
-
-A tall car reverses at 0.555 — inside the range `clampBalTarget` allows and well
-inside what a solver will ask for. Everything reading `balanceFromRsBal` inherits it:
-`gripNeutralOf`, GRIP target mode, the Balance Guide band and DNA's `balanceOffset`
-axis.
-
-**Found by `tests-balance.js`**, whose monotonicity property failed on the default
-chassis at the first run. The suite now asserts the *invariant* rather than the
-symptom — balance may reverse only where an inside wheel has lifted, never while both
-are loaded — so the test keeps its teeth and still passes once the cause is fixed.
-
-**Surfaced, not fixed.** `balanceEnvelope` raises a hard `LIFT` flag when the current
-split reaches the threshold, so the app stops presenting those figures as sound. The
-fix is a saturating falloff with no zero floor (something of the `Fz/(1+k·Fz/FzRef)`
-shape) in place of the linear `1 − k(Fz/FzRef − 1)`, which removes the lift region
-entirely and lets the 1500 mm CG cap — partly there to keep this out of sight — relax.
-That changes every balance figure in the app, including saved tunes and the DNA axis,
-so it wants calibrating and deciding rather than doing on the way past.
-
 ## Documented — what undo / redo does not cover
 
 History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:
@@ -510,8 +467,13 @@ plausibility checks, not measured physics:
   ride-height edits; sports-car tyres reach the cap only near the 48in / 122cm
   input limit. The SAG vs LOAD chart and BOTTOM G's still use the full entered
   ride height. The cap is deliberate: above ~1500mm the inside wheels of a
-  typical-track car unload at around half a g, where `mechBalanceLLT`'s
-  zero-load floor is doing most of the work and its balance output means little.
+  typical-track car unload at around half a g, and while `mechBalanceLLT` is no
+  longer wrong there — its transfer cap keeps it monotone through lift, see
+  [HISTORY.md](HISTORY.md) — an axle whose inside wheel is airborne has stopped
+  responding to roll stiffness at all, so the balance output still says very
+  little about how the car can be tuned. `balanceEnvelope` flags that case
+  directly now (`LIFT`), which is the honest version of what this cap was
+  standing in for.
 - Bottoming risk (and the LOW/MED/HIGH/BOTTOMED badge specifically) is
   still static-vertical-load-only — sag vs. entered ride height at a plain
   g multiplier. The chart's second, fainter line adds *cornering* via the

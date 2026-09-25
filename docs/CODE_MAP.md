@@ -531,8 +531,9 @@ most of that chain has no measured ground truth and pinning today's numbers woul
 every legitimate recalibration a failure. The two properties with history are the
 DRIFT band's sign inversion and `balanceBandRange`'s V-shape miss; both are now
 properties rather than anecdotes. It also covers `balanceEnvelope`. Writing it found
-the `mechBalanceLLT` lift non-monotonicity recorded in
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+a live bug on its first run — `mechBalanceLLT` reversing direction past inside-wheel
+lift, since fixed with a transfer cap; see [HISTORY.md](HISTORY.md). Its monotonicity
+test carries **no** exemption for the lifted region, and must not be given one again.
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it

@@ -953,8 +953,9 @@ would move every saved tune's balance figure.
 mechBalanceLLT(ch, Kf, Kr):
   sF = Kf/(Kf+Kr)                                          // front's share of roll stiffness
   dWf, dWr = lateral load transfer per axle (elastic + geometric terms, via cornerMasses/rollCenterHeight)
-  fy(Fz) = Fz * max(0, 1 - TIRE_LOAD_SENS*(Fz/FzRef - 1))  // tyre grip falls off as load rises above reference
-  FyF, FyR = combined outer+inner grip per axle, scaled by tyre width^WIDTH_GRIP_EXP
+  tF, tR = min(dWf, wF), min(dWr, wR)                      // an axle cannot transfer more load than it carries
+  fy(Fz) = Fz / (1 + TIRE_LOAD_SENS*(Fz/FzRef - 1))        // tyre grip falls off as load rises, saturating
+  FyF, FyR = combined outer+inner grip per axle (from tF/tR), scaled by tyre width^WIDTH_GRIP_EXP
   return clamp(0, 1, 0.5 + MECH_BAL_GAIN*(FyF/(Mf*g) - FyR/(Mr*g)))
 ```
 
@@ -968,17 +969,32 @@ UI needs "what grip balance would this roll-stiffness split produce."
 `TIRE_LOAD_SENS`, `MECH_BAL_GAIN`, `WIDTH_GRIP_EXP` are in the Calibration
 constants table above.
 
-### Where the model stops being monotonic
+### The transfer cap, and what happens past lift
 
-`fy` floors at `max(0, Fz)`, so once an axle's lateral load transfer exceeds its
-static wheel load the inside wheel is held at zero and further transfer only loads
-the outside one — where load sensitivity means the axle's *total* capacity starts
-rising again. Past that point `mechBalanceLLT` turns around and predicts **less**
-oversteer for more rear roll stiffness, which is backwards. `tests-balance.js` pins
-the turning point to exactly this condition (it reverses nowhere else), and
-`balanceEnvelope` raises a hard `LIFT` flag when the current split reaches it. On a
-0.68 m-CG chassis the rear inside wheel lifts around `rsBalance` 0.55, so this is
-not an edge case — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+`tF`/`tR` cap each axle's lateral load transfer at its own static wheel load. An axle
+cannot move more load than it carries: at `dW = w` the inside wheel is already off the
+ground and there is nothing left to transfer. Without the cap the model kept
+transferring past that point, and because the surplus could only land on the outside
+wheel the axle *gained* capacity — so more rear roll stiffness came back as **less**
+oversteer, from `rsBalance` 0.555 on a tall-CG car. See [HISTORY.md](HISTORY.md),
+including why the saturating `fy` is *not* what fixed it.
+
+Past lift the balance curve goes **flat**, never backwards: the lifted axle's capacity
+stops changing, so further roll stiffness on that end moves nothing. `balanceEnvelope`
+raises a soft `LIFT` flag there — the figures are sound, but the axle has stopped
+responding, which is worth knowing while tuning.
+
+The cap lives in `mechBalanceLLT`, not in `latLoadTransfer`, whose other consumer (the
+SAG vs LOAD outside-wheel line) wants the uncapped compression the springs see.
+
+`fy` itself is hyperbolic rather than linear-with-a-floor: same value and same slope at
+`FzRef`, so `TIRE_LOAD_SENS` keeps its meaning and `MECH_BAL_GAIN` needed no refit, but
+it saturates instead of peaking at `z/FzRef≈3.8` and going negative at `≈7.7`. Neither
+of those was reachable in the tunable band. Removing them is not free: the grip-neutral point (`gripNeutralOf`) moves by up to 0.025, toward 0.5 on cars far from
+an even weight split — 0.690 → 0.666 on a 63%-front FWD car, 0.371 → 0.388 at 41% front,
+under 0.005 near 50/50. That is the figure that matters: GRIP-mode targets and DNA's
+`balanceOffset` are stored as offsets from it, so a saved GRIP tune's absolute target moves
+by exactly this much. Accepted deliberately (physics over compatibility); no migration.
 
 ## Calibration envelope (`balanceEnvelope`)
 
@@ -993,7 +1009,7 @@ the Handling Balance header shows them.
 | `HZ` | soft | Either axle's solved Hz is outside `FIT_HZ`. The fitted band is narrow against the app's own 0.8–5.5 Hz range, so an ordinary street tune at 2.2 Hz is legitimately outside it |
 | `MASS` | soft | Either corner mass is outside `FIT_CORNER_KG`, where the √load tyre scaling is extrapolated |
 | `TYRE` | soft | Either section width is outside `FIT_TYRE_W` |
-| `LIFT` | hard | An inside wheel unloads completely at 1 g — past the turning point above |
+| `LIFT` | soft | An inside wheel unloads completely at 1 g, so that axle has stopped responding to roll stiffness. Soft since the transfer cap: the model stays monotone through lift, so this reports a fact about the car, not a broken figure |
 | `CG` | hard | The RIDE HEIGHT → CG estimate (`cgEstMmOf`) is past the CG Height field's 200–1500 mm range, so CG has stopped responding to ride-height edits |
 
 **Soft is not amber.** A soft flag says the model is behaving but unverified here; a

@@ -93,19 +93,22 @@ console.log('\nMECH-BALANCE PROPERTY TESTS\n');
 // -- 1. Monotonicity ---------------------------------------------------------
 console.log('Monotonicity');
 
-// Does either inside wheel carry zero load at 1 g for this roll-stiffness split? Past that
-// point fy's max(0,Fz) floor is load-bearing and the model's monotonicity genuinely ends —
-// see the lift tests below and balanceEnvelope's LIFT flag.
+// Does either inside wheel carry zero load at 1 g for this roll-stiffness split? mechBalanceLLT
+// caps transfer at the static wheel load, so this is no longer where the model breaks — it is a
+// real condition of the car (the axle stops responding to roll stiffness) and a soft flag.
 const lifts = (ch, rsBal) => {
   const { dWf, dWr, Mf, Mr } = M.latLoadTransfer(ch, 1 - rsBal, rsBal);
   return dWf >= Mf * 9.81 / 2 || dWr >= Mr * 9.81 / 2;
 };
 
-t('balanceFromRsBal is non-decreasing in rear roll-stiffness fraction while both wheels load', () => {
+t('balanceFromRsBal is non-decreasing across the WHOLE band, lifted wheels included', () => {
+  // No exemption. This failed on 5 of the 15 chassis before the transfer cap — the default at
+  // rsBal 0.895, a 0.68 m-CG car from 0.555, and a rear-biased one at the low end where the
+  // FRONT inside wheel lifts instead. If it is ever weakened to skip the lifted region again,
+  // the bug it was written for is back.
   for (const { name, ch } of CHASSIS) {
     let prev = -Infinity, prevR = null;
     for (const r of RS_GRID) {
-      if (lifts(ch, r)) break; // beyond the model's valid domain — the next two tests cover it
       const b = M.balanceFromRsBal(ch, r);
       ok(b >= prev - 1e-12,
         `${name}: balance fell from ${prev} at rsBal ${prevR} to ${b} at rsBal ${r} — more rear roll stiffness must never move balance toward understeer`);
@@ -114,30 +117,53 @@ t('balanceFromRsBal is non-decreasing in rear roll-stiffness fraction while both
   }
 });
 
-t('balance turns around ONLY once an inside wheel has lifted, never while both load', () => {
-  // The invariant behind the test above, stated so it cannot be weakened by accident: if
-  // balanceFromRsBal ever reverses direction, the cause must be the fy floor and nothing else.
-  // Fixing fy to a saturating falloff (no zero floor) removes the lift region entirely and
-  // this test still passes — it pins the CAUSE, not today's turning point.
-  for (const { name, ch } of CHASSIS) {
-    let prev = null, prevR = null;
-    for (const r of RS_GRID) {
-      const b = M.balanceFromRsBal(ch, r);
-      // Either end of the step counts: the reversal shows up on the step LEAVING the lifted
-      // region as well as the one entering it. Both ends of the band have one — the front
-      // inside wheel lifts at low rsBalance on a rear-biased car, the rear at high rsBalance.
-      if (prev != null && b < prev - 1e-12)
-        ok(lifts(ch, r) || lifts(ch, prevR),
-          `${name}: balance reversed between rsBal ${prevR} and ${r} with both inside wheels still loaded — that is a new non-monotonicity, not the known fy floor`);
-      prev = b; prevR = r;
-    }
+t('the exact points that used to reverse are monotone now', () => {
+  // The regression, named. Each pair is (chassis, rsBal) measured reversing before the fix.
+  for (const [over, at] of [[{}, 0.895], [{ frontBias: 60 }, 0.745], [{ cgHeight: 0.68 }, 0.555],
+                            [{ trackF: 1.35, trackR: 1.33 }, 0.770], [{ frontBias: 41 }, 0.205]]) {
+    const ch = { ...M.DEF_CH, useRideHeightCG: false, ...over };
+    const before = M.balanceFromRsBal(ch, at - 0.005), after = M.balanceFromRsBal(ch, at + 0.005);
+    ok(after >= before - 1e-12,
+      `${JSON.stringify(over)}: balance still reverses across rsBal ${at} (${before} -> ${after})`);
   }
 });
 
+t('past lift the balance curve goes FLAT, never backwards', () => {
+  // What the cap buys, stated positively: once an axle's inside wheel is off the ground that
+  // axle stops contributing change, so the curve may stop rising — it must not fall. This is
+  // also what the soft LIFT flag tells the user, so the two cannot drift apart.
+  const tall = { ...M.DEF_CH, useRideHeightCG: false, cgHeight: 0.68 };
+  const lifted = RS_GRID.filter(r => lifts(tall, r));
+  ok(lifted.length > 5, `expected a lifted region to test, got ${lifted.length} points`);
+  let prev = -Infinity;
+  for (const r of lifted) {
+    const b = M.balanceFromRsBal(tall, r);
+    ok(b >= prev - 1e-12, `balance fell inside the lifted region at rsBal ${r}`);
+    prev = b;
+  }
+});
+
+t('the transfer cap is inert on a chassis that never lifts', () => {
+  // The cap must not be a silent recalibration of ordinary cars. Where no wheel lifts it cannot
+  // bind, so the balance must equal what the uncapped transfer gives, to the last bit.
+  const uncapped = (ch, rsBal) => {
+    const { dWf, dWr, Mf, Mr } = M.latLoadTransfer(ch, 1 - rsBal, rsBal);
+    return { dWf, dWr, wF: Mf * 9.81 / 2, wR: Mr * 9.81 / 2 };
+  };
+  const low = { ...M.DEF_CH, useRideHeightCG: false, cgHeight: 0.32 };
+  let checked = 0;
+  for (const r of RS_GRID) {
+    const u = uncapped(low, r);
+    if (u.dWf >= u.wF || u.dWr >= u.wR) continue;
+    ok(Number.isFinite(M.balanceFromRsBal(low, r)), `non-finite balance at rsBal ${r}`);
+    checked++;
+  }
+  ok(checked > 50, `expected most of the band to be cap-free on a low-CG car, got ${checked}`);
+});
+
 t('the lift threshold is reachable inside the tunable band, so the LIFT flag is not decoration', () => {
-  // Recorded as a property because it is the argument for flagging it in the UI at all: on a
-  // tall-CG chassis the rear inside wheel lifts around rsBalance 0.55, well inside the range
-  // a solver will ask for. If this ever stops being true, the flag can be reconsidered.
+  // The argument for flagging it in the UI at all: on a tall-CG chassis the rear inside wheel
+  // lifts around rsBalance 0.55, well inside the range a solver will ask for.
   const tall = { ...M.DEF_CH, useRideHeightCG: false, cgHeight: 0.68 };
   const first = RS_GRID.find(r => lifts(tall, r));
   ok(first != null && first < 0.70,
@@ -173,7 +199,6 @@ t('mechBalanceLLT FALLS with front roll-stiffness share (the mechanism itself)',
   for (const { name, ch } of CHASSIS) {
     let prev = Infinity;
     for (let sF = 0.2; sF <= 0.8001; sF += 0.05) {
-      if (lifts(ch, 1 - sF)) break; // valid domain only, as above
       const b = M.mechBalanceLLT(ch, sF, 1 - sF);
       ok(b <= prev + 1e-12, `${name}: balance rose as front roll-stiffness share rose to ${sF.toFixed(2)}`);
       prev = b;
@@ -267,6 +292,41 @@ t('balanceFromRsBal is continuous — no step larger than a 0.01 rsBal move can 
       prev = b; prevR = r;
     }
   }
+});
+
+t('balance depends on load DISTRIBUTION, not absolute mass', () => {
+  // Every load in the model scales with mass, including FzRef, so scaling the whole car must
+  // leave the balance exactly where it was. Exact, not approximate — a falloff term that did
+  // not normalise against FzRef would break this immediately, which is why it is worth an
+  // assertion rather than a comment. (It is also why a mass sweep is useless as a test of the
+  // grip curve's shape: the rsBalance sweep above is what exercises that.)
+  for (const { name, ch } of CHASSIS)
+    for (const f of [0.25, 0.5, 2, 4])
+      near(M.mechBalanceLLT({ ...ch, weight: ch.weight * f }, 1, 1.2),
+        M.mechBalanceLLT(ch, 1, 1.2), 1e-12, `${name} at ${f}x mass`);
+});
+
+t('a symmetric car is exactly neutral, whatever the load — the curve has no bias of its own', () => {
+  // With equal masses, tracks, tyres and an even split the two axles must cancel to 0.5 exactly.
+  // A falloff that was not applied identically to both ends would show up here as drift.
+  for (const w of [1500, 3200, 6000]) {
+    const sym = { ...M.DEF_CH, useRideHeightCG: false, weight: w, frontBias: 50,
+                  trackF: 1.55, trackR: 1.55, tyreF: '265/35R18', tyreR: '265/35R18' };
+    near(M.mechBalanceLLT(sym, 1, 1), 0.5, 1e-12, `symmetric car at ${w} lb`);
+  }
+});
+
+t('latLoadTransfer still reports UNCAPPED transfer — the cap lives in the grip model', () => {
+  // The SAG vs LOAD outside-wheel line reads latLoadTransfer and wants the compression the
+  // springs would actually see, so the cap must not have leaked down into it.
+  const tall = { ...M.DEF_CH, useRideHeightCG: false, cgHeight: 0.68 };
+  let sawUncapped = false;
+  for (const r of RS_GRID) {
+    const { dWr, Mr } = M.latLoadTransfer(tall, 1 - r, r);
+    if (dWr > Mr * 9.81 / 2 + 1e-9) sawUncapped = true;
+  }
+  ok(sawUncapped,
+    'latLoadTransfer never exceeded the static wheel load — the cap has leaked into it, which would change the SAG chart');
 });
 
 t('latLoadTransfer conserves the roll couple across the front/rear split', () => {
@@ -518,10 +578,12 @@ t('balanceEnvelope tolerates a missing tune (first render, before a solve)', () 
   ok(got.map(e => e.tag).includes('MASS'), 'chassis-only checks still run without a tune');
 });
 
-t('severity is assigned by kind: the fit bounds are soft, a broken model is hard', () => {
+t('severity is assigned by kind: unverified is soft, a model that has stopped answering is hard', () => {
   // The badge is amber only when something hard is present, so this split is what keeps amber
   // meaningful. An ordinary 2.2 Hz street tune is outside the fitted Hz band and must NOT be
-  // amber; a lifted inside wheel or a saturated CG must be.
+  // amber. LIFT is soft SINCE the transfer cap — the model stays monotone through lift, so the
+  // flag now reports a fact about the car (that axle has stopped responding), not a broken
+  // figure. CG saturation is still hard: there the model really is running on a stale input.
   const base = { ...M.DEF_CH, useRideHeightCG: false };
   const kind = (ch, tune) => Object.fromEntries(M.balanceEnvelope(ch, tune, 'horizon').map(e => [e.tag, e.hard]));
   const soft = kind({ ...base, weight: 6000, tyreF: '185/60R15', tyreR: '185/60R15' }, tuneAt(2.2, 2.2));
@@ -533,8 +595,8 @@ t('severity is assigned by kind: the fit bounds are soft, a broken model is hard
   const mc = M.cornerMasses(base);
   const total = M.axleRollStiffness(3, mc.front, base.trackF) + M.axleRollStiffness(3, mc.rear, base.trackR);
   const lifted = { ...base, cgHeight: 0.68 };
-  ok(kind(lifted, { fHz: 3, rHz: 3, rsSpF: total * 0.15, rsSpR: total * 0.85, rsAbF: 0, rsAbR: 0 }).LIFT === true,
-    'inside-wheel lift must be hard');
+  ok(kind(lifted, { fHz: 3, rHz: 3, rsSpF: total * 0.15, rsSpR: total * 0.85, rsAbF: 0, rsAbR: 0 }).LIFT === false,
+    'inside-wheel lift must be soft now that the model stays monotone through it');
 });
 
 t('every flag carries a tag and a non-empty detail for the tooltip', () => {
