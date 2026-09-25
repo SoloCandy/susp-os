@@ -167,7 +167,7 @@ rotation. The build table's intended ordering is only preserved by the
 This is visible where a build's whole pair sits below 1.0 while a more aggressive
 build's pair straddles it. AWD is the layout where the two overlap enough to
 invert: DRIFT is 0.75–1.30 against TRACK's 0.45–0.80, and on **every** chassis
-with a negative gap — anything under 49.51% front on `DEF_CH` — AWD DRIFT's band
+with a negative gap — anything under about 49.5% front on `DEF_CH` — AWD DRIFT's band
 hi sits below AWD TRACK's. At AWD 36% front (`nat` 0.631, `gap` −0.332) TRACK
 recommends 0.365–0.481 and DRIFT 0.299–0.398: the drift band is the more
 conservative of the two.
@@ -597,28 +597,18 @@ suggest a typical 0.4–0.5, and both disappear once either ratio is moved off 1
 
 ---
 
-## Open — "NAT" means two different things without MEASURE NAT BAL
+## Open — the unmeasured natural reads low against Forza
 
-`naturalMechBalanceOf(ch)` returns Forza's displayed value when MEASURE NAT BAL
-is on, but the geometric roll-stiffness fraction (no tyre term) when it is off.
-On staggered tyres without a measurement, the Balance Target's NAT therefore sits
-`tireCorr` away from the balance the car actually displays at equal Hz and
-minimal bars, so a 0-delta target still asks the solver for a small correction.
-`gripNeutralOf` has the mirror problem: it passes `naturalMechBalanceOf` to
-`balanceFromRsBal`, which expects a roll-stiffness fraction, so a measured
-reading on staggered tyres arrives with the tyre term still in it. Making both
-consistent moves stored deltas and GRIP targets for existing builds, so it was
-kept out of the MEASURE NAT BAL double-count fix.
+In-game measurement on three cars found the geometric estimate (`natGeomOf`) reads
+0.017–0.028 lower than Forza with the tyre term out of the picture. MEASURE NAT BAL
+covers this per car; the geometric formula does not, so `natDisplayModelOf` — the
+unmeasured natural every target is a delta from — inherits the same bias.
 
-Separately, in-game measurement on three cars found the geometric estimate
-reads 0.017–0.028 lower than Forza with the tyre term out of the picture. MEASURE
-NAT BAL covers this per car; the geometric formula does not.
-
-The tyre-series display adds a third reading of "natural": without a
-measurement, `naturalMechBalanceOf` is still the plain mass·track² fraction, but
-the display at equal Hz is the tyre-series fraction, which differs by up to about
-0.01 on uneven cars. It is the same class of inconsistency as the two above and
-was kept out of the tyre change for the same reason.
+This is a calibration gap in the geometry model, not the space confusion that used
+to share this entry: "natural" now has one definition per space (`natRsOf`,
+`natDisplayOf`), which is recorded in [HISTORY.md](HISTORY.md). Closing this one
+needs more than three cars' worth of readings to say whether the bias is a constant,
+scales with track width, or depends on something the model does not take as input.
 
 ## Open — the tyre-series model's reach
 

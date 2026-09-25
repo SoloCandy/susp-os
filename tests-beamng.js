@@ -42,7 +42,7 @@ const M = new Function(
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
   'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf,' +
-  'natGeomOf,naturalMechBalanceOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL};'
+  'natGeomOf,natRsOf,natDisplayOf,natDisplayModelOf,measuredNatBalOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL,resolveFeEffective};'
 )();
 
 let pass = 0, fail = 0;
@@ -527,7 +527,7 @@ t('a bar pinned at a click limit holds the roll balance the unclamped split aske
   near(rb(h), rb(b), 0.005, 'roll balance vs unclamped');
 });
 
-// MEAS. NAT BAL replaces the geometry outright (naturalMechBalanceOf returns the reading and
+// MEAS. NAT BAL replaces the geometry outright (natDisplayOf returns the reading and
 // never looks at the chassis), so a chassis edit after the reading leaves the app reporting a
 // number the car no longer produces. natBalStale is the guard; NAT_BAL_STALE_TOL is the reading's
 // own 2dp resolution. See docs/HISTORY.md.
@@ -609,13 +609,42 @@ t('weight alone does not trip it — it scales both corners together', () => {
   if (Math.abs(M.natBalRefOf(heavy) - ch.measuredNatBalRef) > 1e-12)
     throw new Error('uniform weight now moves the geometric prediction — revisit what stale means');
 });
-t('natGeomOf is what naturalMechBalanceOf falls back to', () => {
+t('natural: geometry unmeasured in roll-stiffness space, the reading verbatim in display space', () => {
   const ch = { ...M.DEF_CH };
-  if (M.naturalMechBalanceOf(ch) !== M.natGeomOf(ch))
-    throw new Error('the unmeasured branch and natGeomOf have diverged');
+  if (M.natRsOf(ch) !== M.natGeomOf(ch))
+    throw new Error('unmeasured, the roll-stiffness natural must be the geometry itself');
   const m = measured();
-  if (M.naturalMechBalanceOf(m) !== m.measuredNatBal)
-    throw new Error('a reading must be returned verbatim, not blended with geometry');
+  for (const gm of ['horizon', 'motorsport', 'beamng'])
+    if (M.natDisplayOf(m, gm) !== m.measuredNatBal)
+      throw new Error(`${gm}: a reading must be returned verbatim in display space, not blended with geometry`);
+});
+t('the two spaces differ by exactly the tyre-width term when measured', () => {
+  // natRsOf is the reading with tireCorr taken out — the term is part of what Forza DISPLAYS,
+  // not of the car's roll stiffness. On square tyres the two coincide.
+  for (const tyres of [{}, { tyreF: '235/35R18', tyreR: '305/30R19' }, { tyreF: '305/30R19', tyreR: '235/35R18' }]) {
+    const m = measured(tyres);
+    near(M.natDisplayOf(m, 'horizon') - M.natRsOf(m), M.tireCorrOf(m), 1e-12, `display - rs on ${JSON.stringify(tyres)}`);
+  }
+});
+t('unmeasured, the physical-mode natural is geometry plus the tyre-width term', () => {
+  // Physical modes display the suspension fraction plus tireCorr (computeTune's physUnits branch),
+  // so their natural is that too — no tyre-series compression, which is a Forza display effect.
+  for (const tyres of [{}, { tyreF: '235/35R18', tyreR: '305/30R19' }]) {
+    const ch = { ...M.DEF_CH, ...tyres };
+    near(M.natDisplayOf(ch, 'beamng'), M.natGeomOf(ch) + M.tireCorrOf(ch), 1e-12, JSON.stringify(tyres));
+  }
+});
+t('unmeasured, a 0-delta target solves to a car that DISPLAYS its own natural', () => {
+  // The point of taking the delta from the display-space natural: "0 delta" asks for nothing but
+  // what the car already shows. Checked end to end through the solver, in MECH mode, on square
+  // and staggered tyres and every game mode — the staggered Forza case is the one that used to
+  // miss by tireCorr.
+  for (const gm of ['horizon', 'motorsport', 'beamng'])
+    for (const tyres of [{}, { tyreF: '235/35R18', tyreR: '305/30R19' }, { tyreF: '305/30R19', tyreR: '235/35R18' }]) {
+      const ch = { ...M.DEF_CH, ...tyres, useRideHeightCG: false };
+      const tune = M.solveTune(ch, M.resolveFeEffective(ch, { ...M.DEF_FE, arbBalMode: 'mech', arbBalTarget: 0, gameMode: gm }), gm).tune;
+      near(tune.mechBalance, M.natDisplayOf(ch, gm), 0.006, `${gm} ${JSON.stringify(tyres)}: displayed balance vs natural`);
+    }
 });
 
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);

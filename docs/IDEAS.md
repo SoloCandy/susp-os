@@ -19,7 +19,7 @@ and decides which levers carry the correction.
 | | Beginner Balance slider | MECH / CO-SOLVE | AUTO |
 |---|---|---|---|
 | User sets | Direction (lever changes) | Target + (CO-SOLVE) Spring Share | Intent only |
-| Centre means | WEIGHT's neutral split | `naturalMechBalanceOf(ch)` + delta | Grip-neutral car |
+| Centre means | WEIGHT's neutral split | `natDisplayOf(ch)` + delta | Grip-neutral car |
 | Levers | ARB split + Hz ratio, fixed proportion | ARB (+ Hz for CO-SOLVE), fixed share | ARB → Hz → alignment → diff, in priority order |
 | At a limit | Silent | Amber clamp warning | Moves to the next lever and shows which one ran out |
 
@@ -67,7 +67,7 @@ kept separate from steady-state balance throughout the docs.
 ### Decisions already made
 
 - **PRO only, never BASIC.** AUTO's centre comes from `natGripBalance` and
-  `naturalMechBalanceOf(ch)`, which depend on tyre sizes, CG height, weight split
+  the natural balance (`natRsOf`/`natDisplayOf`), which depend on tyre sizes, CG height, weight split
   and ride heights. BASIC doesn't collect most of those, so AUTO there would be a
   guess presented as precision. BASIC's slider is right for its tier because it
   claims only a direction. It should stay as it is.

@@ -117,7 +117,29 @@ default when those readings were taken). The card now defaults to **2.20 Hz**;
 `NAT_BAL_REF_HZ` is frozen at 2.5 and must not follow it, or every legacy
 reading is reinterpreted at springs it was never taken on.
 
-**A reading describes one car in one state.** `naturalMechBalanceOf` returns the
+**Natural balance lives in two spaces, and each has its own function.** "Natural" is the
+chassis's own balance at equal springs and no bars:
+
+| Function | Space | Measured | Unmeasured | Used by |
+|---|---|---|---|---|
+| `natRsOf(ch)` | roll stiffness — the real car's rear roll-stiffness fraction | reading − `tireCorr` | `natGeomOf` | `gripNeutralOf`/`natGripBalance` (the grip model), CHASSIS ARB split, the GRIP GAP tyre suggestion |
+| `natDisplayOf(ch, gameMode)` | display — what the game shows | the reading, verbatim | `natDisplayModelOf` | Balance Target deltas and `sanitizeTune`'s clamp, Balance Guide, MECH BALANCE strip, dials, MATCH CHASSIS, MECH alignment nudge |
+
+`natDisplayModelOf` is the model's prediction of what MEASURE NAT BAL would read: the
+tyre-series display (`displayRsBalance`) at equal springs of `NAT_BAL_PROBE_HZ` (2.20, the
+card's default) plus `tireCorr` in the Forza modes, and plain geometry plus `tireCorr` in
+physical modes, which display the suspension fraction. The measured and unmeasured
+branches agree by construction: `displayNatOffsetOf` reproduces a reading at the Hz it was
+taken, and `natRsOf + tireCorr` is the reading.
+
+A 0-delta target is therefore "display exactly the natural". The solvers convert a
+display target to their model roll-stiffness space as `target − tireCorr − natOffset`,
+which returns exactly to the geometric baseline when measured and in physical modes;
+unmeasured in Forza it lands within the tyre-series compression of it (a few thousandths
+on an ordinary car), which `solveTune`'s display-space pass closes. `tests-beamng.js`
+checks the end result: a 0-delta MECH target displays its own natural in every mode.
+
+**A reading describes one car in one state.** `natDisplayOf` returns the
 reading **verbatim** and never consults the chassis, so editing front bias, track
 widths or tyres afterwards leaves the app reporting a balance the car no longer
 has. `measuredNatBalRef` records what the model itself predicted at the moment of
@@ -1097,7 +1119,7 @@ what "in range" means.
 
 **A negative `gap` is ordinary, not an edge case.** Its sign tracks front
 weight bias almost exactly. With symmetric tyres and near-equal track
-widths it turns negative below roughly 50% front — 49.51% on `DEF_CH`
+widths it turns negative below roughly 50% front — about 49.5% on `DEF_CH`
 — so every mid- and rear-engined car sits on the negative side, as does
 any chassis a wide front tyre stagger pushes there. Track width moves the
 crossover a point or so either way (51.61% at 1500F/1600R track, 48.39% at

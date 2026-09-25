@@ -146,12 +146,12 @@ sub-tier/MANUAL) is PRO-only, since there's nothing to configure without it.
 | `al.mode` | What it does |
 |---|---|
 | **build** (AUTO / Nudge OFF, default) | `computeAlignment`'s output, unchanged — see the rest of this file |
-| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − naturalMechBalanceOf(ch)` — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so under that mode both nudges trace back to `natGripBalance`. They are still **not** the same number — `mechGap - gripGap = 0.5 + fe.arbBalDelta - naturalMechBalanceOf(ch)`, roughly +0.03 on the default chassis, a tenth of the ±0.30 normalisation window and enough to flip the nudge's sign when `gripGap` sits near zero |
+| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − natDisplayOf(ch, gameMode)` (both display space) — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so under that mode both nudges trace back to `natGripBalance`. They are still **not** the same number — `mechGap - gripGap = 0.5 + fe.arbBalDelta - natDisplayOf(ch, gameMode)`, roughly +0.03 on the default chassis, a tenth of the ±0.30 normalisation window and enough to flip the nudge's sign when `gripGap` sits near zero |
 | **grip** (AUTO / Nudge GRIP) | Nudges using `gripGap = -(natGripBalance-0.5)` instead — counteracts the chassis's own natural at-limit tendency (understeer-prone chassis gets pushed toward more aggressive/oversteer-leaning alignment, and vice versa), independent of whatever ARB balance mode is active |
 | **manual** | Direct entry — wires up `al.camberF/camberR/toeF/toeR/caster` (these fields, plus `al.alignManual`, predate this feature and were previously unused dead state with no UI) |
 
 `mechGap` and `gripGap` are both differences of ~0.5-centered 0–1 fractions
-(`arbBalTarget`, `naturalMechBalanceOf`, and `natGripBalance` are all
+(`arbBalTarget`, `natDisplayOf`, and `natGripBalance` are all
 balance-fraction values on the same scale), so the two nudge sources
 saturate the shared `normGap` clamp below at comparable real-world
 magnitudes. `gripGap` used to be pre-multiplied by `2` before that clamp,

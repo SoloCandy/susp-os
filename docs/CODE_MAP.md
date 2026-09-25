@@ -103,19 +103,21 @@ conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
 fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB click scale: MEASURE ARB's value or `ARB_RS_SCALE` — every click↔roll-stiffness
 conversion goes through it), `arbScaleStale` (true when a measured scale's recorded MEAS. NAT BAL or Hz no longer matches the chassis — drives the ARB SCALE SETUP card's and sidebar's RE-MEASURE flags), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
-reading), `natGeomOf` (the track-width/corner-mass estimate on its own — what
-`naturalMechBalanceOf` falls back to when nothing is measured, and the shared term in the two
-below), `natOffsetOf` (MEASURE NAT BAL's gap from the
+reading), `natGeomOf` (the track-width/corner-mass estimate on its own — the solvers' model
+roll-stiffness natural, and the shared term in the two below), `natRsOf` / `natDisplayOf` /
+`natDisplayModelOf` / `measuredNatBalOf` (natural balance in roll-stiffness space and in display
+space, the model's display prediction, and the clamped reading — there is deliberately no
+unqualified "natural" function; see [PHYSICS.md](PHYSICS.md)), `natOffsetOf` (MEASURE NAT BAL's gap from the
 geometric estimate with the tyre term taken out — 0 when not measuring; the one
 definition all four solve sites use), `natBalRefOf` / `natBalStale` (the model's own prediction
 at the moment a reading was taken, and whether it has since moved by at least `NAT_BAL_STALE_TOL`
-— the step-1 counterpart to `arbScaleStale`; note `naturalMechBalanceOf` returns a reading
+— the step-1 counterpart to `arbScaleStale`; note `natDisplayOf` returns a reading
 *verbatim* and never consults the chassis, which is exactly why the guard is needed), `tyreRollStiffness` / `inSeries` / `displayRsBalance` (the
 tyre-series balance Forza displays — `computeTune`'s `mechBalance` and MEASURE ARB), `displayNatOffsetOf`
 (MEASURE NAT BAL's offset for that display, anchored at the stored `measuredNatBalHz`), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
 `resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
-`naturalMechBalanceOf`, `balanceBandDelta` (one edge of the PRO Balance
+`balanceBandDelta` (one edge of the PRO Balance
 Guide's recommended band — module-level rather than inline because the RANGE
 block and the GRIP GAP sub-widget both call it, and a band they disagreed on
 would make "in range" mean two different things in one panel) and

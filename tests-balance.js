@@ -46,7 +46,7 @@ const M = new Function(
   slice('const KG_TO_LB=', 'const arbCtx=') +
   '\nreturn{DEF_CH,DEF_FE,cornerMasses,tyreWidths,tireCorrOf,parseTyre,' +
   'axleRollStiffness,rollCenterHeight,latLoadTransfer,mechBalanceLLT,balanceFromRsBal,' +
-  'displayRsBalance,natGeomOf,naturalMechBalanceOf,gripNeutralOf,clampBalTarget,' +
+  'displayRsBalance,natGeomOf,natRsOf,natDisplayOf,gripNeutralOf,clampBalTarget,' +
   'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical};'
@@ -414,16 +414,23 @@ t('balanceBandRange contains both endpoints AND every interior fraction', () => 
   }
 });
 
+// The Balance Guide's gap, exactly as the app computes it: grip-neutral (1 − natGripBalance)
+// minus the DISPLAY-space natural the band is drawn around. This file used
+// (1 − gripNeutralOf) − natural until the natural-balance split — natGripBalance minus natural,
+// a different quantity — so its band and crossover properties were exercising the wrong gap.
+const NAT = ch => M.natDisplayOf(ch, 'horizon');
+const gapOf = ch => M.gripNeutralOf(ch) - NAT(ch);
+
 t('every shipped BALANCE_BAND_FRACS pair produces a usable band on every chassis', () => {
   for (const { name, ch } of CHASSIS) {
-    const gap = (1 - M.gripNeutralOf(ch)) - M.naturalMechBalanceOf(ch);
+    const gap = gapOf(ch);
     for (const layout of Object.keys(M.BALANCE_BAND_FRACS))
       for (const build of Object.keys(M.BALANCE_BAND_FRACS[layout])) {
         const [lo, hi] = M.balanceBandFracs(layout, build);
         const [dlo, dhi] = M.balanceBandRange(lo, hi, gap);
         ok(Number.isFinite(dlo) && Number.isFinite(dhi), `${name} ${layout}/${build}: non-finite band`);
         ok(dlo <= dhi + 1e-12, `${name} ${layout}/${build}: inverted band`);
-        const c = v => M.clampBalTarget(M.naturalMechBalanceOf(ch) + v);
+        const c = v => M.clampBalTarget(NAT(ch) + v);
         ok(c(dlo) >= 0.20 && c(dhi) <= 0.90, `${name} ${layout}/${build}: band escapes clampBalTarget`);
       }
   }
@@ -439,14 +446,19 @@ t('balanceBandFracs falls back to RWD for an unknown layout and to a default for
 // -- 6. The gap's sign crossover ---------------------------------------------
 console.log('\nGap crossover');
 
-const gapAt = bias => {
-  const ch = { ...M.DEF_CH, useRideHeightCG: false, frontBias: bias };
-  return (1 - M.gripNeutralOf(ch)) - M.naturalMechBalanceOf(ch);
-};
+const gapAt = bias => gapOf({ ...M.DEF_CH, useRideHeightCG: false, frontBias: bias });
+// Where the gap actually crosses zero on DEF_CH, found by bisection rather than assumed — the
+// continuity test below scans around it, and a hard-coded window is how that test once sat
+// beside the crossover instead of across it.
+const crossover = (() => {
+  let lo = 35, hi = 65;
+  if (Math.sign(gapAt(lo)) === Math.sign(gapAt(hi))) return null;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (Math.sign(gapAt(m)) === Math.sign(gapAt(lo))) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+})();
 
-t('the natural-to-grip gap changes sign exactly once, just under 50% front bias', () => {
-  // Documented at balanceBandDelta: 49.51% on DEF_CH. The property is that it happens once
-  // and in that neighbourhood — not the exact figure, which is calibration.
+t('the natural-to-grip gap changes sign exactly once, near an even weight split', () => {
+  // The property is that it happens once and near 50% — not the exact figure, which is calibration.
   let flips = 0, at = null, prev = gapAt(35);
   for (let b = 35.5; b <= 65.001; b += 0.5) {
     const g = gapAt(b);
@@ -455,6 +467,7 @@ t('the natural-to-grip gap changes sign exactly once, just under 50% front bias'
   }
   ok(flips === 1, `gap changed sign ${flips} times across 35-65% front bias, expected exactly 1`);
   ok(at > 45 && at < 55, `sign change landed at ${at}% front bias, expected between 45 and 55`);
+  ok(crossover != null && Math.abs(crossover - at) <= 0.5, `bisected crossover ${crossover} disagrees with the scan's ${at}`);
 });
 
 t('nothing downstream of the gap jumps as it crosses zero', () => {
@@ -462,10 +475,11 @@ t('nothing downstream of the gap jumps as it crosses zero', () => {
   // target band there would mean a 0.01% weight-bias edit could move a recommendation visibly.
   for (const [lo, hi] of [[0.35, 0.65], [0.55, 0.95], [0.9, 1.55], [0.6, 1.05]]) {
     let prev = null, prevB = null;
-    for (let b = 48.0; b <= 51.001; b += 0.01) {
+    ok(crossover != null, 'no crossover to scan across');
+    for (let b = crossover - 1.5; b <= crossover + 1.5; b += 0.01) {
       const ch = { ...M.DEF_CH, useRideHeightCG: false, frontBias: b };
-      const nat = M.naturalMechBalanceOf(ch);
-      const gap = (1 - M.gripNeutralOf(ch)) - nat;
+      const nat = NAT(ch);
+      const gap = gapOf(ch);
       const [dlo, dhi] = M.balanceBandRange(lo, hi, gap);
       const cur = [nat + dlo, nat + dhi];
       if (prev) for (const i of [0, 1]) ok(Math.abs(cur[i] - prev[i]) < 0.005,
@@ -475,9 +489,9 @@ t('nothing downstream of the gap jumps as it crosses zero', () => {
   }
 });
 
-t('gripNeutralOf and naturalMechBalanceOf both stay inside the 0-1 scale', () => {
+t('gripNeutralOf and the natural in both spaces stay inside the 0-1 scale', () => {
   for (const { name, ch } of CHASSIS) {
-    for (const v of [M.gripNeutralOf(ch), M.naturalMechBalanceOf(ch), M.natGeomOf(ch)])
+    for (const v of [M.gripNeutralOf(ch), M.natRsOf(ch), NAT(ch), M.natDisplayOf(ch, 'beamng'), M.natGeomOf(ch)])
       ok(v > 0 && v < 1, `${name}: ${v} is outside the 0-1 balance scale`);
   }
 });

@@ -145,8 +145,8 @@ codec so a shared BeamNG tune reproduces the numbers the sender saw.
 Ids 60/61 (`useMeasuredNatBal`/`measuredNatBal`) are `group:'ch'` for the same
 reason. They used to be excluded from the codec entirely (see the removed note
 below) until it became clear that exclusion was actively wrong: `arbBalTarget`
-(id 40) and `arbBalDelta` (id 54) both store *deltas* from
-`naturalMechBalanceOf(ch)`, so if the measured-override baseline itself doesn't
+(id 40) and `arbBalDelta` (id 54) both store *deltas* from a natural the reading
+feeds — `natDisplayOf(ch)` and `gripNeutralOf(ch)` — so if the measured-override baseline itself doesn't
 travel, a receiver decoding with `useMeasuredNatBal` defaulted to `false`
 silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
@@ -348,7 +348,16 @@ reinterprets old codes under new rules. Two examples so far:
 - **id 40 (`arbBalTarget`)** — changed from an absolute mech-balance value
   (0.20-0.90) to a delta from `naturalMechBalanceOf(ch)`. Old codes/saved
   builds with an explicit (non-default) target will be reinterpreted under
-  the new delta semantics and will likely need re-tuning.
+  the new delta semantics and will likely need re-tuning. (The natural it is a delta from
+  is now `natDisplayOf(ch, gameMode)` — see the next bullet.)
+- **id 40 (`arbBalTarget`) again — the natural became display space.** The delta used to be
+  taken from `naturalMechBalanceOf(ch)`, which was geometry on an unmeasured car and the
+  display reading on a measured one. It is now `natDisplayOf(ch, gameMode)` in both cases.
+  The wire value is unchanged and nothing was migrated: measured builds resolve to exactly
+  the same target, unmeasured ones move by up to ~0.024 on staggered tyres (inside the
+  geometry estimate's own error). GRIP's `arbBalDelta` (id 54) moved only on measured,
+  staggered cars, by ~0.011, because `gripNeutralOf` now takes `natRsOf`. See
+  [HISTORY.md](HISTORY.md).
 - **id 41 (`arbBalMode`) `'man'`** — MAN moved from Balance Mode to Stiffness
   Mode (id 15, `arbMode`), since it bypasses the budget/split system
   entirely rather than choosing a split within it. `'man'` stays in
@@ -375,8 +384,8 @@ reinterprets old codes under new rules. Two examples so far:
   other; it was appended after `'chassis'` (index 5) for exactly that reason.
 - **id 41 (`arbBalMode`) `'chassis'`** — new PRO-only mode (index 5), added
   alongside the MAN migration. Same split formula as WEIGHT, but anchored to
-  `naturalMechBalanceOf(ch)` (track-width geometry, or the MEASURE NAT BAL
-  reading when set) instead of raw `ch.frontBias` — see
+  the natural balance (now `natRsOf(ch)`: track-width geometry, or the MEASURE NAT BAL
+  reading with its tyre-width term removed) instead of raw `ch.frontBias` — see
   [HISTORY.md](HISTORY.md) for why WEIGHT itself was deliberately
   left on the simpler raw-weight formula rather than switched over.
 - **ids 48/49 (`settleBias`/`settleMode`) → id 62 (`dampBalMode`)** — the
@@ -404,8 +413,8 @@ reinterprets old codes under new rules. Two examples so far:
 - **ids 60/61 (`useMeasuredNatBal`/`measuredNatBal`) added** — previously
   excluded entirely (see the removed section this replaced, below). id 40's
   delta-from-natural semantics (above) turned out to depend on the baseline
-  travelling too: without it, a receiver always resolves
-  `naturalMechBalanceOf(ch)` from geometry, which can differ substantially
+  travelling too: without it, a receiver always resolves the natural
+  from its model, which can differ substantially
   from what the sender measured in-game, silently reinterpreting the
   delta against the wrong absolute value. Unlike `useRideHeightCG` (below,
   still excluded), whose output `ch.cgHeight` is a self-contained absolute

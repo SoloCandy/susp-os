@@ -130,7 +130,7 @@ mech-balance units: positive is the oversteer side, negative the understeer side
 is neutral — the same meaning and the same authority on every chassis.
 
 ```js
-gripTarget = 1 - balanceFromRsBal(ch, naturalMechBalanceOf(ch))   // grip-neutral mech balance
+gripTarget = 1 - balanceFromRsBal(ch, natRsOf(ch))   // grip-neutral mech balance (roll-stiffness natural)
 target     = gripTarget + balanceOffset
 ```
 
@@ -161,11 +161,11 @@ The first design stored balance as a fraction `f` of the gap between the chassis
 natural mech balance and grip-neutral — the normalisation the Balance Guide's
 `BALANCE_BAND_FRACS` uses — anchored at grip-neutral with a floor:
 `gripTarget + (f − 1)·max(gap, 0.03)`. It was accepted, then rejected once real
-chassis were run through `naturalMechBalanceOf` and `balanceFromRsBal`.
+chassis were run through the natural balance and `balanceFromRsBal`.
 
 **A negative gap is not rare.** PHYSICS.md described it as the rare chassis whose
 natural balance already sits past its grip target, until the same finding corrected
-it there. The sign flips just under 50% front — 49.51% on the default chassis — and a
+it there. The sign flips just under 50% front — about 49.5% on the default chassis — and a
 wide front tyre stagger flips it too; a broad grid over layout, weight bias, track
 widths, tyre sizes, CG height and weight found it negative at about half its points.
 A plain fraction then points the wrong way on every mid-engined car, and the floor

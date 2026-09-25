@@ -236,6 +236,11 @@ const displayRsBalance=(ch,kF,kR)=>{
 // card's default at the time. The card now defaults to 2.20; this constant is frozen history and
 // must not follow it, or every legacy reading is reinterpreted at springs it was never taken on.
 const NAT_BAL_REF_HZ=2.5;
+// The equal-spring Hz MEASURE NAT BAL asks for by default — the protocol a reading is taken
+// under. natDisplayModelOf evaluates the UNMEASURED natural here, so the app's prediction is a
+// prediction of what that procedure would read. NOT the same as NAT_BAL_REF_HZ, which is frozen
+// history for readings that never recorded their Hz; see the MEASURE card's probeHz.
+const NAT_BAL_PROBE_HZ=2.20;
 const DAMPING_CALIBRATION=0.00135;
 // Mech-balance model (tyre load sensitivity). See mechBalanceLLT.
 const TIRE_LOAD_SENS=0.15;   // grip falloff per unit Fz/Fz_ref (tyre load sensitivity)
@@ -308,35 +313,72 @@ const parseTyre=str=>{
   const diameter=rim*25.4+2*(width*aspect/100);
   return{width,aspectRatio:aspect,rimDiameter:rim,diameter,radius:diameter/2};
 };
-// Natural mech balance for this chassis — pure roll-stiffness rear fraction at equal springs,
-// no ARBs (matches chassisAnalysis.natBal / the "NAT" reference the Balance Guide already uses).
-// Uses the measured reading in place of the geometry prediction when MEASURE NAT BAL is active.
-// Mech Balance Target/Balance Offset are stored as deltas from this value so a saved/shared
-// build re-targets correctly against whatever chassis it's applied to.
-// The track-width/corner-mass estimate of natural balance — what the app predicts before any
-// measurement. Factored out because three things need the same expression: the unmeasured branch
-// below, natOffsetOf's subtraction, and natBalRefOf's staleness reference.
+// ── Natural balance: two spaces, named ─────────────────────────────────────────
+// "Natural" is the chassis's own balance at equal springs and no bars. It lives in two spaces,
+// and until they were split one function, naturalMechBalanceOf, answered in whichever space its
+// input happened to be in: the Forza DISPLAY reading when MEASURE NAT BAL was set (tyre term and
+// tyre-series compression included), plain suspension GEOMETRY when it was not. Consumers that
+// wanted one space got the other depending on a checkbox — a 0-delta target asked the solver for
+// a correction on staggered tyres, and gripNeutralOf fed a display reading into a model that
+// expects a roll-stiffness fraction. So there is no unqualified "natural" any more:
+//
+//   natRsOf(ch)                 roll-stiffness space — the REAL car's rear roll-stiffness fraction.
+//                               For the grip model (balanceFromRsBal/mechBalanceLLT) and for
+//                               ARB stiffness splits.
+//   natDisplayOf(ch, gameMode)  display space — what the game SHOWS for the natural setup. For
+//                               anything compared against a Mech Balance Target or tune.mechBalance:
+//                               the stored target delta, the Balance Guide, MATCH CHASSIS, the MECH
+//                               alignment nudge, the dials' NAT marker.
+//
+// Measured, the two differ by exactly tireCorr and natDisplayOf returns the reading verbatim.
+// Unmeasured, natDisplayOf is the model's prediction of what MEASURE NAT BAL would read.
+// docs/PHYSICS.md "Natural balance".
+//
+// The track-width/corner-mass estimate — the model's own natural in the solvers' roll-stiffness
+// space, before any measurement. Also natBalRefOf's staleness fingerprint.
 const natGeomOf=ch=>{
   const mc=cornerMasses(ch);
   return mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF+mc.rear*ch.trackR*ch.trackR);
 };
-const naturalMechBalanceOf=ch=>{
-  if(ch.useMeasuredNatBal&&ch.measuredNatBal!=null)return Math.max(0.10,Math.min(0.90,ch.measuredNatBal));
-  return natGeomOf(ch);
+// The MEAS. NAT BAL reading, clamped, or null. A Forza display reading — it is display space.
+const measuredNatBalOf=ch=>ch.useMeasuredNatBal&&ch.measuredNatBal!=null
+  ?Math.max(0.10,Math.min(0.90,ch.measuredNatBal)):null;
+// The model's display-space natural, ignoring any measurement. Physical modes display the
+// suspension fraction plus the tyre-width term (computeTune's physUnits mechBalance); Forza shows
+// each tyre in series with its axle (displayRsBalance), so the prediction is taken at the equal
+// springs MEASURE NAT BAL would ask for. Separate from natDisplayOf because REACH needs it for
+// hypothetical track widths, where a measured reading — which ignores the chassis — would be flat.
+const natDisplayModelOf=(ch,gameMode)=>{
+  if(isPhysical(gameMode))return natGeomOf(ch)+tireCorrOf(ch);
+  const mc=cornerMasses(ch);
+  return displayRsBalance(ch,axleRollStiffness(NAT_BAL_PROBE_HZ,mc.front,ch.trackF),
+    axleRollStiffness(NAT_BAL_PROBE_HZ,mc.rear,ch.trackR))+tireCorrOf(ch);
 };
+// Display space. Measured, the reading itself — verbatim in every mode, which is not a special
+// case but what the offsets are built to do: displayNatOffsetOf reproduces the reading at the Hz
+// it was taken, and natRsOf+tireCorr is the reading by construction.
+const natDisplayOf=(ch,gameMode)=>measuredNatBalOf(ch)??natDisplayModelOf(ch,gameMode);
 // MEASURE NAT BAL's gap from the geometric estimate, as a constant rsBalance-space offset. The
 // measured value is read off Forza's display, which already includes the tyre-width effect, so
 // tireCorr is taken out here — every caller adds tireCorr back separately, and leaving it in
 // counted it twice on cars with different front/rear tyre widths. 0 when not measuring.
 const natOffsetOf=ch=>{
-  if(!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null))return 0;
-  return naturalMechBalanceOf(ch)-natGeomOf(ch)-tireCorrOf(ch);
+  const m=measuredNatBalOf(ch);
+  return m==null?0:m-natGeomOf(ch)-tireCorrOf(ch);
 };
+// Roll-stiffness space: the real car's natural rear roll-stiffness fraction. Geometry, moved by
+// the measured offset when there is one — i.e. the reading with the tyre-width term taken out,
+// since that term is part of what Forza DISPLAYS, not of the car's roll stiffness.
+const natRsOf=ch=>natGeomOf(ch)+natOffsetOf(ch);
 // What the model predicted for THIS chassis at the moment the reading was taken — the geometry
 // estimate plus the tyre-width term, which together are exactly the quantity a MEAS. NAT BAL
 // reading replaces. Stored with the reading so staleness is one subtraction.
+// Deliberately NOT natDisplayModelOf, though it now answers a similar question: every stored
+// measuredNatBalRef was written with this formula, and staleness is a comparison against it, so
+// changing it would flag every existing reading at once. It is a fingerprint of the chassis a
+// reading was taken on, not a balance anything is solved against.
 const natBalRefOf=ch=>natGeomOf(ch)+tireCorrOf(ch);
-// A MEAS. NAT BAL reading measures ONE car in ONE state. naturalMechBalanceOf returns it verbatim
+// A MEAS. NAT BAL reading measures ONE car in ONE state. natDisplayOf returns it verbatim
 // and ignores the chassis entirely, so editing weight, front bias, track widths or tyres afterwards
 // changes what the car would really read while the app keeps reporting the old number — silently,
 // and with no way to tell a still-good reading from a stale one. This is the counterpart to
@@ -360,9 +402,10 @@ const natBalStale=ch=>!!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null&&ch.measu
 // inside the reading). The model's equal-Hz balance moves slightly with Hz, which is why the Hz
 // is stored with the reading. natOffsetOf stays the solvers' suspension-space offset. 0 unmeasured.
 const displayNatOffsetOf=ch=>{
-  if(!(ch.useMeasuredNatBal&&ch.measuredNatBal!=null))return 0;
+  const m=measuredNatBalOf(ch);
+  if(m==null)return 0;
   const mc=cornerMasses(ch),hz=ch.measuredNatBalHz??NAT_BAL_REF_HZ;
-  return naturalMechBalanceOf(ch)-tireCorrOf(ch)
+  return m-tireCorrOf(ch)
     -displayRsBalance(ch,axleRollStiffness(hz,mc.front,ch.trackF),axleRollStiffness(hz,mc.rear,ch.trackR));
 };
 // MEASURE ARB: the click scale that makes the display model read what Forza showed with bars f/r
@@ -383,14 +426,20 @@ const solveArbScale=(ch,hz,f,r,reading)=>{
 // The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
 // so the band is stated once. sanitizeTune clamps the STORED delta instead (0.20-nat..0.90-nat).
 const clampBalTarget=v=>Math.max(0.20,Math.min(0.90,v));
+// The target is compared against tune.mechBalance — what the game displays — so the delta is
+// taken from the DISPLAY-space natural. A 0 delta therefore means "display exactly the natural
+// balance" in every mode, measured or not; while it was taken from geometry, an unmeasured car on
+// staggered tyres got a target tireCorr off its own natural.
 const resolveArbBalTarget=(ch,fe)=>fe.arbBalTarget==null
   ?MECH_BALANCE_TARGET
-  :clampBalTarget(naturalMechBalanceOf(ch)+fe.arbBalTarget);
+  :clampBalTarget(natDisplayOf(ch,fe.gameMode)+fe.arbBalTarget);
 // Grip-neutral mech balance: the mech balance that cancels this chassis's natural at-limit grip
 // tendency (the Balance Guide's GRIP TARGET). GRIP mode's Balance Offset and Vehicle DNA's
-// balanceOffset axis are both measured from here.
-const gripNeutralOf=ch=>1-balanceFromRsBal(ch,naturalMechBalanceOf(ch));
-// fe.arbBalTarget is stored as a delta from naturalMechBalanceOf(ch) (null = untouched, falls back
+// balanceOffset axis are both measured from here. balanceFromRsBal takes a ROLL-STIFFNESS
+// fraction, so its input is natRsOf — it used to receive a measured display reading, tyre term
+// and all, on any car with MEASURE NAT BAL set.
+const gripNeutralOf=ch=>1-balanceFromRsBal(ch,natRsOf(ch));
+// fe.arbBalTarget is stored as a delta from natDisplayOf(ch,gameMode) (null = untouched, falls back
 // to MECH_BALANCE_TARGET) so a saved/shared build re-targets against whatever chassis it's applied
 // to. This is the single funnel that resolves both TARGET and GRIP modes to the absolute value the
 // physics engine and every downstream display read. It was inline in App until Vehicle DNA's
@@ -748,7 +797,7 @@ const balanceEnvelope=(ch,tune,gameMode)=>{
 // grip-neutral and adding |gap| keeps it pointed at oversteer whatever the sign.
 //
 // A negative gap is ordinary, not an edge case: the sign tracks front weight bias and
-// flips just under 50% front (49.51% on DEF_CH), so every mid- and rear-engined car is
+// flips just under 50% front (about 49.5% on DEF_CH — it moves with calibration, so no exact figure is kept), so every mid- and rear-engined car is
 // on that side, as is any chassis a wide front tyre stagger puts there. docs/PHYSICS.md
 // carries the crossover measurements.
 //
@@ -846,9 +895,9 @@ const feelToPhysics=(ch,fe)=>{
     const tireCorr=tireCorrOf(ch);
     const A=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF); // natural rear/front roll-stiffness ratio (no width)
     const Rbl=A/(1+A); // geometric equal-Hz, zero-ARB ratio — the real "no correction" spring state
-    // MEASURE NAT BAL calibrates naturalMechBalanceOf away from this geometric estimate — treat
-    // the gap as a constant offset (same treatment as tireCorr) so a target sitting exactly on
-    // NAT needs no correction. See resolveCoSolveSpringShare for the full rationale.
+    // A MEAS. NAT BAL reading moves the natural away from this geometric estimate — treat the gap
+    // as a constant offset (same treatment as tireCorr). See resolveCoSolveSpringShare for what a
+    // target sitting exactly on NAT does and does not collapse to.
     const natOffset=natOffsetOf(ch);
     const rst=Math.max(0.001,Math.min(0.999,abt-tireCorr-natOffset));
     const springShareAuto=fe.springShareAuto!==false;
@@ -1132,11 +1181,18 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
   const rsSpF_cs=axleRollStiffness(fHz,m.front,ch.trackF);
   const rsSpR_base=axleRollStiffness(fHz,m.rear,ch.trackR);
   const R_baseline=rsSpR_base/(rsSpF_cs+rsSpR_base); // geometric equal-Hz, zero-ARB ratio — the real "no correction" spring state
-  // MEASURE NAT BAL calibrates naturalMechBalanceOf away from the geometric estimate above (the
-  // real car's roll stiffness includes factors the track/mass formula can't see). Treat the gap
-  // as a constant offset — same treatment as tireCorr below — so a target sitting exactly on NAT
-  // (0 delta) collapses back to R_baseline and needs no correction, instead of CO-SOLVE "fixing"
-  // a gap between our geometry estimate and the measured reading that isn't a real tuning need.
+  // A MEAS. NAT BAL reading moves the natural away from the geometric estimate above (the real
+  // car's roll stiffness includes factors the track/mass formula can't see). Treat the gap as a
+  // constant offset — same treatment as tireCorr below — so CO-SOLVE doesn't "fix" a gap between
+  // our geometry estimate and the reading that isn't a real tuning need.
+  //
+  // What a target sitting exactly on NAT (0 delta, so natDisplayOf) converts to here: exactly
+  // R_baseline when measured, and in physical modes, where natDisplay is geometry + tireCorr.
+  // Unmeasured in a Forza mode it lands within the tyre-series compression of R_baseline — the
+  // natural Forza DISPLAYS is not the geometric fraction, because each tyre sits in series with
+  // its axle — which is a few thousandths on an ordinary car and solveTune's display-space pass
+  // closes. Before natural was split into its two spaces this missed by tireCorr as well, about
+  // 0.02 on staggered tyres, because the target was taken from geometry. docs/PHYSICS.md.
   const natOffset=natOffsetOf(ch);
   const targetRsBalance=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset));
   let S;
@@ -1215,9 +1271,9 @@ const computeTune=(ch,phys,gameMode)=>{
   // Tyre-width correction: Forza's mech balance display includes a small tyre-width contribution.
   // Pre-compensate the solve target so Forza reads the desired value after tuning.
   const tireCorr=tireCorrOf(ch);
-  // MEASURE NAT BAL calibrates naturalMechBalanceOf away from the geometric equal-Hz/zero-ARB
-  // estimate below — treat the gap as a constant offset (same treatment as tireCorr) so a target
-  // sitting exactly on NAT needs no correction. See resolveCoSolveSpringShare for the rationale.
+  // A MEAS. NAT BAL reading moves the natural away from the geometric equal-Hz/zero-ARB estimate
+  // below — treat the gap as a constant offset (same treatment as tireCorr). See
+  // resolveCoSolveSpringShare for what a 0-delta target does and does not collapse to.
   const natOffset=natOffsetOf(ch);
   // CO-SOLVE: solve rear Hz from spring share + mech balance target before anything else
   let effectiveRHz=rHz;
@@ -1381,7 +1437,9 @@ const computeTune=(ch,phys,gameMode)=>{
     // own split — see docs/HISTORY.md).
     // SAME/OPPOSITE mirrors WEIGHT's own toggle — SAME tracks natural balance directly,
     // OPPOSITE mirrors around 50% so the bars counteract the chassis's natural tendency.
-    const natPct=naturalMechBalanceOf(ch)*100;
+    // An ARB STIFFNESS split, so roll-stiffness space: natRsOf, which leaves out the tyre-width
+    // term a measured reading carries (it is part of what Forza displays, not of the bars' job).
+    const natPct=natRsOf(ch)*100;
     rF=Math.max(0,Math.min(1,Math.max(20,Math.min(80,(arbSplitOpposite?(100-natPct):natPct)+arbBias*0.4))/100));
   }
   //
@@ -1626,11 +1684,11 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
   // Off by default; manual mode bypasses it entirely.
   let effBiasExit=biasExit, effBiasEntry=biasEntry;
   if(dr.diffComplement&&!dr.diffManual){
-    const cm=cornerMasses(ch);
-    // Use measured nat balance when provided (measured mode active), else compute from geometry
-    const natMechBal=natMechBalOverride!=null
-      ?natMechBalOverride
-      :(cm.rear*ch.trackR*ch.trackR)/(cm.front*ch.trackF*ch.trackF+cm.rear*ch.trackR*ch.trackR);
+    // The target is display space, so the natural it is measured from must be too. This used to
+    // fall back to an inline GEOMETRY copy whenever the caller passed nothing — the app passed the
+    // reading only when measured — so an unmeasured GRIP-mode gap was off by tireCorr and the
+    // tyre-series compression. The override is kept for tests that pin a natural directly.
+    const natMechBal=natMechBalOverride!=null?natMechBalOverride:natDisplayOf(ch,fe.gameMode);
     const tgt=fe.arbBalTarget; // fe is feEffective here — already resolved for TARGET/GRIP mode
     const gap=tgt-natMechBal; // positive = user wants more rear/oversteer than natural
     // Cap correction so it can't dominate explicit user slider input
@@ -3411,7 +3469,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
   // by default because the spring rate this asks for has to still exist in the game's range on
   // a heavy car; the field goes to 1.0 for anyone whose car allows it. NAT_BAL_REF_HZ stays
   // 2.5 — it is what unrecorded legacy readings were taken at, not this default.
-  const[probeHz,setProbeHz]=useState(()=>ch.useMeasuredNatBal?(ch.measuredNatBalHz??NAT_BAL_REF_HZ):2.20);
+  const[probeHz,setProbeHz]=useState(()=>ch.useMeasuredNatBal?(ch.measuredNatBalHz??NAT_BAL_REF_HZ):NAT_BAL_PROBE_HZ);
   // MEASURE ARB: Forza's mech balance with the bars rear-biased (A) and front-biased (B).
   const[arbReadA,setArbReadA]=useState(null);
   const[arbReadB,setArbReadB]=useState(null);
@@ -4058,8 +4116,8 @@ const CODEC_FIELDS=[
   {id:69,group:'ch',key:'arbMotionRatioR'},
   // 60/61: measured natural balance calibration. group:'ch' — travels with the chassis,
   // same reasoning as motionRatioF/R. Unlike useRideHeightCG (whose resulting cgHeight
-  // already travels via id 4), arbBalTarget/arbBalDelta store DELTAS from
-  // naturalMechBalanceOf(ch), so the baseline itself must travel too or a shared build
+  // already travels via id 4), arbBalTarget/arbBalDelta store DELTAS from natDisplayOf(ch) and
+  // gripNeutralOf(ch), both of which read it, so the baseline itself must travel too or a shared build
   // re-targets against the wrong (geometry-only) natural balance. See docs/CODEC.md.
   {id:60,group:'ch',key:'useMeasuredNatBal',bool:true},
   {id:61,group:'ch',key:'measuredNatBal'},
@@ -4272,7 +4330,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       tyreR: parseTyre(ch?.tyreR)?ch.tyreR:DEF_CH.tyreR,
       layout:       LAYOUT_DEC.includes(ch?.layout)?ch.layout:DEF_CH.layout,
       // Travels with the chassis so a shared build's arbBalTarget/arbBalDelta (deltas from
-      // naturalMechBalanceOf(ch)) re-expand against the sender's actual calibrated baseline
+      // natDisplayOf(ch) / gripNeutralOf(ch)) re-expand against the sender's actual calibrated baseline
       // instead of silently falling back to geometry — see docs/CODEC.md id 60/61.
       useMeasuredNatBal: !!(ch?.useMeasuredNatBal),
       measuredNatBal:    ch?.useMeasuredNatBal&&ch?.measuredNatBal!=null?cl(ch.measuredNatBal,0.10,0.90,null):null,
@@ -4294,10 +4352,12 @@ const sanitizeTune=({ch,fe,dr})=>{
       arbMotionRatioF: cl(ch?.arbMotionRatioF, 0.2, 1.5, DEF_CH.arbMotionRatioF),
       arbMotionRatioR: cl(ch?.arbMotionRatioR, 0.2, 1.5, DEF_CH.arbMotionRatioR),
   };
-  // arbBalTarget is a delta from naturalMechBalanceOf(sch) (see id 40 in docs/CODEC.md) —
+  // arbBalTarget is a delta from natDisplayOf(sch,sgm) (see id 40 in docs/CODEC.md) —
   // clamp it to the same range the live Field allows (0.20-0.90 absolute), not a flat
   // approximation, so a decoded delta can't silently get truncated differently than the UI.
-  const _snb=naturalMechBalanceOf(sch);
+  // Same natural resolveArbBalTarget adds back, in the same game mode, or the clamp and the
+  // resolve disagree about where the band is.
+  const _snb=natDisplayOf(sch,sgm);
   return{
     ch: sch,
     fe:{
@@ -5616,7 +5676,7 @@ function App(){
 
   const cm=useMemo(()=>cornerMasses(ch),[ch]);
   const dispMass=kg=>mMass?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
-  const natGripBalance=balanceFromRsBal(ch,naturalMechBalanceOf(ch));
+  const natGripBalance=balanceFromRsBal(ch,natRsOf(ch)); // grip model: roll-stiffness space
   // The single TARGET/GRIP resolution funnel — see resolveFeEffective.
   const feEffective=resolveFeEffective(ch,fe);
   const solved=useMemo(()=>solveTune(ch,feEffective,fe.gameMode),[ch,feEffective,fe.gameMode]);
@@ -5769,7 +5829,7 @@ function App(){
     if(alignMode==='manual')return{recCamberF:al.camberF,recCamberR:al.camberR,
       recToeF:al.toeF,recToeR:al.toeR,recCaster:al.caster};
     if(alignMode!=='mech'&&alignMode!=='grip')return autoAlign;
-    const mechGap=feEffective.arbBalTarget-naturalMechBalanceOf(ch);
+    const mechGap=feEffective.arbBalTarget-natDisplayOf(ch,fe.gameMode); // target and natural, both display space
     const gripGap=-(natGripBalance-0.5);
     const rawGap=alignMode==='mech'?mechGap:gripGap;
     const normGap=Math.max(-1,Math.min(1,rawGap/0.30));
@@ -5782,8 +5842,10 @@ function App(){
       recCaster:autoAlign.recCaster,
     };
   })();
-  const _measuredNatForDiff=ch.useMeasuredNatBal?naturalMechBalanceOf(ch):null;
-  const diff=useMemo(()=>computeDiff(ch,feEffective,dr,_measuredNatForDiff),[ch,feEffective,dr,_measuredNatForDiff]);
+  // computeDiff resolves the display-space natural itself (natDisplayOf, feEffective.gameMode),
+  // measured or not. It used to be handed the reading only when measured and fall back to its own
+  // inline GEOMETRY otherwise — a second copy of the unqualified natural, in the wrong space.
+  const diff=useMemo(()=>computeDiff(ch,feEffective,dr),[ch,feEffective,dr]);
   const _brakeWtMod=ch.wheelbase>0?Math.round((ch.cgHeight/ch.wheelbase)*50):8;
   const _brakeBuildMod={street:0,track:3,drift:-5,rally:0,offroad:-3,drag:-8}[dr.buildType??'track']??3;
   const _brakeGripAdj=uiMode==='pro'?Math.round((natGripBalance-0.5)*15):0;
@@ -5946,9 +6008,9 @@ function App(){
   // Full chassis geometry analysis — equal Hz, no ARBs
   const chassisAnalysis=(()=>{
     const{twF,twR}=tyreWidths(ch);
-    // Natural balance = pure roll-stiffness rear fraction at equal springs, no ARBs.
-    // This matches Forza's scale (arbBalTarget is also an rsBalance on this scale).
-    const natBal=cm.rear*ch.trackR*ch.trackR/(cm.front*ch.trackF*ch.trackF+cm.rear*ch.trackR*ch.trackR);
+    // Display space, like the target it is compared with. (This was an inline geometry copy,
+    // described as "Forza's scale" — it wasn't, by the tyre term and the tyre-series compression.)
+    const natBal=natDisplayOf(ch,fe.gameMode);
     // Stability index: track width × tire width normalised to typical values
     const avgTrack=(ch.trackF+ch.trackR)/2;   // metres
     const avgTire=(twF+twR)/2;                 // mm
@@ -5961,8 +6023,12 @@ function App(){
     // REACH: find track-width changes that bring natural rsBalance toward target.
     // Tyre width affects grip capacity (shown via CHASSIS BAL physical display) but NOT
     // roll-stiffness fraction, so REACH shows track-only recommendations.
-    const rsBalOf=o=>{const c={...ch,...o};const mc=cornerMasses(c);
-      return mc.rear*c.trackR*c.trackR/(mc.front*c.trackF*c.trackF+mc.rear*c.trackR*c.trackR);};
+    // The natural a HYPOTHETICAL track width would give, in the target's display space. The model
+    // predicts the change; a measured reading supplies where the current car actually sits. Not
+    // natDisplayOf directly: a reading ignores the chassis, so every hypothetical track would come
+    // back as the same number and the scan would return its first candidate.
+    const _reachOff=natBal-natDisplayModelOf(ch,fe.gameMode);
+    const rsBalOf=o=>natDisplayModelOf({...ch,...o},fe.gameMode)+_reachOff;
     const scan=f=>{let best=f.lo,err=Infinity;
       for(let i=0;i<=80;i++){const v=f.lo+(f.hi-f.lo)*i/80;const e=Math.abs(f.bal(v)-targetBal);if(e<err){err=e;best=v;}}return best;};
     const r5=v=>Math.round(v/5)*5;
@@ -5977,7 +6043,9 @@ function App(){
            trackF_rec,trackR_rec,dTrackF,dTrackR,trackFfeas,trackRfeas};
   })();
   const{twF:_twF,twR:_twR}=tyreWidths(ch);
-  const natMechBalance=naturalMechBalanceOf(ch);
+  // Display space: the NAT that targets, the Balance Guide, the MECH BALANCE strip and the dials'
+  // ghost markers are all measured against.
+  const natMechBalance=natDisplayOf(ch,fe.gameMode);
   // Gap-dependent chassis recommendations — use natMechBalance so measured mode takes effect here too
   const _sgap=chassisAnalysis.targetBal-natMechBalance;
   const gap=Math.abs(_sgap);
@@ -7128,7 +7196,7 @@ function App(){
                         // arbBalTarget. Seed it with the value GRIP had resolved to, so leaving
                         // GRIP doesn't move the target. feEffective.arbBalTarget is that value
                         // ABSOLUTE (clamped, Balance-Offset-inclusive) while the stored field is
-                        // a delta FROM NAT — resolveArbBalTarget adds naturalMechBalanceOf back
+                        // a delta FROM NAT — resolveArbBalTarget adds natDisplayOf back
                         // on. Seeding the absolute number straight in pins the slider at its
                         // +0.43 ceiling instead, so subtract natural first.
                         arbBalTarget:Math.round((feEffective.arbBalTarget-natMechBalance)*100)/100}))}>TARGET</button>
@@ -7321,7 +7389,7 @@ function App(){
               const showGripGap=_isGripMode&&_ggGap>0.005;
               let _ggTyreF=null,_ggTyreR=null;
               if(showGripGap){
-                const _nb2=naturalMechBalanceOf(ch);
+                const _nb2=natRsOf(ch); // fed to mechBalanceLLT as a roll-stiffness fraction
                 const _nr2=Math.max(1e-4,Math.min(1-1e-4,_nb2));
                 const _gnAt=(twF,twR)=>1-mechBalanceLLT({...ch,tyreF:`${Math.round(twF)}/35R18`,tyreR:`${Math.round(twR)}/35R18`},1,_nr2/(1-_nr2));
                 if(_ggNeutral>_ggHi){
@@ -9642,7 +9710,7 @@ function App(){
                     {/* label row: section header + inline NAT/CUR/TGT values */}
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:2}}>MECH BALANCE</span>
-                      <Hint text="Roll stiffness rear fraction on the 0–1 scale. NAT is the car's natural balance with no ARBs and spring rates scaled to corner mass (equal ride frequency front/rear), weighted by track width. CUR is where your current setup lands. TGT (shown in MECH/CO-SOLVE modes) is the balance you are targeting. The band between NAT and CUR shows how much correction your setup applies."/>
+                      <Hint text="Mech balance on the 0–1 scale as the game displays it — the rear share of roll stiffness, with each tyre counted in series with its axle in Forza. NAT is the balance the game shows for this car at equal ride frequency front/rear and no bars: your MEASURE NAT BAL reading when you have one, otherwise the model's prediction of what that measurement would read. Balance Target deltas are measured from NAT, so 0 means stay exactly here. CUR is where your current setup lands. TGT (shown in MECH/CO-SOLVE modes) is the balance you are targeting. The band between NAT and CUR shows how much correction your setup applies."/>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>·</span>
                       <span style={{fontSize:10,color:'#475569',fontFamily:'var(--font-mono)'}}>
                         NAT <span style={{color:'#94a3b8'}}>{nat.toFixed(2)}</span>

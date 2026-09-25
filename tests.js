@@ -22,7 +22,8 @@ const MPH_TO_MS = 0.44704;
 // NOTE: app now uses rollCenterHeight(ch)=ch.cgHeight*0.20 (not a fixed constant)
 const rollCenterHeight = ch => ch.cgHeight * 0.20;
 const DAMPING_CALIBRATION = 0.00135;
-const GAME_LIMITS = { horizon: { damping: 20, arb: 65 }, motorsport: { damping: 40, arb: 40 } };
+const GAME_LIMITS = { horizon: { damping: 20, arb: 65 }, motorsport: { damping: 40, arb: 40 },
+                      beamng: { damping: null, arb: null, physical: true } };
 
 // ── mech balance model (must mirror app: mechBalanceLLT / balanceFromRsBal) ──
 const TIRE_LOAD_SENS = 0.15, MECH_BAL_GAIN = 1.8, WIDTH_GRIP_EXP = 0.4;
@@ -63,19 +64,46 @@ const cornerMasses = ch => {
   return { front: (kg * (ch.frontBias / 100)) / 2, rear: (kg * (1 - ch.frontBias / 100)) / 2 };
 };
 
-// ── computeDiff model (must mirror app: naturalMechBalanceOf / resolveArbBalTarget / computeDiff) ──
+// ── natural balance in its two spaces (must mirror app: natGeomOf / measuredNatBalOf /
+// natOffsetOf / natRsOf / natDisplayModelOf / natDisplayOf, and the tyre-series display model
+// the Forza natural is read through). See the app's "Natural balance: two spaces, named" banner.
+const TIRE_MECH_SCALE = 0.08, TYRE_HZ = 3.94, TYRE_REF_MASS = 269, NAT_BAL_REF_HZ = 2.5, NAT_BAL_PROBE_HZ = 2.20;
+const isPhysical = gm => !!GAME_LIMITS[gm]?.physical;
+// Tyre widths come from ch.twF/twR here, as in mechBalanceLLT above; the app parses tyreF/tyreR.
+const tireCorrOf = ch => TIRE_MECH_SCALE * Math.log((ch.twR ?? 265) / (ch.twF ?? 265));
+const axleRollStiffness = (hz, mass, track) => Math.pow(hz * 2 * Math.PI, 2) * mass * track * track / 2;
+const tyreRollStiffness = (mass, track) => axleRollStiffness(TYRE_HZ, Math.sqrt(mass * TYRE_REF_MASS), track);
+const inSeries = (k, kt) => k > 0 ? k * kt / (k + kt) : 0;
+const displayRsBalance = (ch, kF, kR) => {
+  const mc = cornerMasses(ch);
+  const eF = inSeries(kF, tyreRollStiffness(mc.front, ch.trackF)), eR = inSeries(kR, tyreRollStiffness(mc.rear, ch.trackR));
+  return eF + eR > 0 ? eR / (eF + eR) : 1 - ch.frontBias / 100;
+};
+const natGeomOf = ch => {
+  const mc = cornerMasses(ch);
+  return mc.rear * ch.trackR * ch.trackR / (mc.front * ch.trackF * ch.trackF + mc.rear * ch.trackR * ch.trackR);
+};
+const measuredNatBalOf = ch => ch.useMeasuredNatBal && ch.measuredNatBal != null
+  ? Math.max(0.10, Math.min(0.90, ch.measuredNatBal)) : null;
+const natOffsetOf = ch => { const m = measuredNatBalOf(ch); return m == null ? 0 : m - natGeomOf(ch) - tireCorrOf(ch); };
+const natRsOf = ch => natGeomOf(ch) + natOffsetOf(ch);
+const natDisplayModelOf = (ch, gameMode) => {
+  if (isPhysical(gameMode)) return natGeomOf(ch) + tireCorrOf(ch);
+  const mc = cornerMasses(ch);
+  return displayRsBalance(ch, axleRollStiffness(NAT_BAL_PROBE_HZ, mc.front, ch.trackF),
+    axleRollStiffness(NAT_BAL_PROBE_HZ, mc.rear, ch.trackR)) + tireCorrOf(ch);
+};
+const natDisplayOf = (ch, gameMode) => measuredNatBalOf(ch) ?? natDisplayModelOf(ch, gameMode);
+
+// ── computeDiff model (must mirror app: resolveArbBalTarget / computeDiff) ──
 const MECH_BALANCE_TARGET = 0.60;
 const DIFF_BIAS_SCALE = 0.14;
 const DIFF_TYPE_SCALE = { race: 1.00, sport: 0.88, rally: 0.76, offroad: 0.52, drift: 1.10 };
 
-const naturalMechBalanceOf = ch => {
-  if (ch.useMeasuredNatBal && ch.measuredNatBal != null) return Math.max(0.10, Math.min(0.90, ch.measuredNatBal));
-  const mc = cornerMasses(ch);
-  return mc.rear * ch.trackR * ch.trackR / (mc.front * ch.trackF * ch.trackF + mc.rear * ch.trackR * ch.trackR);
-};
+// The delta is taken from the DISPLAY-space natural, like the target it becomes.
 const resolveArbBalTarget = (ch, fe) => fe.arbBalTarget == null
   ? MECH_BALANCE_TARGET
-  : Math.max(0.20, Math.min(0.90, naturalMechBalanceOf(ch) + fe.arbBalTarget));
+  : Math.max(0.20, Math.min(0.90, natDisplayOf(ch, fe.gameMode) + fe.arbBalTarget));
 
 const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   const rB = 1 - ch.frontBias / 100;
@@ -89,10 +117,8 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
 
   let effBiasExit = biasExit, effBiasEntry = biasEntry;
   if (dr.diffComplement && !dr.diffManual) {
-    const cm = cornerMasses(ch);
-    const natMechBal = natMechBalOverride != null
-      ? natMechBalOverride
-      : (cm.rear * ch.trackR * ch.trackR) / (cm.front * ch.trackF * ch.trackF + cm.rear * ch.trackR * ch.trackR);
+    // Display space, like the target — the app's natDisplayOf fallback, not an inline geometry copy.
+    const natMechBal = natMechBalOverride != null ? natMechBalOverride : natDisplayOf(ch, fe.gameMode);
     // fe is feEffective, exactly as the app passes it: arbBalTarget is already the RESOLVED
     // absolute target (TARGET or GRIP mode), not the stored delta. This mirror resolved a raw fe
     // itself for a long time after the app moved to feEffective — the older contract — and
@@ -984,7 +1010,9 @@ console.log('\nmirror vs app (reads index.html)');
     slice('const KG_TO_LB=', 'const arbCtx=') +
     '\nreturn{DEF_CH,DEF_FE,DEF_DR,KG_TO_LB,LB_IN_TO_NM,MPH_TO_MS,DAMPING_CALIBRATION,GAME_LIMITS,' +
     'TIRE_LOAD_SENS,MECH_BAL_GAIN,WIDTH_GRIP_EXP,MECH_BALANCE_TARGET,DIFF_BIAS_SCALE,DIFF_TYPE_SCALE,' +
-    'HZ_MIN,HZ_MAX,rollCenterHeight,cornerMasses,mechBalanceLLT,balanceFromRsBal,naturalMechBalanceOf,' +
+    'HZ_MIN,HZ_MAX,rollCenterHeight,cornerMasses,mechBalanceLLT,balanceFromRsBal,' +
+    'TIRE_MECH_SCALE,TYRE_HZ,TYRE_REF_MASS,NAT_BAL_REF_HZ,NAT_BAL_PROBE_HZ,isPhysical,tireCorrOf,axleRollStiffness,' +
+    'tyreRollStiffness,inSeries,displayRsBalance,natGeomOf,measuredNatBalOf,natOffsetOf,natRsOf,natDisplayModelOf,natDisplayOf,' +
     'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode};'
@@ -1038,7 +1066,8 @@ console.log('\nmirror vs app (reads index.html)');
 
   // ── constants
   const CONSTS = { KG_TO_LB, LB_IN_TO_NM, MPH_TO_MS, DAMPING_CALIBRATION, GAME_LIMITS, TIRE_LOAD_SENS,
-    MECH_BAL_GAIN, WIDTH_GRIP_EXP, MECH_BALANCE_TARGET, DIFF_BIAS_SCALE, DIFF_TYPE_SCALE, HZ_MIN, HZ_MAX };
+    MECH_BAL_GAIN, WIDTH_GRIP_EXP, MECH_BALANCE_TARGET, DIFF_BIAS_SCALE, DIFF_TYPE_SCALE, HZ_MIN, HZ_MAX,
+    TIRE_MECH_SCALE, TYRE_HZ, TYRE_REF_MASS, NAT_BAL_REF_HZ, NAT_BAL_PROBE_HZ };
   check('constants match the app', Object.keys(CONSTS), Object.keys(CONSTS),
     k => diff(CONSTS[k], A[k], k));
 
@@ -1055,19 +1084,40 @@ console.log('\nmirror vs app (reads index.html)');
   check('balanceFromRsBal', ['balanceFromRsBal'],
     CH.flatMap(ch => [0, 0.05, 0.2, 0.35, 0.5, 0.555, 0.65, 0.8, 0.895, 0.95, 1].map(r => ({ ch, r }))),
     ({ ch, r }) => diff(balanceFromRsBal(ch, r), A.balanceFromRsBal(ch, r)));
-  check('naturalMechBalanceOf', ['naturalMechBalanceOf'],
-    CH.flatMap(ch => [ch, { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.55 },
-      { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.97 }, { ...ch, useMeasuredNatBal: true, measuredNatBal: null }]),
-    ch => diff(naturalMechBalanceOf(ch), A.naturalMechBalanceOf(ch)));
+  // ── the tyre-series display model and the natural family, in both spaces and every game mode.
+  // Measured variants include an out-of-range reading (clamp), a missing one (flag without value),
+  // a reading with the flag off, and every staggered chassis, where the two spaces differ by tireCorr.
+  const GMS = ['horizon', 'motorsport', 'beamng'];
+  check('isPhysical, tireCorrOf, axleRollStiffness, tyreRollStiffness, inSeries',
+    ['isPhysical', 'tireCorrOf', 'axleRollStiffness', 'tyreRollStiffness', 'inSeries'],
+    CH.flatMap(ch => [0.8, 2.2, 5.5].map(hz => ({ ch, hz }))),
+    ({ ch, hz }) => GMS.map(g => diff(isPhysical(g), A.isPhysical(g), 'isPhysical ' + g)).find(Boolean)
+      || diff(tireCorrOf(ch), A.tireCorrOf(ch), 'tireCorrOf')
+      || diff(axleRollStiffness(hz, 350, ch.trackF), A.axleRollStiffness(hz, 350, ch.trackF), 'axleRollStiffness')
+      || diff(tyreRollStiffness(350, ch.trackR), A.tyreRollStiffness(350, ch.trackR), 'tyreRollStiffness')
+      || diff(inSeries(hz * 1e5, 3e5), A.inSeries(hz * 1e5, 3e5), 'inSeries') || diff(inSeries(0, 3e5), A.inSeries(0, 3e5), 'inSeries(0)'));
+  check('displayRsBalance', ['displayRsBalance'],
+    CH.flatMap(ch => [[0, 0], [1e5, 1e5], [2e5, 1e5], [1e5, 3e5]].map(([kF, kR]) => ({ ch, kF, kR }))),
+    ({ ch, kF, kR }) => diff(displayRsBalance(ch, kF, kR), A.displayRsBalance(ch, kF, kR)));
+  const NAT_CH = CH.flatMap(ch => [ch, { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.55, measuredNatBalHz: 2.2 },
+    { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.97 }, { ...ch, useMeasuredNatBal: true, measuredNatBal: null },
+    { ...ch, useMeasuredNatBal: false, measuredNatBal: 0.55 }]);
+  check('natural balance: natGeomOf, measuredNatBalOf, natOffsetOf, natRsOf, natDisplayModelOf, natDisplayOf',
+    ['natGeomOf', 'measuredNatBalOf', 'natOffsetOf', 'natRsOf', 'natDisplayModelOf', 'natDisplayOf'],
+    NAT_CH.flatMap(ch => GMS.map(gm => ({ ch, gm }))),
+    ({ ch, gm }) => diff(natGeomOf(ch), A.natGeomOf(ch), 'natGeomOf') || diff(measuredNatBalOf(ch), A.measuredNatBalOf(ch), 'measuredNatBalOf')
+      || diff(natOffsetOf(ch), A.natOffsetOf(ch), 'natOffsetOf') || diff(natRsOf(ch), A.natRsOf(ch), 'natRsOf')
+      || diff(natDisplayModelOf(ch, gm), A.natDisplayModelOf(ch, gm), 'natDisplayModelOf')
+      || diff(natDisplayOf(ch, gm), A.natDisplayOf(ch, gm), 'natDisplayOf'));
   check('resolveArbBalTarget', ['resolveArbBalTarget'],
-    CH.flatMap(ch => [null, 0, 0.08, -0.4, 0.6].map(t => ({ ch, fe: { arbBalTarget: t } }))),
+    NAT_CH.flatMap(ch => GMS.flatMap(gameMode => [null, 0, 0.08, -0.4, 0.6].map(t => ({ ch, fe: { arbBalTarget: t, gameMode } })))),
     ({ ch, fe }) => diff(resolveArbBalTarget(ch, fe), A.resolveArbBalTarget(ch, fe)));
 
   // ── differential
   const DR = grid({
     layout: ['RWD', 'FWD', 'AWD'], diffType: ['race', 'sport', 'rally', 'offroad', 'drift'],
     buildType: ['street', 'track', 'drift', 'drag'], bias: [-50, 0, 35],
-    mode: ['auto', 'manual', 'complement'], override: [null, 0.55],
+    mode: ['auto', 'manual', 'complement'], override: [null, 0.55], gameMode: ['horizon', 'beamng'],
     target: [{}, { arbBalTarget: 0.05 }, { arbBalTarget: -0.2 }, { arbBalTargetMode: 'grip', arbBalDelta: 0 }, { arbBalTargetMode: 'grip', arbBalDelta: 0.06 }],
   });
   check('computeDiff', ['computeDiff'], DR, c => {
@@ -1077,7 +1127,7 @@ console.log('\nmirror vs app (reads index.html)');
       diffManual: c.mode === 'manual', diffComplement: c.mode === 'complement' };
     // Both sides get what the app's only call site passes: feEffective, resolved from a full
     // fe. A partial fe is not a real input — the app returns NaN for {} and never sends one.
-    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, ...c.target });
+    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, gameMode: c.gameMode, ...c.target });
     return diff(computeDiff(ch, fe, dr, c.override), A.computeDiff(ch, fe, dr, c.override));
   });
 

@@ -11,6 +11,64 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — "natural balance" is two named quantities, not one function in either space
+
+`naturalMechBalanceOf(ch)` answered in whichever space its input happened to be in:
+the Forza **display** reading when MEASURE NAT BAL was set (tyre-width term and
+tyre-series compression included), plain suspension **geometry** when it was not. Its
+consumers each wanted one space, and got the other depending on a checkbox:
+
+- **A 0-delta target was not natural.** Targets are compared against the displayed
+  balance, but on an unmeasured car the delta was added to geometry — off by
+  `tireCorr` (about 0.02 on staggered tyres) plus the tyre-series compression (up to
+  0.015 on weight-biased cars). The solvers' own comments claimed a 0-delta target
+  "collapses back to the baseline and needs no correction"; that held only when measured.
+- **`gripNeutralOf` fed a display reading into a roll-stiffness model.** On a measured
+  car with staggered tyres, `balanceFromRsBal` received the reading with the tyre term
+  still in it, moving grip-neutral — and every GRIP-mode target and DNA `balanceOffset`
+  built on it — by about 0.011.
+- **Two more inline copies.** `computeDiff` fell back to its own geometry formula
+  whenever the app didn't pass the reading, and the Balance Guide's `chassisAnalysis`
+  (and its REACH track-width scan) computed geometry inline and called it "Forza's scale".
+
+It is replaced by one function per space, and the old name is gone so no call site can
+go on not choosing:
+
+- `natRsOf(ch)` — roll-stiffness space: geometry plus the measured offset, i.e. the
+  reading with `tireCorr` taken out. The grip model, and ARB stiffness splits (CHASSIS).
+- `natDisplayOf(ch, gameMode)` — display space: the reading verbatim when measured,
+  otherwise `natDisplayModelOf`, the model's prediction of what MEASURE NAT BAL would
+  read (tyre-series display at `NAT_BAL_PROBE_HZ` in Forza, geometry plus `tireCorr` in
+  physical modes). Targets, the Balance Guide, MATCH CHASSIS, the MECH alignment nudge,
+  the dials' NAT marker, and `sanitizeTune`'s delta clamp.
+
+**Saved builds were not migrated — a deliberate choice.** Stored target deltas keep their
+value and now mean "this far from the real natural", so absolute targets moved:
+**0 for every measured build** in TARGET mode; for unmeasured ones about +0.003 on an
+ordinary square-tyred car, up to ±0.015 on strongly weight-biased cars in Forza, and
+±0.018–0.024 on staggered tyres. That is inside the unmeasured geometry estimate's own
+documented error against Forza (0.017–0.028), and id 40 took the same approach when it
+first changed meaning. Migrating would have meant a semantics marker in persisted state
+and share codes and keeping the old formula forever to convert them. GRIP-mode targets
+moved only on measured, staggered cars (about ±0.011).
+
+**`natBalRefOf` was deliberately left alone**, though it now answers a similar question to
+`natDisplayModelOf`: every stored `measuredNatBalRef` was written with its formula, and
+changing it would have flagged every existing reading stale at once.
+
+Found along the way: `tests-balance.js` computed the Balance Guide's gap as
+`(1 − gripNeutralOf) − natural` — `natGripBalance − natural`, a different quantity from the
+app's `gripNeutral − natural` — so its band and crossover properties had been exercising
+the wrong gap since they were written. Its continuity test also scanned a hard-coded
+48–51% window; it now bisects for the real crossover and scans across that. And the
+crossover figure quoted in four places, "49.51% on `DEF_CH`", was already stale before this
+change (the lift fix moved it to 49.48%; this moved it to 49.45% in Forza modes), so the
+docs now say "about 49.5%" rather than carry a number that moves with every recalibration.
+
+A new end-to-end test in `tests-beamng.js` solves a 0-delta MECH target on square and
+staggered tyres in every game mode and checks the car displays its own natural. Against the
+old baseline it fails by 0.018 on reverse-staggered tyres.
+
 ## Added — tests.js now checks its mirror against the app, and what that found
 
 `tests.js` tested a hand-kept copy of the physics and never read `index.html`, so a

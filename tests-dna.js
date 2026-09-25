@@ -45,7 +45,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
-  'resolveArbBalTarget,gripNeutralOf,naturalMechBalanceOf,balanceFromRsBal,sanitizeTune,' +
+  'resolveArbBalTarget,gripNeutralOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
 
@@ -117,15 +117,20 @@ t('GRIP mode resolves to grip-neutral + Balance Offset, clamped 0.20..0.90', () 
     const ch = chOf(over);
     for (const arbBalDelta of [-0.2, -0.05, 0, 0.07, 0.2]) {
       const got = M.resolveFeEffective(ch, feOf('horizon', { arbBalTargetMode: 'grip', arbBalDelta })).arbBalTarget;
-      const want = Math.max(0.20, Math.min(0.90, 1 - M.balanceFromRsBal(ch, M.naturalMechBalanceOf(ch)) + arbBalDelta));
+      const want = Math.max(0.20, Math.min(0.90, 1 - M.balanceFromRsBal(ch, M.natRsOf(ch)) + arbBalDelta));
       assert(got === want, `delta ${arbBalDelta}: got ${got}, want ${want}`);
     }
   }
 });
 
-t('gripNeutralOf is 1 − balanceFromRsBal at the natural mech balance', () => {
-  const ch = chOf({ frontBias: 57 });
-  assert(M.gripNeutralOf(ch) === 1 - M.balanceFromRsBal(ch, M.naturalMechBalanceOf(ch)), 'mismatch');
+t('gripNeutralOf is 1 − balanceFromRsBal at the ROLL-STIFFNESS natural', () => {
+  // balanceFromRsBal takes a roll-stiffness fraction, so the input is natRsOf — not the display
+  // reading, which carries the tyre-width term. The measured, staggered case is the one that
+  // differs; before natural was split it received the reading.
+  for (const over of [{ frontBias: 57 }, { tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 }]) {
+    const ch = chOf(over);
+    assert(M.gripNeutralOf(ch) === 1 - M.balanceFromRsBal(ch, M.natRsOf(ch)), 'mismatch on ' + JSON.stringify(over));
+  }
 });
 
 t('App routes feEffective through resolveFeEffective (no second inline copy)', () => {
@@ -429,7 +434,8 @@ t('the result is always a sanitizeDNA fixed point', () => {
 section('portability — the same DNA on every chassis');
 
 t('fixture gaps still cover both signs and the near-zero case', () => {
-  const gap = over => { const ch = chOf(over); return M.gripNeutralOf(ch) - M.naturalMechBalanceOf(ch); };
+  // The Balance Guide's gap: grip-neutral against the DISPLAY-space natural it is shown beside.
+  const gap = over => { const ch = chOf(over); return M.gripNeutralOf(ch) - M.natDisplayOf(ch, 'horizon'); };
   assert(gap(FIXTURES.RearBiased) < -0.05, 'RearBiased no longer has a clearly negative gap');
   assert(Math.abs(gap(FIXTURES.Balanced)) < 0.03, 'Balanced no longer sits near zero gap');
   assert(gap(FIXTURES.FrontHeavy) > 0.15, 'FrontHeavy no longer has a large positive gap');
