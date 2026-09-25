@@ -2,9 +2,10 @@
 // Run with: node tests-balance.js
 // No dependencies required.
 //
-// LIKE tests-beamng.js AND UNLIKE tests.js, THIS FILE READS index.html — it lifts the real
-// balance functions out of the app rather than mirroring them, so a change made only in
-// index.html cannot pass.
+// LIKE tests-beamng.js, THIS FILE READS index.html — it lifts the real balance functions out
+// of the app rather than mirroring them, so a change made only in index.html cannot pass.
+// (tests.js mirrors mechBalanceLLT too, and cross-checks that mirror against the app; this
+// suite asserts properties the model must have, which is a different question.)
 //
 // Why property tests rather than expected values: the balance chain has no measured ground
 // truth at most of its inputs (see docs/KNOWN_ISSUES.md on the tyre-series model's reach and

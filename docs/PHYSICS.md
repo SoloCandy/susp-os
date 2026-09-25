@@ -1233,13 +1233,18 @@ value quietly re-derived from whatever Hz happened to be loaded).
 
 ## Test coverage
 
-**`tests.js` does not import, read, or evaluate `index.html`.** It is a
-hand-maintained *duplicate* of the physics functions, re-declared inside the
-test file. It will pass unchanged even if `index.html` is deleted outright,
-so a green run proves the formulas documented here are self-consistent — it
-proves nothing about the app. Any change to a mirrored function has to be
-copied across by hand, and drift between the two is silent. There is no CI,
-no linter and no build step, so nothing else catches it either.
+**Most of `tests.js` tests a hand-maintained *duplicate* of the physics
+functions**, re-declared inside the test file. On its own that would prove
+the formulas documented here are self-consistent and nothing about the app —
+and it drifted silently more than once while that was the whole story. Its
+final section, **mirror vs app**, closes the gap: it lifts the real definitions
+out of `index.html` and requires every mirrored constant and function to agree
+with its app counterpart across a spread of inputs, reporting the first
+disagreeing input by name. A tripwire fails the run when a mirror exists that is
+not compared, including one hidden inside a test block (found by sharing a name
+with a top-level app definition). So a mirror can no longer drift silently. What
+the suite still cannot prove is how `computeTune` composes those functions —
+`tests-beamng.js` and `tests-dna.js` drive the real solver for that.
 
 Given that, the reliable way to verify a change to `index.html` is the
 browser: load it, check the console and `#pre-load`, and exercise the
@@ -1247,7 +1252,10 @@ affected tier. See [CODE_MAP.md](CODE_MAP.md) for the runtime bootstrap that
 makes compile and runtime failures visible.
 
 `tests.js` mirrors `flatRideRearHz`, `solveSpring`, `solveDamp` (a shape the
-app no longer has — see the note above its definition there), `settleZetas`,
+app no longer has — see the note above its definition there), the damping
+model (`dampRate`, `rateToZeta`, `settleTimeFromZeta`, `settleZetas`,
+`balancedZetas`, `forceZetas`, `solveDampRaw`, `impliedZeta`,
+`migrateDampBalMode`), `computeDiff`, `computeAlignment`,
 and `mechBalanceLLT`/`balanceFromRsBal` (settle-mode ride-reference
 anchoring in particular has a dedicated test section, since it was the site
 of a prior legacy-formula regression guard). The Hz-mode dispatch inside

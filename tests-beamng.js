@@ -2,9 +2,9 @@
 // Run with: node tests-beamng.js
 // No dependencies required.
 //
-// UNLIKE tests.js, THIS FILE READS index.html. tests.js is a hand-maintained mirror of the
-// physics functions and so cannot catch a change made only in the app; that gap is recorded
-// in README and docs/CODE_MAP.md. The BeamNG mode is defined entirely by what it *doesn't*
+// THIS FILE READS index.html and drives the real physics. tests.js mostly tests a hand-kept
+// mirror instead — cross-checked against index.html function by function, but that proves the
+// mirror matches, not how computeTune composes them. The BeamNG mode is defined entirely by what it *doesn't*
 // do to the solver's output, which a mirror cannot express — a mirror of "return the value
 // unchanged" asserts nothing. So this suite lifts the real physics layer out of index.html
 // and drives it directly.

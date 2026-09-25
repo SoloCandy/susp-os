@@ -494,9 +494,13 @@ Alignment Mode. Retired codec ids are never reused — see
 ## Testing reality
 
 There is **no CI, no linter, no type checker, no build step, and no git
-hooks.** `tests.js` is a hand-maintained duplicate of the physics functions
-and does not read `index.html` at all — it passes whether or not the app
-works. See the Test coverage section of [PHYSICS.md](PHYSICS.md).
+hooks.** `tests.js` tests a hand-maintained duplicate of the physics functions,
+and its final section — mirror vs app — lifts the real definitions out of
+`index.html` and fails if any mirror disagrees with its app counterpart. A tripwire
+fails the run if a mirror is added without a comparison, including one hidden inside
+a test block (detected by sharing a name with an app definition). What it still
+cannot prove is how `computeTune` composes those functions. See the Test coverage
+section of [PHYSICS.md](PHYSICS.md).
 
 **`tests-docs.js` is the docs equivalent**: it reads `index.html` and `docs/*.md`
 and fails when a fact stated in prose no longer matches the code — a drifted codec
@@ -552,8 +556,9 @@ non-trivial edit:
    defaults, or `sanitizeTune` moved. Read the code, tick one part, APPLY SELECTED,
    and confirm the unticked parts did not move; then COPY LINK and open the `#t=`
    URL, which must stage rather than apply.
-5. `node tests.js` if any mirrored physics function changed — and update the
-   mirror by hand, since nothing will tell you it drifted.
+5. `node tests.js` if any mirrored physics function changed. Its mirror-vs-app
+   section now reports drift by name and input; update the mirror to match the
+   app — the app is the truth, the mirror is the copy.
 6. `node tests-beamng.js` if anything in `computeTune`, `GAME_LIMITS`, or the
    unit constants moved. This one reads `index.html`, so it needs no mirroring.
 7. `node tests-docs.js` after any docs edit, and after touching the codec,

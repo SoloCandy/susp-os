@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // SUSP.OS — documentation drift checks
 //
-// Third suite, alongside tests.js (mirrored physics) and tests-beamng.js (reads
-// index.html directly). This one reads index.html AND docs/*.md and fails when a
+// Third suite, alongside tests.js (mirrored physics, cross-checked against index.html) and
+// tests-beamng.js (reads index.html directly). This one reads index.html AND docs/*.md and fails when a
 // fact stated in prose no longer matches the code.
 //
 // WHY THIS EXISTS. A docs audit found ten errors. Eight were mechanical: a literal

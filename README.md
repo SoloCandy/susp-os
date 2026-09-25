@@ -121,7 +121,7 @@ Reference docs for maintainers:
 No build tools required. Open `index.html` in a browser, edit with any text editor, reload to see changes.
 
 ```
-node tests.js          # physics unit tests (mirrored copy — see CODE_MAP.md)
+node tests.js          # physics unit tests (mirrored copy, cross-checked against index.html)
 node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
 node tests-docs.js     # documentation drift checks (reads index.html and docs/)
 node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)

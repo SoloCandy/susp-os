@@ -11,6 +11,41 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — tests.js now checks its mirror against the app, and what that found
+
+`tests.js` tested a hand-kept copy of the physics and never read `index.html`, so a
+green run said nothing about the app. It had drifted silently at least twice before
+(`flatRideRearHz`'s 2·t offset, `mechBalanceLLT` keeping its pre-lift-fix formula
+while passing all 122 of its own assertions). Its new last section lifts the real
+definitions out of `index.html` and requires every mirror to agree, and a tripwire
+fails the run when a mirror exists that is not compared.
+
+The first runs found three more drifts, none of which any existing assertion noticed:
+
+- **`computeDiff` was on an old contract.** The app's only call site passes
+  `feEffective`, whose `arbBalTarget` is the *resolved absolute* target; the mirror
+  still resolved a raw `fe` itself, treating `arbBalTarget` as a stored delta. They
+  agreed only where the two coincided, and GRIP mode — the reason for the contract —
+  was never exercised. The app was right. The mirror and its MATCH CHASSIS tests now
+  take `feEffective` as the app does, and the comparison covers GRIP mode.
+- **Ten mirrors had never been compared at all.** Most of the damping model —
+  `dampRate`, `settleZetas`, `balancedZetas`, `solveDampRaw`, `impliedZeta`,
+  `migrateDampBalMode` and more — was declared *inside* individual test blocks,
+  block-scoped and out of reach. They were hoisted to top level, and the tripwire now
+  finds any `const` in the file that shares a name with an app definition, at any
+  indentation.
+- **`DAMP_BAL_MODE_DEC` was one value short.** The mirror lacked `'hybrid'`, so its
+  `migrateDampBalMode` quietly demoted a HYBRID tune to STANDARD. The comparison
+  helper had a matching blind spot: it compared objects over the mirror's keys, which
+  let a shorter array pass on its shared prefix. Arrays now need an exact length.
+
+**The tripwire itself shipped broken for one run** while this was written: the name
+regex lost its backslashes on the way in (`\w` became `w`), the app-name set came back
+as fragments, nothing ever matched, and the check reported a pass — indistinguishable
+from a real one. It was caught only because every check here was mutation-tested
+against a deliberately broken copy before being trusted. The tripwire now asserts that
+it could read a plausible set of app names, so that failure is loud.
+
 ## Fixed — the grip model reversed direction once an inside wheel lifted
 
 `mechBalanceLLT` predicted **less** oversteer for more rear roll stiffness past the

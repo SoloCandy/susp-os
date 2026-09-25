@@ -8,6 +8,13 @@
 // regression — see docs/KNOWN_ISSUES.md for the bug this guards against), and
 // computeAlignment (camber/toe/caster target derivation, roll/CG compensation,
 // per-build/layout baselines, and the Drift/Drag frozen-camber regression).
+//
+// The physics below is a hand-kept MIRROR of index.html's, which on its own proves nothing
+// about the app. The "mirror vs app" section at the end closes that: it lifts the real
+// definitions out of index.html and requires every mirror here to agree with its app
+// counterpart, and a tripwire fails the run if a mirror is added — at any nesting depth —
+// without a comparison. Mirrors live at top level, above "test harness", under the app's own
+// name; that is what makes them findable.
 
 const KG_TO_LB = 2.204622622;
 const LB_IN_TO_NM = 175.126790921;
@@ -86,7 +93,11 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
     const natMechBal = natMechBalOverride != null
       ? natMechBalOverride
       : (cm.rear * ch.trackR * ch.trackR) / (cm.front * ch.trackF * ch.trackF + cm.rear * ch.trackR * ch.trackR);
-    const tgt = resolveArbBalTarget(ch, fe);
+    // fe is feEffective, exactly as the app passes it: arbBalTarget is already the RESOLVED
+    // absolute target (TARGET or GRIP mode), not the stored delta. This mirror resolved a raw fe
+    // itself for a long time after the app moved to feEffective — the older contract — and
+    // agreed with the app only when the two happened to coincide. Callers resolve first.
+    const tgt = fe.arbBalTarget;
     const gap = tgt - natMechBal;
     const correction = Math.max(-25, Math.min(25, gap * 150));
     const signedCorrection = ch.layout === 'FWD' ? -correction : correction;
@@ -225,11 +236,74 @@ const solveSpring = (hz, mass, mr) => {
 // computeTune builds damper clicks as clampDamp(solveDampRaw(...), scale) instead, applying
 // the 1..lim clamp after proportional F/R scaling. The behaviour asserted below (clamp to
 // the game limit, floor at 1, ζ=100% formula) is still what the app produces; only the
-// spelling differs. Keep this mirror in sync with solveDampRaw + clampDamp, not with a
-// same-named function.
+// spelling differs. It matches solveDampRaw + clampDamp EXCEPT that clampDamp also snaps to
+// the 0.1 click grid and this does not — the assertions are written against the unsnapped
+// value. The mirror-vs-app section compares it to solveDampRaw and the app's own limits.
 const solveDamp = (hz, mass, z, lim) => {
   const wr = Math.pow(hz * 2 * Math.PI, 2) * mass, cc = 2 * Math.sqrt(wr * mass);
   return Math.min(lim, Math.max(1, cc * (z / 100) * DAMPING_CALIBRATION));
+};
+
+// ── damping model (must mirror app: dampRate / rateToZeta / settleTimeFromZeta /
+// settleZetas / balancedZetas / forceZetas / solveDampRaw / impliedZeta / migrateDampBalMode) ──
+// These lived inside individual test blocks until the mirror-vs-app section at the end of this
+// file was added. Block-scoped, they were out of its reach and never compared against the app —
+// which is how DAMP_BAL_MODE_DEC sat one enum value (HYBRID) behind the app. Hoisted so every
+// mirror is in one place and the tripwire at the end can see it.
+const dampRate = zPct => { const z = zPct / 100; return z <= 1 ? z : z - Math.sqrt(z * z - 1); };
+const settleTimeFromZeta = (zetaPct, hz) => 2.302 / (dampRate(zetaPct) * hz * 2 * Math.PI);
+// Reference axle holds refZeta exactly; the other axle's zeta is derived so real settle time
+// matches, solved in rate-space (not naive ζ·Hz) so the match holds even when either axle ends
+// up overdamped (ζ>100%).
+const rateToZeta = rate => rate >= 1 ? 100 : Math.max(0, rate) * 100;
+const settleZetas = (rideRef, fHz, rHz, refZeta, biasMult) => {
+  if (fHz <= 0 || rHz <= 0) return { zF: refZeta, zR: refZeta };
+  const refRate = dampRate(refZeta);
+  if (rideRef === 'rear') {
+    const target = refRate * rHz;
+    return { zR: refZeta, zF: rateToZeta(target / (fHz * biasMult)) };
+  }
+  if (rideRef === 'shared') {
+    const avg = (fHz + rHz) / 2, b = Math.sqrt(biasMult), target = refRate * avg;
+    return { zF: rateToZeta(target / (fHz * b)), zR: rateToZeta(target * b / rHz) };
+  }
+  const target = refRate * fHz;
+  return { zF: refZeta, zR: rateToZeta(target * biasMult / rHz) };
+};
+// Generalizes settleZetas over an arbitrary per-axle weight wF/wR. zF·wF = zR·wR at biasMult=1.
+const balancedZetas = (rideRef, wF, wR, refZeta, biasMult) => {
+  if (wF <= 0 || wR <= 0) return { zF: refZeta, zR: refZeta };
+  if (rideRef === 'rear')   return { zR: refZeta, zF: refZeta * (wR / wF) / biasMult };
+  if (rideRef === 'shared') { const avg = (wF + wR) / 2, b = Math.sqrt(biasMult);
+                              return { zF: refZeta * (avg / wF) / b, zR: refZeta * (avg / wR) * b }; }
+  return { zF: refZeta, zR: refZeta * (wF / wR) * biasMult };
+};
+// Force ∝ ζ·m·Hz (see solveDampRaw) — NEUTRAL holds this equal, not just settle time.
+const forceZetas = (rideRef, mF, fHz, mR, rHz, refZeta, biasMult) =>
+  balancedZetas(rideRef, mF * fHz, mR * rHz, refZeta, biasMult);
+const solveDampRaw = (hz, mass, z, calib = DAMPING_CALIBRATION) => {
+  const wr = Math.pow(hz * 2 * Math.PI, 2) * mass, cc = 2 * Math.sqrt(wr * mass);
+  return cc * (z / 100) * calib;
+};
+const impliedZeta = (v, hz, mass, calib = DAMPING_CALIBRATION) => {
+  const wr = Math.pow(hz * 2 * Math.PI, 2) * mass, cc = 2 * Math.sqrt(wr * mass);
+  return cc > 0 && calib > 0 ? v * 100 / (cc * calib) : 0;
+};
+const DEF_FE_DAMPING_BIAS = 0; // mirrors DEF_FE.dampingBias
+const DAMP_BAL_MODE_DEC = ['standard', 'sync', 'neutral', 'hybrid'];
+const migrateDampBalMode = fe => {
+  const clBias = v => Math.max(-50, Math.min(50, (typeof v === 'number' && isFinite(v)) ? v : DEF_FE_DAMPING_BIAS));
+  if (fe?.settleMode != null) {
+    const legacyActive = !!fe.settleMode && fe.settleBias != null;
+    return {
+      dampBalMode: fe.settleMode ? 'sync' : 'standard',
+      dampingBias: clBias(legacyActive ? -fe.settleBias : fe?.dampingBias),
+    };
+  }
+  return {
+    dampBalMode: DAMP_BAL_MODE_DEC.includes(fe?.dampBalMode) ? fe.dampBalMode : 'standard',
+    dampingBias: clBias(fe?.dampingBias),
+  };
 };
 
 // ── test harness ──────────────────────────────────────────────────────────────
@@ -407,8 +481,6 @@ console.log('\nsettle (ln(10)/(ζ·ωn))');
 
 console.log('\nsettle time is piecewise past critical damping');
 {
-  const dampRate = zPct => { const z = zPct / 100; return z <= 1 ? z : z - Math.sqrt(z * z - 1); };
-  const settleTimeFromZeta = (zetaPct, hz) => 2.302 / (dampRate(zetaPct) * hz * 2 * Math.PI);
   const hz = 2.0;
 
   assert('rate=ζ for underdamped (ζ=70%)', dampRate(70), 0.70, 1e-9);
@@ -482,25 +554,6 @@ console.log('\nmechBalanceLLT');
 
 console.log('\nsettle mode ride-reference anchoring');
 {
-  // Mirror of app's dampRate/rateToZeta/settleZetas (index.html). Reference axle holds refZeta
-  // exactly; the other axle's zeta is derived so real settle time matches, solved in rate-space
-  // (not naive ζ·Hz) so the match holds even when either axle ends up overdamped (ζ>100%).
-  const dampRate = zPct => { const z = zPct / 100; return z <= 1 ? z : z - Math.sqrt(z * z - 1); };
-  const rateToZeta = rate => rate >= 1 ? 100 : Math.max(0, rate) * 100;
-  const settleZetas = (rideRef, fHz, rHz, refZeta, biasMult) => {
-    if (fHz <= 0 || rHz <= 0) return { zF: refZeta, zR: refZeta };
-    const refRate = dampRate(refZeta);
-    if (rideRef === 'rear') {
-      const target = refRate * rHz;
-      return { zR: refZeta, zF: rateToZeta(target / (fHz * biasMult)) };
-    }
-    if (rideRef === 'shared') {
-      const avg = (fHz + rHz) / 2, b = Math.sqrt(biasMult), target = refRate * avg;
-      return { zF: rateToZeta(target / (fHz * b)), zR: rateToZeta(target * b / rHz) };
-    }
-    const target = refRate * fHz;
-    return { zF: refZeta, zR: rateToZeta(target * biasMult / rHz) };
-  };
   // settle time = ln(10)/(rate·ωn) — piecewise rate, matching app's settleTimeFromZeta.
   const settle = (zeta, hz) => 2.302 / (dampRate(zeta) * hz * 2 * Math.PI);
   const fHz = 2.0, rHz = 2.6, RZ = 70, NOBIAS = 1;
@@ -561,18 +614,6 @@ console.log('\nsettle mode ride-reference anchoring');
 
 console.log('\nDamping Balance Mode — balancedZetas / forceZetas');
 {
-  // Mirror of app's balancedZetas (index.html): generalizes settleZetas over an arbitrary
-  // per-axle weight wF/wR. zF·wF = zR·wR at biasMult=1.
-  const balancedZetas = (rideRef, wF, wR, refZeta, biasMult) => {
-    if (wF <= 0 || wR <= 0) return { zF: refZeta, zR: refZeta };
-    if (rideRef === 'rear')   return { zR: refZeta, zF: refZeta * (wR / wF) / biasMult };
-    if (rideRef === 'shared') { const avg = (wF + wR) / 2, b = Math.sqrt(biasMult);
-                                return { zF: refZeta * (avg / wF) / b, zR: refZeta * (avg / wR) * b }; }
-    return { zF: refZeta, zR: refZeta * (wF / wR) * biasMult };
-  };
-  // Force ∝ ζ·m·Hz (see solveDampRaw) — NEUTRAL holds this equal, not just settle time.
-  const forceZetas = (rideRef, mF, fHz, mR, rHz, refZeta, biasMult) =>
-    balancedZetas(rideRef, mF * fHz, mR * rHz, refZeta, biasMult);
 
   const fHz = 1.75, rHz = 2.10, RZ = 70, NOBIAS = 1;
   // Deliberately asymmetric masses so NEUTRAL and SYNC diverge — a rear-light, rear-stiffer car.
@@ -613,23 +654,6 @@ console.log('\nDamping Balance Mode — balancedZetas / forceZetas');
 
 console.log('\nmigrateDampBalMode — legacy Settle Sync migration');
 {
-  const DEF_FE_DAMPING_BIAS = 0;
-  const DAMP_BAL_MODE_DEC = ['standard', 'sync', 'neutral'];
-  // Mirror of app's migrateDampBalMode (index.html).
-  const migrateDampBalMode = fe => {
-    const clBias = v => Math.max(-50, Math.min(50, (typeof v === 'number' && isFinite(v)) ? v : DEF_FE_DAMPING_BIAS));
-    if (fe?.settleMode != null) {
-      const legacyActive = !!fe.settleMode && fe.settleBias != null;
-      return {
-        dampBalMode: fe.settleMode ? 'sync' : 'standard',
-        dampingBias: clBias(legacyActive ? -fe.settleBias : fe?.dampingBias),
-      };
-    }
-    return {
-      dampBalMode: DAMP_BAL_MODE_DEC.includes(fe?.dampBalMode) ? fe.dampBalMode : 'standard',
-      dampingBias: clBias(fe?.dampingBias),
-    };
-  };
 
   // The exact bug: a legacy fe object merged with {...DEF_FE,...e.fe} (as garageLoadBuild and
   // mergeDefaults both do) already has dampBalMode:'standard' inherited from DEF_FE, alongside
@@ -726,15 +750,6 @@ console.log('\nSETTLE TIME mode: bumpZeta anchors to baseZeta, not raw reboundZe
 
 console.log('\nimpliedZeta — inverse of solveDampRaw, back-calculates ζ from a clamped click value');
 {
-  // Mirror of app's solveDampRaw/impliedZeta (index.html).
-  const solveDampRaw = (hz, mass, z, calib) => {
-    const wr = Math.pow(hz * 2 * Math.PI, 2) * mass, cc = 2 * Math.sqrt(wr * mass);
-    return cc * (z / 100) * calib;
-  };
-  const impliedZeta = (v, hz, mass, calib) => {
-    const wr = Math.pow(hz * 2 * Math.PI, 2) * mass, cc = 2 * Math.sqrt(wr * mass);
-    return cc > 0 && calib > 0 ? v * 100 / (cc * calib) : 0;
-  };
 
   const hz = 2.10, mass = 350, calib = DAMPING_CALIBRATION;
   // Heavier corner mass for the clamping scenario below — needs a raw value that actually
@@ -828,18 +843,21 @@ console.log('\ncomputeDiff — MATCH CHASSIS correction');
   const chFWD = { ...chRWD, layout: 'FWD' };
   const dr = { buildType: 'track', diffType: 'race', diffComplement: true, diffBiasExit: 0, diffBiasEntry: 0 };
   const drOff = { ...dr, diffComplement: false };
+  // computeDiff takes feEffective, like the app's only call site: an untouched target resolves
+  // to MECH_BALANCE_TARGET (0.60), which is what puts gap > 0 on this chassis.
+  const feEff = ch => ({ arbBalTarget: resolveArbBalTarget(ch, {}) });
 
-  const rwdOn = computeDiff(chRWD, {}, dr);
-  const rwdOff = computeDiff(chRWD, {}, drOff);
+  const rwdOn = computeDiff(chRWD, feEff(chRWD), dr);
+  const rwdOff = computeDiff(chRWD, feEff(chRWD), drOff);
   assertEq('RWD + MATCH CHASSIS wanting oversteer → MORE accel lock than baseline', rwdOn.accel > rwdOff.accel, true);
 
-  const fwdOn = computeDiff(chFWD, {}, dr);
-  const fwdOff = computeDiff(chFWD, {}, drOff);
+  const fwdOn = computeDiff(chFWD, feEff(chFWD), dr);
+  const fwdOff = computeDiff(chFWD, feEff(chFWD), drOff);
   assertEq('FWD + MATCH CHASSIS wanting oversteer → LESS front lock than baseline (not more)', fwdOn.accel < fwdOff.accel, true);
 
   // MANUAL mode bypasses MATCH CHASSIS entirely — accel is whatever the user typed, unchanged
   const manualDr = { ...dr, diffManual: true, diffAccel: 40 };
-  const manualOn = computeDiff(chRWD, {}, manualDr);
+  const manualOn = computeDiff(chRWD, feEff(chRWD), manualDr);
   assertEq('MANUAL mode ignores MATCH CHASSIS (accel unchanged)', manualOn.accel, 40);
 }
 
@@ -933,6 +951,234 @@ console.log('\ncomputeAlignment — toe and caster');
   // Caster clamps hold at extreme inputs
   const extremeCaster = computeAlignment({ ...ch, frontBias: 70 }, { fHz: 5.5, rHz: 5.5, rollDeg: 0 }, 'RWD', 'track');
   assertEq('caster clamps at 7.5° max', extremeCaster.recCaster <= 7.5, true);
+}
+
+// ── mirror vs app ─────────────────────────────────────────────────────────────
+// Everything above tests a hand-kept COPY of the physics, so on its own this file passes
+// whether or not the app works — and it has drifted silently twice: flatRideRearHz kept a
+// 2·t offset after the app was corrected, and mechBalanceLLT kept its pre-lift-fix formula
+// while passing all 122 of its own assertions (docs/HISTORY.md). This section closes that
+// gap. It lifts the real definitions out of index.html (the string-slice approach
+// tests-beamng.js uses) and requires every mirrored constant and function to agree with the
+// app's over a spread of inputs — including the edge cases the fixes above were about.
+//
+// The tripwire at the end keeps the comparison complete: it reads this file's own top-level
+// definitions and fails on any that is neither compared here nor in MIRROR_EXEMPT with a
+// reason. A mirror added later without a comparison fails the run instead of drifting.
+//
+// If the slice() markers stop matching, index.html has been reorganised — fix the markers
+// rather than deleting the section.
+
+console.log('\nmirror vs app (reads index.html)');
+{
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const slice = (a, b) => {
+    const i = src.indexOf(a), j = src.indexOf(b);
+    if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);
+    return src.slice(i, j);
+  };
+  const A = new Function(
+    slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
+    slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
+    slice('const KG_TO_LB=', 'const arbCtx=') +
+    '\nreturn{DEF_CH,DEF_FE,DEF_DR,KG_TO_LB,LB_IN_TO_NM,MPH_TO_MS,DAMPING_CALIBRATION,GAME_LIMITS,' +
+    'TIRE_LOAD_SENS,MECH_BAL_GAIN,WIDTH_GRIP_EXP,MECH_BALANCE_TARGET,DIFF_BIAS_SCALE,DIFF_TYPE_SCALE,' +
+    'HZ_MIN,HZ_MAX,rollCenterHeight,cornerMasses,mechBalanceLLT,balanceFromRsBal,naturalMechBalanceOf,' +
+    'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
+    'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
+    'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode};'
+  )();
+
+  // Structural equality with a relative numeric tolerance. Objects are compared over the
+  // MIRROR's keys: a mirror may deliberately cover a subset of an app function's output
+  // (computeDiff returns more than the mirror models), but every key it does return has to
+  // match. A key the mirror returns and the app does not is a mismatch. Arrays are NOT subsets —
+  // a length difference is a mismatch — or an enum table one value short (DAMP_BAL_MODE_DEC
+  // missing 'hybrid', the first thing this section caught) would pass on its shared prefix.
+  const diff = (m, a, at = '') => {
+    if (typeof m === 'number' && typeof a === 'number') {
+      if (Number.isNaN(m) && Number.isNaN(a)) return null;
+      return Math.abs(m - a) <= 1e-9 * Math.max(1, Math.abs(a)) ? null : `${at || 'value'}: mirror ${m}, app ${a}`;
+    }
+    if (Array.isArray(m) !== Array.isArray(a)) return `${at || 'value'}: mirror ${JSON.stringify(m)}, app ${JSON.stringify(a)}`;
+    if (Array.isArray(m) && m.length !== a.length) return `${at || 'value'}: mirror has ${m.length} entries ${JSON.stringify(m)}, app has ${a.length} ${JSON.stringify(a)}`;
+    if (m && a && typeof m === 'object' && typeof a === 'object') {
+      for (const k of Object.keys(m)) { const e = diff(m[k], a[k], `${at}.${k}`); if (e) return e; }
+      return null;
+    }
+    return Object.is(m, a) ? null : `${at || 'value'}: mirror ${JSON.stringify(m)}, app ${JSON.stringify(a)}`;
+  };
+  const compared = new Set();
+  // Runs every case; reports the first mismatch with the inputs that produced it.
+  const check = (name, covers, cases, run) => {
+    covers.forEach(c => compared.add(c));
+    let err = null, n = 0;
+    try {
+      for (const c of cases) { n++; const e = run(c); if (e) { err = `${e}\n       inputs: ${JSON.stringify(c)}`; break; } }
+    } catch (x) { err = `threw on case ${n}: ${x.message}`; }
+    if (err) { console.error(`  ✗  ${name}\n       ${err}`); failed++; }
+    else { console.log(`  ✓  ${name} (${n} cases)`); passed++; }
+  };
+  const grid = (o) => Object.entries(o).reduce((acc, [k, vs]) =>
+    acc.flatMap(p => vs.map(v => ({ ...p, [k]: v }))), [{}]);
+
+  // A chassis spread that includes the shapes each past drift was about: lifted inside wheels
+  // (tall CG, rear/front bias), staggered tyres, and every layout. The mirror reads tyre width
+  // from ch.twF/twR, the app parses ch.tyreF/tyreR, so each chassis carries both, consistent.
+  const CH = [
+    {}, { frontBias: 60 }, { frontBias: 41 }, { frontBias: 49.5 }, { cgHeight: 0.68 }, { cgHeight: 0.32 },
+    { trackF: 1.35, trackR: 1.33 }, { trackF: 1.62, trackR: 1.48 }, { weight: 1900 }, { weight: 5200 },
+    { tw: [235, 305] }, { tw: [305, 235] }, { layout: 'FWD', frontBias: 63, weight: 2700 },
+    { layout: 'AWD', frontBias: 57 }, { frontBias: 44, weight: 2500, cgHeight: 0.40 },
+  ].map(({ tw = [265, 265], ...o }) => ({
+    ...A.DEF_CH, useRideHeightCG: false, ...o,
+    twF: tw[0], twR: tw[1], tyreF: `${tw[0]}/35R18`, tyreR: `${tw[1]}/35R18`,
+  }));
+
+  // ── constants
+  const CONSTS = { KG_TO_LB, LB_IN_TO_NM, MPH_TO_MS, DAMPING_CALIBRATION, GAME_LIMITS, TIRE_LOAD_SENS,
+    MECH_BAL_GAIN, WIDTH_GRIP_EXP, MECH_BALANCE_TARGET, DIFF_BIAS_SCALE, DIFF_TYPE_SCALE, HZ_MIN, HZ_MAX };
+  check('constants match the app', Object.keys(CONSTS), Object.keys(CONSTS),
+    k => diff(CONSTS[k], A[k], k));
+
+  // ── mass and geometry
+  check('rollCenterHeight', ['rollCenterHeight'], CH, ch => diff(rollCenterHeight(ch), A.rollCenterHeight(ch)));
+  check('cornerMasses and cornerMassesM', ['cornerMasses', 'cornerMassesM'], CH,
+    ch => diff(cornerMasses(ch), A.cornerMasses(ch), 'cornerMasses') || diff(cornerMassesM(ch), A.cornerMasses(ch), 'cornerMassesM'));
+
+  // ── mech balance model (the lift fix is exactly what drifted last time; the high
+  // stiffness ratios below put inside wheels in the air on several of these chassis)
+  check('mechBalanceLLT', ['mechBalanceLLT'],
+    CH.flatMap(ch => [0.2, 0.5, 1, 1.4, 2.5, 6].map(ratio => ({ ch, ratio }))),
+    ({ ch, ratio }) => diff(mechBalanceLLT(ch, 1, ratio), A.mechBalanceLLT(ch, 1, ratio)));
+  check('balanceFromRsBal', ['balanceFromRsBal'],
+    CH.flatMap(ch => [0, 0.05, 0.2, 0.35, 0.5, 0.555, 0.65, 0.8, 0.895, 0.95, 1].map(r => ({ ch, r }))),
+    ({ ch, r }) => diff(balanceFromRsBal(ch, r), A.balanceFromRsBal(ch, r)));
+  check('naturalMechBalanceOf', ['naturalMechBalanceOf'],
+    CH.flatMap(ch => [ch, { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.55 },
+      { ...ch, useMeasuredNatBal: true, measuredNatBal: 0.97 }, { ...ch, useMeasuredNatBal: true, measuredNatBal: null }]),
+    ch => diff(naturalMechBalanceOf(ch), A.naturalMechBalanceOf(ch)));
+  check('resolveArbBalTarget', ['resolveArbBalTarget'],
+    CH.flatMap(ch => [null, 0, 0.08, -0.4, 0.6].map(t => ({ ch, fe: { arbBalTarget: t } }))),
+    ({ ch, fe }) => diff(resolveArbBalTarget(ch, fe), A.resolveArbBalTarget(ch, fe)));
+
+  // ── differential
+  const DR = grid({
+    layout: ['RWD', 'FWD', 'AWD'], diffType: ['race', 'sport', 'rally', 'offroad', 'drift'],
+    buildType: ['street', 'track', 'drift', 'drag'], bias: [-50, 0, 35],
+    mode: ['auto', 'manual', 'complement'], override: [null, 0.55],
+    target: [{}, { arbBalTarget: 0.05 }, { arbBalTarget: -0.2 }, { arbBalTargetMode: 'grip', arbBalDelta: 0 }, { arbBalTargetMode: 'grip', arbBalDelta: 0.06 }],
+  });
+  check('computeDiff', ['computeDiff'], DR, c => {
+    const ch = { ...CH[0], layout: c.layout, frontBias: c.layout === 'FWD' ? 62 : c.layout === 'AWD' ? 56 : 52 };
+    const dr = { ...A.DEF_DR, diffType: c.diffType, buildType: c.buildType,
+      diffBiasExit: c.bias, diffBiasEntry: -c.bias, diffFrontExitBias: c.bias / 2, diffCenter: c.bias === 0 ? 65 : 45,
+      diffManual: c.mode === 'manual', diffComplement: c.mode === 'complement' };
+    // Both sides get what the app's only call site passes: feEffective, resolved from a full
+    // fe. A partial fe is not a real input — the app returns NaN for {} and never sends one.
+    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, ...c.target });
+    return diff(computeDiff(ch, fe, dr, c.override), A.computeDiff(ch, fe, dr, c.override));
+  });
+
+  // ── alignment: both the minimal stub tunes this file's own tests use and a real solved tune
+  const tunes = [{ fHz: 1.8, rHz: 1.8, rollDeg: 2.0 }, { fHz: 5.5, rHz: 5.5, rollDeg: 0 }];
+  check('computeAlignment', ['computeAlignment'],
+    CH.flatMap(ch => [...tunes, A.solveTune(ch, A.resolveFeEffective(ch, A.DEF_FE), 'horizon').tune]
+      .flatMap(tune => ['RWD', 'FWD', 'AWD'].flatMap(layout =>
+        ['street', 'track', 'drift', 'rally', 'offroad', 'drag'].map(build => ({ ch, tune, layout, build }))))),
+    ({ ch, tune, layout, build }) => diff(computeAlignment(ch, tune, layout, build), A.computeAlignment(ch, tune, layout, build)));
+
+  // ── springs, dampers and Hz mapping
+  check('rsToHz and hzToRs', ['rsToHz', 'hzToRs'],
+    [-1, 0, 0.1, 0.8, 1.23456, 2.2349, 5.5, 6, 6.5, 9, 50, 100],
+    v => diff(rsToHz(v), A.rsToHz(v), 'rsToHz') || diff(hzToRs(v), A.hzToRs(v), 'hzToRs'));
+  check('flatRideRearHz', ['flatRideRearHz'],
+    grid({ fHz: [0.9, 1.8, 2.5, 3.5, 5.0], wb: [2.3, 2.7, 3.1], mph: [0, 0.5, 2.3, 20, 70, 120, 199, 200, 250] }),
+    ({ fHz, wb, mph }) => diff(flatRideRearHz(fHz, wb, mph), A.flatRideRearHz(fHz, wb, mph)));
+  check('solveSpring', ['solveSpring'],
+    grid({ hz: [0.8, 1.75, 3.2, 5.5], mass: [180, 360, 540], mr: [0.6, 0.85, 1.0] }),
+    ({ hz, mass, mr }) => diff(solveSpring(hz, mass, mr), A.solveSpring(hz, mass, mr)));
+  // solveDamp has no same-named app function: computeTune builds clicks as
+  // clampDamp(solveDampRaw(...)), and clampDamp is a closure inside computeTune that cannot be
+  // lifted. So this compares the part that CAN be lifted — solveDampRaw — exactly wherever the
+  // clamp does not bind, and checks the mirror pins to 1 and to the app's own game limit where
+  // it does. clampDamp also snaps to the 0.1 click grid; the mirror deliberately does not, and
+  // its assertions above are written against the unsnapped value.
+  check('solveDamp vs solveDampRaw + the app\'s click limits', ['solveDamp'],
+    grid({ hz: [0.8, 1.75, 3.2, 5.5], mass: [180, 360, 540], z: [5, 30, 70, 150, 400], mode: ['horizon', 'motorsport'] }),
+    ({ hz, mass, z, mode }) => {
+      const lim = A.GAME_LIMITS[mode].damping, raw = A.solveDampRaw(hz, mass, z), m = solveDamp(hz, mass, z, lim);
+      if (raw <= 1) return diff(m, 1, 'floor');
+      if (raw >= lim) return diff(m, lim, 'ceiling');
+      return diff(m, raw, 'in-band');
+    });
+
+  // ── damping model
+  const Z = [0, 1, 30, 70, 99.9, 100, 100.1, 150, 400];
+  check('dampRate, rateToZeta, settleTimeFromZeta', ['dampRate', 'rateToZeta', 'settleTimeFromZeta'],
+    grid({ z: Z, hz: [0.8, 2.0, 5.5], rate: [-1, 0, 0.3, 0.999, 1, 2] }),
+    ({ z, hz, rate }) => diff(dampRate(z), A.dampRate(z), 'dampRate') || diff(rateToZeta(rate), A.rateToZeta(rate), 'rateToZeta')
+      || (z > 0 ? diff(settleTimeFromZeta(z, hz), A.settleTimeFromZeta(z, hz), 'settleTimeFromZeta') : null));
+  check('settleZetas', ['settleZetas'],
+    grid({ ref: ['front', 'rear', 'shared'], fHz: [0, 1.2, 2.0, 3.4], rHz: [0, 1.5, 2.6, 4.8], z: [30, 70, 100, 150], b: [0.5, 1, 2] }),
+    ({ ref, fHz, rHz, z, b }) => diff(settleZetas(ref, fHz, rHz, z, b), A.settleZetas(ref, fHz, rHz, z, b)));
+  check('balancedZetas and forceZetas', ['balancedZetas', 'forceZetas'],
+    grid({ ref: ['front', 'rear', 'shared'], wF: [0, 300, 480], wR: [0, 350, 520], z: [30, 70, 150], b: [0.5, 1, 2] }),
+    ({ ref, wF, wR, z, b }) => diff(balancedZetas(ref, wF, wR, z, b), A.balancedZetas(ref, wF, wR, z, b), 'balancedZetas')
+      || diff(forceZetas(ref, wF, 1.75, wR, 2.1, z, b), A.forceZetas(ref, wF, 1.75, wR, 2.1, z, b), 'forceZetas'));
+  check('solveDampRaw and impliedZeta', ['solveDampRaw', 'impliedZeta'],
+    grid({ hz: [0, 0.8, 2.1, 5.5], mass: [0, 350, 2000], z: [0, 30, 70, 150], calib: [undefined, 1, DAMPING_CALIBRATION, 0] }),
+    ({ hz, mass, z, calib }) => diff(solveDampRaw(hz, mass, z, calib), A.solveDampRaw(hz, mass, z, calib), 'solveDampRaw')
+      || diff(impliedZeta(z / 10, hz, mass, calib), A.impliedZeta(z / 10, hz, mass, calib), 'impliedZeta'));
+  check('DAMP_BAL_MODE_DEC and DEF_FE_DAMPING_BIAS', ['DAMP_BAL_MODE_DEC', 'DEF_FE_DAMPING_BIAS'], [0],
+    () => diff(DAMP_BAL_MODE_DEC, A.DAMP_BAL_MODE_DEC, 'DAMP_BAL_MODE_DEC') || diff(DEF_FE_DAMPING_BIAS, A.DEF_FE.dampingBias, 'DEF_FE.dampingBias'));
+  check('migrateDampBalMode', ['migrateDampBalMode'],
+    [undefined, null, {}, { ...A.DEF_FE }, ...A.DAMP_BAL_MODE_DEC.map(m => ({ dampBalMode: m })), { dampBalMode: 'bogus' },
+     { settleMode: true, settleBias: 20 }, { settleMode: false, settleBias: 20, dampingBias: 5 }, { settleMode: true },
+     { ...A.DEF_FE, settleMode: true, settleBias: -10 }, { dampingBias: 99 }, { dampingBias: NaN }, { dampingBias: '7' }],
+    fe => diff(migrateDampBalMode(fe), A.migrateDampBalMode(fe)));
+
+  // ── tripwire: every top-level mirror in this file is compared or exempted with a reason
+  const MIRROR_EXEMPT = {
+    rsBalFromBalance: 'test-only inverse of balanceFromRsBal by bisection; the app has no such function, and balanceFromRsBal itself is compared above',
+  };
+  const own = fs.readFileSync(__filename, 'utf8');
+  const head = own.slice(0, own.indexOf('// ── test harness'));
+  const defined = new Set();
+  for (const line of head.split('\n')) {
+    const mm = line.match(/^const\s+([A-Za-z_$][\w$]*)\s*=/);
+    if (!mm) continue;
+    defined.add(mm[1]);
+    // Comma lists of plain constants (`const A = 1, B = 2;`). Arrow lines are skipped: their
+    // parameter defaults (`x = null`) would read as definitions.
+    if (!line.includes('=>')) for (const x of line.matchAll(/,\s*([A-Za-z_$][\w$]*)\s*=/g)) defined.add(x[1]);
+  }
+  // A mirror inside a test block is invisible to everything above — which is how ten of them
+  // went uncompared for as long as this file has existed. Detected by NAME: any const in this
+  // file, at any indentation, that shares a name with a top-level definition in index.html is a
+  // mirror, and has to live at top level where it can be compared. (A mirror written under a
+  // different name than the app's escapes this; don't do that.)
+  const appNames = new Set();
+  for (const m of src.matchAll(/^const ([A-Za-z_$][\w$]*)=/gm)) appNames.add(m[1]);
+  // The detector checks itself. A broken name regex yields an empty or fragmentary set, and
+  // then nothing is ever "nested" — indistinguishable from a pass. That exact failure shipped
+  // for one run while this was being written (the \w had been stripped), so it is asserted.
+  const appNamesSane = appNames.size > 100 && ['computeTune', 'hzToRs', 'settleZetas', 'mechBalanceLLT'].every(n => appNames.has(n));
+  const body = own.slice(0, own.indexOf('// ── mirror vs app'));
+  const nested = [...new Set([...body.matchAll(/^[ \t]+const ([A-Za-z_$][\w$]*)\s*=/gm)]
+    .map(m => m[1]).filter(n => appNames.has(n)))];
+  const unaccounted = [...defined].filter(n => !compared.has(n) && !(n in MIRROR_EXEMPT));
+  const stale = Object.keys(MIRROR_EXEMPT).filter(n => !defined.has(n));
+  const tripErr = !appNamesSane
+    ? `could not read index.html's top-level names (found ${appNames.size}) — the nested-mirror check would pass vacuously`
+    : nested.length
+    ? `mirrors defined inside a test block, out of reach of this comparison: ${nested.join(', ')} — hoist them to the top-level mirror section`
+    : unaccounted.length
+    ? `mirrored but never compared against the app: ${unaccounted.join(', ')} — add a check() above, or an MIRROR_EXEMPT entry saying why not`
+    : stale.length ? `MIRROR_EXEMPT names something this file no longer defines: ${stale.join(', ')}` : null;
+  if (tripErr) { console.error(`  ✗  every mirror is compared\n       ${tripErr}`); failed++; }
+  else { console.log(`  ✓  every mirror is compared (${defined.size} definitions)`); passed++; }
 }
 
 // ── summary ───────────────────────────────────────────────────────────────────
