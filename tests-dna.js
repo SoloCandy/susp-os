@@ -7,7 +7,7 @@
 // compileDNA, measureDNA and the resolver agree with the feelToPhysics/computeTune that ships.
 //
 // What it guards:
-//   1. resolveFeEffective is the one TARGET/GRIP funnel, and App routes through it.
+//   1. resolveFeEffective is the one Balance Target funnel, and App routes through it.
 //   2. The axis table matches DEF_FE and sanitizeTune: a compiled patch is a sanitizeTune fixed
 //      point, so nothing downstream can silently rewrite a DNA-produced tune.
 //   3. Sign conventions: dampBias, diffExit and diffEntry read as their sliders on every layout.
@@ -45,7 +45,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
-  'resolveArbBalTarget,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
+  'resolveArbBalTarget,balTargetModeOf,balanceBandOf,MECH_BALANCE_TARGET,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
 
@@ -99,17 +99,47 @@ const randomDNA = (withSlack = false) => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-section('resolveFeEffective — the single TARGET/GRIP funnel');
+section('resolveFeEffective — the single Balance Target funnel');
 
-t('TARGET mode resolves through resolveArbBalTarget', () => {
+t("NATURAL mode resolves through resolveArbBalTarget — and so does a stored legacy 'manual'", () => {
+  // NATURAL was stored as 'manual' before MANUAL existed. Persisted state skips sanitizeTune, so a
+  // 'manual' still in localStorage must resolve as NATURAL, never as the new raw MANUAL ('abs').
   for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);
-    for (const arbBalTarget of [null, -0.1, 0, 0.08, 0.9]) {
-      const fe = feOf('horizon', { arbBalTargetMode: 'manual', arbBalTarget });
-      assert(M.resolveFeEffective(ch, fe).arbBalTarget === M.resolveArbBalTarget(ch, fe),
-        `arbBalTarget ${arbBalTarget}`);
-    }
+    for (const mode of ['natural', 'manual', undefined, 'bogus'])
+      for (const arbBalTarget of [null, -0.1, 0, 0.08, 0.9]) {
+        const fe = feOf('horizon', { arbBalTargetMode: mode, arbBalTarget });
+        assert(M.resolveFeEffective(ch, fe).arbBalTarget === M.resolveArbBalTarget(ch, fe),
+          `${mode} arbBalTarget ${arbBalTarget}`);
+      }
   }
+  assert(M.balTargetModeOf({ arbBalTargetMode: 'manual' }) === 'natural', "'manual' no longer reads as NATURAL");
+  assert(M.sanitizeTune({ fe: { arbBalTargetMode: 'manual' } }).fe.arbBalTargetMode === 'natural', "sanitizeTune keeps 'manual'");
+});
+
+t('MANUAL mode resolves to the raw arbBalAbs, clamped 0.20..0.90', () => {
+  for (const over of Object.values(FIXTURES)) {
+    const ch = chOf(over);
+    for (const arbBalAbs of [0.1, 0.45, 0.6, 0.73, 0.95]) {
+      const got = M.resolveFeEffective(ch, feOf('horizon', { arbBalTargetMode: 'abs', arbBalAbs, arbBalTarget: 0.1, arbBalDelta: 0.1 })).arbBalTarget;
+      assert(got === Math.max(0.20, Math.min(0.90, arbBalAbs)), `arbBalAbs ${arbBalAbs}: got ${got}`);
+    }
+    const dflt = M.resolveFeEffective(ch, { ...feOf('horizon'), arbBalTargetMode: 'abs', arbBalAbs: undefined }).arbBalTarget;
+    assert(dflt === M.MECH_BALANCE_TARGET, `missing arbBalAbs: got ${dflt}`);
+  }
+});
+
+t('RANGE mode resolves to the middle of the Balance Guide RANGE + Balance Offset', () => {
+  for (const over of Object.values(FIXTURES)) for (const build of ['track', 'drift', 'drag'])
+    for (const mode of ['horizon', 'beamng']) {
+      const ch = chOf(over);
+      const b = M.balanceBandOf(M.natDisplayOf(ch, mode), M.gripNeutralOf(ch, mode), ch.layout, build);
+      for (const arbBalDelta of [-0.2, 0, 0.05]) {
+        const got = M.resolveFeEffective(ch, feOf(mode, { arbBalTargetMode: 'range', arbBalDelta }), build).arbBalTarget;
+        const want = Math.max(0.20, Math.min(0.90, (b.lo + b.hi) / 2 + arbBalDelta));
+        near(got, want, 1e-12, `${mode} ${build} delta ${arbBalDelta} ${JSON.stringify(over)}`);
+      }
+    }
 });
 
 t('GRIP mode resolves to grip-neutral + Balance Offset, clamped 0.20..0.90', () => {
@@ -157,13 +187,24 @@ t('solveTune: Forza GRIP aims at the neutral at the tune stiffness, and returns 
   near(M.solveTune(ch, bfe, 'beamng').target, Math.max(0.20, Math.min(0.90, bfe.arbBalTarget)), 0, 'BeamNG keeps the resolved target');
 });
 
+t('solveTune: Forza RANGE aims at the band middle at the tune stiffness', () => {
+  const ch = chOf({ tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 });
+  for (const rideStiffness of [2.0, 3.6]) {
+    const fe = M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbBalTargetMode: 'range', arbBalDelta: 0, rideStiffness }), 'track');
+    const { tune, target } = M.solveTune(ch, fe, 'horizon', 'track');
+    const b = M.balanceBandOf(M.natDisplayOf(ch, 'horizon'), M.gripNeutralOf(ch, 'horizon', M.rollKOf(tune)), ch.layout, 'track');
+    near(target, (b.lo + b.hi) / 2, 1e-9, `${rideStiffness} Hz target`);
+    if (!tune.mechBalClamped) near(tune.mechBalance, target, 0.01, `${rideStiffness} Hz landed`);
+  }
+});
+
 t('MECH + AUTO widens the bar budget far enough to reach a target the springs lean away from', () => {
   // A ×1.2 rear multiplier puts the springs alone well rearward of 0.45. AUTO's plain budget
   // could only split a narrow band around that; it now grows (capped at the spring roll
   // stiffness) until the target is reachable, as ROLL already could.
   const ch = chOf({});
   for (const arbMode of ['auto', 'roll']) {
-    const fe = { ...M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbMode, rearHzMode: 'multiplier', rearHzMult: 1.2, arbBalTargetMode: 'abs' })), arbBalTarget: 0.45 };
+    const fe = M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbMode, rearHzMode: 'multiplier', rearHzMult: 1.2, arbBalTargetMode: 'abs', arbBalAbs: 0.45 }));
     const { tune } = M.solveTune(ch, fe, 'horizon');
     assert(!tune.mechBalClamped, `${arbMode}: clamped at ${tune.mechBalance}`);
     near(tune.mechBalance, 0.45, 0.01, `${arbMode} landed`);
@@ -180,7 +221,7 @@ t('gripNeutralOf: in BeamNG (physical) it is the grip-neutral split plus the tyr
 });
 
 t('App routes feEffective through resolveFeEffective (no second inline copy)', () => {
-  assert(src.includes('const feResolved=useMemo(()=>resolveFeEffective(ch,fe),'), 'App no longer calls resolveFeEffective');
+  assert(src.includes('const feResolved=useMemo(()=>resolveFeEffective(ch,fe,dr.buildType),'), 'App no longer calls resolveFeEffective');
   assert(!/arbBalTarget:gripBalTarget/.test(src), 'an inline GRIP resolution has reappeared');
 });
 

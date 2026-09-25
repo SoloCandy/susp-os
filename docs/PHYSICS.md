@@ -1078,6 +1078,23 @@ the LLT model, which runs in every mode, and are not.
 in every state, so a flag that is always on would say nothing; that caveat lives in the
 badge's tooltip instead.
 
+**Balance Target modes.** PRO's Balance Target picks what the Mech Balance Target
+is measured from. `resolveFeEffective` turns each one into the absolute
+`arbBalTarget` the solver reads:
+
+| Mode (`arbBalTargetMode`) | Target |
+|---|---|
+| NATURAL (`'natural'`) | `natDisplayOf(ch, gameMode) + arbBalTarget` |
+| RANGE (`'range'`) | middle of the Balance Guide RANGE below, `(lo + hi) / 2`, `+ arbBalDelta` |
+| GRIP (`'grip'`) | `gripNeutralOf(ch, gameMode, K) + arbBalDelta` |
+| MANUAL (`'abs'`) | `arbBalAbs`, absolute |
+
+All four are clamped to 0.20–0.90. RANGE and GRIP depend on grip-neutral, which in a
+Forza mode moves with total roll stiffness K, so `solveTune` re-evaluates both at each
+run's own K (`balTargetAnchoredOf`), not only at the probe springs. RANGE uses the
+clamped band, the same numbers the RANGE row draws, so its target sits in the middle
+of the band on screen.
+
 **Balance Guide RANGE.** The PRO Balance Guide's recommended mech-balance
 band is a fraction of the gap between `natMechBalance` (NATURAL) and
 `gripNeutral` (GRIP TARGET — `gripNeutralOf(ch, gameMode, rollKOf(tune))`, the mech
@@ -1088,6 +1105,7 @@ stiffness), not a flat offset:
 gap = gripNeutral - natMechBalance
 [dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
 lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.20-0.90, hi ≥ lo + 0.03
+// all of the above is balanceBandOf(nat, gn, layout, build)
 
 balanceBandDelta = (frac, gap) => frac <= 1 || gap >= 0 ? frac*gap
                                                         : gap + (frac-1)*(-gap)

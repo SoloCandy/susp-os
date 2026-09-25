@@ -11,6 +11,23 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Balance Target gained RANGE and MANUAL; TARGET became NATURAL
+
+PRO's Balance Target had two modes, TARGET (an offset from natural) and GRIP. It now has four:
+NATURAL (the old TARGET, unchanged), RANGE (an offset from the middle of the Balance Guide
+RANGE), GRIP (unchanged) and MANUAL (a raw mech balance such as 0.60, not an offset).
+
+TARGET was stored as `'manual'`. That name now reads as the new MANUAL mode on screen, but the
+stored value is still NATURAL. Persisted state skips `sanitizeTune`, so a saved `'manual'` has to
+keep meaning an offset from natural. MANUAL is therefore stored as `'abs'`, and
+`balTargetModeOf` maps `'manual'` and any unknown value to NATURAL. Codec id 53 keeps index 0
+for NATURAL and adds 2 and 3. MANUAL's value is the new id 79, `arbBalAbs`.
+
+RANGE is anchored on grip-neutral, like GRIP, so in a Forza mode `solveTune` re-evaluates it
+at each run's roll stiffness. The band math that the RANGE row and GRIP GAP each did inline
+became `balanceBandOf`, which RANGE mode also uses, so the target and the drawn band cannot
+disagree.
+
 ## Fixed — MECH + AUTO could not reach targets a stiff spring split leaned away from
 
 With ARB Balance MECH and AUTO stiffness, the bars split AUTO's budget, which is sized for roll

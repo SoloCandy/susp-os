@@ -694,7 +694,7 @@ incident and why the repair cannot live in an effect.
 
 **Every other persisted enum still has the hole.** `arbMode`, `arbBalMode`,
 `dampBalMode`, `rearHzMode`, `rideStiffMode`, `dampCharMode`, `rideRef`,
-`arbBalTargetMode`, `uiMode` and the rest are all read from persisted state
+`uiMode` and the rest are all read from persisted state
 without validation. None of them crashes — they fall through to a default branch,
 or render a `<select>` whose value matches no option — but each can hold a value
 the UI cannot produce and cannot clear, and a `<select>` in that state silently

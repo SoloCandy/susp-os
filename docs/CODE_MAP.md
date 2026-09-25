@@ -75,19 +75,25 @@ The source runs top to bottom in this order:
 These are pure functions of their arguments, in dependency order:
 
 ```
-resolveFeEffective(ch, fe)             → resolves the stored TARGET/GRIP balance delta
-                                         into the absolute target (App's feEffective)
+resolveFeEffective(ch, fe, build)      → resolves the stored Balance Target (NATURAL /
+                                         RANGE / GRIP / MANUAL) into the absolute
+                                         target (App's feEffective)
 feelToPhysics(ch, fe)                  → resolves feel settings into physics
                                          (front/rear Hz, ζ per axle, ARB mode…)
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
-solveTune(ch, feEffective, gameMode)   → feelToPhysics + computeTune, repeated in the
+solveTune(ch, feEffective, gameMode, build)
+                                       → feelToPhysics + computeTune, repeated in the
                                          target modes until the DISPLAYED balance
                                          meets the target; every caller goes through it.
                                          Returns the target it aimed at as `target`
-                                         (GRIP's moves with stiffness in Forza)
+                                         (RANGE's and GRIP's move with stiffness in Forza)
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
+
+Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),
+`balanceBandOf` (the Balance Guide RANGE band — the RANGE row, GRIP GAP and RANGE mode all
+read it), `balTargetAnchoredOf` (RANGE/GRIP target at a given K).
 
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 `solveSpring`, `solveDampRaw`, `settleZetas`/`forceZetas`/`balModeZetas`
@@ -416,9 +422,17 @@ that does not make the fallback removable.
 state once, and are live now (PRO Alignment Mode MANUAL). See
 [ALIGNMENT.md](ALIGNMENT.md).
 
-**`arbBalTargetMode` / `arbBalDelta`** — fully live; they drive GRIP balance
-mode. Easy to mistake for orphans because the names suggest a superseded
+**`arbBalTargetMode` / `arbBalDelta` / `arbBalAbs`** — fully live; they drive the
+PRO Balance Target modes (RANGE and GRIP share `arbBalDelta`; MANUAL reads
+`arbBalAbs`). Easy to mistake for orphans because the names suggest a superseded
 target system.
+
+**The `'manual'` value of `arbBalTargetMode`** — no button writes it any more, and
+it is *not* the MANUAL mode (that is `'abs'`). It is how NATURAL was stored before
+RANGE and MANUAL existed. `balTargetModeOf` reads it (and anything unknown) as
+NATURAL, and codec id 53 keeps `manual:0` in its encoder, because persisted state
+reaches the solver without passing `sanitizeTune`. Deleting either strands every
+saved NATURAL tune.
 
 **The `arbBalModeEarly === 'man'` branches in `feelToPhysics`** — reachable
 only on the first render after loading pre-migration state, before the

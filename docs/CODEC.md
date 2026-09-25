@@ -71,7 +71,7 @@ future version might not carry.
 | 50 | fe | settleTarget | raw number |
 | 51 | fe | dampCharMode | enum (`{zeta:0,settle:1}`) |
 | 52 | dr | diffType | enum (`DIFF_TYPE_ENC/DEC`) |
-| 53 | fe | arbBalTargetMode | enum (`{manual:0,grip:1}`) |
+| 53 | fe | arbBalTargetMode | enum (`{natural:0,grip:1,range:2,abs:3}`; a legacy `manual` also encodes as 0) — see note |
 | 54 | fe | arbBalDelta | raw number |
 | 55 | fe | springShareAuto | bool |
 | 56 | fe | arbSplitOpposite | bool |
@@ -95,8 +95,9 @@ future version might not carry.
 | 76 | ch | measuredArbNatHz | raw number |
 | 77 | meta | tier | enum (`TIER_ENC/DEC`) |
 | 78 | ch | measuredNatBalRef | raw number — staleness reference, see note |
+| 79 | fe | arbBalAbs | raw number — MANUAL Balance Target's absolute mech balance |
 
-**Next available id: 79.**
+**Next available id: 80.**
 
 Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
 only field in the `meta` group, and the only field that is not an input to any solve
@@ -152,6 +153,16 @@ silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
 actually tuned toward. See the semantic-change note below.
 
+Id 53 (`arbBalTargetMode`) grew from two values to four. Index 0 was stored as `'manual'`
+and always meant an offset from natural, so it is now `'natural'` and keeps index 0; GRIP
+keeps 1; RANGE (2) and MANUAL (3, stored as `'abs'`) are new. The name `manual` could not be
+reused for the new raw-target mode: persisted state skips `sanitizeTune`, so an old
+`'manual'` in localStorage has to go on meaning NATURAL, and `balTargetModeOf` reads it that
+way. The encoder keeps `manual:0` as an alias for that stored value. Older readers decode 2
+or 3 to their own default. MANUAL's target is id 79 (`arbBalAbs`), an absolute mech balance
+rather than a delta, so unlike ids 40 and 54 it does not depend on the reader's natural.
+RANGE reuses id 54 (`arbBalDelta`) as its offset from the middle of the Balance Guide RANGE.
+
 Id 72 (`measuredNatBalHz`) travels with ids 60/61: the tyre-series balance
 display's equal-Hz natural moves slightly with Hz, so a MEASURE NAT BAL reading
 only anchors correctly at the Hz it was taken. Absent (older codes) means 2.5.
@@ -198,7 +209,7 @@ choice, decided after the code is read.
 | `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
-| `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
+| `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 

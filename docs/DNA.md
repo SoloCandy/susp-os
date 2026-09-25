@@ -357,13 +357,14 @@ therefore the front axle's frequency, not an average.
 
 ### One `feEffective` funnel
 
-`feEffective` — the step that resolves `arbBalTarget` (a stored delta) or GRIP's
-`arbBalDelta` into the absolute target the physics sees — used to be built inline in
+`feEffective` — the step that resolves the Balance Target (NATURAL's stored delta
+`arbBalTarget`, RANGE's and GRIP's `arbBalDelta`, MANUAL's absolute `arbBalAbs`) into the
+absolute target the physics sees — used to be built inline in
 `App`. The compiler has to run the identical resolution, so it is now the pure
-`resolveFeEffective(ch, fe)`, and `App`'s `feEffective` is built from it; grip-neutral
+`resolveFeEffective(ch, fe, build)`, and `App`'s `feEffective` is built from it; grip-neutral
 itself is `gripNeutralOf(ch, gameMode, K)`. In a Forza mode `resolveFeEffective` can only
 take grip-neutral at the MEASURE NAT BAL probe springs, since no tune exists yet;
-`solveTune` then aims at the neutral at each trial tune's own stiffness and returns the
+`solveTune` then aims RANGE and GRIP at the neutral at each trial tune's own stiffness and returns the
 value it aimed at as `target`, which `App` writes back into `feEffective`. A second copy would have repeated the `natOffset`
 incident, where one idea implemented at four sites drifted apart (see
 [HISTORY.md](HISTORY.md)). `tests-dna.js` fails if an inline copy reappears.
@@ -787,7 +788,7 @@ quantity the app computes and a sign the inputs determine.
 `tests-dna.js` lifts the real functions out of `index.html` the way `tests-beamng.js`
 does — a mirror could not catch a compiler that drifted from the solver it drives.
 
-1. **One funnel.** `resolveFeEffective` matches TARGET and GRIP resolution, and `App`
+1. **One funnel.** `resolveFeEffective` resolves all four Balance Target modes, and `App`
    calls it rather than an inline copy.
 2. **Solver untouched.** Axis defaults match `DEF_FE`/`DEF_DR`; every range end and
    every compiled archetype is a `sanitizeTune` fixed point on every layout and game
