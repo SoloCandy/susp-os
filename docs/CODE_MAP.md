@@ -117,6 +117,8 @@ tyre-series balance Forza displays — `computeTune`'s `mechBalance` and MEASURE
 (MEASURE NAT BAL's offset for that display, anchored at the stored `measuredNatBalHz`), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
 `resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `mechBalanceLLT`, `balanceFromRsBal`,
+`gripNeutralSplitOf` (the roll-stiffness split at which the grip model reads neutral — the
+reference `computeTune`'s `bChassis` measures from; see [FORMULAS.md](FORMULAS.md)),
 `balanceBandDelta` (one edge of the PRO Balance
 Guide's recommended band — module-level rather than inline because the RANGE
 block and the GRIP GAP sub-widget both call it, and a band they disagreed on
@@ -127,7 +129,7 @@ grip-neutral),
 `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
 balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
 `balanceEnvelope` (which fitted bounds the current tune sits outside, each flag
-carrying a `hard` severity — feeds the FIT? badge in the Handling Balance header,
+carrying a `hard` severity — feeds the PRO-only FIT? badge in the Handling Balance header,
 the only place the app says a figure is extrapolated; `hard:false` is an
 unverified extrapolation of a fit, `hard:true` means the model has stopped
 answering correctly, and only the second turns the badge amber) and `cgEstMmOf`

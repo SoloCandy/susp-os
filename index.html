@@ -714,6 +714,23 @@ const balanceFromRsBal=(ch,rsBal)=>{
   const r=Math.max(1e-4,Math.min(1-1e-4,rsBal));
   return mechBalanceLLT(ch,1,r/(1-r));
 };
+// The rear roll-stiffness fraction at which the grip model reads exactly neutral (0.5) for this
+// chassis — where its tyres, track widths, CG and weight split balance out. Bisection: since the
+// lift fix balanceFromRsBal is monotone, so the root is unique when it exists. It fails to exist
+// only when the grip model sits on one side of neutral across the whole range; the answer then
+// saturates at that end, which says "no stiffness split neutralises this car" in the only way a
+// split can.
+//
+// Independent of MECH_BAL_GAIN: 0.5 is where front and rear capacity are EQUAL, and the gain only
+// scales the difference between them. That is what lets the Handling Balance bar use it before
+// the gain is calibrated (docs/IDEAS.md item 2 / KNOWN_ISSUES).
+const gripNeutralSplitOf=ch=>{
+  let lo=1e-4,hi=1-1e-4;
+  if(balanceFromRsBal(ch,lo)>=0.5)return lo;
+  if(balanceFromRsBal(ch,hi)<=0.5)return hi;
+  for(let i=0;i<50;i++){const m=(lo+hi)/2;if(balanceFromRsBal(ch,m)<0.5)lo=m;else hi=m;}
+  return (lo+hi)/2;
+};
 // ── Calibration envelope ─────────────────────────────────────────────────────
 // Every constant in the mech-balance chain was fitted on a bounded set of cars and states:
 // TYRE_HZ/TYRE_REF_MASS on three cars with springs split 2.5-3.5 Hz and corners of 269-476 kg,
@@ -1536,6 +1553,19 @@ const computeTune=(ch,phys,gameMode)=>{
   const bSp=(rsSpF+rsSpR)>0?(nf-(rsSpF/(rsSpF+rsSpR)))*100*spShare:0;
   const bAb=(rsAbF+rsAbR)>0?(nf-(rsAbF/(rsAbF+rsAbR)))*100*abShare:0;
   const bTot=bSp+bAb;
+  // CHASSIS: the car's own lean before any tuning — tyres, track widths, CG, weight split — in the
+  // bar's own units. bSp+bAb reduces exactly to 100·(rsBalance − (1−nf)): how far the stiffness
+  // split sits from the WEIGHT split. That reference is where the bar has always called a car
+  // neutral, but the grip model is neutral somewhere else — at gripNeutralSplitOf — and the bar
+  // could not see the difference: a staggered RWD car (wider rears, the textbook understeer
+  // change) read OVERSTEER at every ARB setting while GRIP BIAS called it clearly understeer-prone.
+  //
+  // bChassis is that difference, expressed as the stiffness bias the car needs just to reach
+  // neutral. With it, bSp+bAb+bChassis = 100·(rsBalance − gripNeutralSplit): zero exactly where
+  // the grip model is neutral, and the same sign as gripBalance−0.5 always. No conversion
+  // constant: both halves already measure a change in stiffness split in the same unit.
+  // Only the Kf/Kr ratio and the chassis enter, so it is the same in every game mode.
+  const bChassis=-100*(gripNeutralSplitOf(ch)-(1-nf));
   // Roll-stiffness rear fraction — matches what Forza displays as "Mech Balance".
   const rsKf=rsSpF+rsAbF,rsKr=rsSpR+rsAbR;
   const rsBalance=rsKf+rsKr>0?rsKr/(rsKf+rsKr):1-ch.frontBias/100;
@@ -1569,7 +1599,7 @@ const computeTune=(ch,phys,gameMode)=>{
          arbF,arbR,
          fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,dampingClamped,
          arbShare:arbShareOut,
-         bSp,bAb,bTot,mechBalance,gripBalance,
+         bSp,bAb,bTot,bChassis,mechBalance,gripBalance,
          rsSpF,rsSpR,rsAbF,rsAbR,
          balArbSplit:(arbBalMode==='mech'||arbBalMode==='coSolve'||arbBalMode==='neutral'||arbBalMode==='chassis')?Math.round(rF*100):null,
          zetaF,zetaR,bumpZetaF,bumpZetaR,
@@ -3347,13 +3377,14 @@ const BiasSeg=({label,val,hint,primary,totalAbs})=>{
   );
 };
 
-const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear,diffLayout,bBrakeEntry,bDampBias,gripBalance,uiMode})=>{
+const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear,diffLayout,bBrakeEntry,bDampBias,gripBalance,uiMode})=>{
   const abs=Math.abs(total);
   // positive = oversteer, negative = understeer
   const label=abs<3?'NEUTRAL':total>0?'OVERSTEER':'UNDERSTEER';
   const col=abs<3?'#e2e8f0':total>0?'#ef4444':'#3b82f6';
   const isAWD=diffLayout==='AWD';
   const contributors=[
+    {name:'chassis',val:bChassis??0},
     {name:'springs',val:bSp??0},{name:'ARB',val:bAb??0},
     ...(isAWD
       ?[{name:'diff front',val:bDiffFront??0},{name:'diff rear',val:bDiffRear??0}]
@@ -3367,6 +3398,13 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
   const domBig=Math.abs(dom.val)>2;
   // Actionable tip per dominant contributor
   const domTips={
+    // Tyre sizes and track widths are PRO inputs, so only PRO is pointed at them. Every tier can
+    // answer a chassis lean with stiffness balance, which is what the term is measured in.
+    chassis:   uiMode==='pro'
+      ?(total>0?'The chassis itself leans toward oversteer (tyre stagger, track widths, CG, weight split). Counter it with more front roll stiffness, or narrow a front-favouring stagger (wider fronts add front grip).'
+                :'The chassis itself leans toward understeer (tyre stagger, track widths, CG, weight split). Counter it with more rear roll stiffness, or narrow a rear-favouring stagger (wider rears add rear grip).')
+      :(total>0?'The car itself leans toward oversteer — its build, not your settings. Move the balance toward the front to counter it.'
+                :'The car itself leans toward understeer — its build, not your settings. Move the balance toward the rear to counter it.'),
     springs:   total>0?'Reduce the Mech Balance Target or use CO-SOLVE to balance spring stiffness.':'Raise the Mech Balance Target — springs are biased toward the front.',
     ARB:       total>0?'Reduce the Mech Balance Target or shift ARB Bias toward front-heavy.':'Raise the Mech Balance Target or shift ARB Bias toward rear-heavy.',
     'diff exit':  total>0?'Reduce rear exit lock in the Differential section.':'Increase rear exit lock to add rotation under power.',
@@ -3380,6 +3418,7 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
     ? 'Setup is well balanced.'+(domBig?' Keep an eye on '+dom.name.toUpperCase()+' if the car feels inconsistent.':'')
     : (domBig?(domTips[dom.name]||'Adjust the dominant contributor.'):'Adjust Balance Target or ARB Bias.');
   const hints={
+    chassis:'The car\'s own at-limit lean before any tuning: tyre widths, track widths, CG height and weight split, read from the grip model. Shown as the stiffness bias it takes to cancel it, so −10 means this car needs 10 points of rear-biased roll stiffness just to reach neutral. Springs and ARBs are measured against the weight split; this is the correction from there to where the car is actually neutral.',
     springs:'Spring roll-stiffness bias vs weight distribution. + = oversteer (rear springs relatively stiffer). − = understeer (front springs relatively stiffer).',
     ARB:'ARB roll-stiffness bias vs weight distribution. + = oversteer (rear ARBs relatively stiffer). − = understeer (front ARBs relatively stiffer).',
     'diff front':'AWD front diff net contribution (accel+decel). Front lock pushes understeer (−). Center split and front weight fraction are factored in.',
@@ -3389,9 +3428,10 @@ const HandlingVerdict=({total,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear
     brakes:'Brake-balance contribution to entry. High front bias = understeer on entry (−). Low front bias (rear-biased) = oversteer tendency (+). Based on deviation from 50% neutral.',
     damping:'Damping bias contribution. More front rebound damping resists weight transfer off the front, producing understeer tendency (−). More rear damping does the opposite (+).',
   };
-  const labelMap={'diff front':'DIFF F','diff rear':'DIFF R','diff exit':'DIFF EXIT','diff entry':'DIFF ENTRY','brakes':'BRAKES','damping':'DAMP'};
-  const mechGroup=contributors.filter(c=>c.name==='springs'||c.name==='ARB');
-  const dynGroup=contributors.filter(c=>c.name!=='springs'&&c.name!=='ARB');
+  const labelMap={chassis:'CHASSIS','diff front':'DIFF F','diff rear':'DIFF R','diff exit':'DIFF EXIT','diff entry':'DIFF ENTRY','brakes':'BRAKES','damping':'DAMP'};
+  const MECH=['chassis','springs','ARB'];
+  const mechGroup=contributors.filter(c=>MECH.includes(c.name));
+  const dynGroup=contributors.filter(c=>!MECH.includes(c.name));
   const GroupSection=({title,items})=>items.length===0?null:(
     <div style={{marginBottom:6}}>
       <div style={{fontSize:9,color:'#475569',letterSpacing:2,marginBottom:3,paddingBottom:2,
@@ -4761,7 +4801,7 @@ const TUTORIALS={
      body:'BUILD (default) computes camber, toe, and caster from build type, layout, weight bias, and roll angle only. MECH nudges camber and toe toward your Mech Balance Target\'s gap from natural — reinforcing whatever oversteer/understeer intent you\'ve dialed in. GRIP nudges to counteract the chassis\'s own natural grip tendency instead, independent of ARB mode. Nudge Strength (shown for MECH/GRIP) scales how far the nudge goes — 0% matches BUILD exactly. MANUAL lets you type exact camber, toe, and caster values, bypassing the solver entirely.'},
     {title:'Handling Balance Expanded',
      focus:['balance-bar'],
-     body:'Expand the Handling Balance bar (on phones, tap it then CONTRIBUTIONS) for the full per-contributor breakdown. Contributors are grouped into MECHANICAL (springs, ARBs) and DYNAMIC (diff, brakes, damping), each row showing its OS/US value and percentage of the total. An actionable tip at the top names the dominant contributor with a concrete fix, a RESPONSE breakdown rates transient character, and the MECH BALANCE strip marks your natural, current, and target roll-stiffness balance.'},
+     body:'Expand the Handling Balance bar (on phones, tap it then CONTRIBUTIONS) for the full per-contributor breakdown. Contributors are grouped into MECHANICAL (chassis, springs, ARBs) and DYNAMIC (diff, brakes, damping), each row showing its OS/US value and percentage of the total. An actionable tip at the top names the dominant contributor with a concrete fix, a RESPONSE breakdown rates transient character, and the MECH BALANCE strip marks your natural, current, and target roll-stiffness balance.'},
     {title:'Handling Balance Expanded (2/2)',
      focus:['balance-bar'],
      body:'Scroll down in the expanded panel for LOAD TRANSFER — corner weights and lateral load transfer at 1g cornering. XFER F/R shows how much weight shifts to the outer tyre per axle per g of cornering. OUT/IN show outer and inner wheel loads at 1g. Wider track and lower CG both reduce transfer. These inform ARB aggressiveness and how much camber the outer tyre needs under load.'},
@@ -4778,7 +4818,7 @@ const TUTORIALS={
      body:'Rotation-heavy and drift builds typically run +15 to +35. Track builds often sit +5 to +20 for feel under power. Street and GT builds may prefer mild understeer for stability. Use the bar to understand where your balance is coming from, not as a target to hit zero.'},
     {title:'Reading Each Row',
      focus:null,
-     body:'Contributors are split into two groups. MECHANICAL (springs and ARBs) are your primary intentional forces — controlled by stiffness and balance settings. DYNAMIC (diff, brakes, damping) are phase and behaviour contributors. Each row shows its value and percentage of the total so you can see at a glance which is dominant. On the compact bar, each contributor appears as a colour-coded segment stacking outward from neutral.'},
+     body:'Contributors are split into two groups. MECHANICAL is the car\'s own lean (CHASSIS — tyre sizes, track widths, CG and weight split) plus the springs and ARBs you set against it. DYNAMIC (diff, brakes, damping) are phase and behaviour contributors. Each row shows its value and percentage of the total so you can see at a glance which is dominant. On the compact bar, each contributor appears as a colour-coded segment stacking outward from neutral.'},
     {title:'Using the Correction Tip',
      focus:null,
      body:'The tip appears at the top of the expanded panel — above the contributor rows — and names the dominant contributor with a concrete adjustment suggestion. If your balance is further from your intended target than you want, the tip tells you which input to reach for first. For large shifts, your primary balance control has the most leverage — the Balance slider in BEG, or ARB Bias and balance settings in INT and PRO. For small residual adjustments, ARB Bias or Damping Bias give finer control.'},
@@ -5862,7 +5902,9 @@ function App(){
   const bBrakeEntry=-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
   const effectiveAvgZeta=(tune.zetaF+tune.zetaR)/2||70;
   const bDampBias=-(tune.zetaF-tune.zetaR)*16/effectiveAvgZeta; // more front rebound → understeer (−)
-  const bTotFull=tune.bTot+diff.bDiffAccel+diff.bDiffDecel+bBrakeEntry+bDampBias;
+  // tune.bChassis is the chassis's own lean (see computeTune); without it the total measured the
+  // stiffness split against the weight split, which is not where the car is actually neutral.
+  const bTotFull=tune.bTot+(tune.bChassis??0)+diff.bDiffAccel+diff.bDiffDecel+bBrakeEntry+bDampBias;
   const recommendedDiffType=(()=>{
     const build=dr.buildType??'track';
     const base={track:'race',street:'sport',drift:'drift',rally:'rally',offroad:'offroad',drag:'race'}[build]??'race';
@@ -9598,11 +9640,13 @@ function App(){
                   </span>}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-                  {/* Calibration-envelope badge. NOT pro-gated: every tier reads the same balance
-                      figures, and "this number is extrapolated" is data provenance, not an
-                      advanced control. Absent when the tune is inside the fitted set, which is
-                      the common case — see balanceEnvelope. */}
-                  {(()=>{
+                  {/* Calibration-envelope badge. PRO only: every flag it raises concerns a figure
+                      only PRO displays — the tyre-series fit feeds mechBalance and the target solves,
+                      LIFT and CG feed the grip model behind GRIP BIAS and GRIP mode. It shipped
+                      un-gated on the reasoning that every tier reads the same balance figures; they
+                      don't, and BEG saw FIT? HZ on a fresh default build about numbers it cannot
+                      see. Absent when the tune is inside the fitted set — see balanceEnvelope. */}
+                  {uiMode==='pro'&&(()=>{
                     const env=balanceEnvelope(ch,tune,fe.gameMode);
                     if(!env.length)return null;
                     const hard=env.some(e=>e.hard);
@@ -9639,6 +9683,7 @@ function App(){
               {(()=>{
                 const cl=v=>Math.max(-50,Math.min(50,v));
                 const allSegs=[
+                  {key:'cs', val:tune.bChassis??0, col:'#2dd4bf'}, // chassis — teal, the grip model's colour
                   {key:'sp', val:tune.bSp??0,   col:'#60a5fa'},  // springs — blue family
                   {key:'ab', val:tune.bAb??0,   col:'#818cf8'},  // ARBs — indigo
                   {key:'df', val:(diff.bDiffAccel??0)+(diff.bDiffDecel??0), col:'#f59e0b'}, // diff — amber
@@ -9684,6 +9729,7 @@ function App(){
               {/* stacked bar legend — immediately below the bar it describes */}
               <div style={{display:'flex',gap:8,marginTop:3,paddingLeft:2,alignItems:'center',flexWrap:'wrap'}}>
                 {[
+                  {key:'cs',col:'#2dd4bf',label:'CHAS', val:tune.bChassis??0},
                   {key:'sp',col:'#60a5fa',label:'SPR',  val:tune.bSp??0},
                   {key:'ab',col:'#818cf8',label:'ARB',  val:tune.bAb??0},
                   {key:'df',col:'#f59e0b',label:'DIFF', val:(diff.bDiffAccel??0)+(diff.bDiffDecel??0)},
@@ -9695,7 +9741,7 @@ function App(){
                     {label}
                   </span>
                 ))}
-                <Hint text="Stacked bar shows each contributor as a coloured segment: SPR (springs), ARB (anti-roll bars), DIFF (differential), BRK (brakes), DAMP (damping bias). Segments stack outward from neutral — the bar's total reach is the combined handling balance."/>
+                <Hint text="Stacked bar shows each contributor as a coloured segment: CHAS (the car's own lean before tuning — tyre sizes, track widths, CG and weight split), SPR (springs), ARB (anti-roll bars), DIFF (differential), BRK (brakes), DAMP (damping bias). Segments stack outward from neutral — the bar's total reach is the combined handling balance."/>
               </div>
               {/* mech balance reference strip: NAT · CURRENT · TARGET on 0–1 scale */}
               {uiMode==='pro'&&tune.mechBalance!=null&&(()=>{
@@ -9813,7 +9859,7 @@ function App(){
                 </div>
                 {/* cap expanded height on all devices — ensures LOAD TRANSFER is reachable on short screens */}
                 <div style={{maxHeight:isPhone?'42vh':'60vh',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
-                <HandlingVerdict total={bTotFull} bSp={tune.bSp} bAb={tune.bAb}
+                <HandlingVerdict total={bTotFull} bChassis={tune.bChassis} bSp={tune.bSp} bAb={tune.bAb}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel}
                   bDiffFront={diff.bDiffFront} bDiffRear={diff.bDiffRear}
                   diffLayout={diff.layout}

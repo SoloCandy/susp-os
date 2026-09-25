@@ -11,6 +11,43 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — the Handling Balance bar could not see the car it was describing
+
+The headline OS/US figure — the only balance readout in BEG and INT — added springs and ARBs
+as the stiffness split measured against the **weight** split. `bSp + bAb` reduces exactly to
+`100·(rsBalance − (1 − nf))`. Tyre widths, track widths and CG reached it only through roll
+stiffness, so a staggered RWD car (235/305) read **OVERSTEER +6.8 at every ARB setting** while
+the grip model behind GRIP BIAS put it at 0.33, clearly understeer-prone. A default build read
+OVERSTEER +6.8 on a car the grip model called 0.513.
+
+This was worst outside PRO. Tyre sizes and track widths are PRO inputs, but switching tier
+does not reset the chassis and share codes carry tyre sizes whatever the tier, so a BEG user
+who loaded a staggered build saw a wrong-signed headline whose cause they could not see.
+
+The fix is a CHASSIS contributor, `bChassis = −100·(gripNeutralSplitOf(ch) − (1 − nf))`: the
+stiffness bias this car needs just to reach the grip model's neutral. With it the mechanical
+part of the bar is `100·(rsBalance − gripNeutralSplit)` — zero where the grip model is neutral,
+the same sign always, and no invented conversion constant, because both halves already measure
+stiffness split in one unit. It is also independent of the uncalibrated `MECH_BAL_GAIN`. It is
+shown in every tier, first in the stack (teal, the grip model's colour), and grouped under
+MECHANICAL, with a tip worded per tier — PRO is pointed at tyre stagger, BEG and INT at the
+balance controls they have.
+
+The staggered car now reads −30.9 UNDERSTEER and the default build +2.3 NEUTRAL. Every build's
+headline moved; so did `recommendedDiffType`, which switches RACE to SPORT above +8. What the
+term cannot vouch for is its size on staggered cars, which rests on the uncalibrated
+`WIDTH_GRIP_EXP` — recorded in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+A browser read-back of the new PRO tip caught it telling an understeering car to "narrow a
+front-favouring stagger"; wider rears are what cause that understeer, and both tips had the
+direction swapped before shipping.
+
+## Fixed — the FIT? badge showed in tiers that cannot see what it describes
+
+It shipped un-gated, on the reasoning that every tier reads the same balance figures. They
+don't: every flag concerns `mechBalance`, the target solves, GRIP BIAS or GRIP mode, all PRO.
+BEG saw `FIT? HZ` on a fresh default build, about a number it cannot display. PRO only now.
+
 ## Changed — "natural balance" is two named quantities, not one function in either space
 
 `naturalMechBalanceOf(ch)` answered in whichever space its input happened to be in:

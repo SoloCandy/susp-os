@@ -23,7 +23,7 @@ Key empirical constants calibrated from real Forza data:
 | `TIRE_LOAD_SENS` | 0.15 | Grip falloff per unit Fz/Fz_ref — the tyre load sensitivity that lets roll stiffness shift balance |
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
 | `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale) |
-| `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent |
+| `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent. Uncalibrated, and since the CHASSIS contributor it sets how large a tyre stagger reads on the Handling Balance bar — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md) |
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
 | `DIFF_TYPE_SCALE` | race 1.00 / sport 0.88 / rally 0.76 / offroad 0.52 / drift 1.10 | AUTO solver multipliers per diff type. Community-estimated: same slider % produces less effective lock on Rally/Offroad than Race, more on Drift. Sport is accel-only (no decel slider in-game) |
@@ -1024,7 +1024,9 @@ Every constant in the mech-balance chain was fitted over a bounded set of cars a
 states, and the app used to present a figure from outside those bounds with exactly
 the confidence of one from inside. `balanceEnvelope(ch, tune, gameMode)` returns the
 bounds the current tune is outside, as `{tag, detail, hard}`, and the FIT? badge in
-the Handling Balance header shows them.
+the Handling Balance header shows them — **in PRO only**. Every flag concerns a figure only
+PRO displays (`mechBalance`, target solves, GRIP BIAS, GRIP mode), so outside PRO it was
+reporting on numbers the user cannot see; it shipped un-gated and was corrected.
 
 | Tag | Severity | Raised when |
 |---|---|---|

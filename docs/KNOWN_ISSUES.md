@@ -597,6 +597,30 @@ suggest a typical 0.4–0.5, and both disappear once either ratio is moved off 1
 
 ---
 
+## Open — how large a tyre stagger reads rests on an uncalibrated exponent
+
+The Handling Balance bar's CHASSIS contributor (`bChassis`, see [FORMULAS.md](FORMULAS.md))
+has the grip model's sign by construction and does not depend on `MECH_BAL_GAIN`. Its
+**size** on a staggered car, though, is set almost entirely by `WIDTH_GRIP_EXP = 0.4` — how
+much grip a wider tyre adds — and that exponent has no documented calibration. On the default
+chassis a 235/305 stagger reads about −37; a 255/285 one about −19. The direction is the
+textbook one (wider rears add rear grip, so understeer); whether a 70 mm stagger is worth 37
+points of stiffness bias or 20 is not something the app has measured.
+
+It matters more now than it did: before the chassis term, `WIDTH_GRIP_EXP` only reached the
+PRO-only GRIP BIAS readout. It now moves the headline OS/US figure every tier sees. Calibrating
+it needs at-limit data — a skidpad balance or slip-angle comparison with only tyre width
+changed — which the three-car protocol does not collect.
+
+## Open — the springs and ARB tips point every tier at PRO-only controls
+
+`HandlingVerdict`'s dominant-contributor tips for SPRINGS and ARB say "Reduce the Mech Balance
+Target or use CO-SOLVE" and similar, in every tier. The Mech Balance Target and CO-SOLVE are
+PRO controls; a BEG or INT user is being told to use something they cannot see. The BRAKES
+tip is already PRO-gated and the CHASSIS tip has a per-tier wording, so the pattern exists —
+the springs and ARB tips just predate it. Kept out of the chassis-term change as a
+separate wording pass.
+
 ## Open — the unmeasured natural reads low against Forza
 
 In-game measurement on three cars found the geometric estimate (`natGeomOf`) reads

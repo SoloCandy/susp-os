@@ -110,10 +110,36 @@ bDiffDecel = bFD + bRD;
   accel lock (rear decel lock → oversteer for RWD/AWD), which contradicted
   the slider hint text; fixed so the formula and hint text agree.
 
+## Chassis (`bChassis`, `computeTune`)
+
+```js
+const bChassis = -100 * (gripNeutralSplitOf(ch) - (1 - nf));
+```
+
+- `gripNeutralSplitOf(ch)` is the rear roll-stiffness fraction at which the grip model
+  (`balanceFromRsBal`) reads exactly 0.5 — where this chassis's tyres, track widths, CG and
+  weight split balance out. Found by bisection; unique because the model is monotone.
+- **Why it exists.** `bSp + bAb` reduces exactly to `100·(rsBalance − (1 − nf))`: the
+  stiffness split measured against the **weight** split. But the car is not neutral at the
+  weight split — the grip model is neutral at `gripNeutralSplitOf`. Without this term a
+  staggered RWD car (wider rears, the textbook understeer change) read OVERSTEER at every ARB
+  setting while GRIP BIAS called it understeer-prone.
+- **The identity it guarantees:**
+  `bSp + bAb + bChassis = 100·(rsBalance − gripNeutralSplitOf(ch))`. The mechanical part of the
+  bar is zero exactly where the grip model is neutral, and always has the sign of
+  `gripBalance − 0.5`. No conversion constant: both halves measure a change of stiffness split
+  in the same unit. `tests-balance.js` asserts the identity and the sign agreement.
+- **Reading it:** −10 means this car needs 10 points of rear-biased roll stiffness just to reach
+  neutral — it leans understeer by that much before you touch anything.
+- **Independent of `MECH_BAL_GAIN`** — 0.5 is where front and rear capacity are equal, and the
+  gain only scales their difference. Its size on staggered cars does rest on `WIDTH_GRIP_EXP`;
+  see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+- Saturates when no split can neutralise the car (only absurd stagger, e.g. 200/400).
+
 ## Total (`bTotFull`)
 
 ```js
-const bTotFull = tune.bTot + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
+const bTotFull = tune.bTot + tune.bChassis + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
 ```
 
 This is the number shown as the overall Handling Balance total (and its

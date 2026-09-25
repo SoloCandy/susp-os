@@ -23,6 +23,7 @@
 //   6. Crossover behaviour — the gap changes sign just under 50% front bias, and nothing
 //      downstream may jump as it does.
 //   7. Calibration envelope — balanceEnvelope flags exactly the fitted bounds it should.
+//   8. Chassis term — the Handling Balance bar's mechanical part agrees with the grip model.
 //
 // Properties 5 and 6 are the ones with history: the drift-band sign inversion and the
 // balanceBandRange V-shape miss were both failures of exactly these (docs/HISTORY.md).
@@ -49,7 +50,7 @@ const M = new Function(
   'displayRsBalance,natGeomOf,natRsOf,natDisplayOf,gripNeutralOf,clampBalTarget,' +
   'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
-  'MECH_BALANCE_TARGET,isPhysical};'
+  'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective};'
 )();
 
 let pass = 0, fail = 0;
@@ -625,6 +626,87 @@ t('every flag carries a tag and a non-empty detail for the tooltip', () => {
     ok(typeof e.hard === 'boolean', `${e.tag} must declare a severity, got ${JSON.stringify(e.hard)}`);
   }
   ok(new Set(env.map(e => e.tag)).size === env.length, 'tags must not repeat');
+});
+
+// -- 8. Chassis term ---------------------------------------------------------
+console.log('\nChassis term (Handling Balance bar)');
+
+const tuneOf = (ch, feOver = {}, gm = 'horizon') =>
+  M.solveTune(ch, M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: gm, ...feOver }), gm).tune;
+const rsBalOfTune = t => (t.rsSpR + t.rsAbR) / (t.rsSpF + t.rsSpR + t.rsAbF + t.rsAbR);
+
+t('gripNeutralSplitOf is where the grip model reads exactly neutral', () => {
+  for (const { name, ch } of CHASSIS) {
+    const sp = M.gripNeutralSplitOf(ch);
+    ok(sp > 1e-4 && sp < 1 - 1e-4, `${name}: saturated at ${sp} — no ordinary chassis should`);
+    near(M.balanceFromRsBal(ch, sp), 0.5, 1e-9, `${name}: grip balance at the neutral split`);
+  }
+});
+
+t('springs + ARBs + chassis = 100·(rsBalance − grip-neutral split), exactly', () => {
+  // The identity the whole term rests on: bSp+bAb measures the split against the WEIGHT split,
+  // bChassis moves the reference to where the grip model is neutral. If either half is ever
+  // redefined without the other, this is what breaks.
+  for (const { name, ch } of CHASSIS)
+    for (const arbBias of [-50, 0, 50]) {
+      const tn = tuneOf(ch, { arbBias, arbBalMode: 'weight' });
+      near(tn.bSp + tn.bAb + tn.bChassis, 100 * (rsBalOfTune(tn) - M.gripNeutralSplitOf(ch)), 1e-9,
+        `${name} at ARB bias ${arbBias}`);
+    }
+});
+
+t('the bar\'s mechanical verdict now has the grip model\'s sign, in every game mode', () => {
+  // The bug this fixes, as a property: with springs and ARBs alone, a staggered RWD car read
+  // OVERSTEER at every ARB setting while GRIP BIAS called it understeer-prone.
+  let checked = 0;
+  for (const gm of ['horizon', 'motorsport', 'beamng'])
+    for (const { name, ch } of CHASSIS)
+      for (const arbBias of [-50, -25, 0, 25, 50]) {
+        const tn = tuneOf(ch, { arbBias, arbBalMode: 'weight' }, gm);
+        const mech = tn.bSp + tn.bAb + tn.bChassis, g = tn.gripBalance - 0.5;
+        if (Math.abs(g) < 1e-9) continue;
+        ok(Math.sign(mech) === Math.sign(g),
+          `${gm} ${name} ARB ${arbBias}: bar mechanical ${mech.toFixed(3)} vs grip ${tn.gripBalance.toFixed(4)}`);
+        checked++;
+      }
+  ok(checked > 200, `too few cases checked (${checked})`);
+});
+
+t('the chassis term alone flips a staggered car to understeer', () => {
+  const stag = { ...M.DEF_CH, useRideHeightCG: false, tyreF: '235/35R18', tyreR: '305/30R19' };
+  const tn = tuneOf(stag);
+  ok(tn.bSp + tn.bAb > 0, 'fixture: springs and ARBs alone should still read oversteer here');
+  ok(tn.bSp + tn.bAb + tn.bChassis < 0, `with the chassis term the mechanical total must be understeer, got ${(tn.bSp + tn.bAb + tn.bChassis).toFixed(2)}`);
+});
+
+t('the chassis term does not depend on MECH_BAL_GAIN', () => {
+  // 0.5 is where front and rear capacity are equal; the gain only scales their difference. So
+  // the term is safe to show before the gain is calibrated — asserted by rebuilding the model
+  // with a very different gain, not argued.
+  const alt = src.split('const MECH_BAL_GAIN=1.8;').join('const MECH_BAL_GAIN=3.7;');
+  ok(alt !== src, 'MECH_BAL_GAIN declaration not found — update this test');
+  const M2 = new Function(
+    alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
+    alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
+    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbCtx=')) +
+    '\nreturn{gripNeutralSplitOf,balanceFromRsBal};')();
+  for (const { name, ch } of CHASSIS) {
+    near(M2.gripNeutralSplitOf(ch), M.gripNeutralSplitOf(ch), 1e-9, `${name}: split moved with the gain`);
+    ok(Math.abs(M2.balanceFromRsBal(ch, 0.3) - M.balanceFromRsBal(ch, 0.3)) > 1e-4, `${name}: the rebuilt gain had no effect — the test proves nothing`);
+  }
+});
+
+t('a chassis no stiffness split can neutralise saturates at the matching end', () => {
+  // Only absurd stagger gets here. Saturating is the honest answer — "even all the roll stiffness
+  // at one end is not enough" — and the sign must still agree with the grip model.
+  const us = { ...M.DEF_CH, useRideHeightCG: false, tyreF: '200/35R18', tyreR: '400/35R18' };
+  const os = { ...M.DEF_CH, useRideHeightCG: false, tyreF: '400/35R18', tyreR: '200/35R18' };
+  ok(M.gripNeutralSplitOf(us) > 0.999, 'hugely wider rears: the split must saturate at the rear end');
+  ok(M.gripNeutralSplitOf(os) < 0.001, 'hugely wider fronts: the split must saturate at the front end');
+  for (const [ch, want] of [[us, -1], [os, 1]]) {
+    const tn = tuneOf(ch);
+    ok(Math.sign(tn.bSp + tn.bAb + tn.bChassis) === want, 'saturated case lost its sign');
+  }
 });
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passed, ${fail} failed\n`);

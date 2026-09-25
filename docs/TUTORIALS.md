@@ -288,7 +288,7 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 |---|---|---|---|---|
 | 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. |
 | 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. |
-| 3 | Reading Each Row | — | | MECHANICAL vs DYNAMIC; value and % share. |
+| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC; value and % share. |
 | 4 | Using the Correction Tip | — | | Which input to reach for, per tier. |
 | 5 | Response Bar | — | | PLANTED ↔ REACTIVE, what it's weighted on. |
 
