@@ -146,7 +146,7 @@ Ids 60/61 (`useMeasuredNatBal`/`measuredNatBal`) are `group:'ch'` for the same
 reason. They used to be excluded from the codec entirely (see the removed note
 below) until it became clear that exclusion was actively wrong: `arbBalTarget`
 (id 40) and `arbBalDelta` (id 54) both store *deltas* from a natural the reading
-feeds — `natDisplayOf(ch)` and `gripNeutralOf(ch)` — so if the measured-override baseline itself doesn't
+feeds — `natDisplayOf(ch)` and `gripNeutralOf(ch, gameMode, K)` — so if the measured-override baseline itself doesn't
 travel, a receiver decoding with `useMeasuredNatBal` defaulted to `false`
 silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
@@ -358,6 +358,12 @@ reinterprets old codes under new rules. Two examples so far:
   geometry estimate's own error). GRIP's `arbBalDelta` (id 54) moved only on measured,
   staggered cars, by ~0.011, because `gripNeutralOf` now takes `natRsOf`. See
   [HISTORY.md](HISTORY.md).
+- **id 54 (`arbBalDelta`) — the GRIP reference became grip-neutral.** It was an offset from
+  `1 − natGripBalance`, a mirror of the natural's grip reading that missed neutral by up to
+  0.064 in grip balance. It is now an offset from `gripNeutralOf`, the mech balance at which the
+  grip model reads exactly 0.5 — in the Forza modes taken at the tune's own roll stiffness. The
+  wire value is unchanged and nothing was migrated; a shared GRIP tune on a staggered or measured
+  car resolves to a different absolute target than it did. See [HISTORY.md](HISTORY.md).
 - **id 41 (`arbBalMode`) `'man'`** — MAN moved from Balance Mode to Stiffness
   Mode (id 15, `arbMode`), since it bypasses the budget/split system
   entirely rather than choosing a split within it. `'man'` stays in

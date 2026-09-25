@@ -113,19 +113,22 @@ bDiffDecel = bFD + bRD;
 ## Chassis (`bChassis`, `computeTune`)
 
 ```js
-const bChassis = -100 * (gripNeutralSplitOf(ch) - (1 - nf));
+const bChassis = -100 * (gripNeutralSplitOf(ch) - natOffset - (1 - nf));
 ```
 
 - `gripNeutralSplitOf(ch)` is the rear roll-stiffness fraction at which the grip model
   (`balanceFromRsBal`) reads exactly 0.5 — where this chassis's tyres, track widths, CG and
-  weight split balance out. Found by bisection; unique because the model is monotone.
+  weight split balance out. Found by Illinois (regula falsi) root-finding; unique because the
+  model is monotone. It is the REAL car's split, while the springs and ARBs are in the solvers'
+  model space, so `natOffset` (MEASURE NAT BAL; 0 without a measurement) moves it across — the
+  same shift `gripBalance = balanceFromRsBal(ch, rsBalance + natOffset)` makes.
 - **Why it exists.** `bSp + bAb` reduces exactly to `100·(rsBalance − (1 − nf))`: the
   stiffness split measured against the **weight** split. But the car is not neutral at the
   weight split — the grip model is neutral at `gripNeutralSplitOf`. Without this term a
   staggered RWD car (wider rears, the textbook understeer change) read OVERSTEER at every ARB
   setting while GRIP BIAS called it understeer-prone.
 - **The identity it guarantees:**
-  `bSp + bAb + bChassis = 100·(rsBalance − gripNeutralSplitOf(ch))`. The mechanical part of the
+  `bSp + bAb + bChassis = 100·(rsBalance + natOffset − gripNeutralSplitOf(ch))`. The mechanical part of the
   bar is zero exactly where the grip model is neutral, and always has the sign of
   `gripBalance − 0.5`. No conversion constant: both halves measure a change of stiffness split
   in the same unit. `tests-balance.js` asserts the identity and the sign agreement.

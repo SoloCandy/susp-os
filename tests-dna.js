@@ -45,7 +45,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
   'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
-  'resolveArbBalTarget,gripNeutralOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
+  'resolveArbBalTarget,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
 
@@ -117,24 +117,55 @@ t('GRIP mode resolves to grip-neutral + Balance Offset, clamped 0.20..0.90', () 
     const ch = chOf(over);
     for (const arbBalDelta of [-0.2, -0.05, 0, 0.07, 0.2]) {
       const got = M.resolveFeEffective(ch, feOf('horizon', { arbBalTargetMode: 'grip', arbBalDelta })).arbBalTarget;
-      const want = Math.max(0.20, Math.min(0.90, 1 - M.balanceFromRsBal(ch, M.natRsOf(ch)) + arbBalDelta));
+      const want = Math.max(0.20, Math.min(0.90, M.gripNeutralOf(ch, 'horizon') + arbBalDelta));
       assert(got === want, `delta ${arbBalDelta}: got ${got}, want ${want}`);
     }
   }
 });
 
-t('gripNeutralOf is 1 − balanceFromRsBal at the ROLL-STIFFNESS natural', () => {
-  // balanceFromRsBal takes a roll-stiffness fraction, so the input is natRsOf — not the display
-  // reading, which carries the tyre-width term. The measured, staggered case is the one that
-  // differs; before natural was split it received the reading.
-  for (const over of [{ frontBias: 57 }, { tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 }]) {
+t('gripNeutralOf: a GRIP tune at offset 0 reads grip-neutral', () => {
+  // The definition, tested end to end: solve a GRIP-mode tune with no offset through the DNA
+  // resolver (so the bars can actually reach the split) and read the grip model back. It used to be
+  // the natural's grip lean mirrored about 0.5, which missed by up to 0.064; then the Forza value
+  // was taken at the probe springs, which missed by up to 0.04 on a real tune at other stiffness.
+  // Cases whose balance misses (bar reach, or neutral outside 0.20..0.90) prove nothing here.
+  const cases = [{ frontBias: 57 }, { tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 },
+    ...Object.values(FIXTURES)];
+  const keep = ['balanceOffset', 'pitchRatio', 'arbShare', 'platformHz', 'reboundZeta'];
+  let landed = { beamng: 0, horizon: 0 };
+  for (const a of M.DNA_ARCHETYPES) for (const over of cases) for (const mode of ['beamng', 'horizon']) {
+    const r = M.applyDNA(chOf(over), feOf(mode), M.DEF_DR, { axes: { ...a.axes, balanceOffset: 0 }, keep });
+    if (r.misses.some(m => m.axis === 'balanceOffset')) continue;
+    landed[mode]++;
+    near(r.tune.gripBalance, 0.5, 0.02, `${a.name} ${mode} ${JSON.stringify(over)} gripBalance`);
+  }
+  assert(landed.beamng >= 10 && landed.horizon >= 10, `too few cases landed to mean anything: ${JSON.stringify(landed)}`);
+});
+
+t('solveTune: Forza GRIP aims at the neutral at the tune stiffness, and returns it', () => {
+  // The probe-spring value resolveFeEffective hands in is only a first guess; the display depends on
+  // total roll stiffness, which the split does not change, so the exact target is read off the
+  // result. `target` is what App shows as the tune's target.
+  const ch = chOf({ tyreF: '235/35R18', tyreR: '305/30R19', useMeasuredNatBal: true, measuredNatBal: 0.51 });
+  for (const rideStiffness of [2.0, 3.6]) {
+    const fe = M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbBalTargetMode: 'grip', arbBalDelta: 0.02, rideStiffness }));
+    const { tune, target } = M.solveTune(ch, fe, 'horizon');
+    near(target, M.gripNeutralOf(ch, 'horizon', M.rollKOf(tune)) + 0.02, 1e-9, `${rideStiffness} Hz target`);
+    if (!tune.mechBalClamped) near(tune.mechBalance, target, 0.01, `${rideStiffness} Hz landed`);
+  }
+  const bfe = M.resolveFeEffective(ch, feOf('beamng', { arbBalMode: 'mech', arbBalTargetMode: 'grip', arbBalDelta: 0 }));
+  near(M.solveTune(ch, bfe, 'beamng').target, Math.max(0.20, Math.min(0.90, bfe.arbBalTarget)), 0, 'BeamNG keeps the resolved target');
+});
+
+t('gripNeutralOf: in BeamNG (physical) it is the grip-neutral split plus the tyre term', () => {
+  for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);
-    assert(M.gripNeutralOf(ch) === 1 - M.balanceFromRsBal(ch, M.natRsOf(ch)), 'mismatch on ' + JSON.stringify(over));
+    assert(M.gripNeutralOf(ch, 'beamng') === M.gripNeutralSplitOf(ch) + M.tireCorrOf(ch), 'mismatch on ' + JSON.stringify(over));
   }
 });
 
 t('App routes feEffective through resolveFeEffective (no second inline copy)', () => {
-  assert(src.includes('const feEffective=resolveFeEffective(ch,fe);'), 'App no longer calls resolveFeEffective');
+  assert(src.includes('const feResolved=useMemo(()=>resolveFeEffective(ch,fe),'), 'App no longer calls resolveFeEffective');
   assert(!/arbBalTarget:gripBalTarget/.test(src), 'an inline GRIP resolution has reappeared');
 });
 
@@ -326,7 +357,7 @@ t('share hit ⇔ !shareClamped, balance hit ⇔ !mechBalClamped, !dampingClamped
     const e = M.dnaEvaluate(ch, feOf(mode), M.DEF_DR, axes);
     const shareHit = Math.abs(e.measured.arbShare - share) <= e.tol.arbShare;
     assert(shareHit === !e.tune.shareClamped, `${mode}/${a.name} share ${share}: DNA hit=${shareHit}, shareClamped=${e.tune.shareClamped}`);
-    const tgt = M.gripNeutralOf(ch) + off;
+    const tgt = M.gripNeutralOf(ch, mode) + off;
     if (tgt >= 0.20 && tgt <= 0.90 && e.tune.rsAbF + e.tune.rsAbR > 0) {
       const balHit = Math.abs(e.measured.balanceOffset - off) <= e.tol.balanceOffset;
       // mechBalClamped compares against the clamped target with a strict > 0.01; allow the exact
@@ -435,18 +466,27 @@ section('portability — the same DNA on every chassis');
 
 t('fixture gaps still cover both signs and the near-zero case', () => {
   // The Balance Guide's gap: grip-neutral against the DISPLAY-space natural it is shown beside.
-  const gap = over => { const ch = chOf(over); return M.gripNeutralOf(ch) - M.natDisplayOf(ch, 'horizon'); };
+  const gap = over => { const ch = chOf(over); return M.gripNeutralOf(ch, 'horizon') - M.natDisplayOf(ch, 'horizon'); };
   assert(gap(FIXTURES.RearBiased) < -0.05, 'RearBiased no longer has a clearly negative gap');
   assert(Math.abs(gap(FIXTURES.Balanced)) < 0.03, 'Balanced no longer sits near zero gap');
   assert(gap(FIXTURES.FrontHeavy) > 0.15, 'FrontHeavy no longer has a large positive gap');
   assert(gap(FIXTURES.WideFront) < 0 && gap(FIXTURES.WideRear) > 0, 'tyre-stagger fixtures lost their signs');
 });
 
-t('BeamNG: an archetype that protects balance lands it on every fixture', () => {
+t('BeamNG: an archetype that protects balance lands it on every fixture that has one', () => {
   // No bar ceiling in a physical mode, so a miss here would be the model's fault, not the game's.
+  // Except where grip-neutral itself is outside 0.20..0.90: WideRear's 100 mm stagger leaves the
+  // grip model understeering with every bit of roll stiffness at the rear, so there is no neutral
+  // car to aim at, and the miss must say so rather than move axes chasing it.
   for (const a of M.DNA_ARCHETYPES.filter(x => x.keep.indexOf('balanceOffset') <= 1))
     for (const [fn, over] of Object.entries(FIXTURES)) {
-      const res = M.applyDNA(chOf(over), feOf('beamng'), M.DEF_DR, a);
+      const ch = chOf(over), want = M.gripNeutralOf(ch, 'beamng') + a.axes.balanceOffset;
+      const res = M.applyDNA(ch, feOf('beamng'), M.DEF_DR, a);
+      if (want < 0.20 || want > 0.90) {
+        const m = res.misses.find(x => x.axis === 'balanceOffset');
+        assert(m && /outside the 0\.20–0\.90/.test(m.cause), `${a.name} on ${fn}: out-of-range balance not reported`);
+        continue;
+      }
       assert(!res.misses.some(m => m.axis === 'balanceOffset'), `${a.name} on ${fn}: balance missed`);
       near(res.measured.balanceOffset, a.axes.balanceOffset, 0.01, `${a.name} on ${fn} balanceOffset`);
     }
@@ -515,10 +555,9 @@ t('damping floor (LIGHT): platform rises only if ζ outranks it', () => {
 });
 
 t('balance (FrontHeavy, Forza): pitch carries the correction only if balance outranks it', () => {
-  // balanceOffset -0.10, not 0: since the Forza display counts the tyres in series, springs move the
-  // balance about 0.7x as far, and a 0 offset here is out of reach at any pitch. -0.10 needs the same
-  // kind of rescue (pitch ~1.5) the test was written around.
-  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, arbShare: 7.5, balanceOffset: -0.10 };
+  // A grip-neutral target (offset 0) is out of the bars' reach at the seeded pitch; pitch ~1.45
+  // rescues it. Offsets from about -0.04 down are reachable by share alone, so they do not test this.
+  const axes = { ...M.sanitizeDNA({}).axes, platformHz: 2.8, pitchRatio: 1.125, arbShare: 7.5, balanceOffset: 0 };
   const keepBal = M.applyDNA(chOf(FIXTURES.FrontHeavy), feOf('horizon'), M.DEF_DR,
     { axes, keep: ['platformHz', 'balanceOffset', 'pitchRatio', 'arbShare', 'reboundZeta'] });
   assert(moved(keepBal, 'pitchRatio') && !missed(keepBal, 'balanceOffset'), 'pitch should move and balance land');
@@ -529,12 +568,13 @@ t('balance (FrontHeavy, Forza): pitch carries the correction only if balance out
 });
 
 t('two axes move together when neither can clear a miss alone', () => {
-  // RearBiased + Horizon + GT3, with balance ranked first. Pitch alone reaches balance but breaks
-  // share, and share alone cannot reach balance, so a single-candidate resolver accepted the
-  // balance miss. Moving both clears it. See docs/DNA.md's "Two candidates together".
+  // RearBiased + Horizon + GT3 asking for a little more oversteer (-0.05), with balance ranked
+  // first. Pitch alone reaches balance but breaks share, and share alone cannot reach balance, so a
+  // single-candidate resolver accepted the balance miss. Moving both clears it. See docs/DNA.md's
+  // "Two candidates together".
   const gt3 = M.DNA_ARCHETYPES.find(a => a.name === 'GT3');
   const res = M.applyDNA(chOf(FIXTURES.RearBiased), feOf('horizon'), M.DEF_DR,
-    { ...gt3, keep: ['balanceOffset', 'arbShare', 'platformHz', 'pitchRatio', 'reboundZeta'] });
+    { ...gt3, axes: { ...gt3.axes, balanceOffset: -0.05 }, keep: ['balanceOffset', 'arbShare', 'platformHz', 'pitchRatio', 'reboundZeta'] });
   const joint = res.moves.filter(m => m.with);
   assert(joint.length === 2, `expected one joint move, got ${res.moves.map(m => m.axis + (m.with ? '+' + m.with : ''))}`);
   assert(joint[0].with === joint[1].axis && joint[1].with === joint[0].axis, 'the two halves should name each other');
@@ -558,25 +598,25 @@ t('slack is sparse, clamped to half the axis range, and never negative', () => {
 });
 
 t('slack lets an axis land off its target rather than spending a more protected one', () => {
-  // GT3 asking for the 8.5% share its v1 roll seed produced, in Motorsport, where 40-click bars
-  // cannot sit on it. With a point target the resolver drags platform 3.30 → 3.64 Hz to hit the
-  // share exactly; with ±3% of slack the share is met where it lands and platform stays home.
+  // GT3 at its own 4.5% share, in Motorsport, where 40-click bars cannot sit on it. With a point
+  // target the resolver drags platform 3.30 → about 3.7 Hz to hit the share exactly; with ±3% of
+  // slack the share is met where it lands and platform stays home.
   const gt3 = M.DNA_ARCHETYPES.find(a => a.name === 'GT3');
   const keep = ['arbShare', 'balanceOffset', 'platformHz', 'pitchRatio', 'reboundZeta'];
   const run = slack => M.applyDNA(chOf({}), feOf('motorsport'), M.DEF_DR,
-    M.sanitizeDNA({ ...gt3, axes: { ...gt3.axes, arbShare: 8.5 }, slack: { arbShare: slack }, keep }));
+    M.sanitizeDNA({ ...gt3, slack: { arbShare: slack }, keep }));
   const tight = run(0), loose = run(3);
   assert(moved(tight, 'platformHz'), 'a point target should have pulled platform off 3.30 Hz');
   assert(!moved(loose, 'platformHz'), `platform moved anyway: ${loose.moves.map(m => m.axis)}`);
   near(loose.measured.platformHz, gt3.axes.platformHz, loose.tol.platformHz, 'platform stays on target under slack');
   assert(!missed(loose, 'arbShare'), 'share should count as met inside its slack');
-  assert(Math.abs(loose.measured.arbShare - 8.5) > loose.tol.arbShare, 'this case should need the slack, not just rounding');
+  assert(Math.abs(loose.measured.arbShare - gt3.axes.arbShare) > loose.tol.arbShare, 'this case should need the slack, not just rounding');
   assert(loose.accept.arbShare === loose.tol.arbShare + 3, 'accept should be the quantisation allowance plus the slack');
 });
 
 t('a balance target outside 0.20..0.90 is accepted, never chased', () => {
   const ch = chOf(FIXTURES.WideFront);                       // grip-neutral sits low here
-  const off = 0.20 - M.gripNeutralOf(ch) - 0.05;             // below the 0.20 floor
+  const off = 0.20 - M.gripNeutralOf(ch, 'beamng') - 0.05;   // below the 0.20 floor
   if (off < -0.20) return;                                   // not constructible on this fixture
   const res = M.applyDNA(ch, feOf('beamng'), M.DEF_DR, { axes: { ...M.sanitizeDNA({}).axes, balanceOffset: off }, keep: ['balanceOffset'] });
   assert(!res.moves.some(m => m.protects === 'balanceOffset'), 'moved an axis to chase an unreachable target');

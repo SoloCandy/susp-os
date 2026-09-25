@@ -11,6 +11,32 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — GRIP mode did not target a grip-neutral car
+
+GRIP mode's target at a 0 Balance Offset was `1 − natGripBalance`: the natural's grip reading
+mirrored about 0.5 and used as a mech balance. The two are different units and the grip model is
+not symmetric, so the "neutral" target missed neutral — by up to 0.064 in grip balance, worst on
+a measured, staggered car. DNA's `balanceOffset` measured from the same point.
+
+The target is now `gripNeutralOf`: the real roll-stiffness split at which `balanceFromRsBal`
+reads exactly 0.5 (`gripNeutralSplitOf`, now Illinois root-finding rather than bisection),
+carried into display space the way `computeTune` carries any split. In physical modes that is
+all. Forza's display puts each tyre in series with its axle, so one split reads differently at
+different total roll stiffness; taking it at the MEASURE NAT BAL probe springs still missed by up
+to 0.09 in display (about 0.04 in grip) across the DNA archetypes. So `solveTune` aims GRIP at
+the neutral at each run's own stiffness (`rollKOf(tune)`) and returns that as `target`, which
+App writes back into `feEffective`. Not circular: total stiffness comes from springs and the bar
+budget, and the F/R split does not change it.
+
+Two related fixes in `computeTune`: `gripBalance` and `bChassis` now add MEASURE NAT BAL's
+`natOffset` back before asking the grip model, which wants the real car's split, not the
+solvers' model space.
+
+Every GRIP-mode build on a staggered or measured car moved its target; wire values did not
+change. Three DNA test fixtures that sat on the old target were recalibrated — FrontHeavy's pitch
+rescue back to a 0 offset, the joint-move case to GT3 at −0.05 on RearBiased, and the slack
+example to GT3's own 4.5% ARB share.
+
 ## Fixed — the Handling Balance bar could not see the car it was describing
 
 The headline OS/US figure — the only balance readout in BEG and INT — added springs and ARBs

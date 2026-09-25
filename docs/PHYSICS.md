@@ -1050,12 +1050,12 @@ badge's tooltip instead.
 
 **Balance Guide RANGE.** The PRO Balance Guide's recommended mech-balance
 band is a fraction of the gap between `natMechBalance` (NATURAL) and
-`1 - balanceFromRsBal(ch, natMechBalance)` (GRIP TARGET — the mech balance
-that would fully cancel the chassis's natural grip tendency), not a flat
-offset:
+`gripNeutral` (GRIP TARGET — `gripNeutralOf(ch, gameMode, rollKOf(tune))`, the mech
+balance at which the grip model reads exactly 0.5, taken at the current tune's roll
+stiffness), not a flat offset:
 
 ```js
-gap = (1 - natGripBalance) - natMechBalance
+gap = gripNeutral - natMechBalance
 [dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
 lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.20-0.90, hi ≥ lo + 0.03
 

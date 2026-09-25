@@ -148,7 +148,7 @@ condition — see [HISTORY.md](HISTORY.md).
 
 The RANGE band scales its deltas with `balanceBandDelta(frac, gap)` (collected
 over each fraction pair by `balanceBandRange`), where
-`gap = (1 - natGripBalance) - natMechBalance` (see
+`gap = gripNeutral - natMechBalance` (see
 [PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section). A fraction above 1.0
 now overshoots toward oversteer under either sign of `gap`, which is what fixed
 the DRIFT-points-at-understeer defect in [HISTORY.md](HISTORY.md). A fraction at

@@ -82,7 +82,9 @@ feelToPhysics(ch, fe)                  → resolves feel settings into physics
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
 solveTune(ch, feEffective, gameMode)   → feelToPhysics + computeTune, repeated in the
                                          target modes until the DISPLAYED balance
-                                         meets the target; every caller goes through it
+                                         meets the target; every caller goes through it.
+                                         Returns the target it aimed at as `target`
+                                         (GRIP's moves with stiffness in Forza)
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
@@ -127,7 +129,11 @@ would make "in range" mean two different things in one panel) and
 endpoints, since a negative gap makes the delta V-shaped with its minimum at
 grip-neutral),
 `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
-balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from),
+balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from; in a Forza mode it
+depends on total roll stiffness, passed as `rollKOf(tune)`, and falls back to the MEASURE NAT BAL
+probe springs without one), `rollKOf` (a tune's total roll stiffness, springs plus bars —
+independent of the F/R split, which is why `solveTune` can aim GRIP at the neutral at each run's
+own stiffness and return it as `target` without chasing itself),
 `balanceEnvelope` (which fitted bounds the current tune sits outside, each flag
 carrying a `hard` severity — feeds the PRO-only FIT? badge in the Handling Balance header,
 the only place the app says a figure is extrapolated; `hard:false` is an
@@ -150,7 +156,9 @@ same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.
 
 In `App()` the chain is `resolveFeEffective` → `solveTune` (`feelToPhysics` →
 `computeTune`, repeated for the Forza target modes) → everything else, each in its
-own `useMemo`. Vehicle DNA's resolver (`dnaEvaluate`) and `dnaApply` call `solveTune`
+own `useMemo`. The funnel's output is `feResolved`; `feEffective` is that with
+`solveTune`'s `target` written back as `arbBalTarget`, so every marker shows the
+target the tune actually aimed at. Vehicle DNA's resolver (`dnaEvaluate`) and `dnaApply` call `solveTune`
 too, so DNA and the live tune agree.
 
 **Vehicle DNA core** (see [DNA.md](DNA.md)): `sanitizeDNA` normalises a DNA;

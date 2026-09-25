@@ -415,12 +415,13 @@ t('balanceBandRange contains both endpoints AND every interior fraction', () => 
   }
 });
 
-// The Balance Guide's gap, exactly as the app computes it: grip-neutral (1 − natGripBalance)
-// minus the DISPLAY-space natural the band is drawn around. This file used
-// (1 − gripNeutralOf) − natural until the natural-balance split — natGripBalance minus natural,
-// a different quantity — so its band and crossover properties were exercising the wrong gap.
+// The Balance Guide's gap: grip-neutral (gripNeutralOf, the mech balance the grip model reads
+// neutral at) minus the DISPLAY-space natural the band is drawn around. The app takes grip-neutral
+// at the current tune's roll stiffness; with no tune here it is taken at the MEASURE NAT BAL probe
+// springs, gripNeutralOf's default. This file once used a mirror of the natural's grip reading,
+// a different quantity, so its band and crossover properties were exercising the wrong gap.
 const NAT = ch => M.natDisplayOf(ch, 'horizon');
-const gapOf = ch => M.gripNeutralOf(ch) - NAT(ch);
+const gapOf = ch => M.gripNeutralOf(ch, 'horizon') - NAT(ch);
 
 t('every shipped BALANCE_BAND_FRACS pair produces a usable band on every chassis', () => {
   for (const { name, ch } of CHASSIS) {
@@ -492,7 +493,7 @@ t('nothing downstream of the gap jumps as it crosses zero', () => {
 
 t('gripNeutralOf and the natural in both spaces stay inside the 0-1 scale', () => {
   for (const { name, ch } of CHASSIS) {
-    for (const v of [M.gripNeutralOf(ch), M.natRsOf(ch), NAT(ch), M.natDisplayOf(ch, 'beamng'), M.natGeomOf(ch)])
+    for (const v of [M.gripNeutralOf(ch, 'horizon'), M.gripNeutralOf(ch, 'beamng'), M.natRsOf(ch), NAT(ch), M.natDisplayOf(ch, 'beamng'), M.natGeomOf(ch)])
       ok(v > 0 && v < 1, `${name}: ${v} is outside the 0-1 balance scale`);
   }
 });

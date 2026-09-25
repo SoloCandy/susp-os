@@ -433,19 +433,42 @@ const clampBalTarget=v=>Math.max(0.20,Math.min(0.90,v));
 const resolveArbBalTarget=(ch,fe)=>fe.arbBalTarget==null
   ?MECH_BALANCE_TARGET
   :clampBalTarget(natDisplayOf(ch,fe.gameMode)+fe.arbBalTarget);
-// Grip-neutral mech balance: the mech balance that cancels this chassis's natural at-limit grip
-// tendency (the Balance Guide's GRIP TARGET). GRIP mode's Balance Offset and Vehicle DNA's
-// balanceOffset axis are both measured from here. balanceFromRsBal takes a ROLL-STIFFNESS
-// fraction, so its input is natRsOf — it used to receive a measured display reading, tyre term
-// and all, on any car with MEASURE NAT BAL set.
-const gripNeutralOf=ch=>1-balanceFromRsBal(ch,natRsOf(ch));
+// Grip-neutral mech balance: the DISPLAYED mech balance at which the grip model reads exactly 0.5
+// for this chassis (the Balance Guide's GRIP TARGET). GRIP mode's Balance Offset and Vehicle DNA's
+// balanceOffset axis are both measured from here, so a 0 offset means "a grip-neutral car".
+//
+// It used to be 1 − balanceFromRsBal(natural): the natural's grip lean mirrored about 0.5. That
+// mixes two spaces — a grip balance read as a mech balance — and the model is not linear enough
+// for the mirror to land on neutral: a car that reached the target read gripBalance 0.48–0.56.
+// Now it is the real split where the model is neutral (gripNeutralSplitOf), carried into display
+// space the way computeTune carries a split: minus natOffset into the solvers' model space, then
+// plus tireCorr and the display offset. Physical modes display the split itself, so that is all.
+//
+// Forza's display puts each tyre in series with its axle, so the same split reads differently at
+// different total roll stiffness — by up to 0.09 across the DNA archetypes on a staggered car. K is
+// that total (rollKOf(tune)); the GRIP neutral of a tune is the one at ITS stiffness, and solveTune
+// aims there. That is not circular: the total comes from springs and the bar budget, and the F/R
+// split does not change it. Without K it falls back to the MEASURE NAT BAL probe springs — the
+// convention natDisplayModelOf uses — which is only the first guess resolveFeEffective hands in.
+const gripNeutralOf=(ch,gameMode,K)=>{
+  const s=gripNeutralSplitOf(ch);
+  if(isPhysical(gameMode))return s+tireCorrOf(ch);
+  const sm=s-natOffsetOf(ch);
+  if(!(K>0)){const mc=cornerMasses(ch),h=NAT_BAL_PROBE_HZ;
+    K=axleRollStiffness(h,mc.front,ch.trackF)+axleRollStiffness(h,mc.rear,ch.trackR);}
+  return displayRsBalance(ch,K*(1-sm),K*sm)+tireCorrOf(ch)+displayNatOffsetOf(ch);
+};
+// A solved tune's total roll stiffness, springs and bars, both axles — gripNeutralOf's K.
+const rollKOf=tune=>tune.rsSpF+tune.rsSpR+tune.rsAbF+tune.rsAbR;
 // fe.arbBalTarget is stored as a delta from natDisplayOf(ch,gameMode) (null = untouched, falls back
 // to MECH_BALANCE_TARGET) so a saved/shared build re-targets against whatever chassis it's applied
 // to. This is the single funnel that resolves both TARGET and GRIP modes to the absolute value the
 // physics engine and every downstream display read. It was inline in App until Vehicle DNA's
-// compiler needed the identical resolution — keep one copy, not two (docs/DNA.md).
+// compiler needed the identical resolution — keep one copy, not two (docs/DNA.md). GRIP in a Forza
+// mode resolves at the probe springs here; solveTune moves it to the tune's own stiffness and
+// returns the value it used as `target`, which App reads back into feEffective.
 const resolveFeEffective=(ch,fe)=>(fe.arbBalTargetMode??'manual')==='grip'
-  ?{...fe,arbBalTarget:clampBalTarget(gripNeutralOf(ch)+(fe.arbBalDelta??0))}
+  ?{...fe,arbBalTarget:clampBalTarget(gripNeutralOf(ch,fe.gameMode)+(fe.arbBalDelta??0))}
   :{...fe,arbBalTarget:resolveArbBalTarget(ch,fe)};
 // Is anything actually solving toward the Balance Target? MECH/CO-SOLVE ARB balance modes do,
 // and Rear Hz Mode MECH does even under MAN ARB stiffness (it still aims spring Hz at the
@@ -715,7 +738,7 @@ const balanceFromRsBal=(ch,rsBal)=>{
   return mechBalanceLLT(ch,1,r/(1-r));
 };
 // The rear roll-stiffness fraction at which the grip model reads exactly neutral (0.5) for this
-// chassis — where its tyres, track widths, CG and weight split balance out. Bisection: since the
+// chassis — where its tyres, track widths, CG and weight split balance out. A bracketed root: since the
 // lift fix balanceFromRsBal is monotone, so the root is unique when it exists. It fails to exist
 // only when the grip model sits on one side of neutral across the whole range; the answer then
 // saturates at that end, which says "no stiffness split neutralises this car" in the only way a
@@ -726,9 +749,20 @@ const balanceFromRsBal=(ch,rsBal)=>{
 // the gain is calibrated (docs/IDEAS.md item 2 / KNOWN_ISSUES).
 const gripNeutralSplitOf=ch=>{
   let lo=1e-4,hi=1-1e-4;
-  if(balanceFromRsBal(ch,lo)>=0.5)return lo;
-  if(balanceFromRsBal(ch,hi)<=0.5)return hi;
-  for(let i=0;i<50;i++){const m=(lo+hi)/2;if(balanceFromRsBal(ch,m)<0.5)lo=m;else hi=m;}
+  let fLo=balanceFromRsBal(ch,lo)-0.5,fHi=balanceFromRsBal(ch,hi)-0.5;
+  if(fLo>=0)return lo;
+  if(fHi<=0)return hi;
+  // Illinois (bracketed regula falsi): converges in about ten model evaluations where plain
+  // bisection took fifty, and it always keeps the root bracketed. The speed matters because GRIP
+  // mode reaches this three times per solve (target, bChassis, DNA's balance axis) and applyDNA
+  // solves dozens of candidates per keystroke — it held its 50 ms budget with one bisection, not three.
+  let side=0;
+  for(let i=0;i<100&&hi-lo>1e-12;i++){
+    const m=(lo*fHi-hi*fLo)/(fHi-fLo),fm=balanceFromRsBal(ch,m)-0.5;
+    if(fm===0)return m;
+    if(fm<0){lo=m;fLo=fm;if(side===-1)fHi/=2;side=-1;}
+    else{hi=m;fHi=fm;if(side===1)fLo/=2;side=1;}
+  }
   return (lo+hi)/2;
 };
 // ── Calibration envelope ─────────────────────────────────────────────────────
@@ -1561,11 +1595,13 @@ const computeTune=(ch,phys,gameMode)=>{
   // change) read OVERSTEER at every ARB setting while GRIP BIAS called it clearly understeer-prone.
   //
   // bChassis is that difference, expressed as the stiffness bias the car needs just to reach
-  // neutral. With it, bSp+bAb+bChassis = 100·(rsBalance − gripNeutralSplit): zero exactly where
+  // neutral. With it, bSp+bAb+bChassis = 100·(rsBalance + natOffset − gripNeutralSplit): zero exactly where
   // the grip model is neutral, and the same sign as gripBalance−0.5 always. No conversion
   // constant: both halves already measure a change in stiffness split in the same unit.
   // Only the Kf/Kr ratio and the chassis enter, so it is the same in every game mode.
-  const bChassis=-100*(gripNeutralSplitOf(ch)-(1-nf));
+  // The springs/ARBs are in the solvers' model space; the grip-neutral split is the REAL car's, so
+  // natOffset (MEASURE NAT BAL) moves it across — the same shift gripBalance below makes.
+  const bChassis=-100*(gripNeutralSplitOf(ch)-natOffset-(1-nf));
   // Roll-stiffness rear fraction — matches what Forza displays as "Mech Balance".
   const rsKf=rsSpF+rsAbF,rsKr=rsSpR+rsAbR;
   const rsBalance=rsKf+rsKr>0?rsKr/(rsKf+rsKr):1-ch.frontBias/100;
@@ -1574,7 +1610,9 @@ const computeTune=(ch,phys,gameMode)=>{
   // Physical modes stay suspension-only. Both add the tyre-width and MEASURE NAT BAL corrections.
   const mechBalance=Math.max(0,Math.min(1,physUnits?rsBalance+tireCorr+natOffset
     :displayRsBalance(ch,rsKf,rsKr)+tireCorr+displayNatOffsetOf(ch)));
-  const gripBalance=balanceFromRsBal(ch,rsBalance);                // physical at-limit balance from LLT model (informational)
+  // Physical at-limit balance from the LLT model. The grip model wants the REAL car's split, and
+  // rsBalance is model space, so the measured offset goes back on (natRsOf does the same).
+  const gripBalance=balanceFromRsBal(ch,rsBalance+natOffset);
   // MAN ARB stiffness bypasses the budget/split solve entirely (see arbMode==='man' branch
   // above), so a leftover arbBalMode of mech/coSolve from before switching to MAN must not
   // trigger this "target unreachable" warning — nothing is actually solving toward it.
@@ -1614,16 +1652,22 @@ const computeTune=(ch,phys,gameMode)=>{
 // loop: there is no display offset there, but the 500 N/m spring snap and the front-Hz snap after
 // CO-SOLVE's rear solve still move the final balance off the target the solvers aimed at. fe must be feEffective (absolute
 // arbBalTarget). Every caller goes through here so Vehicle DNA and the live tune agree.
+// GRIP mode in a Forza mode aims at the grip neutral at each run's own roll stiffness (see
+// gripNeutralOf) rather than at fe.arbBalTarget, which was resolved at the probe springs; the value
+// it ended up aiming at comes back as `target`. Physical modes' neutral has no stiffness term.
 const solveTune=(ch,fe,gameMode)=>{
   const run=tgt=>{const f=tgt==null?fe:{...fe,arbBalTarget:tgt};const physics=feelToPhysics(ch,f);
     return{physics,tune:computeTune(ch,physics,gameMode)};};
   const first=run(null);
   if(fe.arbBalTarget==null||!hasBalTargetSolve(fe))return first;
-  const want=clampBalTarget(fe.arbBalTarget);
-  let best=first,bestErr=Math.abs(first.tune.mechBalance-want);
-  let x0=want,y0=first.tune.mechBalance-want,x1=clampBalTarget(want-y0);
+  const grip=(fe.arbBalTargetMode??'manual')==='grip'&&!isPhysical(gameMode);
+  const wantOf=grip?t=>clampBalTarget(gripNeutralOf(ch,gameMode,rollKOf(t))+(fe.arbBalDelta??0))
+    :(w=>()=>w)(clampBalTarget(fe.arbBalTarget));
+  const errOf=r=>r.tune.mechBalance-wantOf(r.tune);
+  let best=first,bestErr=Math.abs(errOf(first));
+  let x0=clampBalTarget(fe.arbBalTarget),y0=errOf(first),x1=clampBalTarget(x0-y0);
   for(let i=0;i<8&&bestErr>0.0005;i++){
-    const r=run(x1),y1=r.tune.mechBalance-want;
+    const r=run(x1),y1=errOf(r);
     if(Math.abs(y1)<bestErr){best=r;bestErr=Math.abs(y1);}
     if(Math.abs(y1-y0)<1e-9)break;
     const x2=clampBalTarget(x1-y1*(x1-x0)/(y1-y0));
@@ -1631,7 +1675,7 @@ const solveTune=(ch,fe,gameMode)=>{
     x0=x1;y0=y1;x1=x2;
   }
   const clamped=(fe.arbMode??'auto')!=='man'&&(fe.arbBalMode==='mech'||fe.arbBalMode==='coSolve')&&bestErr>0.01;
-  return{physics:best.physics,tune:{...best.tune,mechBalClamped:clamped}};
+  return{physics:best.physics,tune:{...best.tune,mechBalClamped:clamped},target:wantOf(best.tune)};
 };
 const computeAlignment=(ch,tune,layout,buildType)=>{
   const{fHz,rHz,rollDeg}=tune;
@@ -1961,7 +2005,7 @@ const measureDNA=(ch,tune,fe,dr)=>({
   pitchRatio:tune.rHz/tune.fHz,
   arbShare:tune.arbShare,
   // Same scale as gripBalTarget: both carry the tyre-width and MEASURE NAT BAL corrections.
-  balanceOffset:tune.mechBalance-gripNeutralOf(ch),
+  balanceOffset:tune.mechBalance-gripNeutralOf(ch,fe.gameMode??DEF_FE.gameMode,rollKOf(tune)),
   reboundZeta:tune.zetaF,
   bumpRatio:100*tune.bumpZetaF/tune.zetaF,
   dampBias:fe.dampBalMode==='sync'?dnaNeg(fe.dampingBias??0):null,
@@ -2055,7 +2099,7 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
        :e.measured.arbShare<work.arbShare?'anti-roll bars at their limit'
        :'anti-roll bars at their 1-click minimum'},
     {id:'balance',axes:['balanceOffset'],cands:['balanceOffset','pitchRatio','arbShare'],
-     cause:e=>{const t=gripNeutralOf(ch)+work.balanceOffset;
+     cause:e=>{const t=gripNeutralOf(ch,e.fe.gameMode??DEF_FE.gameMode,rollKOf(e.tune))+work.balanceOffset;
        return t<0.20||t>0.90?'target outside the 0.20–0.90 balance range'
          :e.tune.mechBalClamped?'anti-roll bars cannot reach the split':'rounding';}},
   ];
@@ -4157,7 +4201,7 @@ const CODEC_FIELDS=[
   // 60/61: measured natural balance calibration. group:'ch' — travels with the chassis,
   // same reasoning as motionRatioF/R. Unlike useRideHeightCG (whose resulting cgHeight
   // already travels via id 4), arbBalTarget/arbBalDelta store DELTAS from natDisplayOf(ch) and
-  // gripNeutralOf(ch), both of which read it, so the baseline itself must travel too or a shared build
+  // gripNeutralOf(ch,gameMode), both of which read it, so the baseline itself must travel too or a shared build
   // re-targets against the wrong (geometry-only) natural balance. See docs/CODEC.md.
   {id:60,group:'ch',key:'useMeasuredNatBal',bool:true},
   {id:61,group:'ch',key:'measuredNatBal'},
@@ -4370,7 +4414,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       tyreR: parseTyre(ch?.tyreR)?ch.tyreR:DEF_CH.tyreR,
       layout:       LAYOUT_DEC.includes(ch?.layout)?ch.layout:DEF_CH.layout,
       // Travels with the chassis so a shared build's arbBalTarget/arbBalDelta (deltas from
-      // natDisplayOf(ch) / gripNeutralOf(ch)) re-expand against the sender's actual calibrated baseline
+      // natDisplayOf / gripNeutralOf) re-expand against the sender's actual calibrated baseline
       // instead of silently falling back to geometry — see docs/CODEC.md id 60/61.
       useMeasuredNatBal: !!(ch?.useMeasuredNatBal),
       measuredNatBal:    ch?.useMeasuredNatBal&&ch?.measuredNatBal!=null?cl(ch.measuredNatBal,0.10,0.90,null):null,
@@ -4789,7 +4833,7 @@ const TUTORIALS={
      body:'How far to move Forza\'s Mech Balance from your car\'s natural balance (NAT). 0 = stay natural; positive = more rotation; negative = more stable. The result is kept inside 0.20–0.90.\n\nStart from the BALANCE GUIDE below — its range is built from this car\'s geometry and build type. Set this before picking an ARB mode: all three solve toward it.'},
     {title:'Balance Target Mode',
      focus:['balance-target'],
-     body:'Balance Target mode controls how the Mech Balance Target is derived.\n\nTARGET: set manually with the slider — use the Balance Guide range as a start.\n\nGRIP: auto-derives the target as 1 − natGripBalance, counteracting the car\'s natural grip tendency. Balance Offset shifts it toward oversteer (+) or understeer (−).\n\nGEOMETRY GAP shows whether track/tyre width changes could close the gap with softer ARBs.'},
+     body:'Balance Target mode controls how the Mech Balance Target is derived.\n\nTARGET: set manually with the slider — use the Balance Guide range as a start.\n\nGRIP: auto-derives the target as the mech balance at which the grip model reads exactly neutral for this chassis (the Balance Guide\'s GRIP TARGET). Balance Offset shifts it toward oversteer (+) or understeer (−).\n\nGEOMETRY GAP shows whether track/tyre width changes could close the gap with softer ARBs.'},
     {title:'PRO ARB Balance Modes',
      focus:['arb'],
      body:'PRO unlocks CHASSIS, MECH, and CO-SOLVE balance modes. CHASSIS is WEIGHT\'s formula anchored to your real natural balance instead of raw weight %. MECH solves the ARB split alone to hit your Mech Balance Target exactly — as Forza displays it. CO-SOLVE adjusts rear spring Hz and ARB split together — Spring Share controls the mix. A target the car can\'t reach within game limits is flagged.'},
@@ -5717,10 +5761,18 @@ function App(){
   const cm=useMemo(()=>cornerMasses(ch),[ch]);
   const dispMass=kg=>mMass?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
   const natGripBalance=balanceFromRsBal(ch,natRsOf(ch)); // grip model: roll-stiffness space
-  // The single TARGET/GRIP resolution funnel — see resolveFeEffective.
-  const feEffective=resolveFeEffective(ch,fe);
-  const solved=useMemo(()=>solveTune(ch,feEffective,fe.gameMode),[ch,feEffective,fe.gameMode]);
+  // The single TARGET/GRIP resolution funnel — see resolveFeEffective. In GRIP mode in a Forza
+  // mode solveTune refines the target to the tune's own stiffness; feEffective carries that value
+  // so every marker and message shows the target the tune actually aimed at.
+  const feResolved=useMemo(()=>resolveFeEffective(ch,fe),[ch,fe]);
+  const solved=useMemo(()=>solveTune(ch,feResolved,fe.gameMode),[ch,feResolved,fe.gameMode]);
+  const feEffective=useMemo(()=>solved.target==null?feResolved:{...feResolved,arbBalTarget:solved.target},
+    [feResolved,solved]);
   const physics=solved.physics,tune=solved.tune;
+  // Display space: the mech balance at which the grip model reads neutral (GRIP TARGET), at this
+  // tune's roll stiffness. Not 1 − natGripBalance — that mirrors a grip reading into a mech
+  // balance; see gripNeutralOf.
+  const gripNeutral=gripNeutralOf(ch,fe.gameMode,rollKOf(tune));
   hzRatioRef.current=physics.frontHz>0?physics.rearHz/physics.frontHz:1.20;
   const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
   // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
@@ -7230,7 +7282,7 @@ function App(){
               return(<>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6,marginTop:2}}>
                   <span style={{fontSize:13,color:'#94a3b8'}}>Balance Target</span>
-                  <Hint text="Sets how the mech balance target is determined. TARGET: set the value manually — use the Balance Guide range as a reference. GRIP: auto-derives the target as the mirror of the car's natural grip bias (1 − natGripBalance), so the suspension directly counteracts the chassis's understeer or oversteer tendency. Use the Balance Offset slider to shift intentionally away from neutral."/>
+                  <Hint text="Sets how the mech balance target is determined. TARGET: set the value manually — use the Balance Guide range as a reference. GRIP: auto-derives the target as the mech balance at which the grip model reads exactly neutral for this chassis (the Balance Guide's GRIP TARGET), so the suspension cancels the chassis's understeer or oversteer tendency. Use the Balance Offset slider to shift intentionally away from neutral."/>
                   <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
                     <button className={`tog${(fe.arbBalTargetMode??'manual')==='manual'?' on':''}`}
                       onClick={()=>setFe(p=>({...p,arbBalTargetMode:'manual',
@@ -7266,7 +7318,7 @@ function App(){
               // (DRIFT) overshoot past grip-neutral on purpose. See docs/PHYSICS.md's "Balance
               // Guide RANGE". The fraction table is BALANCE_BAND_FRACS, shared with GRIP GAP below.
               const[_fracLo,_fracHi]=balanceBandFracs(_layout,_build);
-              const _gap=(1-natGripBalance)-natMechBalance;
+              const _gap=gripNeutral-natMechBalance;
               // balanceBandDelta, not a bare _frac*_gap: it keeps the >1 fractions' overshoot
               // pointed at oversteer when _gap is negative. A negative _gap is ordinary — any
               // chassis under ~50% front bias — see the helper's own comment for the full why.
@@ -7319,7 +7371,7 @@ function App(){
                       <div style={{position:'absolute',top:4,left:`${_pct(natMechBalance)}%`,transform:'translateX(-50%)',width:3,height:14,background:'#94a3b8',borderRadius:1}}/>
                       <div style={{position:'absolute',bottom:1,left:`${_pct(natGripBalance)}%`,transform:'translateX(-50%)',
                                    width:0,height:0,borderLeft:'6px solid transparent',borderRight:'6px solid transparent',borderBottom:'9px solid #3b82f6'}}/>
-                      <div style={{position:'absolute',top:6,left:`${_pct(1-natGripBalance)}%`,transform:'translateX(-50%)',
+                      <div style={{position:'absolute',top:6,left:`${_pct(gripNeutral)}%`,transform:'translateX(-50%)',
                                    width:10,height:10,borderRadius:'50%',background:'#2dd4bf',border:'2px solid #0f172a'}}/>
                       <div style={{position:'absolute',top:1,left:`${_pct(_cur)}%`,transform:'translateX(-50%)',
                                    width:0,height:0,borderLeft:'7px solid transparent',borderRight:'7px solid transparent',borderTop:`10px solid ${_tc}`}}/>
@@ -7348,9 +7400,9 @@ function App(){
                     </span>
                     <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
                       <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:'#2dd4bf',flexShrink:0}}/> GRIP TARGET
-                      <Hint text="Mirrors grip bias — target this in GRIP mode to exactly counteract the chassis's natural handling tendency."/>
+                      <Hint text="The mech balance at which the grip model reads exactly neutral (0.50) for this chassis at these springs and bars — what GRIP mode targets at a 0 offset. Not a mirror of GRIP BIAS: the two are in different units, and the model is not symmetric enough for the mirror to land on neutral."/>
                     </span>
-                    <span style={{textAlign:'right',fontFamily:'var(--font-mono)',fontSize:11,color:'#2dd4bf'}}>{(1-natGripBalance).toFixed(2)}</span>
+                    <span style={{textAlign:'right',fontFamily:'var(--font-mono)',fontSize:11,color:'#2dd4bf'}}>{gripNeutral.toFixed(2)}</span>
                     <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
                       <span style={{display:'inline-block',width:12,height:4,background:'#14532d',borderRadius:1,flexShrink:0}}/> RANGE
                       <Hint text="Recommended target range for your layout and build, scaled between natural balance and the grip-neutral point (GRIP TARGET) — not a flat offset."/>
@@ -7418,7 +7470,7 @@ function App(){
               // so the two widgets agree on what "in range" means. See the RANGE block for the
               // rationale on gap-scaling instead of a flat delta.
               const[_ggFracLo,_ggFracHi]=balanceBandFracs(ch.layout??'RWD',dr.buildType??'track');
-              const _ggNeutral=1-natGripBalance;
+              const _ggNeutral=gripNeutral;
               const _ggBaseGap=_ggNeutral-nm;
               // balanceBandRange for the same reasons as the RANGE block above, and via the same
               // helper so the two widgets cannot disagree on what "in range" means. Negative is
@@ -7431,9 +7483,12 @@ function App(){
               const showGripGap=_isGripMode&&_ggGap>0.005;
               let _ggTyreF=null,_ggTyreR=null;
               if(showGripGap){
-                const _nb2=natRsOf(ch); // fed to mechBalanceLLT as a roll-stiffness fraction
-                const _nr2=Math.max(1e-4,Math.min(1-1e-4,_nb2));
-                const _gnAt=(twF,twR)=>1-mechBalanceLLT({...ch,tyreF:`${Math.round(twF)}/35R18`,tyreR:`${Math.round(twR)}/35R18`},1,_nr2/(1-_nr2));
+                // GRIP TARGET on hypothetical tyre widths. The display tyre term (tireCorr) is held
+                // at the current tyres' value: the band it is compared against is built from
+                // today's natural, so letting only one side move with it would count it once.
+                const _tc0=tireCorrOf(ch);
+                const _gnAt=(twF,twR)=>{const c={...ch,tyreF:`${Math.round(twF)}/35R18`,tyreR:`${Math.round(twR)}/35R18`};
+                  return gripNeutralOf(c,fe.gameMode,rollKOf(tune))-tireCorrOf(c)+_tc0;};
                 if(_ggNeutral>_ggHi){
                   let lo2=_twF,hi2=_twF+200,best2=null;
                   for(let i=0;i<25;i++){const mid=(lo2+hi2)/2;if(_gnAt(mid,_twR)<=_ggHi+0.001){best2=mid;hi2=mid;}else lo2=mid;}

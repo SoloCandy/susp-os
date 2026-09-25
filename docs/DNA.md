@@ -106,16 +106,16 @@ sets none behaves exactly as it did before.
   it.
 
 What it buys is the resolver *not* spending a more protected axis on a target that was never that
-precise. GT3 asking for the 8.5% share its v1 roll seed produced, in Motorsport, where 40-click
+precise. GT3 at its own 4.5% share on the default chassis, in Motorsport, where 40-click
 bars cannot sit on it, with share ranked first:
 
 | `slack.arbShare` | Result |
 |---|---|
-| 0 | platform moved 3.30 → 3.64 Hz to hit the share exactly |
-| 3 | share met at 9.1% where it lands; platform stays on 3.30 Hz |
+| 0 | platform moved 3.30 → about 3.7 Hz to hit the share exactly |
+| 3 | share met at 5.1% where it lands; platform stays on 3.30 Hz |
 
 The editor shows it as an **ACCEPT ±** box under each outcome axis, and the match readout says
-`✓ 9.1% · within ±3.0% of 8.5%` — met, but not on the target, which is a different thing from a
+`✓ 5.1% · within ±3.0% of 4.5%` — met, but not on the target, which is a different thing from a
 bare ✓.
 
 **The archetype seeds do not use it yet.** [Share seeds](#share-seeds-fit-motorsports-bars) records
@@ -130,12 +130,19 @@ mech-balance units: positive is the oversteer side, negative the understeer side
 is neutral — the same meaning and the same authority on every chassis.
 
 ```js
-gripTarget = 1 - balanceFromRsBal(ch, natRsOf(ch))   // grip-neutral mech balance (roll-stiffness natural)
+gripTarget = gripNeutralOf(ch, gameMode, rollKOf(tune))   // mech balance where the grip model reads 0.5
 target     = gripTarget + balanceOffset
 ```
 
+`gripNeutralOf` takes the real roll-stiffness split at which `balanceFromRsBal` reads
+exactly 0.5 (`gripNeutralSplitOf`) and carries it into display space. In a Forza mode
+the display counts each tyre in series with its axle, so that depends on total roll
+stiffness too; `rollKOf(tune)` is the tune's own total, which its F/R split does not
+change, so taking the neutral there is exact rather than circular. BeamNG displays the
+split itself and needs no K.
+
 This is GRIP mode's own Balance Offset. The `feEffective` funnel in `App` already
-resolves `gripBalTarget = 1 − natGripBalance + arbBalDelta`, so the axis compiles
+resolves the GRIP target as grip-neutral plus `arbBalDelta`, so the axis compiles
 with no transformation at all:
 
 ```js
@@ -145,8 +152,10 @@ arbBalDelta = balanceOffset             // with arbBalTargetMode:'grip'
 It measures back as `tune.mechBalance − gripTarget`; the grip model behind
 `balanceFromRsBal` is in [PHYSICS.md](PHYSICS.md#mech-balance-grip-model-mechbalancelltbalancefromrsbal).
 The axis range is `arbBalDelta`'s own ±0.20 `sanitizeTune` clamp, so the one clamp
-left that can stop it landing is `gripBalTarget`'s 0.20..0.90, which the resolver
-treats as a balance miss.
+left that can stop it landing is the GRIP target's 0.20..0.90, which the resolver
+treats as a balance miss. On a heavily staggered car grip-neutral itself can sit
+outside that range (every bit of roll stiffness at one end still leaves the grip model
+leaning), and the miss says so rather than moving axes to chase it.
 
 **Apply-once costs almost nothing here.** `feEffective` re-resolves the GRIP target
 against the *current* chassis on every render, so after a chassis edit the stamped
@@ -351,8 +360,11 @@ therefore the front axle's frequency, not an average.
 `feEffective` — the step that resolves `arbBalTarget` (a stored delta) or GRIP's
 `arbBalDelta` into the absolute target the physics sees — used to be built inline in
 `App`. The compiler has to run the identical resolution, so it is now the pure
-`resolveFeEffective(ch, fe)`, and `App`'s `feEffective` is a call to it; grip-neutral
-itself is `gripNeutralOf(ch)`. A second copy would have repeated the `natOffset`
+`resolveFeEffective(ch, fe)`, and `App`'s `feEffective` is built from it; grip-neutral
+itself is `gripNeutralOf(ch, gameMode, K)`. In a Forza mode `resolveFeEffective` can only
+take grip-neutral at the MEASURE NAT BAL probe springs, since no tune exists yet;
+`solveTune` then aims at the neutral at each trial tune's own stiffness and returns the
+value it aimed at as `target`, which `App` writes back into `feEffective`. A second copy would have repeated the `natOffset`
 incident, where one idea implemented at four sites drifted apart (see
 [HISTORY.md](HISTORY.md)). `tests-dna.js` fails if an inline copy reappears.
 
@@ -397,7 +409,7 @@ hit is exactly `!mechBalClamped`, and no damping miss is reported while
 | `pitchRatio` | `platformHz · pitchRatio` outside `HZ_MIN`..`HZ_MAX` | `pitchRatio`, `platformHz` |
 | `reboundZeta` or `bumpRatio` | `tune.dampingClamped` — a pair was scaled to fit the click range (down at the ceiling, up off the 1-click floor) | `reboundZeta`, `platformHz` (lower Hz needs fewer clicks, higher Hz more). `bumpRatio` is not ranked; the row uses `reboundZeta`'s rank |
 | `arbShare` | `tune.shareClamped` — a bar at its ceiling ("at their limit") or its 1-click floor, often because MECH pushed the split to one end | `arbShare`, `platformHz` (softer springs let the bars reach a larger share) |
-| `balanceOffset` | `tune.mechBalClamped`, or the `gripBalTarget` clamp | `balanceOffset`, `pitchRatio` (springs take part of the correction), `arbShare` (a bigger bar budget gives the split more authority) |
+| `balanceOffset` | `tune.mechBalClamped`, or the GRIP target's 0.20..0.90 clamp | `balanceOffset`, `pitchRatio` (springs take part of the correction), `arbShare` (a bigger bar budget gives the split more authority) |
 
 The rows are in **dependency order** and are handled top to bottom. Balance depends
 on the bar budget: MECH can only split what SHARE supplies, and a bar pinned at its
@@ -427,7 +439,8 @@ balance for free.
 ### Two candidates together
 
 The single-candidate search rejects a move that breaks an axis ranked above it, and that used to
-end the row. On a rear-biased chassis in Horizon, GT3 with balance ranked first shows the gap:
+end the row. On a rear-biased chassis in Horizon, GT3 asking for a balance offset of −0.05 with
+balance ranked first shows the gap:
 raising pitch reaches the balance offset but drops share below its 1-click floor, and share alone
 cannot reach balance — so both were refused and the balance miss was accepted, although moving
 pitch **and** share together clears it.
@@ -497,7 +510,7 @@ match readout shows.
 platformHz    = tune.fHz
 pitchRatio    = tune.rHz / tune.fHz
 arbShare      = tune.arbShare
-balanceOffset = tune.mechBalance - gripNeutralOf(ch)
+balanceOffset = tune.mechBalance - gripNeutralOf(ch, fe.gameMode, rollKOf(tune))
 reboundZeta   = tune.zetaF
 bumpRatio     = 100 * tune.bumpZetaF / tune.zetaF
 dampBias      = fe.dampBalMode === 'sync' ? dnaNeg(fe.dampingBias) : null
@@ -508,7 +521,7 @@ diffEntry     = dr.diffManual || dr.diffType === 'sport' ? null : dnaNeg(dr.diff
 `dnaNeg` negates without producing −0, which would survive JSON as 0 but fail
 `Object.is` against it; `compileDNA` uses it for the same three fields.
 
-`tune.mechBalance` and `gripBalTarget` are on the same scale — both include the
+`tune.mechBalance` and the GRIP target are on the same scale — both include the
 tyre-width and MEASURE NAT BAL corrections — which is what `mechBalClamped` already
 relies on.
 
