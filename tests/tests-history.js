@@ -1,5 +1,5 @@
 // SUSP.OS — undo / redo history core tests
-// Run with: node tests-history.js
+// Run with: node tests/tests-history.js
 // No dependencies required.
 //
 // THIS FILE READS index.html and tests the makeHistory that ships. It covers the pure core only:
@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const slice = (a, b) => {
   const i = src.indexOf(a), j = src.indexOf(b, i);
   if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

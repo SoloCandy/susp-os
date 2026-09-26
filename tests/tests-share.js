@@ -1,5 +1,5 @@
 // SUSP.OS — share parts tests (loading a code in pieces)
-// Run with: node tests-share.js
+// Run with: node tests/tests-share.js
 // No dependencies required.
 //
 // LIKE tests-dna.js AND tests-beamng.js, THIS FILE READS index.html. SHARE_PARTS is a
@@ -22,7 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const slice = (a, b) => {
   const i = src.indexOf(a), j = src.indexOf(b, i);
   if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

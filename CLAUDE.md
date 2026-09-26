@@ -25,7 +25,7 @@ Most of the drift lives in `docs/`, not the README.
 ## Verify before you finish
 
 ```
-node tests-docs.js
+node tests/tests-docs.js
 ```
 
 Reads `index.html` and `docs/` and fails when a stated fact no longer matches the

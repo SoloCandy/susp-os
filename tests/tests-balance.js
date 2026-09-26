@@ -1,5 +1,5 @@
 // SUSP.OS — mech-balance model property tests
-// Run with: node tests-balance.js
+// Run with: node tests/tests-balance.js
 // No dependencies required.
 //
 // LIKE tests-beamng.js, THIS FILE READS index.html — it lifts the real balance functions out
@@ -34,7 +34,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const slice = (a, b) => {
   const i = src.indexOf(a), j = src.indexOf(b);
   if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

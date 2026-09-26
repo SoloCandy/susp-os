@@ -527,6 +527,9 @@ Alignment Mode. Retired codec ids are never reused — see
 
 ## Testing reality
 
+The suites live in `tests/` and resolve `index.html` and `docs/` from the repo
+root, so they run from any working directory.
+
 There is **no CI, no linter, no type checker, no build step, and no git
 hooks.** `tests.js` tests a hand-maintained duplicate of the physics functions,
 and its final section — mirror vs app — lifts the real definitions out of
@@ -590,21 +593,21 @@ non-trivial edit:
    defaults, or `sanitizeTune` moved. Read the code, tick one part, APPLY SELECTED,
    and confirm the unticked parts did not move; then COPY LINK and open the `#t=`
    URL, which must stage rather than apply.
-5. `node tests.js` if any mirrored physics function changed. Its mirror-vs-app
+5. `node tests/tests.js` if any mirrored physics function changed. Its mirror-vs-app
    section now reports drift by name and input; update the mirror to match the
    app — the app is the truth, the mirror is the copy.
-6. `node tests-beamng.js` if anything in `computeTune`, `GAME_LIMITS`, or the
+6. `node tests/tests-beamng.js` if anything in `computeTune`, `GAME_LIMITS`, or the
    unit constants moved. This one reads `index.html`, so it needs no mirroring.
-7. `node tests-docs.js` after any docs edit, and after touching the codec,
+7. `node tests/tests-docs.js` after any docs edit, and after touching the codec,
    `sanitizeTune`, storage keys, the `open` state, or a slider range. Also reads
    `index.html`, so it needs no mirroring either.
-8. `node tests-dna.js` after touching `feelToPhysics`, `computeTune`,
+8. `node tests/tests-dna.js` after touching `feelToPhysics`, `computeTune`,
    `resolveFeEffective`, `sanitizeTune`, `DEF_FE`/`DEF_DR`, the Damping Bias / EXIT /
    ENTRY slider expressions, `settleZetas`/`dampRate` (which `dnaReadBack` inverts), or
    anything under the `── Vehicle DNA ──` banner. Reads `index.html` too.
-9. `node tests-share.js` after touching `CODEC_FIELDS`, `SHARE_PARTS`, `mergeTune`,
+9. `node tests/tests-share.js` after touching `CODEC_FIELDS`, `SHARE_PARTS`, `mergeTune`,
    or `sanitizeTune`. Reads `index.html`; the picker UI itself still needs the browser.
-10. `node tests-history.js` after touching `makeHistory`. It covers the stacks only;
+10. `node tests/tests-history.js` after touching `makeHistory`. It covers the stacks only;
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.

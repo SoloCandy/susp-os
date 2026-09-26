@@ -17,7 +17,7 @@
 // right, every doc that mentions the thing has to be right.
 //
 // No dependencies, no build step, no CI required — same contract as the other two
-// suites. Run it by hand:  node tests-docs.js
+// suites. Run it by hand:  node tests/tests-docs.js
 //
 // Scope note: this file deliberately does NOT check prose. It checks that names,
 // ids, keys, enum values and numeric bounds agree across code and docs.
@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..');
 const DOCS = path.join(ROOT, 'docs');
 
 let pass = 0, fail = 0;

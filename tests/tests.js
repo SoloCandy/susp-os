@@ -1,5 +1,5 @@
 // SUSP.OS physics engine tests
-// Run with: node tests.js
+// Run with: node tests/tests.js
 // No dependencies required.
 //
 // Covers spring/damper solving, settle-mode ride-reference anchoring, the
@@ -998,7 +998,7 @@ console.log('\ncomputeAlignment — toe and caster');
 console.log('\nmirror vs app (reads index.html)');
 {
   const fs = require('fs'), path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const slice = (a, b) => {
     const i = src.indexOf(a), j = src.indexOf(b);
     if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

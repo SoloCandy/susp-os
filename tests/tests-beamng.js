@@ -1,5 +1,5 @@
 // SUSP.OS — physical-unit (BeamNG) game mode tests
-// Run with: node tests-beamng.js
+// Run with: node tests/tests-beamng.js
 // No dependencies required.
 //
 // THIS FILE READS index.html and drives the real physics. tests.js mostly tests a hand-kept
@@ -26,7 +26,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const slice = (a, b) => {
   const i = src.indexOf(a), j = src.indexOf(b);
   if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

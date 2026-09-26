@@ -1,5 +1,5 @@
 // SUSP.OS — Vehicle DNA core tests
-// Run with: node tests-dna.js
+// Run with: node tests/tests-dna.js
 // No dependencies required.
 //
 // LIKE tests-beamng.js, THIS FILE READS index.html. The DNA core is a compiler that drives the
@@ -28,7 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const slice = (a, b) => {
   const i = src.indexOf(a), j = src.indexOf(b, i);
   if (i < 0 || j < 0 || j <= i) throw new Error(`index.html slice failed: "${a}" .. "${b}"`);

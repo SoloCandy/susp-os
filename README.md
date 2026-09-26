@@ -122,13 +122,13 @@ Reference docs for maintainers:
 No build tools required. Open `index.html` in a browser, edit with any text editor, reload to see changes.
 
 ```
-node tests.js          # physics unit tests (mirrored copy, cross-checked against index.html)
-node tests-beamng.js   # physical-unit mode tests (reads index.html directly)
-node tests-docs.js     # documentation drift checks (reads index.html and docs/)
-node tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
-node tests-history.js  # undo / redo history core tests (reads index.html directly)
-node tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
-node tests-balance.js  # mech-balance model properties (reads index.html directly)
+node tests/tests.js          # physics unit tests (mirrored copy, cross-checked against index.html)
+node tests/tests-beamng.js   # physical-unit mode tests (reads index.html directly)
+node tests/tests-docs.js     # documentation drift checks (reads index.html and docs/)
+node tests/tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
+node tests/tests-history.js  # undo / redo history core tests (reads index.html directly)
+node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
+node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:
