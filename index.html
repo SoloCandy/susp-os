@@ -4041,7 +4041,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
                   balance still use it.
                 </div>
                 <CkPhase>SPRINGS TO SOLVE FOR</CkPhase>
-                <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.05} unit="Hz"
+                <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.01} unit="Hz"
                   hint="The ride frequency the probe springs are solved for. Softer is more accurate — at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins both this and the ARB click scale harder. Go as soft as the game will let you set on this car; the spring rates below are what to enter."/>
                 <div style={{fontSize:10,color:'#475569',lineHeight:1.5}}>
                   Softer sharpens both steps — use the lowest Hz whose rates the game accepts.

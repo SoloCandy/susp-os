@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — MEASURE NAT BAL's Measure Hz steps in 0.01, not 0.05
+
+The Measure Hz field stepped by 0.05 Hz, so the arrow keys and scroll wheel could not reach
+the softest spring the game accepts on a car. It was often a few hundredths away. Softer probe
+springs sharpen both readings (PHYSICS "Softer probe springs sharpen the reading"), so the
+field now steps by 0.01. That matches the two decimals that SAVED AT and the step-1 mismatch
+warning print. The range is still 1.0–3.5 Hz, and `measuredNatBalHz` is still stored raw, so
+existing readings are unaffected.
+
 ## Changed — VISUALS dials replaced by the RIDE · ROLL · DAMPING tracks
 
 The ARB and RIDE / DAMPERS groups were three 120px arc dials (`ArbDial`, `SpringDial`,
