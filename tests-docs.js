@@ -582,6 +582,69 @@ check('every tutorial focus key names a real zone- id', () => {
   return bad.size === 0 || `focus keys with no zone: ${[...bad].join(', ')}`;
 });
 
+// ── visuals ─────────────────────────────────────────────────────────────────
+section('VISUALS');
+
+// The DAMPING ζ track's zones are a second copy of the Rebound ζ / Bump ζ sliders' markers,
+// and its Hint promises the reader they are the same thresholds. Nothing ties the two in code,
+// so a marker moved on the slider would leave the track quietly describing the old scale.
+// The slider block is bounded by its label and the next `readout=`, which every FeelSlider has.
+const zetaSliderEdges = label => {
+  const at = SRC_NC.indexOf(label);
+  if (at < 0) throw new Error(`cannot find the ${label} slider`);
+  const block = SRC_NC.slice(at, SRC_NC.indexOf('readout=', at));
+  const mk = /markers=\{\[([\s\S]*?)\]\}/.exec(block);
+  if (!mk) throw new Error(`${label} slider has no markers`);
+  const range = /min=\{(\d+)\}\s*max=\{(\d+)\}/.exec(block);
+  return { edges: [...mk[1].matchAll(/value:\s*(\d+)/g)].map(m => +m[1]), min: range && +range[1], max: range && +range[2] };
+};
+const ZETA_ZONES = (() => {
+  const m = /const ZETA_ZONES=\[([^;]*)\];/.exec(SRC_NC);
+  if (!m) throw new Error('cannot find ZETA_ZONES in index.html');
+  return [...m[1].matchAll(/\[(\d+),(\d+),'[^']*','([^']*)'\]/g)].map(z => [+z[1], +z[2], z[3]]);
+})();
+
+check('DAMPING ζ track zones match the Rebound ζ and Bump ζ slider markers', () => {
+  const inner = ZETA_ZONES.slice(1).map(z => z[0]);
+  const problems = [];
+  for (let i = 1; i < ZETA_ZONES.length; i++)
+    if (ZETA_ZONES[i][0] !== ZETA_ZONES[i - 1][1]) problems.push(`ZETA_ZONES has a gap/overlap at ${ZETA_ZONES[i][0]}`);
+  for (const label of ['}Rebound ζ<', '"Bump ζ"']) {
+    const s = zetaSliderEdges(label);
+    if (s.edges.join() !== inner.join())
+      problems.push(`${label} markers [${s.edges}] vs track zone edges [${inner}]`);
+  }
+  // The track spans the Rebound slider's full range, so every reachable ζ lands on it.
+  const reb = zetaSliderEdges('}Rebound ζ<');
+  const track = /<VisTrack title="DAMPING ζ" lo=\{(\d+)\} hi=\{(\d+)\}/.exec(SRC_NC);
+  if (!track) problems.push('cannot find the DAMPING ζ VisTrack');
+  else if (+track[1] !== reb.min || +track[2] !== reb.max)
+    problems.push(`track ${track[1]}–${track[2]} vs Rebound ζ slider ${reb.min}–${reb.max}`);
+  if (ZETA_ZONES[0][0] !== reb.min || ZETA_ZONES.at(-1)[1] !== reb.max)
+    problems.push(`ZETA_ZONES span ${ZETA_ZONES[0][0]}–${ZETA_ZONES.at(-1)[1]} vs slider ${reb.min}–${reb.max}`);
+  return problems.length === 0 || problems.join('; ');
+});
+
+check('VISUALS.md states the ζ zones, the settle band and the ARB bands the code draws', () => {
+  const md = doc['VISUALS.md'];
+  if (!md) return 'docs/VISUALS.md missing';
+  const problems = [];
+  for (const [a, b, lbl] of ZETA_ZONES)
+    if (!md.includes(`${a}–${b}`) || !md.includes(lbl)) problems.push(`ζ zone ${lbl} ${a}–${b}`);
+  const env = /const SETTLE_ENV=([\d.]+)/.exec(SRC_NC);
+  if (!env) problems.push('cannot find SETTLE_ENV');
+  else if (!md.includes(`±${Math.round(+env[1] * 100)}%`)) problems.push(`settle band ±${+env[1] * 100}%`);
+  const arb = /const ARB_ZONES=physical\?\[\]:\[\[Lim\*([\d.]+),Lim\*([\d.]+),[^\]]*\],\[Lim\*[\d.]+,Lim\*([\d.]+)/.exec(SRC_NC);
+  const warn = /warnF=!physical&&arbF>arbLimit\*([\d.]+)/.exec(SRC_NC);
+  if (!arb || !warn) problems.push('cannot parse ARB_ZONES / the ARB warn threshold');
+  else {
+    const pct = v => `${Math.round(+v * 100)}%`;
+    for (const v of [arb[1], arb[2], arb[3], warn[1]])
+      if (!md.includes(pct(v))) problems.push(`ARB threshold ${pct(v)}`);
+  }
+  return problems.length === 0 || `not stated in VISUALS.md: ${problems.join(', ')}`;
+});
+
 // ── report ──────────────────────────────────────────────────────────────────
 console.log(`\n${pass + fail} checks: ${pass} passed, ${fail} failed`);
 if (fail) {

@@ -1183,6 +1183,37 @@ oversteering chassis is a related open question in
 
 ---
 
+## VISUALS ghost rings (`visGhost`)
+
+The RIDE Hz and ARB tracks in the VISUALS card
+([VISUALS.md](VISUALS.md#ghost-rings)) draw hollow rings where the **derived**
+axle would have to sit for that component alone to carry a given rear
+roll-stiffness fraction `f`: grey for natural balance, green for the Balance
+Target. The derived axle is the rear unless Ride Reference is REAR.
+
+```js
+f = clamp(frac, 0.05, 0.95)
+// rsF, rsR = that component's own roll stiffness: rsSpF/rsSpR (springs) or rsAbF/rsAbR (ARBs)
+k = rideRef==='rear' ? ((1-f)/f * rsR) / rsF    // front must scale by k
+                     : (f/(1-f) * rsF) / rsR    // rear must scale by k
+ghost = derivedValue * (springs ? √k : k)       // roll stiffness ∝ Hz², ∝ ARB clicks
+```
+
+`k` is the factor that makes the component's own rear share equal `f` with the
+reference axle held fixed. Springs take `√k` because spring roll stiffness goes
+as Hz²; ARBs take `k` because roll stiffness is linear in the setting. A ghost
+off the track's scale is not drawn.
+
+**It is an indicator, not a solve.** `frac` is a display-space balance
+(`natMechBalance` from `natDisplayOf`, and `feEffective.arbBalTarget`), while
+`rsSp*`/`rsAb*` are model-space stiffnesses, and each ghost moves one component
+with the other held fixed, which is not what any stiffness mode does. The
+rings show direction and rough distance: "the rear springs would need to be
+about here". The actual solve is the one the stiffness modes run. These are the
+formulas the retired dials' ghost rings used, carried over unchanged.
+
+---
+
 ## Natural sag and bottoming risk (ride-height CHASSIS toggle)
 
 ```js
@@ -1196,13 +1227,13 @@ Hz) sag more; no separate spring-rate solve is needed since `solveSpring`
 already folds mass into Hz. Since compression scales linearly with vertical
 wheel load (mass cancels out the same way at any load factor, not just 1g),
 sag at load factor `n` is simply `n × sag_1g` — a straight line through the
-origin. This feeds the CHASSIS section's SAG vs LOAD chart (INT/PRO mode,
-CG Height Source set to RIDE HEIGHT): an inline SVG plotting each axle's compression line
+origin. This feeds the SAG vs LOAD group of the VISUALS card (INT/PRO mode,
+CG Height Source set to RIDE HEIGHT; see [VISUALS.md](VISUALS.md#sag-vs-load)): an inline SVG plotting each axle's compression line
 against load (g) on the x-axis, with a dashed reference line at that axle's
 entered ride height — where the diagonal crosses the dashed line is the
 load (in g) at which that axle bottoms out, also given as a plain number
 and an at-a-glance LOW/MED/HIGH/BOTTOMED badge (`sag_1g/rideHeight`: <0.5
-LOW, <0.8 MED, <1.0 HIGH, ≥1.0 BOTTOMED AT REST). A solid ring on the main
+LOW, <0.8 MED, <1.0 HIGH, ≥1.0 BOTTOMED). A hollow ring on the main
 diagonal marks the static 1g operating point (`g=1`).
 
 The main diagonal is still uniform-vertical-load-only — it does not include

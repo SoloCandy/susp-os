@@ -3146,8 +3146,8 @@ const VIS_W=280,VIS_TX0=16,VIS_TX1=218; // track spans x 16..218; values right-a
 const VIS_MONO='JetBrains Mono, monospace';
 
 // Ghost positions: where the DERIVED axle (the one the ride ref isn't) would sit for this
-// component's own F/R split to carry a given rear roll-stiffness fraction. `pow` is 2 for
-// springs (roll stiffness ∝ Hz², so Hz scales by √ratio) and 1 for ARBs (∝ clicks). These are
+// component's own F/R split to carry a given rear roll-stiffness fraction. `sqrt` is true for
+// springs (roll stiffness ∝ Hz², so Hz scales by √ratio) and false for ARBs (∝ clicks). These are
 // the same formulas the old dials' ghost rings used, unchanged.
 const visGhost=(frac,{vF,vR,rsF,rsR,rideRef,sqrt,lo,hi})=>{
   if(frac==null||rsF<=0||rsR<=0)return null;

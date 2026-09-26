@@ -17,6 +17,7 @@ Most of the drift lives in `docs/`, not the README.
 | Factory presets, `PRESET_DESC`, `BUILD_PRESET_MAP` | `docs/PRESETS.md` |
 | `zone-*` ids, components, file structure, anything that *looks* dead but isn't | `docs/CODE_MAP.md` |
 | Tutorial steps, triggers, gating, `TutorialPanel` | `docs/TUTORIALS.md` |
+| VISUALS groups, scales, bands, markers, colours | `docs/VISUALS.md` |
 | A limitation found, or a design deliberately rejected | `docs/KNOWN_ISSUES.md` — only what is still true |
 | A bug fixed, or a behaviour deliberately changed | `docs/HISTORY.md` |
 | Tier feature lists, game limits, architecture summary | `README.md` |
