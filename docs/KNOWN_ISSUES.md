@@ -737,8 +737,8 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
   oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
   rear-biased and amber for front-biased.
-- **DAMPERS summary mixes pre- and post-solve ζ** *(reproduced)*. REB, BUMP and AVG ζ read
-  `physics.zeta*`; SETTLE, MEAS and the output cards read `tune.zeta*`. They diverge under
+- **DAMPERS table mixes pre- and post-solve ζ** *(reproduced)*. Rebound ζ, Bump ζ, AVG ζ, Force and Roll ζ read
+  `physics.zeta*`; Settle, MEAS and the output cards read `tune.zeta*`. They diverge under
   CO-SOLVE + SYNC/NEUTRAL, BeamNG snapping, and Forza damper clamping (90% shown vs 85.9%
   exported on a 12000 lb Motorsport car).
 - **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md

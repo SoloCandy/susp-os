@@ -653,15 +653,33 @@ it takes rebound ζ only. So the chart's readout sits **above** the DAMPERS
 figure past ζ≈79% and below it under that; both are correct for what they
 measure, and the chart's hint says so.
 
-The DAMPERS summary shows both side by side: **SETTLE** is the analytic
-figure (what SETTLE TIME mode targets), **MEAS** is `measureSettle`'s
-bump-aware figure, identical to the chart's. Beside them, **AVG ζ** is
+The DAMPERS table (label | FRONT | REAR; rows Rebound ζ, Bump ζ, Settle,
+Force, Roll ζ) quotes the analytic figure in its **Settle** row (what SETTLE
+TIME mode targets); that row's hover text adds **MEAS**, `measureSettle`'s
+bump-aware figure, identical to the chart's. The **Bump ζ** row's hover adds **AVG ζ**,
 `(rebound ζ + bump ζ)/2` per axle — an asymmetric damper removes roughly as
 much energy per cycle as a symmetric one at the mean, so it approximates how
 damped the car is overall. It is informational and uncoloured on purpose: it
 hides which stroke comes first, and whether softer bump helps depends on
 surface (see KNOWN_ISSUES on bump damping in the RESPONSE bar), so it must
 not read as a verdict. Rebound ζ 59% at Bump Ratio 60% reads ≈47%, not 59%.
+
+A mismatched row shows amber values with ◄/► on the leading, firmer or
+faster axle; the wording is in the row's hover text. **Force** is each
+axle's share of `ζ × corner mass × Hz`. The row the Damping Balance Mode
+equalises is highlighted (STANDARD → Rebound ζ, TIME SYNC → Settle, EQUAL FORCE → Force, HYBRID →
+both).
+
+**Roll ζ** is rebound ζ in roll, per axle. The same damper resists roll, but
+the ARB adds roll stiffness with no damping. Treating each axle's two corners
+as a pair rolling about its centre, track width and corner mass cancel, which
+leaves `ζ_roll = ζ × √(rsSp / (rsSp + rsAb))`. The axle with less roll damping takes its load first on turn-in; the arrow
+points at it, and the hover text reads `F LEADS n%` / `R LEADS n%` (n =
+difference over the mean), or MATCHED under 3%. The bar scaling is identical for bump and rebound, so one row
+covers both. Because dampers are per axle, ride and roll can only both match
+when the bar fractions match, which is what EQUAL ROLL enforces. It is a
+front/rear comparison index, not the true body-roll mode: it ignores roll
+centres and the chassis coupling the axles.
 
 ### "Critical damping is the fastest settle" is true of the envelope only
 

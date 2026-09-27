@@ -158,7 +158,7 @@ disagree),
 takes Hz + rebound/bump ζ + a duration), `measureSettle` (the ±10%-band
 settle time measured off `computeOscillation`'s trace via `curveSettle`,
 with the two-pass window fit — shared by the DYNAMICS chart's dashed markers
-and the DAMPERS summary's MEAS row so both quote the same number; the chart's
+and the DAMPERS table's Settle-row MEAS hover so both quote the same number; the chart's
 own `firstCrossing` reads the neutral crossing off the same points),
 `resolveCoSolveSpringShare`
 (CO-SOLVE's Auto Spring Share search — shared by `feelToPhysics`'s Kcs

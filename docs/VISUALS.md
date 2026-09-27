@@ -22,8 +22,11 @@ zones, the settle band, and the ARB bands. The prose is not checked.
   focus (`isPhone&&sbTyping`). With the keyboard up, the pinned card would take
   most of what's left of the screen, so hiding it lets the scrolling controls keep
   their height.
-- **Height:** the body scrolls inside a box capped at `32vh` on a phone and `50vh`
-  otherwise, so an expanded card can't push the input sections off screen.
+- **Height:** the body scrolls inside a box capped at the RIDE · ROLL · DAMPING
+  group's own height (`visCap`, measured live with a ResizeObserver), so that group
+  always fits whole and the rest scrolls. While that group is collapsed or not yet
+  measured, the cap falls back to `32vh` on a phone and `50vh` otherwise. Either way
+  an expanded card can't push the input sections off screen.
 - **Groups**, in order, each with its own collapse key on `open`:
 
 | Group | `open` key | Shown when |
@@ -165,8 +168,12 @@ it overshoots, and how ride Hz and damping interact.
   `physics.reboundZeta` / `physics.bumpZeta`, then 70 / 39.
 - **Trace:** `computeOscillation`, which switches between rebound and bump ζ by the
   sign of the velocity, so bump is fully represented here.
-- **Window and measurement:** `measureSettle`, shared with the DAMPERS summary's
-  MEASURED row so the two quote the same number. The window is sized from the settle
+- **RIDE / ROLL toggle** (header, session-only `dynView`, not persisted): ROLL
+  scales each axle's ζ by `s = √(rsSp/(rsSp+rsAb))` and its Hz by `1/s` — the bar
+  adds roll stiffness without damping. Same band, markers and readouts. A
+  comparison view: roll centres and chassis coupling are ignored.
+- **Window and measurement:** `measureSettle`, shared with the DAMPERS table's
+  Settle-row MEAS figure so the two quote the same number. The window is sized from the settle
   time, between 1.5 s and a 4 s cap.
 - **Axes:** a 280 × 80 frame. The centre line is ride height; displacement is
   vertical. There is no numeric axis because the readouts below carry the numbers.

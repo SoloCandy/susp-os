@@ -11,6 +11,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — DAMPERS table read pre-CO-SOLVE zetas, so EQUAL FORCE showed off 50/50
+
+The table multiplied `physics.zetaF/zetaR` by `tune.fHz/rHz`. computeTune re-solves the damping
+balance on the final (post-CO-SOLVE) rear Hz and re-derives ζ from the snapped damper values, so
+`physics.zeta*` is stale whenever CO-SOLVE moves the rear Hz. The Force row then missed 50/50
+under EQUAL FORCE even though the exported dampers were balanced. Every table row now reads
+`tune.zeta*` / `tune.bumpZeta*`, falling back to `physics` only when those are absent.
+The DAMPERS header's F/R BIAS (both layouts) and the Settle Target slider's `→ F…% R…%` readout
+had the same stale read and were switched to the tune's zetas too.
+
+## Changed — VISUALS box capped to the RIDE · ROLL · DAMPING group
+
+The VISUALS scroll box was capped at 32vh/50vh. It is now capped at the measured
+height of the RIDE · ROLL · DAMPING group, so that group fits whole and the rest
+scrolls, keeping the sidebar compact. The vh caps remain as the fallback.
+
+## Changed — DAMPERS revamp: one mode row, a fixed F/R table, RIDE/ROLL on DYNAMICS
+
+Damping Balance Mode was STANDARD/SYNC with a SYNC METHOD sub-row; it is now one
+row of four (STANDARD / TIME SYNC / HYBRID / EQUAL FORCE), same `dampBalMode` ids.
+The Damping Bias readout is gone. The summary box, which changed layout depending
+on whether the axles diverged, is now a fixed label | FRONT | REAR table (Rebound
+ζ, Bump ζ, Settle, Force, Roll ζ): mismatches in amber with ◄/►, AVG ζ and MEAS
+moved into hover text, and the row the mode equalises highlighted. The chart stays
+in VISUALS to keep the sidebar compact on mobile; DYNAMICS gains a RIDE/ROLL toggle.
+
+## Changed — DAMPERS summary gains a ROLL ζ row
+
+The Sync Methods match front and rear from spring Hz, which is ride motion.
+The ARB adds roll stiffness but no damping, so an axle with a larger bar
+fraction is less damped in roll. Under CANCEL or a biased mode, a car could
+read synced while one end loaded up noticeably first on turn-in. The new row
+shows `ζ × √(spring share)` per axle and which end leads. It is a readout
+only: per-axle dampers cannot sync ride and roll at the same time unless the
+bar fractions match (see PHYSICS).
+
 ## Fixed — ROLL ° seeded a 0° target; roll now reads to 0.01°
 
 The ROLL ° button seeded Target Roll Angle from `physics.arbTargetRoll`, which
