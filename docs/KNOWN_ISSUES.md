@@ -323,6 +323,25 @@ RESPONSE score moves, not only the few sitting above 115%. RESPONSE is a feel
 score with nothing downstream of it, so the saturation is cheaper than silently
 reshuffling every stored build's bar. Revisit only with that trade in view.
 
+## Considered and rejected — damped FLAT RIDE and a least-pitch damper mode
+
+Both were checked against the app's pitch model (2.6 m wheelbase; 50/70/110 mph;
+ζ 35/55/70%; bump ratio 56%; FRONT, REAR and SHARED ride reference).
+
+**Damped FLAT RIDE** — matching damped periods, fd = fn·√(1−ζ²), instead of
+undamped ones. It lowers the rear Hz (up to 1.26 Hz with FRONT reference, 0.36
+REAR, 0.58 SHARED) and pitched more in every case under all three references.
+Worst increases: FRONT +7% equal ζ / +20% TIME SYNC; REAR +9% / +28%; SHARED
++8% / +48%. The pitch-optimal rear Hz was always *above* FLAT RIDE's, often at
+the 5.5 Hz ceiling, so the metric has no interior optimum to target either.
+
+**Least-pitch rear-ζ mode** — with FLAT RIDE Hz fixed, solve rear ζ for minimum
+pitch. At best 1% better than the better of TIME SYNC and equal ζ, and the
+optimum sat at about the TIME SYNC value. Not worth a fifth mode.
+
+Result: FLAT RIDE + TIME SYNC is effectively the lowest-pitch pairing; the
+glossary and [SLIDERS.md](SLIDERS.md) say so.
+
 ## Considered and rejected — putting bump damping into the RESPONSE bar
 
 Left here so the next audit doesn't "fix" the omission again. It was built,
