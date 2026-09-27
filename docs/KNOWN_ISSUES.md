@@ -727,9 +727,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **`sanitizeTune` clamps `arbManF`/`arbManR` to 1–65 in every game mode** *(reproduced)*.
   In BeamNG these are roll stiffness, so a shared MAN tune at 48000/30000 arrives as 65/65
   and both ARB outputs read 0 N/m. TO GARAGE stores the same clamped values.
-- **ROLL ° button seeds a 0° target** *(reproduced)*. It reads `physics.arbTargetRoll`, which
-  `feelToPhysics` sets to 0 unless already in ROLL mode; the 0.3 floor then maxes the bars
-  (default car 22.2/21.3 → 65/65). Should seed from `tune.rollDeg`.
 - **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
   so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound

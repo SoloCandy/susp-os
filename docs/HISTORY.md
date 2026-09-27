@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — ROLL ° seeded a 0° target; roll now reads to 0.01°
+
+The ROLL ° button seeded Target Roll Angle from `physics.arbTargetRoll`, which
+`feelToPhysics` sets to 0 unless ROLL is already active. The 0.3° floor then maxed both
+bars (default car 22.2/21.3 → 65/65). It now seeds from `tune.rollDeg`, the roll the car
+is actually sitting at, clamped to 0.3–5.0°, so switching in does not move the bars.
+
+Target Roll Angle also steps by 0.01° instead of 0.1°: at the stiff end (0.3–1°) a 0.1° step
+is a large share of the angle and moved the bars by several clicks. Every roll readout
+followed to two decimals: the VISUALS footer and collapsed summary, the ANTI-ROLL BARS
+card header, both ROLL clamp warnings, the camber notes and the damper summary strip. `arbTargetRollMan`
+was already stored raw, so existing tunes are unaffected. `rollClamped`'s tolerance tightened
+from 0.05° to 0.01° to match: at 0.05° a target and achieved roll could print 0.04° apart with
+no warning. Bar rounding can now trip it on a hair-width miss, which is the honest reading.
+
 ## Changed — MEASURE NAT BAL's Measure Hz steps in 0.01, not 0.05
 
 The Measure Hz field stepped by 0.05 Hz, so the arrow keys and scroll wheel could not reach

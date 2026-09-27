@@ -1693,7 +1693,7 @@ const computeTune=(ch,phys,gameMode)=>{
   const rsAbR=physUnits?arbR:arbR*arbScaleOf(ch)*ch.trackR*ch.trackR;
   const rsTotal=rsSpF+rsSpR+rsAbF+rsAbR;
   const rollDeg=rsTotal>0?rollMoment/rsTotal*(180/Math.PI):0;
-  const rollClamped=arbMode==='roll'&&Math.abs(rollDeg-arbTargetRoll)>0.05;
+  const rollClamped=arbMode==='roll'&&Math.abs(rollDeg-arbTargetRoll)>0.01;
   // SHARE's counterpart: the bars could not supply the requested fraction — a bar at the 1-click
   // floor or the lim.arb ceiling, often because MECH pushed the split to one end. The allowance is
   // half a bar quantisation step expressed in share points (Forza's 0.1 click, BeamNG's anti-roll
@@ -3223,7 +3223,7 @@ const VisRollSplit=({mechBal,natBal,target,rsSpF,rsAbF,rsSpR,rsAbR,rollDeg,rollC
         <line x1={divX} y1={Y-1} x2={divX} y2={Y+BH+1} stroke="#0a0f1a" strokeWidth={1.5}/>
         {tick(natBal,'#94a3b8',1.2,'nat')}
         {showTgt&&tick(target,'#4ade80',1.8,'tgt')}
-        <text x={0} y={H-1} fontSize={8} fill={rollClamped?'#f59e0b':'#94a3b8'} fontFamily={VIS_MONO}>roll {rollDeg.toFixed(1)}°{rollTarget!=null&&<tspan fill="#64748b"> / {rollTarget.toFixed(1)}</tspan>}</text>
+        <text x={0} y={H-1} fontSize={8} fill={rollClamped?'#f59e0b':'#94a3b8'} fontFamily={VIS_MONO}>roll {rollDeg.toFixed(2)}°{rollTarget!=null&&<tspan fill="#64748b"> / {rollTarget.toFixed(2)}</tspan>}</text>
         <text x={VIS_W/2} y={H-1} textAnchor="middle" fontSize={8} fontFamily={VIS_MONO}>
           <tspan fill="#94a3b8">nat</tspan><tspan fill="#64748b"> {natBal!=null?natBal.toFixed(2):'—'}</tspan>
           {showTgt&&<><tspan fill="#4ade80">  tgt</tspan><tspan fill="#64748b"> {target.toFixed(2)}</tspan></>}
@@ -7817,7 +7817,7 @@ function App(){
                     })()}))}>BASIC</button>}
                 <button className={`tog${arbMode==='roll'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,arbMode:'roll',
-                    arbTargetRollMan:Math.round(physics.arbTargetRoll*10)/10}))}>ROLL °</button>
+                    arbTargetRollMan:Math.max(0.3,Math.min(5.0,Math.round(tune.rollDeg*100)/100))}))}>ROLL °</button>
                 <button className={`tog${arbMode==='share'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,arbMode:'share',
                     arbShareMan:Math.round(tune.arbShare)}))}>SHARE %</button>
@@ -7835,7 +7835,7 @@ function App(){
                 hint={`Overall ARB stiffness level, roughly 0% ≈ 1 click to 100% ≈ ${lim.arb} clicks (this game mode's limit) per axle at a neutral front/rear split. Unlike SHARE %, this doesn't scale with spring rate — moving the springs won't change the target level. Balance Mode still splits it front/rear, and unequal track widths mean the actual clicks per side won't land exactly on the stated percentage.`}/>}
             {arbMode==='roll'&&
               <Field noSlider label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
-                min={0.3} max={5.0} step={0.1} unit="° @ 1g"
+                min={0.3} max={5.0} step={0.01} unit="° @ 1g"
                 hint="Body roll the anti-roll bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars that let the suspension articulate over terrain."/>}
             {arbMode==='share'&&
               <Field label={<>{dnaDot('arbShare')}ARB Share</>} value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
@@ -8692,7 +8692,7 @@ function App(){
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
                 {!open.visRide&&<span style={{fontSize:9,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
-                  R {Math.round(mechBal*100)}% · ×{tune.fHz>0?(tune.rHz/tune.fHz).toFixed(2):'—'} · {tune.rollDeg.toFixed(1)}°</span>}
+                  R {Math.round(mechBal*100)}% · ×{tune.fHz>0?(tune.rHz/tune.fHz).toFixed(2):'—'} · {tune.rollDeg.toFixed(2)}°</span>}
                 <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visRide?'▲':'▼'}</span>
               </div>
               {open.visRide&&
@@ -8932,8 +8932,8 @@ function App(){
               return ch.layout==='FWD'
                 ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Toe-in front and rear for stability.`
                 :ch.layout==='RWD'
-                ?`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(1)}° roll. Front toe-out for turn-in, rear toe-in for stability.`
-                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(1)}° roll. Front toe-out for turn-in, rear toe-in scaled to center bias.`;
+                ?`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front toe-out for turn-in, rear toe-in for stability.`
+                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front toe-out for turn-in, rear toe-in scaled to center bias.`;
             })()}>
 
             <RowGroup>
@@ -8951,7 +8951,7 @@ function App(){
 
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
           <Card title="ANTI-ROLL BARS" accent
-            headerRight={`ROLL ${tune.rollDeg.toFixed(1)}°`}
+            headerRight={`ROLL ${tune.rollDeg.toFixed(2)}°`}
             hint={physMode
               ?"Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/(track·ARB Motion Ratio)², which at ratio 1.0 assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES."
               :"Click values to enter in the ARB tuning menu. Roll angle and ARB share are shown in the ANTI-ROLL BARS section of inputs. Amber warn when above 88% of the game limit."}>
@@ -8979,8 +8979,8 @@ function App(){
             {tune.rollClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
-              Target {tune.rollTarget.toFixed(1)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
-              achieved {tune.rollDeg.toFixed(1)}°. {tune.rollDeg>tune.rollTarget
+              Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
+              achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
                 ?'Bars are maxed; stiffer springs would reduce roll further.'
                 :'Springs alone already exceed the target; softer springs would allow the bars more authority.'}
             </div>}
@@ -9227,8 +9227,8 @@ function App(){
             );
             const warnings=[];
             if(tune.rollClamped)warnings.push(warnBox('roll','#f59e0b',<>
-              Target {tune.rollTarget.toFixed(1)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
-              achieved {tune.rollDeg.toFixed(1)}°. {tune.rollDeg>tune.rollTarget
+              Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
+              achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
                 ?'Bars are maxed; stiffer springs would reduce roll further.'
                 :'Springs alone already exceed the target; softer springs would allow the bars more authority.'}
             </>));
@@ -9299,8 +9299,8 @@ function App(){
               return ch.layout==='FWD'
                 ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Toe-in front and rear for stability.`
                 :ch.layout==='RWD'
-                ?`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(1)}° roll. Front toe-out for turn-in, rear toe-in for stability.`
-                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(1)}° roll. Front toe-out for turn-in, rear toe-in scaled to center bias.`;
+                ?`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front toe-out for turn-in, rear toe-in for stability.`
+                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front toe-out for turn-in, rear toe-in scaled to center bias.`;
             })();
             const beamngAlignHint=`${alignPrefix} BeamNG's Camber/Caster/Toe Adjust sliders are % of this vehicle's Jbeam-defined range, not degrees — there's no formula to convert this target angle into that %. Dial the slider while watching BeamNG's own live tuning-screen alignment readout until it matches the angle below. If you change Spring Height afterward, recheck against the readout — the %-to-angle relationship shifts with ride height.`;
 
@@ -9373,7 +9373,7 @@ function App(){
                            padding:'6px 8px',background:'#0f172a',border:'1px solid #1e293b',
                            borderRadius:2,marginBottom:10,fontSize:10,color:'#64748b',
                            fontFamily:'var(--font-mono)'}}>
-                <span>ROLL {tune.rollDeg.toFixed(1)}°</span>
+                <span>ROLL {tune.rollDeg.toFixed(2)}°</span>
                 <span>REAR ×{(tune.rHz/tune.fHz).toFixed(2)}</span>
                 <span>F/R BIAS {(()=>{const tot=physics.zetaF+physics.zetaR;
                   return tot>0?Math.round(physics.zetaF/tot*100):50;})()}% F</span>

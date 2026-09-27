@@ -92,7 +92,7 @@ One horizontal bar, front on the left and rear on the right.
   Target (`feEffective.arbBalTarget`), drawn only when it differs from NAT by at
   least 0.005 so the two don't sit on top of each other.
 - **Footer**, left to right:
-  - `roll X°`: body roll at 1 g (`tune.rollDeg`), amber when `tune.rollClamped`. In
+  - `roll X.XX°`: body roll at 1 g (`tune.rollDeg`, two decimals), amber when `tune.rollClamped`. In
     ROLL ARB mode it adds `/ rollTarget`.
   - `nat … tgt …`: the two tick values printed. `tgt` is omitted when its tick is.
   - `spr N · arb M%`: springs vs ARBs as a share of total roll stiffness
