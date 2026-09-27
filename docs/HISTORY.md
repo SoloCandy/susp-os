@@ -3798,3 +3798,12 @@ The amber "reads soft" caveat under the ARB rows and on the suspension cards now
 shows only while both ratios are 1.0, and names the input rather than telling the
 user to scale by hand. The default stays 1.0: the app still ships the unscaled
 number rather than inventing a multiplier from one sampled vehicle.
+
+## Changed — glossary trimmed of duplicated detail
+
+A bloat pass on `GLOSSARY`. The ζ entry no longer repeats Butterworth's 59/70/100%
+comparison; Butterworth itself is condensed. Damping Balance Mode drops its REBOUND
+MODE aside. FLAT RIDE + TIME SYNC keeps its claim but not the evidence, which lives
+in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Mech Balance defers the tyre-flex detail to
+Tyre Compliance. Response no longer lists its weights, which the bar's own breakdown
+shows and which would drift. No term removed.
