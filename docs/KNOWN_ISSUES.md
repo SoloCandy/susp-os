@@ -766,6 +766,18 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
   successful cancel.
 
+## Accepted — the reload notice fires on any redeploy, docs-only pushes included
+
+`useDeployCheck` compares `Last-Modified` dates, and a GitHub Pages deploy stamps
+every file it publishes, so a push that touched only `docs/` still lights the GitHub
+button's reload state. Reloading then fetches an identical app. Comparing contents
+was rejected: the tab has no clean copy of the HTML it loaded to compare against
+(React and Babel rewrite the DOM), and a size check alone misses a same-length edit.
+A spare reload costs nothing, since all state is in localStorage; a missed update
+costs a stale tab. See [CODE_MAP.md](CODE_MAP.md)'s "Deploy check".
+
+---
+
 ## RESET with Tutorials ticked while on INT or PRO can lock the current tier
 
 RESET clears `suspos_tutorial_seen_v1` but leaves `uiMode` alone. The `uiMode`

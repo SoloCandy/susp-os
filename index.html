@@ -99,6 +99,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .tbtn.on{border-color:#e2e8f044;background:#0f172a;color:#e2e8f0}
 .tbtn.saved{border-color:#e2e8f022;color:#9ca3af}
 .tbtn.undo-btn:disabled{opacity:0.28;cursor:default}
+.tbtn.update{border-color:#4ade8066;color:#4ade80;background:#4ade8014}
 .gmsel{padding:4px 8px;border:1px solid #1e293b;background:#0a0f1a;color:#e2e8f0;
       border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px;
       letter-spacing:1px;transition:all .12s;-webkit-tap-highlight-color:transparent;
@@ -2455,6 +2456,46 @@ const usePersist=(key,initial,repair)=>{
     try{localStorage.setItem(key,JSON.stringify(next));}catch{}
   };
   return[val,set];
+};
+
+// ── Deploy check ────────────────────────────────────────────────────────────
+// Lights the header's GitHub button once a newer index.html is live on GitHub Pages, so a tab
+// left open across a push is told to reload. document.lastModified is the Last-Modified header of
+// the copy THIS tab loaded (from the browser cache too, which is why it beats a baseline fetched
+// after load); a no-store HEAD reads what the server holds now. Strictly newer only: an edge still
+// serving the old copy reads older or equal and is ignored. No header (file://, a server without
+// Last-Modified) → document.lastModified is "now" and the HEAD's date parses NaN, so nothing fires.
+// Checked every 5 min while visible and whenever the tab comes back, at most once a minute; stops
+// for good once it fires. Any Pages redeploy moves the date, a docs-only push included — see
+// KNOWN_ISSUES. Reloading is safe: everything the user has lives in usePersist's localStorage keys.
+// GitHub's mark, used by the header's source link and by the reload button that replaces it.
+const GITHUB_MARK='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z';
+
+const DEPLOY_CHECK_MS=5*60*1000;
+const useDeployCheck=()=>{
+  const[updateReady,setUpdateReady]=useState(false);
+  useEffect(()=>{
+    if(!/^https?:$/.test(location.protocol))return;
+    const loaded=Date.parse(document.lastModified);
+    if(!isFinite(loaded))return;
+    let last=0,done=false;
+    const check=async()=>{
+      if(done||document.hidden||Date.now()-last<60000)return;
+      last=Date.now();
+      try{
+        const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
+        const live=Date.parse(r.headers.get('last-modified')||'');
+        if(r.ok&&live>loaded&&!done){done=true;setUpdateReady(true);}
+      }catch{} // offline or blocked — try again next tick
+    };
+    const timer=setInterval(check,DEPLOY_CHECK_MS);
+    const onShow=()=>{if(!document.hidden)check();};
+    document.addEventListener('visibilitychange',onShow);
+    window.addEventListener('focus',onShow);
+    return()=>{done=true;clearInterval(timer);
+      document.removeEventListener('visibilitychange',onShow);window.removeEventListener('focus',onShow);};
+  },[]);
+  return updateReady;
 };
 
 // ── Undo / redo history ─────────────────────────────────────────────────────
@@ -5788,6 +5829,7 @@ function App(){
   // Initialised once from the launch width so resizes/address-bar jiggle don't reset it.
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
+  const updateReady=useDeployCheck(); // a newer deploy is live — GitHub button turns into RELOAD
   // Phone: true while a sidebar text field/select has focus (keyboard up) — hides the pinned
   // VISUALS footer so the scrolling controls keep their height.
   const[sbTyping,setSbTyping]=useState(false);
@@ -6888,20 +6930,29 @@ function App(){
             <button className="tbtn" style={{fontSize:11}} title="Glossary — look up a term"
               onClick={()=>setShowGlossary(true)}>TERMS</button>
             {/* Source link. An <a> rather than a button so it opens in a new tab natively;
-                tbtn styles an inline element, so the flex/decoration bits are set here. */}
+                tbtn styles an inline element, so the flex/decoration bits are set here.
+                Once useDeployCheck sees a newer deploy it becomes a reload button in the same
+                slot — the mark stays so it reads as the same control, ↻ says what it does now,
+                and the width grows by one glyph only (see headerCompact in CODE_MAP). */}
+            {updateReady?(
+            <button className="tbtn update" onClick={()=>window.location.reload()}
+              title="A new version of SUSP.OS is live — click to reload. Your tune and garage are saved."
+              aria-label="New version available — reload"
+              style={{display:'inline-flex',alignItems:'center',gap:4}}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d={GITHUB_MARK}/>
+              </svg>
+              <span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↻</span>
+            </button>
+            ):(
             <a className="tbtn" href="https://github.com/SoloCandy/susp-os" target="_blank"
               rel="noopener noreferrer" title="Source on GitHub"
               style={{display:'inline-flex',alignItems:'center',textDecoration:'none'}}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
-                  0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01
-                  1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
-                  0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27
-                  2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82
-                  2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0
-                  .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+                <path d={GITHUB_MARK}/>
               </svg>
             </a>
+            )}
             {!isPhone&&<div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>}
             <button className="tbtn" style={{fontSize:11}} title="Open your garage"
               onClick={()=>setGaragePanelOpen(o=>!o)}>GARAGE{entries.length>0?` ${entries.length}`:''}</button>

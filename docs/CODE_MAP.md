@@ -61,8 +61,9 @@ The source runs top to bottom in this order:
    with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
 3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
    `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
-4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then the undo / redo
-   core `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
+4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then `GITHUB_MARK` and
+   `useDeployCheck` under a `── Deploy check ──` banner, then the undo / redo core
+   `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
 7. **Tutorial content** — the `TUTORIALS` object and `TutorialPanel`. Documented in [TUTORIALS.md](TUTORIALS.md).
@@ -320,6 +321,41 @@ The ↩ undo button used to sit in that row too; it moved to the sidebar toolbar
 redo, so the row is one button narrower than when 975 was measured. The threshold
 was left at 1000 rather than re-measured — lowering it is safe only after the
 GARAGE edge check above.
+
+The GitHub slot is one glyph wider while it shows the reload state (below). That was
+measured: with it lit, GARAGE's right edge sits at the header's padding at 1000px,
+820px, 480px and 375px, so neither layout overflows.
+
+---
+
+## Deploy check: `useDeployCheck`
+
+The header's GitHub source link turns into a reload button once a newer
+`index.html` is live — for a tab left open across a push to GitHub Pages. Lit, it
+keeps the GitHub mark, adds ↻, turns green (`.tbtn.update`), and clicking it calls
+`location.reload()` instead of opening the repo. Nothing else changes, and it never
+reloads on its own.
+
+How it decides:
+
+- **Baseline is `document.lastModified`** — the `Last-Modified` header of the copy
+  *this tab* loaded. A HEAD fetched after load was rejected as the baseline: a page
+  served from the browser cache would compare against a newer server copy and
+  never light.
+- **The check is a `HEAD` with `cache: 'no-store'`** on `location.pathname`, lit
+  only when the server's `Last-Modified` is strictly newer. A CDN edge still
+  serving the old copy reads equal or older and is ignored.
+- **When**: every `DEPLOY_CHECK_MS` (5 min) while the tab is visible, and on
+  `visibilitychange` / `focus`, throttled to once a minute. It stops once lit.
+- **It is inert off http(s)** (`file://`) and on any server that sends no
+  `Last-Modified`: `document.lastModified` then reads as "now" and the HEAD's date
+  parses as `NaN`, so the comparison is never true.
+- **Reloading loses nothing.** All state lives in `usePersist` keys (see
+  [PERSISTENCE.md](PERSISTENCE.md)), which is what lets the button reload without
+  asking first.
+
+It fires on any Pages redeploy, not only one that changed `index.html` — see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ---
 
