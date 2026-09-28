@@ -3807,3 +3807,7 @@ MODE aside. FLAT RIDE + TIME SYNC keeps its claim but not the evidence, which li
 in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Mech Balance defers the tyre-flex detail to
 Tyre Compliance. Response no longer lists its weights, which the bar's own breakdown
 shows and which would drift. No term removed.
+
+Intermediate's "Key Terms — Frequency & Damping" step is cut to one line per term.
+The ζ entry drops the Butterworth default and its overshoot figure; the glossary
+still carries both.
