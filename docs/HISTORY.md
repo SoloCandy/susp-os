@@ -3829,3 +3829,10 @@ shows and which would drift. No term removed.
 Intermediate's "Key Terms — Frequency & Damping" step is cut to one line per term.
 The ζ entry drops the Butterworth default and its overshoot figure; the glossary
 still carries both.
+
+## Fixed — footer MECH BALANCE strip coloured its offset backwards
+
+The PRO footer's MECH BALANCE strip showed a rear-biased CUR offset in blue and a
+front-biased one in amber, the reverse of the Balance Guide. It now uses the guide's
+colours: orange toward oversteer, blue toward understeer, grey near NAT, green for
+TGT, and a grey NAT tick.

@@ -9980,6 +9980,7 @@ function App(){
                 const pct=v=>`${Math.max(0,Math.min(100,v*100)).toFixed(1)}%`;
                 const showTgt=(physics.arbMode!=='man'&&(physics.arbBalMode==='mech'||physics.arbBalMode==='coSolve'))||physics.rearHzMode==='mech';
                 const _d=cur-nat;
+                // Same colours as the Balance Guide: orange = OS side, blue = US side, green = target, grey = NAT.
                 return(
                   <div style={{marginTop:8}}>
                     {/* label row: section header + inline NAT/CUR/TGT values */}
@@ -9993,14 +9994,14 @@ function App(){
                       <span style={{fontSize:10,color:'#334155'}}>→</span>
                       <span style={{fontSize:10,color:'#475569',fontFamily:'var(--font-mono)'}}>
                         CUR <span style={{color:'#e2e8f0'}}>{cur.toFixed(2)}</span>
-                        {Math.abs(_d)>=0.01&&<span style={{color:_d>0?'#60a5fa':'#f59e0b',marginLeft:2}}>
+                        {Math.abs(_d)>=0.01&&<span style={{color:Math.abs(_d)<0.015?'#94a3b8':_d>0?'#f97316':'#60a5fa',marginLeft:2}}>
                           {(_d>=0?'+':'')+_d.toFixed(2)}
                         </span>}
                       </span>
                       {showTgt&&<>
                         <span style={{fontSize:10,color:'#334155'}}>→</span>
-                        <span style={{fontSize:10,color:'#60a5fa88',fontFamily:'var(--font-mono)'}}>
-                          TGT <span style={{color:'#60a5fa'}}>{tgt.toFixed(2)}</span>
+                        <span style={{fontSize:10,color:'#4ade8088',fontFamily:'var(--font-mono)'}}>
+                          TGT <span style={{color:'#4ade80'}}>{tgt.toFixed(2)}</span>
                         </span>
                       </>}
                     </div>
@@ -10014,10 +10015,10 @@ function App(){
                       })()}
                       {/* NAT tick */}
                       <div style={{position:'absolute',top:0,bottom:0,left:pct(nat),width:1,
-                                   background:'#475569',transform:'translateX(-50%)'}}/>
+                                   background:'#94a3b8',transform:'translateX(-50%)'}}/>
                       {/* TARGET tick — only shown in MECH/CO-SOLVE */}
                       {showTgt&&<div style={{position:'absolute',top:0,bottom:0,left:pct(tgt),width:2,
-                                            background:'#60a5fa99',transform:'translateX(-50%)',borderRadius:1}}/>}
+                                            background:'#4ade8099',transform:'translateX(-50%)',borderRadius:1}}/>}
                       {/* CURRENT position */}
                       <div style={{position:'absolute',top:0,bottom:0,left:pct(cur),width:2,
                                    background:'#e2e8f0cc',transform:'translateX(-50%)',borderRadius:1}}/>
