@@ -616,9 +616,10 @@ unscaled number and lets a user who knows their geometry supply the arm ratio. A
 second and third vehicle would confirm the arm-ratio range and settle the
 coefficient question (`K = k·arm²` vs `2·k·arm²`), which the input does not decide.
 
-**The in-app caveats now name the input.** The amber banner under the ARB rows and
-the suspension card hint state the lever-arm assumption, name ARB Motion Ratio and
-suggest a typical 0.4–0.5, and both disappear once either ratio is moved off 1.0.
+**The in-app caveat now names the input.** The amber note under each suspension
+card's Anti-Roll row states the lever-arm assumption, names ARB Motion Ratio and
+suggests a typical 0.4–0.5, and disappears once either ratio is moved off 1.0. The
+card's hint points to it ("Anti-Roll reads soft — see the note under that row").
 
 ---
 
@@ -762,12 +763,8 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
   exported on a 12000 lb Motorsport car).
 - **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
   allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
-- **Balance Mode hint shows a literal "%%"** ("raw weight %%"), from a printf-style escape in
-  a template literal.
 - **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
   successful cancel.
-- **Stale `~index.html:NNNN` references** in the FWD diff-polarity comments (in `computeDiff`
-  and at the EXIT slider) now point at `sanitizeTune` and `feelToPhysics`.
 
 ## RESET with Tutorials ticked while on INT or PRO can lock the current tier
 

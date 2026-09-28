@@ -30,8 +30,8 @@ math before.
   quoted on its own after the base text.
 - **Game mode.** "Forza" means a clicks-based game mode, "BeamNG" a physical-unit
   one (`physMode`: N/m and N/m/s output).
-- **Copied exactly, typos and all.** A known wording bug is quoted as the app shows
-  it, and recorded in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) until it's fixed.
+- **Copied exactly, typos and all.** A wording bug is quoted as the app shows it,
+  and recorded in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) until it's fixed.
 
 ---
 
@@ -279,12 +279,11 @@ rest; `{unit}` is "roll stiffness" on BeamNG and "clicks" on Forza:
 
 > {side} ARB clicks, entered directly. This game mode's limit is {limit} clicks per axle.
 
-**Balance Mode** (INT/PRO, not in MAN) — the base text, then the sentence PRO adds.
-The literal `%%` is a known bug (KNOWN_ISSUES):
+**Balance Mode** (INT/PRO, not in MAN) — the base text, then the sentence PRO adds:
 
 > WEIGHT splits front/rear ARB from the car's weight distribution, adjusted by the ARB Bias slider. NEUTRAL either cancels the springs' contribution to the balance bar (CANCEL) or splits the bars in the springs' own proportion so every axle carries the same ARB roll % (EQUAL ROLL) — ARB Bias nudges away from either point.
 
-> CHASSIS works like WEIGHT but is anchored to the car’s actual natural mech balance (track-width-corrected geometry, or your MEASURE NAT BAL reading when set) instead of raw weight %% — use this once you’ve customised geometry or measured in-game. MECH solves the ARB split to hit the Mech Balance Target exactly. CO-SOLVE co-solves rear spring Hz and ARB split together.
+> CHASSIS works like WEIGHT but is anchored to the car’s actual natural mech balance (track-width-corrected geometry, or your MEASURE NAT BAL reading when set) instead of raw weight % — use this once you’ve customised geometry or measured in-game. MECH solves the ARB split to hit the Mech Balance Target exactly. CO-SOLVE co-solves rear spring Hz and ARB split together.
 
 **Split Direction** (WEIGHT / CHASSIS):
 
@@ -473,9 +472,7 @@ their ⓘ says.
 ## Results panel — Forza cards
 
 These six cards only render in Forza game modes (the `!physMode` block); BeamNG gets
-the cards in the next section. The ANTI-ROLL BARS, SPRINGS and DAMPERS hints still
-carry a BeamNG branch from before that split. It can't be displayed, but it's quoted
-below, labelled, because the code still holds it.
+the cards in the next section.
 
 **ALIGNMENT** — the first sentence depends on the alignment mode (MANUAL, then any
 other), the rest on layout (FWD, RWD, AWD). `{camber}` is the build type's camber
@@ -491,21 +488,15 @@ target and `{roll}` the tune's roll angle:
 
 > Camber targets {camber} dynamic at {roll}° roll. Front toe-out for turn-in, rear toe-in scaled to center bias.
 
-**ANTI-ROLL BARS** — the unreachable BeamNG branch, then Forza:
-
-> Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/(track·ARB Motion Ratio)², which at ratio 1.0 assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES.
+**ANTI-ROLL BARS:**
 
 > Click values to enter in the ARB tuning menu. Roll angle and ARB share are shown in the ANTI-ROLL BARS section of inputs. Amber warn when above 88% of the game limit.
 
-**SPRINGS** — `{unit}` is "lb/in"; the unreachable BeamNG branch puts this in its place:
+**SPRINGS:**
 
-> Spring rates in {unit} to enter in the tuning menu. The badge shows the frequency category — SOFT/ROAD/FIRM/RACE. Hz values live in the RIDE section of inputs. The ratio in the header is rear Hz ÷ front Hz — the same relationship as that section's Rear Multiplier slider, however it's currently derived (Flat Ride, Multiplier, Mech, or Independent).
+> Spring rates in lb/in to enter in the tuning menu. The badge shows the frequency category — SOFT/ROAD/FIRM/RACE. Hz values live in the RIDE section of inputs. The ratio in the header is rear Hz ÷ front Hz — the same relationship as that section's Rear Multiplier slider, however it's currently derived (Flat Ride, Multiplier, Mech, or Independent).
 
-> N/m — the unit BeamNG’s Spring Rate slider uses, and divided by motion ratio squared if you set one
-
-**DAMPERS** — the unreachable BeamNG branch, then Forza:
-
-> Rebound (REB) and bump (BUMP) damping in N/m/s, matching BeamNG's sliders. These are the real coefficients the solver works in with no game-specific scaling, divided by motion ratio squared if you set one. Note BeamNG's own defaults tend to run a much higher rebound-to-bump ratio than this app's default Bump Ratio produces. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased.
+**DAMPERS:**
 
 > Rebound (REB) and bump (BUMP) click values for front and rear dampers. Enter in the damping tuning menu. Amber warn when above 88% of the game limit. F/R balance is preserved — if either end exceeds the limit, both are scaled proportionally so the ratio is maintained. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased.
 

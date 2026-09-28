@@ -1929,7 +1929,7 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
       ?{street:15,track:12,drift:3,rally:8,offroad:5,drag:0}[build]??12
       :{street:8, track:5, drift:2,rally:4,offroad:2,drag:0}[build]??5;
     // FWD's +effBiasExit*0.15 is intentionally the SAME sign as RWD's — do not flip it.
-    // FWD's EXIT slider UI already inverts the stored value (~index.html:3444-3445) so
+    // FWD's EXIT slider UI already inverts the stored value (the EXIT FeelSlider's value/onChange) so
     // "more effBiasExit" means the same thing (more lock) on every layout; the UI flip is
     // what makes the slider's right side mean oversteer-leaning despite FWD's opposite
     // lock-to-balance polarity. Flipping the sign here too would double-cancel that fix.
@@ -7365,7 +7365,7 @@ function App(){
                   label={<>{dnaDot('diffExit')}EXIT</>}
                   // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
                   // do NOT also flip the sign inside computeDiff's FWD accel formula (the
-                  // `+effBiasExit*0.15` term, ~index.html:840). That formula is intentionally
+                  // `+effBiasExit*0.15` term). That formula is intentionally
                   // uniform across layouts precisely because this UI layer already carries the
                   // per-layout inversion; flipping both would double-cancel and silently
                   // reintroduce the original bug. See docs/HISTORY.md's MATCH CHASSIS entry.
@@ -7887,7 +7887,7 @@ function App(){
             {uiMode!=='beginner'&&arbMode!=='man'&&<div style={{marginBottom:10,marginTop:4}}>
               <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                 Balance Mode
-                <Hint text={`WEIGHT splits front/rear ARB from the car's weight distribution, adjusted by the ARB Bias slider. NEUTRAL either cancels the springs' contribution to the balance bar (CANCEL) or splits the bars in the springs' own proportion so every axle carries the same ARB roll % (EQUAL ROLL) — ARB Bias nudges away from either point.${uiMode==='pro'?' CHASSIS works like WEIGHT but is anchored to the car’s actual natural mech balance (track-width-corrected geometry, or your MEASURE NAT BAL reading when set) instead of raw weight %% — use this once you’ve customised geometry or measured in-game. MECH solves the ARB split to hit the Mech Balance Target exactly. CO-SOLVE co-solves rear spring Hz and ARB split together.':''}`}/>
+                <Hint text={`WEIGHT splits front/rear ARB from the car's weight distribution, adjusted by the ARB Bias slider. NEUTRAL either cancels the springs' contribution to the balance bar (CANCEL) or splits the bars in the springs' own proportion so every axle carries the same ARB roll % (EQUAL ROLL) — ARB Bias nudges away from either point.${uiMode==='pro'?' CHASSIS works like WEIGHT but is anchored to the car’s actual natural mech balance (track-width-corrected geometry, or your MEASURE NAT BAL reading when set) instead of raw weight % — use this once you’ve customised geometry or measured in-game. MECH solves the ARB split to hit the Mech Balance Target exactly. CO-SOLVE co-solves rear spring Hz and ARB split together.':''}`}/>
               </span>
               <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
                 <button className={`tog${arbBalMode==='weight'?' on':''}`}
@@ -8922,7 +8922,8 @@ function App(){
 
           {/* Forza (horizon/motorsport): the original six full-width, single-column cards,
               unchanged. BeamNG gets its own two-column layout below instead — see physMode
-              branch. Wrapped rather than moved so this block stays byte-identical. */}
+              branch. Nothing in here renders in a physical game mode, so it carries no
+              physMode branches: BeamNG wording belongs on the SuspensionCard layout. */}
           {!physMode&&(<>
           {/* 1 — ALIGNMENT */}
           <Card title="ALIGNMENT"
@@ -8952,16 +8953,8 @@ function App(){
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
           <Card title="ANTI-ROLL BARS" accent
             headerRight={`ROLL ${tune.rollDeg.toFixed(2)}°`}
-            hint={physMode
-              ?"Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/(track·ARB Motion Ratio)², which at ratio 1.0 assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES."
-              :"Click values to enter in the ARB tuning menu. Roll angle and ARB share are shown in the ANTI-ROLL BARS section of inputs. Amber warn when above 88% of the game limit."}>
+            hint="Click values to enter in the ARB tuning menu. Roll angle and ARB share are shown in the ANTI-ROLL BARS section of inputs. Amber warn when above 88% of the game limit.">
 
-            {physMode&&(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1&&
-            <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,marginBottom:6}}>
-              Reads ~4–6× soft: at ARB Motion Ratio 1.0 this assumes the bar acts at the
-              wheels, but BeamNG sets the rate at the bar's own lever. Set the ratio in
-              CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry.
-            </div>}
             <RowGroup style={{marginBottom:0}}>
               {[['Front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,'front',ch.arbMotionRatioF],
                 ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear',ch.arbMotionRatioR]].map(([lbl,v,rsAb,rsSp,track,side,arbMr])=>{
@@ -8988,12 +8981,12 @@ function App(){
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f9731633'}}>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})}
+              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:lim.arb})}
             </div>}
           </Card>
 
           <Card title="SPRINGS" accent
-            hint={`Spring rates in ${physMode?'N/m — the unit BeamNG’s Spring Rate slider uses, and divided by motion ratio squared if you set one':'lb/in'} to enter in the tuning menu. The badge shows the frequency category — SOFT/ROAD/FIRM/RACE. Hz values live in the RIDE section of inputs. The ratio in the header is rear Hz ÷ front Hz — the same relationship as that section's Rear Multiplier slider, however it's currently derived (Flat Ride, Multiplier, Mech, or Independent).`}
+            hint={`Spring rates in lb/in to enter in the tuning menu. The badge shows the frequency category — SOFT/ROAD/FIRM/RACE. Hz values live in the RIDE section of inputs. The ratio in the header is rear Hz ÷ front Hz — the same relationship as that section's Rear Multiplier slider, however it's currently derived (Flat Ride, Multiplier, Mech, or Independent).`}
             headerRight={`REAR ×${(tune.rHz/tune.fHz).toFixed(2)}`}>
 
             {(()=>{
@@ -9043,9 +9036,7 @@ function App(){
               (physics.dampingMode??'ratio')==='ratio'
                 ?`BUMP RATIO ${physics.bumpRatioVal??56}%`
                 :`BUMP ${Math.round(physics.bumpZeta??39)}% ζ`}`}
-            hint={physMode
-              ?"Rebound (REB) and bump (BUMP) damping in N/m/s, matching BeamNG's sliders. These are the real coefficients the solver works in with no game-specific scaling, divided by motion ratio squared if you set one. Note BeamNG's own defaults tend to run a much higher rebound-to-bump ratio than this app's default Bump Ratio produces. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased."
-              :"Rebound (REB) and bump (BUMP) click values for front and rear dampers. Enter in the damping tuning menu. Amber warn when above 88% of the game limit. F/R balance is preserved — if either end exceeds the limit, both are scaled proportionally so the ratio is maintained. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased."}>
+            hint="Rebound (REB) and bump (BUMP) click values for front and rear dampers. Enter in the damping tuning menu. Amber warn when above 88% of the game limit. F/R balance is preserved — if either end exceeds the limit, both are scaled proportionally so the ratio is maintained. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased.">
 
             {(()=>{
               // Matches the RIDE section's existing readouts, which warn on >100 only.

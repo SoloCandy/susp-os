@@ -11,6 +11,24 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — Balance Mode hint printed "%%"; dead BeamNG text in the Forza result cards
+
+Found while quoting every hint into [HINTS.md](HINTS.md).
+
+- The PRO sentence of the Balance Mode hint read "raw weight %%". It sits in a
+  template literal, where `%` needs no escaping, so the doubled sign showed as-is.
+- The ANTI-ROLL BARS, SPRINGS and DAMPERS cards render only inside the Forza-only
+  `!physMode` block, yet their hints still carried `physMode` branches with BeamNG
+  wording, and ANTI-ROLL BARS a `physMode`-gated "Reads ~4–6× soft" banner — all
+  unreachable since BeamNG moved to its own SuspensionCard layout, which carries the
+  live copies (`suspHint`, `arbCaveat`). Removed, along with an always-true
+  `physMode?null:lim.arb` in the same block. The block's comment used to say it was
+  kept byte-identical; it now says it carries no `physMode` branches, which is the
+  property worth keeping — BeamNG wording belongs on the SuspensionCard layout.
+- Two FWD diff-polarity comments (in `computeDiff` and at the EXIT slider) pointed at
+  `~index.html` line numbers that had drifted onto unrelated code. They now name the
+  code they mean.
+
 ## Fixed — DAMPERS table read pre-CO-SOLVE zetas, so EQUAL FORCE showed off 50/50
 
 The table multiplied `physics.zetaF/zetaR` by `tune.fHz/rHz`. computeTune re-solves the damping
