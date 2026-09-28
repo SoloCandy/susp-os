@@ -8,7 +8,8 @@ formulas in `index.html` (`bSp`, `bAb`, `bDampBias`, `bDiffAccel/Decel/
 Front/Rear`, `bBrakeEntry`), not slider hint text alone — hint text has been
 wrong relative to the actual formula twice now: Damping Bias (which said the
 opposite of what `bDampBias` computes) and the FWD EXIT hint (which had the
-lock direction backwards). Both are in [HISTORY.md](HISTORY.md).
+lock direction backwards). Both are in [HISTORY.md](HISTORY.md). Every slider's
+hint is quoted word for word in [HINTS.md](HINTS.md).
 
 Convention across the app: **right = OVERSTEER, left = UNDERSTEER** for
 every balance-relevant slider.

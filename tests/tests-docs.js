@@ -19,8 +19,10 @@
 // No dependencies, no build step, no CI required — same contract as the other two
 // suites. Run it by hand:  node tests/tests-docs.js
 //
-// Scope note: this file deliberately does NOT check prose. It checks that names,
-// ids, keys, enum values and numeric bounds agree across code and docs.
+// Scope note: this file deliberately does NOT judge prose. It checks that names,
+// ids, keys, enum values and numeric bounds agree across code and docs, and that UI
+// text a doc quotes word for word (HINTS.md, TUTORIALS.md's Step text) still matches
+// the code exactly — see "hint and tutorial text".
 
 const fs = require('fs');
 const path = require('path');
@@ -643,6 +645,220 @@ check('VISUALS.md states the ζ zones, the settle band and the ARB bands the cod
       if (!md.includes(pct(v))) problems.push(`ARB threshold ${pct(v)}`);
   }
   return problems.length === 0 || `not stated in VISUALS.md: ${problems.join(', ')}`;
+});
+
+// ── hint and tutorial text ──────────────────────────────────────────────────
+section('hint and tutorial text');
+
+// HINTS.md and TUTORIALS.md's Step text quote the UI word for word. These checks are the
+// only ones in this file that read prose, and only to compare it character for character:
+// they cannot tell whether a hint is *right*, only whether the doc still says what the app
+// says. Both directions are checked — every piece of hint text in the code must be quoted
+// (catches a new or reworded hint), and every quote must still be in the code (catches a
+// removed one, and the JSX-text guidance the code-side scan cannot find structurally).
+//
+// Doc conventions the checks rely on: UI text lives in `>` blockquotes and nowhere else in
+// those sections; a `{…}` placeholder stands for a value filled in live (so the quote splits
+// there); `**bold**` marks a label (a glossary term) and also splits the quote.
+
+// Normalise a JS literal body or a doc quote to comparable text: unescape, drop markdown
+// bold, collapse whitespace. A `\n\n` paragraph break in a step body becomes one space, the
+// same as the blank `>` line between the doc's paragraphs.
+const normText = s => s.replace(/\\n/g, ' ').replace(/\\(['"`\\])/g, '$1')
+  .replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
+
+// String-aware scan of a JS expression from `i`, collecting every string literal and every
+// static stretch of a template literal (splitting at `${…}` and recursing into it, so nested
+// ternary literals are found). Stops at an unmatched close bracket, or with stop ';' / ','
+// at one of those at depth 0. Object keys ('diff front':) are skipped — they are not text.
+function scanLiterals(s, i, stop, out) {
+  let depth = 0;
+  const prevChar = at => { let k = at - 1; while (k >= 0 && /\s/.test(s[k])) k--; return s[k]; };
+  const nextChar = at => { let k = at; while (k < s.length && /\s/.test(s[k])) k++; return s[k]; };
+  while (i < s.length) {
+    const c = s[i];
+    if (c === "'" || c === '"') {
+      let j = i + 1, b = '';
+      while (j < s.length && s[j] !== c) { if (s[j] === '\\') { b += s.slice(j, j + 2); j += 2; } else b += s[j++]; }
+      const isKey = /[{,]/.test(prevChar(i) || '') && nextChar(j + 1) === ':';
+      if (!isKey) out.push(b);
+      i = j + 1; continue;
+    }
+    if (c === '`') {
+      i++; let b = '';
+      while (i < s.length && s[i] !== '`') {
+        if (s[i] === '\\') { b += s.slice(i, i + 2); i += 2; continue; }
+        if (s[i] === '$' && s[i + 1] === '{') { out.push(b); b = ''; i = scanLiterals(s, i + 2, 'close', out); continue; }
+        b += s[i++];
+      }
+      out.push(b); i++; continue;
+    }
+    if (c === '{' || c === '(' || c === '[') depth++;
+    else if (c === '}' || c === ')' || c === ']') { if (depth === 0) return i + 1; depth--; }
+    else if (depth === 0 && c === stop) return i;
+    i++;
+  }
+  return i;
+}
+// Prose only: at least two words, one of them a real word. Drops enum values ('rear'),
+// units and format strings, which are values the doc shows as placeholders.
+const proseOf = frags => frags.map(normText).filter(t => /\S\s+\S/.test(t) && /[A-Za-z]{3}/.test(t));
+
+// Blockquote groups in a markdown segment: consecutive `>` lines (a bare `>` keeps the group
+// open across a paragraph break). Returns each group's raw text.
+const quoteGroups = md => {
+  const groups = []; let cur = null;
+  for (const line of md.split('\n')) {
+    if (/^>/.test(line)) { (cur ??= []).push(line.replace(/^>\s?/, '')); }
+    else if (cur) { groups.push(cur.join(' ')); cur = null; }
+  }
+  if (cur) groups.push(cur.join(' '));
+  return groups;
+};
+// A quote's checkable pieces: split at placeholders and bold labels, edge punctuation
+// trimmed (a term's "—" joiner), empties dropped.
+const quoteFragments = q => q.split(/\{[^}]*\}|\*\*/).map(normText)
+  .map(t => t.replace(/^[\s—–·:,.;-]+|[\s—–·:,;-]+$/g, '')).filter(t => t.length > 1);
+
+// A whole quote as a pattern: its pieces in order, each `{…}` placeholder matching up to 200
+// characters of source (the expression it stands for). Stricter than checking fragments one by
+// one, which lets a short piece — "typical:" around two placeholders — match anywhere.
+const quotePattern = q => new RegExp(q.split(/\{[^}]*\}/).map(normText).filter(Boolean)
+  .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\S]{0,200}?'));
+
+// The app's text as one searchable string. Inline <span>s split a JSX sentence in the
+// source, so they are dropped here; the doc quotes the sentence as the user reads it.
+const SRC_TEXT = normText(SRC_NC.replace(/<\/?span\b[^>]*>/g, ''));
+
+// ── code side: every hint and inline-guidance string in index.html ──
+const HINT_SRC = (() => {
+  const sites = [];                       // {where, frags}
+  const where = at => `index.html "${SRC_NC.slice(at, at + 48).replace(/\s+/g, ' ')}…"`;
+  const add = (at, frags) => { const p = proseOf(frags); if (p.length) sites.push({ where: where(at), frags: p }); };
+  // hint="…" / hint={…} / <Hint text="…" / text={…}
+  for (const m of SRC_NC.matchAll(/\bhint=|<Hint text=/g)) {
+    const at = m.index + m[0].length, out = [];
+    if (SRC_NC[at] === '"') out.push(SRC_NC.slice(at + 1, SRC_NC.indexOf('"', at + 1)));
+    else if (SRC_NC[at] === '{') scanLiterals(SRC_NC, at + 1, 'close', out);
+    add(m.index, out);
+  }
+  // hint:'…' properties (RESPONSE factor rows)
+  for (const m of SRC_NC.matchAll(/[{,]\s*hint:/g)) { const out = []; scanLiterals(SRC_NC, m.index + m[0].length, ',', out); add(m.index, out); }
+  // const …hint…= definitions: HINT_*, hints maps, suspHint, destHint, the Damping Bias `hint`.
+  // Arrow-function components (Hint, RangeHint) are skipped — their text is JSX, checked doc-side.
+  for (const m of SRC_NC.matchAll(/const (\w*hint\w*)=(?!\()/gi)) { const out = []; scanLiterals(SRC_NC, m.index + m[0].length, ';', out); add(m.index, out); }
+  // Inline guidance that doesn't carry "hint" in its name. A new piece of always-visible help
+  // text is not discovered on its own: add its anchor here when you write it into HINTS.md.
+  const ANCHORS = [
+    ['const domTips=', ';'], ['const begBal=', ';'], ['const begDiff=', ';'],   // BEG/INT balance tip
+    ['const tip=', ';'],                                                        // BEG/INT and RESPONSE tip
+    ['tips.push(', 'close'], ['{tips.length?', 'close'],                        // PRO phase tips
+    ['const tips={', ';'],                                                      // RESPONSE tips
+    ['const arbCaveat=', ';'], ['const alignPrefix=', ';'],                     // BeamNG suspension/alignment
+    ['detail:', ','],                                                           // FIT? badge details
+  ];
+  for (const [a, stop] of ANCHORS) {
+    let n = 0;
+    for (let at = SRC_NC.indexOf(a); at >= 0; at = SRC_NC.indexOf(a, at + 1)) {
+      const out = []; scanLiterals(SRC_NC, at + a.length, stop, out); add(at, out); n++;
+    }
+    if (!n) sites.push({ where: `anchor ${a}`, missing: true });
+  }
+  return sites;
+})();
+
+const hintsQuotes = () => {
+  const md = doc['HINTS.md'];
+  if (!md) throw new Error('docs/HINTS.md missing');
+  return quoteGroups(md);
+};
+
+check('HINTS.md quotes every hint and inline-guidance string in index.html', () => {
+  const corpus = hintsQuotes().map(normText).join('\n');
+  const miss = [];
+  for (const s of HINT_SRC) {
+    if (s.missing) { miss.push(`${s.where} no longer matches anything — update ANCHORS`); continue; }
+    for (const f of s.frags) if (!corpus.includes(f)) miss.push(`${s.where}: "${f.slice(0, 90)}${f.length > 90 ? '…' : ''}"`);
+  }
+  return miss.length === 0 || `${miss.length} not quoted:\n       ${miss.join('\n       ')}`;
+});
+
+check('every HINTS.md quote is still in index.html', () => {
+  const miss = [];
+  for (const q of hintsQuotes())
+    if (!quotePattern(q).test(SRC_TEXT)) miss.push(`"${normText(q).slice(0, 90)}${q.length > 90 ? '…' : ''}"`);
+  return miss.length === 0 || `${miss.length} quoted text not found:\n       ${miss.join('\n       ')}`;
+});
+
+// ── tutorials: per-step text, both ways ──
+// Each step object in TUTORIALS, brace-matched string-aware, with its title and every
+// piece of text it shows: body, glossary terms and definitions, and the task line.
+const TUT_STEPS = (() => {
+  const body = stripComments(objectBody('TUTORIALS'));
+  const heads = [...body.matchAll(/^  (\w+):\[/gm)];
+  const out = {};
+  heads.forEach((h, gi) => {
+    const seg = body.slice(h.index + h[0].length, gi + 1 < heads.length ? heads[gi + 1].index : body.length);
+    const steps = [];
+    for (let i = 0; i < seg.length; i++) {
+      if (seg[i] !== '{') continue;
+      const end = scanLiterals(seg, i + 1, 'close', []);
+      const obj = seg.slice(i, end);
+      const str = k => [...obj.matchAll(new RegExp(`\\b${k}:(['"])((?:\\\\.|(?!\\1)[^\\\\])*)\\1`, 'g'))].map(m => normText(m[2]));
+      steps.push({ title: str('title')[0], texts: [...str('body'), ...str('term'), ...str('def'), ...str('text')] });
+      i = end - 1;
+    }
+    out[h[1]] = steps;
+  });
+  return out;
+})();
+
+check('TUTORIALS.md Step text quotes every step of every guide, both ways', () => {
+  const md = doc['TUTORIALS.md'];
+  const problems = [];
+  for (const [guide, steps] of Object.entries(TUT_STEPS)) {
+    const at = md.indexOf(`<!--@steptext ${guide}-->`);
+    if (at < 0) { problems.push(`no <!--@steptext ${guide}--> section`); continue; }
+    const next = md.slice(at).search(/\n##{1,2} /);
+    const seg = md.slice(at, next < 0 ? md.length : at + next);
+    const blocks = seg.split(/\n#### /).slice(1).map(b => {
+      const nl = b.indexOf('\n');
+      return { head: b.slice(0, nl < 0 ? b.length : nl), quotes: quoteGroups(b) };
+    });
+    const heads = blocks.map(b => b.head.replace(/^\d+\.\s*/, ''));
+    const titles = steps.map(s => s.title);
+    if (heads.join('\n') !== titles.join('\n')) {
+      problems.push(`${guide}: headings [${heads.join(' / ')}] vs code [${titles.join(' / ')}]`);
+      continue;
+    }
+    steps.forEach((s, i) => {
+      const docText = blocks[i].quotes.map(normText).join('\n');
+      for (const t of s.texts) if (!docText.includes(t)) problems.push(`${guide} ${i + 1} "${s.title}": not quoted — "${t.slice(0, 80)}…"`);
+      const codeText = s.texts.join('\n');
+      for (const q of blocks[i].quotes) for (const f of quoteFragments(q))
+        if (!codeText.includes(f)) problems.push(`${guide} ${i + 1} "${s.title}": quote not in this step — "${f.slice(0, 80)}"`);
+    });
+  }
+  return problems.length === 0 || problems.join('\n       ');
+});
+
+check('TUTORIALS.md tier-gating and onboarding quotes are still in index.html', () => {
+  const md = doc['TUTORIALS.md'];
+  const at = md.indexOf('<!--@steptext flow-->');
+  if (at < 0) return 'no <!--@steptext flow--> section';
+  const next = md.slice(at).search(/\n##{1,2} /);
+  const seg = md.slice(at, next < 0 ? md.length : at + next);
+  const miss = [];
+  for (const q of quoteGroups(seg)) if (!quotePattern(q).test(SRC_TEXT)) miss.push(`"${normText(q).slice(0, 90)}"`);
+  // and the other way for the two strings the gate builds in code
+  const corpus = quoteGroups(seg).map(normText).join('\n');
+  for (const a of ['const lockTitle=', 'setTutNotice(`']) {
+    const i = SRC_NC.indexOf(a);
+    if (i < 0) { miss.push(`cannot find ${a}`); continue; }
+    const out = []; scanLiterals(SRC_NC, a.endsWith('`') ? i + a.length - 1 : i + a.length, a.endsWith('`') ? 'close' : ';', out);
+    for (const f of proseOf(out)) if (!corpus.includes(f)) miss.push(`${a} "${f}" not quoted`);
+  }
+  return miss.length === 0 || miss.join('\n       ');
 });
 
 // ── report ──────────────────────────────────────────────────────────────────

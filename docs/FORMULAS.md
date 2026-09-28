@@ -11,7 +11,8 @@ value below.
 > named the wrong lock direction because that slider's balance direction and
 > its lock direction genuinely point opposite ways on FWD. When in doubt about
 > which direction a control pushes handling, check the formula here, not
-> the UI copy.
+> the UI copy. Every hint is quoted in [HINTS.md](HINTS.md), which makes the
+> UI copy reviewable in one place.
 
 Scope note: this file is *balance-direction* math only. For the actual
 Hz/spring-rate/damper-click solve math feeding these formulas' inputs

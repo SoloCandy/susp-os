@@ -191,7 +191,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 
 | Component | Rendered in |
 |---|---|
-| `Hint` | everywhere — the ⓘ affordance |
+| `Hint` | everywhere — the ⓘ affordance; every hint's text is quoted in [HINTS.md](HINTS.md) |
 | `Field` | numeric inputs across all sections |
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
@@ -545,7 +545,10 @@ id table, an enum value no doc mentions, an encoder index that no longer
 round-trips through its decoder array, a storage key that vanished, a slider range
 contradicting `sanitizeTune`, a section missing from the `open` state, a broken
 doc link. It exists because a docs audit found ten errors and eight of them were
-mechanical. It checks names, ids, keys and numbers only, never prose.
+mechanical. It checks names, ids, keys and numbers, and prose only where a doc
+quotes the UI word for word — [HINTS.md](HINTS.md) and TUTORIALS.md's Step text —
+comparing the quote with the code in both directions. It never judges whether
+prose is right.
 
 **`tests-beamng.js` is the exception**: it lifts the real physics layer out of
 `index.html` with string slices and drives it directly, so it *does* fail when

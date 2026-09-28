@@ -110,7 +110,8 @@ Reference docs for maintainers:
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
 - [VISUALS.md](docs/VISUALS.md) — the pinned VISUALS card: what each group plots, its scales and bands, and what every marker and colour means
 - [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
-- [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step, when each guide opens, tier gating, spotlight/positioning, and how to add a step
+- [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step and its text word for word, when each guide opens, tier gating, spotlight/positioning, and how to add a step
+- [HINTS.md](docs/HINTS.md) — every ⓘ hint and piece of inline guidance, word for word, grouped by where it appears
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
 - [IDEAS.md](docs/IDEAS.md) — parked designs, not implemented or scheduled (AUTO Balance Mode)
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
