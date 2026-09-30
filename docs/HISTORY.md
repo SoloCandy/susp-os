@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — AWD center split reaches 90% rear
+
+`AWD_CENTER_MAX` went from 80 to 90, so CENTER POWER SPLIT now runs −30..+40 (20–90% rear),
+`computeDiff` applies up to 90, and the CENTER SPLIT recommendation can reach 90 again. The
+entry below had capped the recommendation at 80 to match the slider; the other way round keeps
+the very rear-biased splits available, useful on track builds. The slider's maximum, its box
+and both clamps all read the one constant, so they cannot drift apart again. The floor stays 45
+in the solver and 20 on the slider, with the → readout covering the gap as before.
+
 ## Fixed — recommended AWD center split could exceed what the diff applies
 
 The CENTER SPLIT box on the output card clamped `recommendedCenter` to 45–90, but

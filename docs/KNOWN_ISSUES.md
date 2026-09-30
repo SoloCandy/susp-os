@@ -725,7 +725,7 @@ Trade-offs, and why it is not done here:
 ## Open — a SPORT diff's hidden centre split still weights the AWD DIFF balance
 
 A Sport diff has no centre lock: CENTER POWER SPLIT hides and the card's Center Split reads N/A.
-`computeDiff` still clamps `dr.diffCenter` to 45–80 and uses it as `C`, the front/rear weighting
+`computeDiff` still clamps `dr.diffCenter` to 45–90 and uses it as `C`, the front/rear weighting
 of the AWD DIFF balance terms, so a split set before switching to SPORT keeps moving the DIFF row
 with no control on screen. What Forza actually splits a Sport AWD diff at is unknown here, so there
 is no better fixed `C` to use yet.
@@ -736,14 +736,6 @@ is no better fixed `C` to use yet.
 `hzClampNote` read `physics.rideRef` to name it. `VisSuspTracks`' RIDE Hz track passes the flag
 only to the rear row, so under a REAR ride reference, where the front is the derived axle, the
 amber lands on the rear row that was set directly. The summary's amber is right; the row is not.
-
-## Open — the recommended AWD center split can exceed what the slider applies
-
-`recommendedCenter` is clamped to 45–90% rear, but CENTER POWER SPLIT and `computeDiff` stop
-at 80. DRIFT starts at 80, so any rear weight bias or larger rear tyre pushes it past: the
-DIFFERENTIAL card's CENTER SPLIT box recommends, say, 85. → USE stores 85 and the box then reads
-it as matched, but outside MANUAL diff `computeDiff` applies 80 (the slider's readout shows
-`→ 80%`), and the exported split is 80.
 
 ## Open — the unmeasured natural reads low against Forza
 

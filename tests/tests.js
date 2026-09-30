@@ -146,7 +146,7 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
           center: dr.diffCenter ?? 65 }
       : { layout: ch.layout, accel: dr.diffAccel ?? 35, decel: dr.diffDecel ?? 10 };
   } else if (ch.layout === 'AWD') {
-    const center = cl(dr.diffCenter ?? 65, 45, 80);
+    const center = cl(dr.diffCenter ?? 65, 45, 90);
     vals = { layout: 'AWD',
       frontAccel: lockPct(clE(28 - effBiasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
       frontDecel: 0,

@@ -20,7 +20,7 @@ bump ζ, F 0.25s | 0.28s R, Accel 26%) sits to its left. The box holds the
 slider's own number, so on the flipped sliders (Damping Bias, EXIT, ENTRY) a negative number is toward
 the left end. Two exceptions take the stored value instead: Target Speed's box
 is the speed in mph or km/h though the slider runs inverted, and POWER SPLIT's is
-the rear % (20–80) though the slider is centred on 50. A typed value is clamped to the
+the rear % (20–90) though the slider is centred on 50. A typed value is clamped to the
 ranges below but not snapped to the slider's step.
 
 **Measured values are number boxes, not sliders.** Where a control stands for a
@@ -81,7 +81,7 @@ SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still li
 | EXIT (grouped under FRONT AXLE for FWD, REAR AXLE for RWD/AWD) | −50..+50, GRIP↔ROTATE | Accel-lock intent (sign-flipped for FWD so right always leans OS) — same GRIP/ROTATE vocabulary across all layouts. Stored `dr.diffBiasExit` positive = more accel lock on the driven axle, so it reads ROTATE on RWD/AWD and GRIP on FWD — see [PRESETS.md](PRESETS.md)'s column notes for stored vs displayed | Right = OVERSTEER-leaning |
 | ENTRY (not SPORT, same axle group as EXIT) | −50..+50, STABLE↔LOOSE | Decel-lock intent. Stored `dr.diffBiasEntry` positive = more decel lock = STABLE on **every** layout; the slider is an unconditional negation (`value={-(dr.diffBiasEntry??0)}`) to land right = LOOSE, so the stored sign is the opposite of the reading here — see [PRESETS.md](PRESETS.md) | Right = OVERSTEER-leaning |
 | EXIT — FRONT AXLE (AWD only) | −50..+50, PUSH↔NEUTRAL | Front-axle accel lock (independent of the FRONT/REAR AXLE EXIT above, which is rear-axle for AWD) | Left (PUSH) = more UNDERSTEER |
-| POWER SPLIT (AWD, grouped under CENTER) | −30..+30 (20–80% rear) | Center torque split | Right (REAR) = OVERSTEER |
+| POWER SPLIT (AWD, grouped under CENTER) | −30..+40 (20–90% rear) | Center torque split | Right (REAR) = OVERSTEER |
 
 ## Pro (PRO) — adds these
 

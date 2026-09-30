@@ -1870,7 +1870,7 @@ const DIFF_TYPE_DEC=['race','sport','rally','offroad','drift'];
 const DIFF_TYPE_SCALE={race:1.00,sport:0.88,rally:0.76,offroad:0.52,drift:1.10};
 // AUTO AWD center split (rear %) — computeDiff clamps to this, and the recommended split
 // on the output card is clamped to the same range so its → USE never offers a value that won't apply.
-const AWD_CENTER_MIN=45, AWD_CENTER_MAX=80;
+const AWD_CENTER_MIN=45, AWD_CENTER_MAX=90;
 const DIFF_TYPE_RANGES={
   race:   {accel:[25,60],frontAccel:[18,32],rearAccel:[25,60],decel:[8,25]},
   sport:  {accel:[28,68],frontAccel:[20,36],rearAccel:[28,68],decel:null},
@@ -5405,7 +5405,7 @@ const GLOSSARY=[
     {id:'diff-mode',term:'Differential Mode (AUTO / MANUAL)',tier:'pro',short:'Diff mode',def:"Chooses whether the differential's locks are calculated or typed in. AUTO, the default, works out every lock value from layout, build type, weight bias, diff type and the EXIT, ENTRY and POWER SPLIT sliders. MANUAL hides those sliders and shows each lock % instead. FWD and RWD get Accel Lock and Decel Lock. AWD gets Front and Rear Accel and Decel, plus Center Split. The diff type's typical range sits under each field.\n\nSwitching to MANUAL copies in the current AUTO values, so nothing jumps. MATCH CHASSIS has no effect in MANUAL. Leaving PRO returns the diff to AUTO, because MANUAL's fields exist only in PRO.",see:['accel-lock','decel-lock','match-chassis','diff-type']},
     {id:'exit-bias',term:'EXIT (Diff Slider)',tier:'intermediate',short:'Diff EXIT',def:"The automatic differential's on-throttle intent, from GRIP (left) to ROTATE (right), −50 to +50, default 0. Right means more rotation on every layout, but the lock moves differently. On RWD and AWD, ROTATE adds rear accel lock for more power oversteer, and GRIP removes it for cleaner exit traction. On FWD, GRIP adds front accel lock for exit traction at the cost of push. ROTATE removes it for a freer pivot and less understeer. On AWD, ROTATE also trims front accel lock.\n\nAWD adds a second EXIT under FRONT AXLE, from PUSH to NEUTRAL. Toward PUSH adds front accel lock, for more front pull and exit understeer. It suits AWD cars with strong rear rotation. Each slider shows the resulting lock %, and the Handling Balance DIFF row moves with it.\n\n[PRO] MATCH CHASSIS can add a further offset from your Mech Balance Target.",see:['accel-lock','entry-bias','match-chassis','power-split']},
     {id:'entry-bias',term:'ENTRY (Diff Slider)',tier:'intermediate',short:'Diff ENTRY',def:"The automatic differential's lift-off and trail-braking intent, from STABLE (left) to LOOSE (right), −50 to +50, default 0. Toward STABLE raises decel lock. On RWD and AWD that resists lift-off oversteer; on FWD it adds entry understeer. Toward LOOSE lowers it for freer rotation into the corner. It moves the rear decel lock on RWD and AWD and the front decel on FWD. AWD front decel stays at 0. It is hidden for a SPORT diff, which has no decel lock.\n\n[PRO] MATCH CHASSIS adds half its offset here.",see:['decel-lock','exit-bias','match-chassis']},
-    {id:'power-split',term:'Center Power Split',tier:'beginner',short:'Center split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Center Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTER POWER SPLIT in DRIVETRAIN sets it: 20–80% rear, default 65%, with 60–70% typical for track. The calculation uses 45–80%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTER SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
+    {id:'power-split',term:'Center Power Split',tier:'beginner',short:'Center split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Center Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTER POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTER SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
     {id:'match-chassis',term:'MATCH CHASSIS',tier:'pro',def:"An automatic-differential option, off by default. When on, it biases the diff by how far your Mech Balance Target sits from natural balance. A target set for more oversteer leans the diff toward rotation, and one set for understeer leans it toward stability. The offset is 150× that gap, capped at ±25 points. It is added to the EXIT intent, and half of it to ENTRY. It is flipped on FWD, because more lock there means more push. The sliders don't move; their hints say when the bias is on.\n\nIt acts only while an ARB or Hz mode solves toward the target; otherwise the button dims and the diff is unchanged. It has no effect in MANUAL. Leaving PRO turns it off. If a share code or garage load brings it in below PRO, the EXIT and ENTRY hints say so.",see:['mech-balance-target','natural-balance','exit-bias','entry-bias']},
   ]},
   {group:'Balance Target (PRO)',terms:[
@@ -7842,15 +7842,15 @@ function App(){
                     label="POWER SPLIT"
                     value={(dr.diffCenter??65)-50}
                     onChange={v=>pDr('diffCenter')(Math.round(v+50))}
-                    min={-30} max={30}
+                    min={-30} max={AWD_CENTER_MAX-50}
                     leftLabel="FRONT"
                     rightLabel="REAR"
                     markers={[{value:0,color:'#475569'}]}
                     hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
-                    // The slider is centred on 50 (−30..+30); the box takes the rear % itself, whole.
-                    box={{value:dr.diffCenter??65,min:20,max:80,dp:0,unit:'% rear',
+                    // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
+                    box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
                           onCommit:v=>pDr('diffCenter')(Math.round(v))}}
-                    // computeDiff clamps the split it uses to 45–80, so say so when that differs.
+                    // computeDiff clamps the split it uses to 45–90, so say so when that differs.
                     readout={diff.center!=null&&diff.center!==(dr.diffCenter??65)?`→ ${diff.center}%`:null} hintTerm="power-split"/>
                 </>}
               </>);
