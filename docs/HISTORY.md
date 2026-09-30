@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — recommended AWD center split could exceed what the diff applies
+
+The CENTER SPLIT box on the output card clamped `recommendedCenter` to 45–90, but
+`computeDiff` clamps the split it actually uses to 45–80 and the POWER SPLIT slider
+tops out at 80. A drift build (base 80) or a rear-heavy / big-rear-tyre build on
+another base could show, say, "86% REAR" with a → USE that stored 86 while the diff
+still ran at 80 — and the box never read as matched. Both clamps now use the shared
+`AWD_CENTER_MIN` / `AWD_CENTER_MAX` constants beside `DIFF_TYPE_SCALE`, so the
+recommendation can no longer leave the range the solver honours. The lower bound
+was already 45 on both sides.
+
 ## Fixed — leaving PRO leaked PRO-only modes, and the BEG lock never applied
 
 Found by a text audit of the hints and confirmed in the browser.

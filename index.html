@@ -1868,6 +1868,9 @@ const DIFF_TYPE_DEC=['race','sport','rally','offroad','drift'];
 // by it; DIFF_TYPE_RANGES below are Race's ranges divided by it. AUTO used to MULTIPLY, which
 // asked a gentler diff for LESS % and compounded the softness (see docs/HISTORY.md).
 const DIFF_TYPE_SCALE={race:1.00,sport:0.88,rally:0.76,offroad:0.52,drift:1.10};
+// AUTO AWD center split (rear %) — computeDiff clamps to this, and the recommended split
+// on the output card is clamped to the same range so its → USE never offers a value that won't apply.
+const AWD_CENTER_MIN=45, AWD_CENTER_MAX=80;
 const DIFF_TYPE_RANGES={
   race:   {accel:[25,60],frontAccel:[18,32],rearAccel:[25,60],decel:[8,25]},
   sport:  {accel:[28,68],frontAccel:[20,36],rearAccel:[28,68],decel:null},
@@ -1926,7 +1929,7 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
       :{layout:ch.layout,
         accel:dr.diffAccel??35, decel:dr.diffDecel??10};
   } else if(ch.layout==='AWD'){
-    const center=cl(dr.diffCenter??65,45,80); // slider-driven; default 65 is sensible across builds
+    const center=cl(dr.diffCenter??65,AWD_CENTER_MIN,AWD_CENTER_MAX); // slider-driven; default 65 is sensible across builds
     vals={layout:'AWD',
       frontAccel:lockPct(clE(28-effBiasExit*0.10+frontExitBias*0.12,10,40)),
       frontDecel:0,
@@ -6802,7 +6805,7 @@ function App(){
   const _weightAdj=Math.round((_rearBias-0.50)*30);          // +3% per 10% extra rear weight
   const _diamAdj  =Math.round((_diamRatio-1)*50);             // +2.5% per 5% larger rear diam
   const _natAdj   =Math.round(-(natMechBalance-0.50)*20);     // −2% per 0.1 above neutral natBal
-  const recommendedCenter=Math.max(45,Math.min(90,_baseCenter+_weightAdj+_diamAdj+_natAdj));
+  const recommendedCenter=Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,_baseCenter+_weightAdj+_diamAdj+_natAdj));
 
   const loadPreset=i=>{
     const s=PRESET_SAVES[i];if(!s)return;
