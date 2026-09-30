@@ -145,7 +145,7 @@ Layout uses `HINT_LAYOUT`, quoted under [BEG panel](#beg-panel).
 
 **MATCH CHASSIS** (PRO):
 
-> Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: past it toward oversteer adds rotation, toward understeer stability. No effect in MANUAL.
+> Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL.
 
 **EXIT** — FWD, RWD, then AWD (the rear axle's EXIT):
 
@@ -158,8 +158,8 @@ Layout uses `HINT_LAYOUT`, quoted under [BEG panel](#beg-panel).
 Added while MATCH CHASSIS is on — in PRO, then in INT (where the toggle is not shown). Leaving
 PRO turns MATCH CHASSIS off, so the INT sentence is reached only by a share code or garage load
 that carries it in below PRO. Either way the bias applies only while something solves toward the
-Balance Target (`hasBalTargetSolve`); the MATCH CHASSIS hint above does not yet say so, and the
-button is dimmed instead:
+Balance Target (`hasBalTargetSolve`), as the MATCH CHASSIS hint above says, and the button is
+dimmed while it doesn't:
 
 > MATCH CHASSIS is on and adds a bias from your mech target.
 
