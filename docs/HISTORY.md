@@ -11,6 +11,51 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — leaving PRO leaked PRO-only modes, and the BEG lock never applied
+
+Found by a text audit of the hints and confirmed in the browser.
+
+- **The BEG lock was erased on every switch to BEG.** It was its own effect, writing `fe` in the
+  same tick as the BEG/INT fallback effect. `usePersist`'s `set` applies an updater to the
+  render-time value, so the fallback's write started from the pre-lock `fe` and replaced it.
+  Damping Bias, Spring Share, REBOUND MODE, Damping Balance Mode and a NEUTRAL or CHASSIS ARB
+  Balance Mode all survived into BEG. The two are now one effect with one write per store.
+- **CHASSIS ARB Balance Mode survived into INT.** Its button is PRO-only, but the fallback reset
+  only MECH / CO-SOLVE / MAN, so INT showed no lit Balance Mode button while still drawing
+  CHASSIS's Split Direction and ARB Bias. It now falls back to WEIGHT, keeping Split Direction.
+- **MATCH CHASSIS survived into INT and BEG**, still biasing the AUTO locks with its toggle hidden.
+  Leaving PRO now turns it off, alongside `diffManual`.
+- **Alignment Mode, Nudge and MANUAL angles stayed in force at INT and BEG**, where the section is
+  hidden and neither share codes nor garage entries carry `al`. Leaving PRO now sets AUTO with
+  Nudge OFF; the typed angles and Nudge Strength stay stored for the next MANUAL in PRO. The other
+  option, documenting it, was rejected: every other PRO-only mode already falls back.
+- **CG Height was overwritten below PRO.** The weight-scaling effect wrote it with wheelbase and
+  track widths, but CG Height is an input at INT (MANUAL CG). A typed 620 mm became 455 mm on the
+  next weight edit and on every reload. The effect now scales wheelbase and track widths only;
+  those remain PRO-only inputs that leaving PRO rescales, as documented.
+
+## Fixed — MATCH CHASSIS and Nudge MECH acted on a hidden Balance Target
+
+Both read `feEffective.arbBalTarget`, which always resolves (an untouched target falls back to
+`MECH_BALANCE_TARGET`, 0.60). With WEIGHT, NEUTRAL or CHASSIS ARB balance and no Hz MODE MECH,
+the PRO BALANCE section says the target does not apply, yet MATCH CHASSIS moved a Race RWD's
+accel lock from 35% to 39% toward it. Both now require `hasBalTargetSolve`, and their buttons dim
+while it is false.
+
+## Changed — AUTO diff locks divide by the diff-type scale
+
+`DIFF_TYPE_SCALE` is effective lock per lock %: the DIFF TYPE hint, `DIFF_TYPE_RANGES` (Race's
+ranges divided by it), the MANUAL typical ranges and the PRO Manual Differential tutorial all say a
+gentler diff needs more %. `computeDiff`'s AUTO multiplied by it instead, so a Rally or Offroad diff
+was asked for less % and the softness compounded: a TRACK RWD on Offroad got 18% accel against
+Race's 35% (effectively 9%), where the ranges call for about 67%. AUTO now computes the effective
+(Race-equivalent) lock, clamps it with the old bounds, and divides by the scale (capped at 100%).
+Race output is unchanged; Sport, the default type, now asks for about 14% more, Drift about 9% less.
+
+The balance now reads effective lock, `% × scale`, in AUTO and MANUAL, which it never did: a typed
+50% on Offroad counted as 50. So AUTO's DIFF balance is the same on every type, up to % rounding,
+and AWD rear decel lock, which AUTO never scaled at all, is converted like the other locks.
+
 ## Changed — hints and tutorials trimmed; depth moved to a tier-tagged, linked glossary
 
 Hints, tutorial bodies and inline notes had grown into paragraphs, and many restated the same

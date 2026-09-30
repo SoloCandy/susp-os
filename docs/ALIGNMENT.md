@@ -144,16 +144,18 @@ for MANUAL). No button is labelled BUILD:
   `al.mode` directly to `'build'`/`'mech'`/`'grip'` — the second tier is just
   a different arrangement of the same stored values, not additional state.
 
-The whole section (and thus the Nudge sub-tier and MANUAL) is PRO-only, but
-`alignMode` has no tier guard: a mode, nudge or manual values set in PRO stay in
-force after switching to INT or BEG, where the ALIGNMENT card's hint then opens
-"Manual values." under MANUAL. INT and BEG get the plain AUTO values only when
-`al.mode` is `'build'`.
+The whole section (and thus the Nudge sub-tier and MANUAL) is PRO-only, so
+leaving PRO sets `al.mode` back to `'build'` (AUTO, Nudge OFF) in the tier
+fallback effect, like the other PRO-only modes. `al` travels in neither share
+codes nor garage entries, so a PRO mode left in force made BEG/INT output
+that could be neither seen nor reproduced. The MANUAL angles and Nudge
+Strength stay stored: picking MANUAL again in PRO brings the typed values
+back. Nothing restores the mode itself on returning to PRO.
 
 | `al.mode` | What it does |
 |---|---|
 | **build** (AUTO / Nudge OFF, default) | `computeAlignment`'s output, unchanged — see the rest of this file |
-| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − natDisplayOf(ch, gameMode)` (both display space) — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so under that mode both nudges trace back to `natGripBalance`. They are still **not** the same number — `mechGap - gripGap = 0.5 + fe.arbBalDelta - natDisplayOf(ch, gameMode)`, roughly +0.03 on the default chassis, a tenth of the ±0.30 normalisation window and enough to flip the nudge's sign when `gripGap` sits near zero |
+| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − natDisplayOf(ch, gameMode)` (both display space) — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Like MATCH CHASSIS, the gap is 0 unless `hasBalTargetSolve(feEffective)`: with nothing solving toward the target it is the hidden `MECH_BALANCE_TARGET` fallback, so MECH then equals OFF and its button is dimmed. Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so under that mode both nudges trace back to `natGripBalance`. They are still **not** the same number — `mechGap - gripGap = 0.5 + fe.arbBalDelta - natDisplayOf(ch, gameMode)`, roughly +0.03 on the default chassis, a tenth of the ±0.30 normalisation window and enough to flip the nudge's sign when `gripGap` sits near zero |
 | **grip** (AUTO / Nudge GRIP) | Nudges using `gripGap = -(natGripBalance-0.5)` instead — counteracts the chassis's own natural at-limit tendency (understeer-prone chassis gets pushed toward more aggressive/oversteer-leaning alignment, and vice versa), independent of whatever ARB balance mode is active |
 | **manual** | Direct entry — wires up `al.camberF/camberR/toeF/toeR/caster` (these fields, plus `al.alignManual`, predate this feature and were previously unused dead state with no UI) |
 

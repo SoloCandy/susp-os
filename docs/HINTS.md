@@ -155,7 +155,11 @@ Layout uses `HINT_LAYOUT`, quoted under [BEG panel](#beg-panel).
 
 > Rear accel lock. ROTATE = more lock, more exit oversteer. GRIP = less lock, more traction.
 
-Added while MATCH CHASSIS is on — in PRO, then in INT (where the toggle is not shown):
+Added while MATCH CHASSIS is on — in PRO, then in INT (where the toggle is not shown). Leaving
+PRO turns MATCH CHASSIS off, so the INT sentence is reached only by a share code or garage load
+that carries it in below PRO. Either way the bias applies only while something solves toward the
+Balance Target (`hasBalTargetSolve`); the MATCH CHASSIS hint above does not yet say so, and the
+button is dimmed instead:
 
 > MATCH CHASSIS is on and adds a bias from your mech target.
 

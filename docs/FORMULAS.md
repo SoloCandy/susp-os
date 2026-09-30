@@ -91,17 +91,18 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
 
 ```js
 const nf = ch.frontBias/100;
+const bs = DIFF_BIAS_SCALE * DIFF_TYPE_SCALE[diffType];  // effective lock = % × type scale
 // RWD:
-bDiffAccel =  vals.accel * (1-nf) * DIFF_BIAS_SCALE;   // rear accel lock → oversteer (+)
-bDiffDecel = -vals.decel * (1-nf) * DIFF_BIAS_SCALE;   // rear decel lock → understeer (−), resists lift-off oversteer
+bDiffAccel =  vals.accel * (1-nf) * bs;   // rear accel lock → oversteer (+)
+bDiffDecel = -vals.decel * (1-nf) * bs;   // rear decel lock → understeer (−), resists lift-off oversteer
 // FWD:
-bDiffAccel = -vals.accel * nf     * DIFF_BIAS_SCALE;   // front accel lock → understeer (−)
-bDiffDecel = -vals.decel * nf     * DIFF_BIAS_SCALE;   // front decel lock → understeer (−)
+bDiffAccel = -vals.accel * nf     * bs;   // front accel lock → understeer (−)
+bDiffDecel = -vals.decel * nf     * bs;   // front decel lock → understeer (−)
 // AWD (C = center split fraction, 0=all front, 1=all rear):
-bFA = -vals.frontAccel * nf     * (1-C) * DIFF_BIAS_SCALE;  // front accel → understeer (−)
-bRA =  vals.rearAccel  * (1-nf) * C     * DIFF_BIAS_SCALE;  // rear accel  → oversteer (+)
-bFD = -vals.frontDecel * nf     * (1-C) * DIFF_BIAS_SCALE;  // front decel → understeer (−)
-bRD = -vals.rearDecel  * (1-nf) * C     * DIFF_BIAS_SCALE;  // rear decel  → understeer (−), resists lift-off oversteer
+bFA = -vals.frontAccel * nf     * (1-C) * bs;  // front accel → understeer (−)
+bRA =  vals.rearAccel  * (1-nf) * C     * bs;  // rear accel  → oversteer (+)
+bFD = -vals.frontDecel * nf     * (1-C) * bs;  // front decel → understeer (−)
+bRD = -vals.rearDecel  * (1-nf) * C     * bs;  // rear decel  → understeer (−), resists lift-off oversteer
 bDiffFront = bFA + bFD;
 bDiffRear  = bRA + bRD;
 bDiffAccel = bFA + bRA;
@@ -109,6 +110,18 @@ bDiffDecel = bFD + bRD;
 ```
 
 - `DIFF_BIAS_SCALE = 0.14`.
+- **Diff type.** `DIFF_TYPE_SCALE` is effective lock per lock % (Race 1.00, Sport 0.88,
+  Rally 0.76, Offroad 0.52, Drift 1.10). The balance above reads *effective* lock, in AUTO and
+  MANUAL alike, so the same typed % counts for less on a gentler diff. AUTO works the other way
+  round: each lock formula and its clamp is the effective (Race-equivalent) lock it wants, and
+  `lockPct(eff) = min(100, round(eff / scale))` turns that into the % to enter. A gentler diff
+  is therefore asked for **more** %, as `DIFF_TYPE_RANGES` and the MANUAL typical ranges say, and
+  AUTO's diff balance is the same on every type up to % rounding. AUTO used to multiply by the
+  scale, which did the opposite (see [HISTORY.md](HISTORY.md)).
+- **MATCH CHASSIS** adds `clamp(±25, (feEffective.arbBalTarget − natDisplayOf(ch)) × 150)` to the
+  EXIT intent and half of it to ENTRY (negated on FWD), in AUTO only, and only while
+  `hasBalTargetSolve(fe)`. With nothing solving toward the target it is the hidden
+  `MECH_BALANCE_TARGET` fallback, so MATCH CHASSIS does nothing and its button is dimmed.
 - Decel lock always pushes **understeer**, regardless of which axle is
   driven — it models "decel lock resists rotation" (matches the EXIT/ENTRY
   slider hint text, e.g. "STABLE = more lock, resists lift-off

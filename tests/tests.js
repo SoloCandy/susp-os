@@ -114,9 +114,15 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   const build = dr.buildType ?? 'track';
   const diffType = dr.diffType ?? 'race';
   const typeScale = DIFF_TYPE_SCALE[diffType] ?? 1.0;
+  // AUTO solves in effective (Race-equivalent) lock, then converts to the fitted type's %.
+  const clE = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const lockPct = eff => Math.min(100, Math.round(eff / typeScale));
 
   let effBiasExit = biasExit, effBiasEntry = biasEntry;
-  if (dr.diffComplement && !dr.diffManual) {
+  // Only while something solves toward the Balance Target (the app's hasBalTargetSolve, inline).
+  const solvesTarget = ((fe.arbMode ?? 'auto') !== 'man' && (fe.arbBalMode === 'mech' || fe.arbBalMode === 'coSolve'))
+    || (fe.rearHzMode ?? 'flatRide') === 'mech';
+  if (dr.diffComplement && !dr.diffManual && solvesTarget) {
     // Display space, like the target — the app's natDisplayOf fallback, not an inline geometry copy.
     const natMechBal = natMechBalOverride != null ? natMechBalOverride : natDisplayOf(ch, fe.gameMode);
     // fe is feEffective, exactly as the app passes it: arbBalTarget is already the RESOLVED
@@ -142,10 +148,10 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   } else if (ch.layout === 'AWD') {
     const center = cl(dr.diffCenter ?? 65, 45, 80);
     vals = { layout: 'AWD',
-      frontAccel: cl((28 - effBiasExit * 0.10 + frontExitBias * 0.12) * typeScale, 10, 40),
+      frontAccel: lockPct(clE(28 - effBiasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
       frontDecel: 0,
-      rearAccel: cl((48 + effBiasExit * 0.25) * typeScale, 20, 70),
-      rearDecel: diffType === 'sport' ? 0 : cl(8 + (rB - 0.5) * 15 + effBiasEntry * 0.15, 0, 20),
+      rearAccel: lockPct(clE(48 + effBiasExit * 0.25, 20, 70)),
+      rearDecel: diffType === 'sport' ? 0 : lockPct(clE(8 + (rB - 0.5) * 15 + effBiasEntry * 0.15, 0, 20)),
       center };
   } else {
     const isRWD = ch.layout === 'RWD';
@@ -156,30 +162,31 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
       ? ({ street: 15, track: 12, drift: 3, rally: 8, offroad: 5, drag: 0 }[build] ?? 12)
       : ({ street: 8, track: 5, drift: 2, rally: 4, offroad: 2, drag: 0 }[build] ?? 5);
     const accel = isRWD
-      ? cl(accelBase * typeScale + effBiasExit * 0.20, 10, 65)
-      : cl(accelBase * typeScale + effBiasExit * 0.15, 5, 35);
-    const decel = diffType === 'sport' ? 0 : cl(decelBase * typeScale + (rB - 0.5) * (isRWD ? 15 : 5) + effBiasEntry * 0.15, 0, isRWD ? 30 : 15);
+      ? lockPct(clE(accelBase + effBiasExit * 0.20, 10, 65))
+      : lockPct(clE(accelBase + effBiasExit * 0.15, 5, 35));
+    const decel = diffType === 'sport' ? 0 : lockPct(clE(decelBase + (rB - 0.5) * (isRWD ? 15 : 5) + effBiasEntry * 0.15, 0, isRWD ? 30 : 15));
     vals = { layout: ch.layout, accel, decel };
   }
 
   const nf = ch.frontBias / 100;
   let bDiffAccel = 0, bDiffDecel = 0, bDiffFront = 0, bDiffRear = 0;
+  const bs = DIFF_BIAS_SCALE * typeScale; // balance reads effective lock, % × scale
   if (vals.layout === 'AWD') {
     const C = Math.max(0, Math.min(1, (vals.center ?? 65) / 100));
-    const bFA = -vals.frontAccel * nf * (1 - C) * DIFF_BIAS_SCALE;
-    const bRA = vals.rearAccel * (1 - nf) * C * DIFF_BIAS_SCALE;
-    const bFD = -vals.frontDecel * nf * (1 - C) * DIFF_BIAS_SCALE;
-    const bRD = -vals.rearDecel * (1 - nf) * C * DIFF_BIAS_SCALE;
+    const bFA = -vals.frontAccel * nf * (1 - C) * bs;
+    const bRA = vals.rearAccel * (1 - nf) * C * bs;
+    const bFD = -vals.frontDecel * nf * (1 - C) * bs;
+    const bRD = -vals.rearDecel * (1 - nf) * C * bs;
     bDiffFront = bFA + bFD;
     bDiffRear = bRA + bRD;
     bDiffAccel = bFA + bRA;
     bDiffDecel = bFD + bRD;
   } else if (vals.layout === 'RWD') {
-    bDiffAccel = vals.accel * (1 - nf) * DIFF_BIAS_SCALE;
-    bDiffDecel = -vals.decel * (1 - nf) * DIFF_BIAS_SCALE;
+    bDiffAccel = vals.accel * (1 - nf) * bs;
+    bDiffDecel = -vals.decel * (1 - nf) * bs;
   } else {
-    bDiffAccel = -vals.accel * nf * DIFF_BIAS_SCALE;
-    bDiffDecel = -vals.decel * nf * DIFF_BIAS_SCALE;
+    bDiffAccel = -vals.accel * nf * bs;
+    bDiffDecel = -vals.decel * nf * bs;
   }
 
   return { ...vals, bDiffAccel, bDiffDecel, bDiffFront, bDiffRear };
@@ -852,8 +859,18 @@ console.log('\ncomputeDiff — diff type scaling');
   const race = computeDiff(ch, fe0, { buildType: 'track', diffType: 'race' });
   const drift = computeDiff(ch, fe0, { buildType: 'track', diffType: 'drift' });
   const offroad = computeDiff(ch, fe0, { buildType: 'track', diffType: 'offroad' });
-  assertEq('drift (1.10×) locks harder than race (1.00×) at equal slider position', drift.accel > race.accel, true);
-  assertEq('offroad (0.52×) locks softer than race at equal slider position', offroad.accel < race.accel, true);
+  // A scale is effective lock per %: a harder-locking type needs FEWER %, a gentler one MORE, for the
+  // same effective lock. AUTO used to multiply by the scale, which asked Offroad for less % instead.
+  assertEq('drift (1.10×) asks for fewer % than race for the same intent', drift.accel < race.accel, true);
+  assertEq('offroad (0.52×) asks for more % than race for the same intent', offroad.accel > race.accel, true);
+  assertEq('offroad accel % ≈ race % ÷ 0.52', offroad.accel, Math.round(race.accel / 0.52));
+  // …and the balance reads effective lock, so the type conversion leaves AUTO's balance where it was.
+  assertEq('AUTO balance is the same on race and offroad (within % rounding)',
+    Math.abs(offroad.bDiffAccel - race.bDiffAccel) < DIFF_BIAS_SCALE, true);
+  // MANUAL: the same typed % counts for less on a gentler diff.
+  const manR = computeDiff(ch, fe0, { buildType: 'track', diffType: 'race', diffManual: true, diffAccel: 50, diffDecel: 10 });
+  const manO = computeDiff(ch, fe0, { buildType: 'track', diffType: 'offroad', diffManual: true, diffAccel: 50, diffDecel: 10 });
+  assertEq('MANUAL: same % on offroad → 0.52× the balance contribution', Math.abs(manO.bDiffAccel - 0.52 * manR.bDiffAccel) < 1e-9, true);
 
   const sport = computeDiff(ch, fe0, { buildType: 'track', diffType: 'sport' });
   assertEq('SPORT diff has zero decel lock (accel-only)', sport.decel, 0);
@@ -871,7 +888,8 @@ console.log('\ncomputeDiff — MATCH CHASSIS correction');
   const drOff = { ...dr, diffComplement: false };
   // computeDiff takes feEffective, like the app's only call site: an untouched target resolves
   // to MECH_BALANCE_TARGET (0.60), which is what puts gap > 0 on this chassis.
-  const feEff = ch => ({ arbBalTarget: resolveArbBalTarget(ch, {}) });
+  // MECH ARB balance mode: MATCH CHASSIS acts only while something solves toward the target.
+  const feEff = ch => ({ arbBalMode: 'mech', arbBalTarget: resolveArbBalTarget(ch, {}) });
 
   const rwdOn = computeDiff(chRWD, feEff(chRWD), dr);
   const rwdOff = computeDiff(chRWD, feEff(chRWD), drOff);
@@ -885,6 +903,17 @@ console.log('\ncomputeDiff — MATCH CHASSIS correction');
   const manualDr = { ...dr, diffManual: true, diffAccel: 40 };
   const manualOn = computeDiff(chRWD, feEff(chRWD), manualDr);
   assertEq('MANUAL mode ignores MATCH CHASSIS (accel unchanged)', manualOn.accel, 40);
+
+  // Nothing solving toward the target (WEIGHT ARB balance, Hz MODE not MECH): the target is the
+  // hidden fallback, so MATCH CHASSIS must not move the locks. MAN stiffness bypasses MECH too.
+  for (const fe of [{ arbBalMode: 'weight' }, { arbBalMode: 'chassis' }, { arbBalMode: 'mech', arbMode: 'man' }]) {
+    const f = { ...fe, arbBalTarget: resolveArbBalTarget(chRWD, {}) };
+    assertEq(`MATCH CHASSIS is inert without a target solve (${JSON.stringify(fe)})`,
+      computeDiff(chRWD, f, dr).accel, computeDiff(chRWD, f, drOff).accel);
+  }
+  // Hz MODE MECH solves toward the target even under WEIGHT ARB balance.
+  const feHz = { arbBalMode: 'weight', rearHzMode: 'mech', arbBalTarget: resolveArbBalTarget(chRWD, {}) };
+  assertEq('MATCH CHASSIS acts under Hz MODE MECH', computeDiff(chRWD, feHz, dr).accel > computeDiff(chRWD, feHz, drOff).accel, true);
 }
 
 // ── computeAlignment — camber roll/CG compensation ─────────────────────────────
@@ -1119,6 +1148,8 @@ console.log('\nmirror vs app (reads index.html)');
     buildType: ['street', 'track', 'drift', 'drag'], bias: [-50, 0, 35],
     mode: ['auto', 'manual', 'complement'], override: [null, 0.55], gameMode: ['horizon', 'beamng'],
     target: [{}, { arbBalTarget: 0.05 }, { arbBalTarget: -0.2 }, { arbBalTargetMode: 'grip', arbBalDelta: 0 }, { arbBalTargetMode: 'grip', arbBalDelta: 0.06 }],
+    // MATCH CHASSIS is gated on a target solve, so the grid has to include modes that solve.
+    solve: [{}, { arbBalMode: 'mech' }, { arbBalMode: 'weight', rearHzMode: 'mech' }, { arbBalMode: 'coSolve', arbMode: 'man' }],
   });
   check('computeDiff', ['computeDiff'], DR, c => {
     const ch = { ...CH[0], layout: c.layout, frontBias: c.layout === 'FWD' ? 62 : c.layout === 'AWD' ? 56 : 52 };
@@ -1127,7 +1158,7 @@ console.log('\nmirror vs app (reads index.html)');
       diffManual: c.mode === 'manual', diffComplement: c.mode === 'complement' };
     // Both sides get what the app's only call site passes: feEffective, resolved from a full
     // fe. A partial fe is not a real input — the app returns NaN for {} and never sends one.
-    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, gameMode: c.gameMode, ...c.target });
+    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, gameMode: c.gameMode, ...c.solve, ...c.target });
     return diff(computeDiff(ch, fe, dr, c.override), A.computeDiff(ch, fe, dr, c.override));
   });
 

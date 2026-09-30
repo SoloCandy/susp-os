@@ -269,6 +269,9 @@ already travels, so the input need not" — turned out to have a second consumer
 [CODEC.md](CODEC.md)'s excluded-fields list now says outright that it has been
 wrong twice; this would be the third.
 
+Below PRO this no longer reaches the output: leaving PRO resets `al.mode` to AUTO (Nudge OFF), so
+BEG and INT always show the computed alignment. The gap is between PRO sessions and devices.
+
 **Not fixed here.** Closing it means ids 67+, a fourth group threaded through
 `DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune`, an `al` payload on the
 garage entry shape (and therefore `normalizeEntry`, `kindOf`'s derivation, and the
@@ -652,6 +655,9 @@ at-limit data the three-car protocol does not collect.
 
 ## Open — VISUALS shows the Balance Target when nothing solves toward it
 
+Only the displays are affected: MATCH CHASSIS and alignment Nudge MECH, which also read the
+target, act only while `hasBalTargetSolve` holds (see [FORMULAS.md](FORMULAS.md)).
+
 The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
 under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks
 draw the green target tick, label and rings whenever `feEffective.arbBalTarget` differs from NAT,
@@ -679,6 +685,50 @@ So the app recommends a value that two of its own readouts call understeer-biase
 longer tell the user to move it, and the ENTRY line says the card usually reads this way, but
 the models are unreconciled. Picking one reference is a model decision with no telemetry behind
 it (see the scale entry above for `BRAKE_BIAS_SCALE`).
+
+There is no brake-bias input: `brakeBias` *is* `recBrakeBias`. So the BEG/INT BRK segment never
+measures a user's choice; it shows how far the app's own recommendation leans, and today most of
+that is the weight transfer the card adds on purpose. The card's `cgHeight/wheelbase × 50` is the
+load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is the same split at `ENTRY_G`,
+0.3 g. On the default chassis (h/L ≈ 0.167) that is +8 against +5, and BEG/INT counts all +10
+above 50.
+
+**Proposal — one reference, `brakeRefF(ch) = frontBias + 100 × ENTRY_G × cgHeight / wheelbase`.**
+PRO's `phaseMargins` already uses it (as `idealBrakeF`), and `ENTRY_G` is the load the grip model
+sizes ENTRY at, so it is the only choice that is consistent with the model reading it. Then:
+
+- BEG/INT: `bBrakeEntry = −(brakeBias − brakeRefF) × BRAKE_BIAS_SCALE`, replacing the fixed 50.
+- The card: `recBrakeBias = brakeRefF + BRAKE_STABILITY_MARGIN + build mod (+ PRO grip term)`,
+  with the margin a named `100 × (0.5 − ENTRY_G) × cgHeight / wheelbase` — the gap between the
+  two loads, made explicit instead of hidden in a different constant.
+
+That keeps every recommended number the same (to rounding), and makes both readouts show what the
+recommendation *deliberately* adds on top of neutral: the stability margin and the build mod
+(TRACK +3 reads slightly understeer, DRIFT −5 slightly oversteer), which is what the BRK row
+should mean.
+
+Trade-offs, and why it is not done here:
+
+- **Every BEG/INT balance total moves toward oversteer**, by `(brakeRefF − 50) × 0.20`: +1.4 on
+  the default chassis, more on tall or front-heavy cars. The verdict band, the factory presets'
+  "reads neutral" state and the `tests-balance.js` fixtures were all set with the old offset in
+  place and would need re-baselining.
+- **The alternative, moving the card to 0.3 g** (no margin), is simpler but shifts every
+  recommended value — the one number users type into the game — about 3 points rearward (5–6 on
+  tall SUVs). Rearward bias raises rear lock-up under threshold braking, where the true
+  load-proportional split (≈1 g) is well forward of both figures.
+- **Moving ENTRY_G to 0.5** instead would reconcile PRO with the card, but it also scales PITCH,
+  BRK and every ENTRY margin, and 0.5 g of sustained trail-braking overstates typical entry load.
+- None of the three has telemetry behind it; the margin option is the only one that changes no
+  output, only what the readouts measure from.
+
+## Open — a SPORT diff's hidden centre split still weights the AWD DIFF balance
+
+A Sport diff has no centre lock: CENTER POWER SPLIT hides and the card's Center Split reads N/A.
+`computeDiff` still clamps `dr.diffCenter` to 45–80 and uses it as `C`, the front/rear weighting
+of the AWD DIFF balance terms, so a split set before switching to SPORT keeps moving the DIFF row
+with no control on screen. What Forza actually splits a Sport AWD diff at is unknown here, so there
+is no better fixed `C` to use yet.
 
 ## Open — the RIDE Hz track marks the rear row amber whichever axle clamped
 

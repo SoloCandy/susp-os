@@ -299,6 +299,36 @@ depends on the tier.
   controls inside the shared sections (CHASSIS geometry, ARB MECH/CO-SOLVE,
   Hz MECH mode, Alignment Mode).
 
+### Leaving PRO: what the tier effects reset
+
+Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
+
+- **Geometry scaling** writes wheelbase and both track widths from Weight. Those are PRO-only
+  inputs, so below PRO they are a function of Weight, and leaving PRO rescales them. CG Height is
+  deliberately not in it: it is an input at INT (MANUAL CG) or follows ride height, and scaling it
+  overwrote a typed value on every weight edit and every load.
+- **The tier fallback** is one effect with one write per store: `fe` (BEG's simple-mode lock, then
+  ARB Balance Mode MECH / CO-SOLVE / CHASSIS → WEIGHT and Hz MODE MECH → MULTIPLIER), `dr`
+  (`diffManual` and `diffComplement` off) and `al` (Alignment Mode back to AUTO, Nudge OFF; the
+  MANUAL angles and Nudge Strength stay stored). **Keep it one write per store.** `usePersist`'s
+  `set` applies an updater to the render-time value, so a second same-tick `setFeRaw` starts from
+  the stale value and erases the first. The BEG lock was once a separate effect and was erased
+  that way on every switch to BEG.
+
+Nothing is restored on returning to PRO. A PRO-only setting that arrives *below* PRO by a share
+code or garage load (neither changes `uiMode`) stays until the next tier change, which is why the
+EXIT/ENTRY hints keep their "A PRO-only diff setting is also biasing this" branch.
+
+### Tier differences that look like gaps but aren't
+
+- **FRONT AXLE EXIT shows for a SPORT diff** (AWD, INT+) while ENTRY and CENTER POWER SPLIT hide.
+  EXIT drives front *accel* lock, which a Sport diff has (the card shows a live Front Accel);
+  ENTRY drives decel lock and POWER SPLIT the centre lock, which Sport lacks (N/A on the card).
+  Hiding FRONT EXIT would leave `diffFrontExitBias` moving an output with no control.
+- **The DIFFERENTIAL card's RECOMMENDED and CENTER SPLIT boxes return null at BEG.** BEG has no
+  DIFF TYPE row and no POWER SPLIT slider, so it could not see what `→ USE` changed or change it
+  back. The glossary tags both boxes `[INT]`.
+
 `zone-presets` no longer exists. It was duplicated across the BEG panel and the
 INT/PRO BUILD section (safe only because the two were mutually exclusive on
 `uiMode`); both copies went when the factory presets moved into the GARAGE panel.
@@ -437,8 +467,8 @@ is a mouse-wheel run on a focused control.
   REF. mirror check and skip. The snapshot already holds their output; running
   them again converts twice. The old undo had exactly that bug (see HISTORY.md).
   The last effect in App clears the flag — **keep it last**.
-- bumps `restoreTick`, a dependency of the BEG/INT geometry scaling, BEG lock and
-  BEG/INT fallback effects, so a snapshot taken in PRO and restored in BEG or INT
+- bumps `restoreTick`, a dependency of the BEG/INT geometry scaling and tier
+  fallback effects, so a snapshot taken in PRO and restored in BEG or INT
   is brought back inside that tier. It is declared right after the persisted
   state because Babel's const→var would read it as `undefined` in those
   effects' dependency arrays further down.

@@ -1863,6 +1863,10 @@ const DIFF_TYPE_DEC=['race','sport','rally','offroad','drift'];
 // Community-estimated scale factors: same lock % on Race produces more effective lock than Rally/Offroad.
 // Rally ≈ 76% of Race, Offroad ≈ 52% of Race. Sport is accel-only and slightly softer than Race.
 // Drift is more aggressive than Race — faster lock engagement, tuned for rotation over stability.
+// So a scale is EFFECTIVE lock per lock %: effective = % × scale, and the % that gives a wanted
+// effective lock is effective ÷ scale. computeDiff's AUTO divides by it and its balance multiplies
+// by it; DIFF_TYPE_RANGES below are Race's ranges divided by it. AUTO used to MULTIPLY, which
+// asked a gentler diff for LESS % and compounded the softness (see docs/HISTORY.md).
 const DIFF_TYPE_SCALE={race:1.00,sport:0.88,rally:0.76,offroad:0.52,drift:1.10};
 const DIFF_TYPE_RANGES={
   race:   {accel:[25,60],frontAccel:[18,32],rearAccel:[25,60],decel:[8,25]},
@@ -1881,11 +1885,19 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
   const build=dr.buildType??'track';
   const diffType=dr.diffType??'race';
   const typeScale=DIFF_TYPE_SCALE[diffType]??1.0;
+  // AUTO works in effective (Race-equivalent) lock: each formula below, and its clamp, is the
+  // lock a Race diff would need. lockPct turns that into the % to enter on the fitted diff type.
+  // Race (scale 1) comes out exactly as cl() would round it.
+  const clE=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  const lockPct=eff=>Math.min(100,Math.round(eff/typeScale));
 
   // MATCH CHASSIS: bias the auto-solver's intent toward the chassis mech target.
   // Off by default; manual mode bypasses it entirely.
   let effBiasExit=biasExit, effBiasEntry=biasEntry;
-  if(dr.diffComplement&&!dr.diffManual){
+  // Only while something solves toward the Balance Target. Otherwise the target is hidden (the
+  // PRO BALANCE section says it does not apply) and resolves to the MECH_BALANCE_TARGET fallback,
+  // so MATCH CHASSIS would bias the diff toward a number the user cannot see or set.
+  if(dr.diffComplement&&!dr.diffManual&&hasBalTargetSolve(fe)){
     // The target is display space, so the natural it is measured from must be too. This used to
     // fall back to an inline GEOMETRY copy whenever the caller passed nothing — the app passed the
     // reading only when measured — so an unmeasured GRIP-mode gap was off by tireCorr and the
@@ -1916,10 +1928,10 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
   } else if(ch.layout==='AWD'){
     const center=cl(dr.diffCenter??65,45,80); // slider-driven; default 65 is sensible across builds
     vals={layout:'AWD',
-      frontAccel:cl((28-effBiasExit*0.10+frontExitBias*0.12)*typeScale,10,40),
+      frontAccel:lockPct(clE(28-effBiasExit*0.10+frontExitBias*0.12,10,40)),
       frontDecel:0,
-      rearAccel: cl((48+effBiasExit*0.25)*typeScale,20,70),
-      rearDecel: diffType==='sport'?0:cl(8+(rB-0.5)*15+effBiasEntry*0.15,0,20),
+      rearAccel: lockPct(clE(48+effBiasExit*0.25,20,70)),
+      rearDecel: diffType==='sport'?0:lockPct(clE(8+(rB-0.5)*15+effBiasEntry*0.15,0,20)),
       center};
   } else {
     const isRWD=ch.layout==='RWD';
@@ -1935,31 +1947,34 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
     // what makes the slider's right side mean oversteer-leaning despite FWD's opposite
     // lock-to-balance polarity. Flipping the sign here too would double-cancel that fix.
     const accel=isRWD
-      ? cl(accelBase*typeScale+effBiasExit*0.20, 10, 65)
-      : cl(accelBase*typeScale+effBiasExit*0.15,  5, 35);
-    const decel=diffType==='sport'?0:cl(decelBase*typeScale+(rB-0.5)*(isRWD?15:5)+effBiasEntry*0.15, 0, isRWD?30:15);
+      ? lockPct(clE(accelBase+effBiasExit*0.20, 10, 65))
+      : lockPct(clE(accelBase+effBiasExit*0.15,  5, 35));
+    const decel=diffType==='sport'?0:lockPct(clE(decelBase+(rB-0.5)*(isRWD?15:5)+effBiasEntry*0.15, 0, isRWD?30:15));
     vals={layout:ch.layout,accel,decel};
   }
 
   const nf=ch.frontBias/100;
   let bDiffAccel=0, bDiffDecel=0, bDiffFront=0, bDiffRear=0;
+  // The balance reads EFFECTIVE lock (% × the type's scale), in AUTO and MANUAL alike, so the same
+  // % counts for less on a Rally or Offroad diff and AUTO's type conversion is balance-neutral.
+  const bs=DIFF_BIAS_SCALE*typeScale;
   // positive = oversteer tendency, negative = understeer tendency
   if(vals.layout==='AWD'){
     const C=Math.max(0,Math.min(1,(vals.center??65)/100));
-    const bFA=-vals.frontAccel*nf*(1-C)*DIFF_BIAS_SCALE;   // front accel → understeer (−)
-    const bRA= vals.rearAccel*(1-nf)*C*DIFF_BIAS_SCALE;    // rear accel  → oversteer  (+)
-    const bFD=-vals.frontDecel*nf*(1-C)*DIFF_BIAS_SCALE;   // front decel → understeer (−)
-    const bRD=-vals.rearDecel*(1-nf)*C*DIFF_BIAS_SCALE;    // rear decel  → understeer (−) — resists lift-off oversteer
+    const bFA=-vals.frontAccel*nf*(1-C)*bs;   // front accel → understeer (−)
+    const bRA= vals.rearAccel*(1-nf)*C*bs;    // rear accel  → oversteer  (+)
+    const bFD=-vals.frontDecel*nf*(1-C)*bs;   // front decel → understeer (−)
+    const bRD=-vals.rearDecel*(1-nf)*C*bs;    // rear decel  → understeer (−) — resists lift-off oversteer
     bDiffFront=bFA+bFD;
     bDiffRear =bRA+bRD;
     bDiffAccel=bFA+bRA;
     bDiffDecel=bFD+bRD;
   } else if(vals.layout==='RWD'){
-    bDiffAccel= vals.accel*(1-nf)*DIFF_BIAS_SCALE;  // rear accel → oversteer (+)
-    bDiffDecel=-vals.decel*(1-nf)*DIFF_BIAS_SCALE;  // rear decel → understeer (−) — resists lift-off oversteer
+    bDiffAccel= vals.accel*(1-nf)*bs;  // rear accel → oversteer (+)
+    bDiffDecel=-vals.decel*(1-nf)*bs;  // rear decel → understeer (−) — resists lift-off oversteer
   } else {
-    bDiffAccel=-vals.accel*nf*DIFF_BIAS_SCALE;  // front accel → understeer (−)
-    bDiffDecel=-vals.decel*nf*DIFF_BIAS_SCALE;  // front decel → understeer (−)
+    bDiffAccel=-vals.accel*nf*bs;  // front accel → understeer (−)
+    bDiffDecel=-vals.decel*nf*bs;  // front decel → understeer (−)
   }
 
   return{...vals,bDiffAccel,bDiffDecel,bDiffFront,bDiffRear};
@@ -6205,7 +6220,11 @@ function App(){
     window.addEventListener('resize',check);
     return()=>window.removeEventListener('resize',check);
   },[]);
-  // Auto-scale chassis geometry with weight in BEG/INT modes
+  // Auto-scale chassis geometry with weight in BEG/INT modes. Wheelbase and track widths only: they
+  // are PRO-only inputs, so below PRO they are a function of Weight (and leaving PRO rescales them).
+  // CG Height is NOT scaled — it is an input at every tier (MANUAL CG) or synced from ride height
+  // (RIDE HEIGHT → CG), and scaling it here overwrote a typed value on every weight edit and every
+  // load at BEG/INT (see docs/HISTORY.md).
   useEffect(()=>{
     if(uiMode==='pro')return;
     const r=ch.weight/DEF_CH.weight; // weight ratio vs default 3200 lb
@@ -6214,50 +6233,59 @@ function App(){
       wheelbase: r5(DEF_CH.wheelbase * Math.pow(r,0.20)),
       trackF:    r5(DEF_CH.trackF    * Math.pow(r,0.15)),
       trackR:    r5(DEF_CH.trackR    * Math.pow(r,0.15)),
-      cgHeight:  r5(DEF_CH.cgHeight  * Math.pow(r,0.25)),
     }));
   },[ch.weight,uiMode,restoreTick]); // eslint-disable-line
-  // BEG mode: lock to simple modes, no geometry dependency
-  useEffect(()=>{
-    if(uiMode!=='beginner')return;
-    setFeRaw(p=>({...p,
-      arbBalMode:'weight',
-      springShare:50,
-      rearHzMode:'multiplier',
-      rearHzMult:p.rearHzMult??1.0,
-      dampCharMode:'zeta',
-      dampBalMode:'standard',
-      dampingBias:0,
-    }));
-  },[uiMode,restoreTick]); // eslint-disable-line
-  // BEG/INT: fall back to simple modes if switching down from PRO
-  // Written during render (below, once physics exists) so the fallback effect can seed
-  // rearHzMult without reaching forward to a const declared after it.
+  // BEG/INT: fall back to simple modes if switching down from PRO; BEG also locks to its simple
+  // modes. ONE effect and ONE write per store, deliberately: usePersist's set() computes an updater
+  // from the render-time value, so two same-tick setFeRaw calls clobber each other. The BEG lock
+  // used to be its own effect, and this one's write (from the stale value) erased it every time.
+  // Written during render (below, once physics exists) so the fallback can seed rearHzMult without
+  // reaching forward to a const declared after it.
   const hzRatioRef=useRef(1.20);
   useEffect(()=>{
     if(uiMode==='pro')return;
-    setFeRaw(p=>{
+    setFeRaw(p0=>{
+      // BEG mode: lock to simple modes, no geometry dependency.
+      const p=uiMode!=='beginner'?p0:{...p0,
+        arbBalMode:'weight',
+        springShare:50,
+        rearHzMode:'multiplier',
+        rearHzMult:p0.rearHzMult??1.0,
+        dampCharMode:'zeta',
+        dampBalMode:'standard',
+        dampingBias:0,
+      };
       // arbMode:'man' (direct ARB click entry) is ungated at every tier — BEG/INT can hold
       // and (INT) edit it same as AUTO/ROLL/SHARE, so it's deliberately left out of this reset.
-      const arbOk=p.arbBalMode!=='mech'&&p.arbBalMode!=='coSolve'&&p.arbBalMode!=='man';
+      // CHASSIS is a PRO-only Balance Mode button too; left set, INT showed no lit mode button
+      // while still drawing CHASSIS's Split Direction and ARB Bias.
+      const arbOk=!['mech','coSolve','man','chassis'].includes(p.arbBalMode);
       const hzOk=p.rearHzMode!=='mech';
       if(arbOk&&hzOk)return p;
       return{...p,
         // WEIGHT has no single companion value to carry — arbBias is a shared slider each
         // Balance Mode reinterprets (like Damping Bias), so there is nothing to seed here.
+        // CHASSIS → WEIGHT keeps its Split Direction: the two share that toggle.
         ...(arbOk?{}:{arbBalMode:'weight'}),
         // Seed rearHzMult from the ratio the car is currently sitting at, exactly as the
         // MULTIPLIER button does. Landing on a stale stored multiplier re-derived the
-        // front/rear split, so dropping a tier silently moved rear Hz. Beginner is
-        // unaffected: the effect above has already set rearHzMode to 'multiplier' by the
-        // time this runs, so hzOk is true and this branch never fires there.
+        // front/rear split, so dropping a tier silently moved rear Hz. Never fires at BEG,
+        // whose lock above has already set rearHzMode to 'multiplier'.
         ...(hzOk?{}:{rearHzMode:'multiplier',
           rearHzMult:Math.round(Math.max(0.5,Math.min(3,hzRatioRef.current))*100)/100}),
       };
     });
     // MANUAL diff mode and its toggle are both PRO-gated; leaving diffManual set with no
-    // toggle visible renders the whole DRIVETRAIN diff section blank at BEG/INT.
-    setDrRaw(p=>p.diffManual?{...p,diffManual:false}:p);
+    // toggle visible renders the whole DRIVETRAIN diff section blank at BEG/INT. MATCH CHASSIS
+    // is a PRO-only toggle as well; left on, it kept biasing the AUTO locks with no way to turn
+    // it off below PRO.
+    setDrRaw(p=>p.diffManual||p.diffComplement?{...p,diffManual:false,diffComplement:false}:p);
+    // Alignment Mode, Nudge and MANUAL entry are all in the PRO-only ALIGNMENT section, and `al`
+    // travels in neither share codes nor garage entries, so a PRO mode left in force made BEG/INT
+    // output that nobody could see the cause of or reproduce. Back to AUTO (Nudge OFF); the MANUAL
+    // angles and Nudge Strength stay stored, so picking MANUAL again in PRO brings them back.
+    setAlRaw(p=>(ALIGN_MODE_DEC.includes(p.mode)?p.mode:(p.alignManual?'manual':'build'))==='build'
+      ?p:{...p,mode:'build',alignManual:false});
   },[uiMode,restoreTick]); // eslint-disable-line
 
   // sidebar grows with the display: 300px baseline, up to 440px at very wide screens.
@@ -6533,7 +6561,9 @@ function App(){
     if(alignMode==='manual')return{recCamberF:al.camberF,recCamberR:al.camberR,
       recToeF:al.toeF,recToeR:al.toeR,recCaster:al.caster};
     if(alignMode!=='mech'&&alignMode!=='grip')return autoAlign;
-    const mechGap=feEffective.arbBalTarget-natDisplayOf(ch,fe.gameMode); // target and natural, both display space
+    // Target and natural, both display space. 0 unless something solves toward the target — the
+    // same gate as computeDiff's MATCH CHASSIS: otherwise the target is the hidden fallback.
+    const mechGap=hasBalTargetSolve(feEffective)?feEffective.arbBalTarget-natDisplayOf(ch,fe.gameMode):0;
     const gripGap=-(natGripBalance-0.5);
     const rawGap=alignMode==='mech'?mechGap:gripGap;
     const normGap=Math.max(-1,Math.min(1,rawGap/0.30));
@@ -7755,6 +7785,8 @@ function App(){
                 <div style={groupHdr}>{ch.layout==='FWD'?'FRONT AXLE':'REAR AXLE'}</div>
                 {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                   <button className={`tog${dr.diffComplement?' on':''}`}
+                    // Dimmed while nothing solves toward the Balance Target: computeDiff then skips it.
+                    style={hasBalTargetSolve(feEffective)?undefined:{opacity:0.45}}
                     onClick={()=>pDr('diffComplement')(!dr.diffComplement)}
                     title="Bias the auto-solver to match chassis mech target.">
                     MATCH CHASSIS
@@ -9001,6 +9033,8 @@ function App(){
               <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
                 {['build','mech','grip'].map(m=>(
                   <button key={m} className={`tog${alignMode===m?' on':''}`}
+                    // MECH reads the Balance Target, so it is a no-op (dimmed) while nothing solves toward it.
+                    style={m==='mech'&&!hasBalTargetSolve(feEffective)?{opacity:0.45}:undefined}
                     onClick={()=>setAl(p=>({...p,mode:m}))}>{m==='build'?'OFF':m.toUpperCase()}</button>
                 ))}
               </div>
