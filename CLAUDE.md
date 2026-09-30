@@ -16,7 +16,8 @@ Most of the drift lives in `docs/`, not the README.
 | localStorage keys, persisted shapes, backup format | `docs/PERSISTENCE.md` |
 | Factory presets, `PRESET_DESC`, `BUILD_PRESET_MAP` | `docs/PRESETS.md` |
 | `zone-*` ids, components, file structure, anything that *looks* dead but isn't | `docs/CODE_MAP.md` |
-| Tutorial steps, triggers, gating, `TutorialPanel` | `docs/TUTORIALS.md` |
+| Tutorial steps or their text, triggers, gating, `TutorialPanel` | `docs/TUTORIALS.md` |
+| ⓘ hint text, correction tips, other inline guidance | `docs/HINTS.md` |
 | VISUALS groups, scales, bands, markers, colours | `docs/VISUALS.md` |
 | A limitation found, or a design deliberately rejected | `docs/KNOWN_ISSUES.md` — only what is still true |
 | A bug fixed, or a behaviour deliberately changed | `docs/HISTORY.md` |

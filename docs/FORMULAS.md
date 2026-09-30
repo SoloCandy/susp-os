@@ -13,7 +13,8 @@ value below.
 > Decel Lock hint, which said lower lock meant *less* lift-off oversteer when
 > `bDiffDecel` says less lock means more lift-off rotation. When in doubt about
 > which direction a control pushes handling, check the formula here, not
-> the UI copy.
+> the UI copy. Every hint is quoted in [HINTS.md](HINTS.md), which makes the
+> UI copy reviewable in one place.
 
 Scope note: this file is *balance-direction* math only. For the actual
 Hz/spring-rate/damper-click solve math feeding these formulas' inputs

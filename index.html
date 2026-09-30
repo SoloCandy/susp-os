@@ -99,6 +99,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .tbtn.on{border-color:#e2e8f044;background:#0f172a;color:#e2e8f0}
 .tbtn.saved{border-color:#e2e8f022;color:#9ca3af}
 .tbtn.undo-btn:disabled{opacity:0.28;cursor:default}
+.tbtn.update{border-color:#4ade8066;color:#4ade80;background:#4ade8014}
 .gmsel{padding:4px 8px;border:1px solid #1e293b;background:#0a0f1a;color:#e2e8f0;
       border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px;
       letter-spacing:1px;transition:all .12s;-webkit-tap-highlight-color:transparent;
@@ -1929,7 +1930,7 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
       ?{street:15,track:12,drift:3,rally:8,offroad:5,drag:0}[build]??12
       :{street:8, track:5, drift:2,rally:4,offroad:2,drag:0}[build]??5;
     // FWD's +effBiasExit*0.15 is intentionally the SAME sign as RWD's — do not flip it.
-    // FWD's EXIT slider UI already inverts the stored value (~index.html:3444-3445) so
+    // FWD's EXIT slider UI already inverts the stored value (the EXIT FeelSlider's value/onChange) so
     // "more effBiasExit" means the same thing (more lock) on every layout; the UI flip is
     // what makes the slider's right side mean oversteer-leaning despite FWD's opposite
     // lock-to-balance polarity. Flipping the sign here too would double-cancel that fix.
@@ -2455,6 +2456,46 @@ const usePersist=(key,initial,repair)=>{
     try{localStorage.setItem(key,JSON.stringify(next));}catch{}
   };
   return[val,set];
+};
+
+// ── Deploy check ────────────────────────────────────────────────────────────
+// Lights the header's GitHub button once a newer index.html is live on GitHub Pages, so a tab
+// left open across a push is told to reload. document.lastModified is the Last-Modified header of
+// the copy THIS tab loaded (from the browser cache too, which is why it beats a baseline fetched
+// after load); a no-store HEAD reads what the server holds now. Strictly newer only: an edge still
+// serving the old copy reads older or equal and is ignored. No header (file://, a server without
+// Last-Modified) → document.lastModified is "now" and the HEAD's date parses NaN, so nothing fires.
+// Checked every 5 min while visible and whenever the tab comes back, at most once a minute; stops
+// for good once it fires. Any Pages redeploy moves the date, a docs-only push included — see
+// KNOWN_ISSUES. Reloading is safe: everything the user has lives in usePersist's localStorage keys.
+// GitHub's mark, used by the header's source link and by the reload button that replaces it.
+const GITHUB_MARK='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z';
+
+const DEPLOY_CHECK_MS=5*60*1000;
+const useDeployCheck=()=>{
+  const[updateReady,setUpdateReady]=useState(false);
+  useEffect(()=>{
+    if(!/^https?:$/.test(location.protocol))return;
+    const loaded=Date.parse(document.lastModified);
+    if(!isFinite(loaded))return;
+    let last=0,done=false;
+    const check=async()=>{
+      if(done||document.hidden||Date.now()-last<60000)return;
+      last=Date.now();
+      try{
+        const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
+        const live=Date.parse(r.headers.get('last-modified')||'');
+        if(r.ok&&live>loaded&&!done){done=true;setUpdateReady(true);}
+      }catch{} // offline or blocked — try again next tick
+    };
+    const timer=setInterval(check,DEPLOY_CHECK_MS);
+    const onShow=()=>{if(!document.hidden)check();};
+    document.addEventListener('visibilitychange',onShow);
+    window.addEventListener('focus',onShow);
+    return()=>{done=true;clearInterval(timer);
+      document.removeEventListener('visibilitychange',onShow);window.removeEventListener('focus',onShow);};
+  },[]);
+  return updateReady;
 };
 
 // ── Undo / redo history ─────────────────────────────────────────────────────
@@ -6137,6 +6178,7 @@ function App(){
   // Initialised once from the launch width so resizes/address-bar jiggle don't reset it.
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
+  const updateReady=useDeployCheck(); // a newer deploy is live — GitHub button turns into RELOAD
   // Phone: true while a sidebar text field/select has focus (keyboard up) — hides the pinned
   // VISUALS footer so the scrolling controls keep their height.
   const[sbTyping,setSbTyping]=useState(false);
@@ -7239,20 +7281,29 @@ function App(){
             <button className="tbtn" style={{fontSize:11}} title="Glossary — look up a term"
               onClick={e=>glossaryBridge.open(null,{from:e.currentTarget,keyboard:e.detail===0})}>TERMS</button>
             {/* Source link. An <a> rather than a button so it opens in a new tab natively;
-                tbtn styles an inline element, so the flex/decoration bits are set here. */}
+                tbtn styles an inline element, so the flex/decoration bits are set here.
+                Once useDeployCheck sees a newer deploy it becomes a reload button in the same
+                slot — the mark stays so it reads as the same control, ↻ says what it does now,
+                and the width grows by one glyph only (see headerCompact in CODE_MAP). */}
+            {updateReady?(
+            <button className="tbtn update" onClick={()=>window.location.reload()}
+              title="A new version of SUSP.OS is live — click to reload. Your tune and garage are saved."
+              aria-label="New version available — reload"
+              style={{display:'inline-flex',alignItems:'center',gap:4}}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d={GITHUB_MARK}/>
+              </svg>
+              <span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↻</span>
+            </button>
+            ):(
             <a className="tbtn" href="https://github.com/SoloCandy/susp-os" target="_blank"
               rel="noopener noreferrer" title="Source on GitHub"
               style={{display:'inline-flex',alignItems:'center',textDecoration:'none'}}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
-                  0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01
-                  1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
-                  0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27
-                  2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82
-                  2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0
-                  .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+                <path d={GITHUB_MARK}/>
               </svg>
             </a>
+            )}
             {!isPhone&&<div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>}
             <button className="tbtn" style={{fontSize:11}} title="Open your garage"
               onClick={()=>setGaragePanelOpen(o=>!o)}>GARAGE{entries.length>0?` ${entries.length}`:''}</button>
@@ -7714,7 +7765,7 @@ function App(){
                   label={<>{dnaDot('diffExit')}EXIT</>}
                   // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
                   // do NOT also flip the sign inside computeDiff's FWD accel formula (the
-                  // `+effBiasExit*0.15` term, ~index.html:840). That formula is intentionally
+                  // `+effBiasExit*0.15` term). That formula is intentionally
                   // uniform across layouts precisely because this UI layer already carries the
                   // per-layout inversion; flipping both would double-cancel and silently
                   // reintroduce the original bug. See docs/HISTORY.md's MATCH CHASSIS entry.
@@ -9270,7 +9321,8 @@ function App(){
 
           {/* Forza (horizon/motorsport): the original six full-width, single-column cards,
               unchanged. BeamNG gets its own two-column layout below instead — see physMode
-              branch. Wrapped rather than moved so this block stays byte-identical. */}
+              branch. Nothing in here renders in a physical game mode, so it carries no
+              physMode branches: BeamNG wording belongs on the SuspensionCard layout. */}
           {!physMode&&(<>
           {/* 1 — ALIGNMENT */}
           <Card title="ALIGNMENT"
@@ -9298,16 +9350,8 @@ function App(){
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
           <Card title="ANTI-ROLL BARS" accent
             headerRight={`ROLL ${tune.rollDeg.toFixed(2)}°`}
-            hint={physMode
-              ?"Anti-Roll Spring Rate per axle in N/m, matching BeamNG's slider. Converted from the solver's roll stiffness by k = 2·rs/(track·ARB Motion Ratio)², which at ratio 1.0 assumes the bar acts at the wheels. BeamNG specifies the rate at the bar's own lever instead, so a real inboard bar needs a higher number by (track/arm)² — this output reads roughly 4–6× soft on a sampled vehicle. Scale it up by that ratio if you know the geometry, or treat it as a direction. See KNOWN_ISSUES."
-              :"Click values to enter in the game's ARB menu. Amber means above 88% of the game's limit."} hintTerm="arb">
+            hint="Click values to enter in the game's ARB menu. Amber means above 88% of the game's limit." hintTerm="arb">
 
-            {physMode&&(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1&&
-            <div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,marginBottom:6}}>
-              Reads ~4–6× soft: at ARB Motion Ratio 1.0 this assumes the bar acts at the
-              wheels, but BeamNG sets the rate at the bar's own lever. Set the ratio in
-              CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry.
-            </div>}
             <RowGroup style={{marginBottom:0}}>
               {[['Front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,'front',ch.arbMotionRatioF],
                 ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear',ch.arbMotionRatioR]].map(([lbl,v,rsAb,rsSp,track,side,arbMr])=>{
@@ -9334,12 +9378,12 @@ function App(){
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f9731633'}}>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})} <TermLink id="output-warnings"/>
+              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:lim.arb})} <TermLink id="output-warnings"/>
             </div>}
           </Card>
 
           <Card title="SPRINGS" accent
-            hint={`Spring rates in ${physMode?'N/m — the unit BeamNG’s Spring Rate slider uses, and divided by motion ratio squared if you set one':'the spring unit chosen in UNITS'} to enter in the tuning menu. Badge = stiffness band (SOFT/ROAD/FIRM/RACE); REAR × = rear Hz ÷ front Hz.`}
+            hint={`Spring rates in the spring unit chosen in UNITS to enter in the tuning menu. Badge = stiffness band (SOFT/ROAD/FIRM/RACE); REAR × = rear Hz ÷ front Hz.`}
             headerRight={`REAR ×${(tune.rHz/tune.fHz).toFixed(2)}`} hintTerm="spring-rate">
 
             {(()=>{
@@ -9388,9 +9432,7 @@ function App(){
               (physics.dampingMode??'ratio')==='ratio'
                 ?`BUMP RATIO ${physics.bumpRatioVal??56}%`
                 :`BUMP ${Math.round(physics.bumpZeta??39)}% ζ`}`}
-            hint={physMode
-              ?"Rebound (REB) and bump (BUMP) damping in N/m/s, matching BeamNG's sliders. These are the real coefficients the solver works in with no game-specific scaling, divided by motion ratio squared if you set one. Note BeamNG's own defaults tend to run a much higher rebound-to-bump ratio than this app's default Bump Ratio produces. F/R BIAS in the header is the front axle's share of total damping — 50% is balanced, above 50% is front-biased, below is rear-biased."
-              :"Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. F/R BIAS = front share of damping: 50% is balanced, above is front-biased."} hintTerm="rebound">
+            hint="Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. F/R BIAS = front share of damping: 50% is balanced, above is front-biased." hintTerm="rebound">
 
             {(()=>{
               // Matches the RIDE section's existing readouts, which warn on >100 only.
@@ -10333,6 +10375,7 @@ function App(){
                 const pct=v=>`${Math.max(0,Math.min(100,v*100)).toFixed(1)}%`;
                 const showTgt=(physics.arbMode!=='man'&&(physics.arbBalMode==='mech'||physics.arbBalMode==='coSolve'))||physics.rearHzMode==='mech';
                 const _d=cur-nat;
+                // Same colours as the Balance Guide: orange = OS side, blue = US side, green = target, grey = NAT.
                 return(
                   <div style={{marginTop:8}}>
                     {/* label row: section header + inline NAT/CUR/TGT values */}
@@ -10346,14 +10389,14 @@ function App(){
                       <span style={{fontSize:10,color:'#334155'}}>→</span>
                       <span style={{fontSize:10,color:'#475569',fontFamily:'var(--font-mono)'}}>
                         CUR <span style={{color:'#e2e8f0'}}>{cur.toFixed(2)}</span>
-                        {Math.abs(_d)>=0.01&&<span style={{color:_d>0?'#60a5fa':'#f59e0b',marginLeft:2}}>
+                        {Math.abs(_d)>=0.01&&<span style={{color:Math.abs(_d)<0.015?'#94a3b8':_d>0?'#f97316':'#60a5fa',marginLeft:2}}>
                           {(_d>=0?'+':'')+_d.toFixed(2)}
                         </span>}
                       </span>
                       {showTgt&&<>
                         <span style={{fontSize:10,color:'#334155'}}>→</span>
-                        <span style={{fontSize:10,color:'#60a5fa88',fontFamily:'var(--font-mono)'}}>
-                          TGT <span style={{color:'#60a5fa'}}>{tgt.toFixed(2)}</span>
+                        <span style={{fontSize:10,color:'#4ade8088',fontFamily:'var(--font-mono)'}}>
+                          TGT <span style={{color:'#4ade80'}}>{tgt.toFixed(2)}</span>
                         </span>
                       </>}
                     </div>
@@ -10367,10 +10410,10 @@ function App(){
                       })()}
                       {/* NAT tick */}
                       <div style={{position:'absolute',top:0,bottom:0,left:pct(nat),width:1,
-                                   background:'#475569',transform:'translateX(-50%)'}}/>
+                                   background:'#94a3b8',transform:'translateX(-50%)'}}/>
                       {/* TARGET tick — only shown in MECH/CO-SOLVE */}
                       {showTgt&&<div style={{position:'absolute',top:0,bottom:0,left:pct(tgt),width:2,
-                                            background:'#60a5fa99',transform:'translateX(-50%)',borderRadius:1}}/>}
+                                            background:'#4ade8099',transform:'translateX(-50%)',borderRadius:1}}/>}
                       {/* CURRENT position */}
                       <div style={{position:'absolute',top:0,bottom:0,left:pct(cur),width:2,
                                    background:'#e2e8f0cc',transform:'translateX(-50%)',borderRadius:1}}/>

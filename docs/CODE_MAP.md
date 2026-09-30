@@ -61,8 +61,9 @@ The source runs top to bottom in this order:
    with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
 3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
    `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
-4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then the undo / redo
-   core `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
+4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then `GITHUB_MARK` and
+   `useDeployCheck` under a `── Deploy check ──` banner, then the undo / redo core
+   `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
 7. **Tutorial and glossary content** — the `TUTORIALS` object, then `GLOSSARY` and its
@@ -195,7 +196,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 
 | Component | Rendered in |
 |---|---|
-| `Hint` | everywhere — the ⓘ affordance. Portaled `role="tooltip"`; mouse hover opens it and a mouse click never closes it, a tap or pen tap toggles it, keyboard focus opens it; a press outside, scroll, resize, blur or Escape closes it. An optional `term` (a `GLOSSARY` id) adds a "TERMS: … ›" link that opens the glossary at that entry through `glossaryBridge.open` — the tooltip then takes pointer events, so the mouse can cross onto the link, and Enter on an open ⓘ follows it. Every component that takes a `hint` prop (`Field`, `FeelSlider`, `VisTrack`, `Toggle`, `Card`, `SuspensionCard`, `AlignCard`, `BiasSeg`, `DirSeg`) also takes `hintTerm` and passes it on as that `term`; `HandlingVerdict` and `PhaseVerdict` key theirs in a `hintTerms` object beside `hints`, and a RESPONSE factor row takes an optional `term`. `BiasSeg` and `DirSeg` draw no ⓘ when `hint` is empty |
+| `Hint` | everywhere — the ⓘ affordance. Portaled `role="tooltip"`; mouse hover opens it and a mouse click never closes it, a tap or pen tap toggles it, keyboard focus opens it; a press outside, scroll, resize, blur or Escape closes it. An optional `term` (a `GLOSSARY` id) adds a "TERMS: … ›" link that opens the glossary at that entry through `glossaryBridge.open` — the tooltip then takes pointer events, so the mouse can cross onto the link, and Enter on an open ⓘ follows it. Every component that takes a `hint` prop (`Field`, `FeelSlider`, `VisTrack`, `Toggle`, `Card`, `SuspensionCard`, `AlignCard`, `BiasSeg`, `DirSeg`) also takes `hintTerm` and passes it on as that `term`; `HandlingVerdict` and `PhaseVerdict` key theirs in a `hintTerms` object beside `hints`, and a RESPONSE factor row takes an optional `term`. `BiasSeg` and `DirSeg` draw no ⓘ when `hint` is empty; every hint's text is quoted in [HINTS.md](HINTS.md) |
 | `TermLink` | the same "TERMS: … ›" link inline, for footers and notes that have no ⓘ; `label` overrides `glossaryLabel(id)` |
 | `Field` | numeric inputs across all sections |
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
@@ -368,6 +369,41 @@ redo, so the row is one button narrower than when 975 was measured. The threshol
 was left at 1000 rather than re-measured — lowering it is safe only after the
 GARAGE edge check above.
 
+The GitHub slot is one glyph wider while it shows the reload state (below). That was
+measured: with it lit, GARAGE's right edge sits at the header's padding at 1000px,
+820px, 480px and 375px, so neither layout overflows.
+
+---
+
+## Deploy check: `useDeployCheck`
+
+The header's GitHub source link turns into a reload button once a newer
+`index.html` is live — for a tab left open across a push to GitHub Pages. Lit, it
+keeps the GitHub mark, adds ↻, turns green (`.tbtn.update`), and clicking it calls
+`location.reload()` instead of opening the repo. Nothing else changes, and it never
+reloads on its own.
+
+How it decides:
+
+- **Baseline is `document.lastModified`** — the `Last-Modified` header of the copy
+  *this tab* loaded. A HEAD fetched after load was rejected as the baseline: a page
+  served from the browser cache would compare against a newer server copy and
+  never light.
+- **The check is a `HEAD` with `cache: 'no-store'`** on `location.pathname`, lit
+  only when the server's `Last-Modified` is strictly newer. A CDN edge still
+  serving the old copy reads equal or older and is ignored.
+- **When**: every `DEPLOY_CHECK_MS` (5 min) while the tab is visible, and on
+  `visibilitychange` / `focus`, throttled to once a minute. It stops once lit.
+- **It is inert off http(s)** (`file://`) and on any server that sends no
+  `Last-Modified`: `document.lastModified` then reads as "now" and the HEAD's date
+  parses as `NaN`, so the comparison is never true.
+- **Reloading loses nothing.** All state lives in `usePersist` keys (see
+  [PERSISTENCE.md](PERSISTENCE.md)), which is what lets the button reload without
+  asking first.
+
+It fires on any Pages redeploy, not only one that changed `index.html` — see
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 ---
 
 ## Undo / redo
@@ -535,15 +571,6 @@ answer at extreme balance targets.
 hidden in physical modes, so these look unreachable. They cover a persisted
 `arbMode:'basic'` surviving a game-mode switch before the migration effect runs.
 
-**The `physMode` tests inside the Forza output block** — the Forza cards sit inside
-`{!physMode&&(<>`, so every `physMode` test within that block is always false: the
-ANTI-ROLL BARS, SPRINGS and DAMPERS card hint ternaries' BeamNG branches, the ARB
-motion-ratio warning, and the Forza copy of `arbLim:physMode?null:lim.arb`. They are
-dead, and left in place: the block was wrapped rather than rewritten when BeamNG got its
-own layout (its comment says so), and the live BeamNG versions are in the
-`{physMode&&(()=>{` layout below it. Deleting them is safe but buys nothing; editing only one copy of a hint is
-the real trap — BeamNG text belongs in the BeamNG block.
-
 **`TutorialPanel`'s `right` positioning fallback** — still unreachable (every
 `setPos` sets `left`). The GARAGE drawer is the first right-side, full-height
 tutorial target, and it does *not* reach that branch: a full-height element leaves
@@ -601,7 +628,10 @@ id table, an enum value no doc mentions, an encoder index that no longer
 round-trips through its decoder array, a storage key that vanished, a slider range
 contradicting `sanitizeTune`, a section missing from the `open` state, a broken
 doc link. It exists because a docs audit found ten errors and eight of them were
-mechanical. It checks names, ids, keys and numbers only, never prose.
+mechanical. It checks names, ids, keys and numbers, and prose only where a doc
+quotes the UI word for word — [HINTS.md](HINTS.md) and TUTORIALS.md's Step text —
+comparing the quote with the code in both directions. It never judges whether
+prose is right.
 
 **`tests-beamng.js` is the exception**: it lifts the real physics layer out of
 `index.html` with string slices and drives it directly, so it *does* fail when

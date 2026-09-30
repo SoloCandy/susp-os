@@ -47,7 +47,6 @@ Fact fixes made on the way. Text only unless noted:
 - Accel Lock's glossary line had the sign backwards: more accel lock adds exit oversteer on RWD
   and the AWD rear, and exit understeer on FWD and the AWD front.
 - The RWD Decel Lock hint said lower decel gives less lift-off oversteer. It gives more.
-- The Balance Mode hint showed a literal "%%".
 - Settle time and the DYNAMICS strip were described as ±10% of ride height. The band is ±10% of
   the initial disturbance (`SETTLE_ENV`).
 - Alignment was described with a BUILD mode. The modes are AUTO (with Nudge OFF / MECH / GRIP)
@@ -77,6 +76,24 @@ keyboard user who opened the glossary from one of those ⓘ lost focus to the pa
 `closeGlossary` returns focus to had been replaced by the render that opened the glossary.
 `GroupSection` is now called as a function and `Seg` is module-level. Do not turn either back into
 a component defined inside the body.
+
+## Fixed — Balance Mode hint printed "%%"; dead BeamNG text in the Forza result cards
+
+Found while quoting every hint into [HINTS.md](HINTS.md).
+
+- The PRO sentence of the Balance Mode hint read "raw weight %%". It sits in a
+  template literal, where `%` needs no escaping, so the doubled sign showed as-is.
+- The ANTI-ROLL BARS, SPRINGS and DAMPERS cards render only inside the Forza-only
+  `!physMode` block, yet their hints still carried `physMode` branches with BeamNG
+  wording, and ANTI-ROLL BARS a `physMode`-gated "Reads ~4–6× soft" banner — all
+  unreachable since BeamNG moved to its own SuspensionCard layout, which carries the
+  live copies (`suspHint`, `arbCaveat`). Removed, along with an always-true
+  `physMode?null:lim.arb` in the same block. The block's comment used to say it was
+  kept byte-identical; it now says it carries no `physMode` branches, which is the
+  property worth keeping — BeamNG wording belongs on the SuspensionCard layout.
+- Two FWD diff-polarity comments (in `computeDiff` and at the EXIT slider) pointed at
+  `~index.html` line numbers that had drifted onto unrelated code. They now name the
+  code they mean.
 
 ## Fixed — DAMPERS table read pre-CO-SOLVE zetas, so EQUAL FORCE showed off 50/50
 
@@ -3865,3 +3882,23 @@ The amber "reads soft" caveat under the ARB rows and on the suspension cards now
 shows only while both ratios are 1.0, and names the input rather than telling the
 user to scale by hand. The default stays 1.0: the app still ships the unscaled
 number rather than inventing a multiplier from one sampled vehicle.
+
+## Changed — glossary trimmed of duplicated detail
+
+A bloat pass on `GLOSSARY`. The ζ entry no longer repeats Butterworth's 59/70/100%
+comparison; Butterworth itself is condensed. Damping Balance Mode drops its REBOUND
+MODE aside. FLAT RIDE + TIME SYNC keeps its claim but not the evidence, which lives
+in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Mech Balance defers the tyre-flex detail to
+Tyre Compliance. Response no longer lists its weights, which the bar's own breakdown
+shows and which would drift. No term removed.
+
+Intermediate's "Key Terms — Frequency & Damping" step is cut to one line per term.
+The ζ entry drops the Butterworth default and its overshoot figure; the glossary
+still carries both.
+
+## Fixed — footer MECH BALANCE strip coloured its offset backwards
+
+The PRO footer's MECH BALANCE strip showed a rear-biased CUR offset in blue and a
+front-biased one in amber, the reverse of the Balance Guide. It now uses the guide's
+colours: orange toward oversteer, blue toward understeer, grey near NAT, green for
+TGT, and a grey NAT tick.

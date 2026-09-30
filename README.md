@@ -40,7 +40,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 ## Complexity Tiers
 
-A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more), grouped like the app's own sections. Every entry is tagged with the lowest tier that can see what it describes, and paragraphs that only apply higher up carry an INT or PRO badge; the glossary opens on ALL, and BEG / INT / PRO chips narrow it (and its search) to one tier and below. Hints stay short — most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link that opens the glossary at the entry with the full explanation. The GitHub mark beside it opens this repository in a new tab.
+A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more), grouped like the app's own sections. Every entry is tagged with the lowest tier that can see what it describes, and paragraphs that only apply higher up carry an INT or PRO badge; the glossary opens on ALL, and BEG / INT / PRO chips narrow it (and its search) to one tier and below. Hints stay short — most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link that opens the glossary at the entry with the full explanation. The GitHub mark beside it opens this repository in a new tab — and when a newer version has been published while the page is open, it turns green with a ↻ and reloads the page instead (your tune and garage are kept).
 
 Every slider's value can be typed as well as dragged, in the number box beside its label.
 
@@ -110,7 +110,8 @@ Reference docs for maintainers:
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
 - [VISUALS.md](docs/VISUALS.md) — the pinned VISUALS card: what each group plots, its scales and bands, and what every marker and colour means
 - [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
-- [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step, when each guide opens, tier gating, spotlight/positioning, and how to add a step
+- [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step and its text word for word, when each guide opens, tier gating, spotlight/positioning, and how to add a step
+- [HINTS.md](docs/HINTS.md) — every ⓘ hint and piece of inline guidance, word for word, grouped by where it appears
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected
 - [IDEAS.md](docs/IDEAS.md) — parked designs, not implemented or scheduled (AUTO Balance Mode)
 - [HISTORY.md](docs/HISTORY.md) — resolved incidents, kept because the reason each one broke is worth remembering
