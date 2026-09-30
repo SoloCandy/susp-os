@@ -6,10 +6,12 @@ shown in the Handling Balance bar — the BEG/INT point contributors, and PRO's 
 value below.
 
 > This file exists because hint text and slider labels can drift out of
-> sync with the actual math. It has happened twice: Damping Bias, whose hint
-> said the opposite of what `bDampBias` computes, and the FWD EXIT hint, which
+> sync with the actual math. It has happened more than once: Damping Bias, whose hint
+> said the opposite of what `bDampBias` computes; the FWD EXIT hint, which
 > named the wrong lock direction because that slider's balance direction and
-> its lock direction genuinely point opposite ways on FWD. When in doubt about
+> its lock direction genuinely point opposite ways on FWD; and the RWD manual
+> Decel Lock hint, which said lower lock meant *less* lift-off oversteer when
+> `bDiffDecel` says less lock means more lift-off rotation. When in doubt about
 > which direction a control pushes handling, check the formula here, not
 > the UI copy.
 
@@ -49,9 +51,9 @@ const bDampBias = -(tune.zetaF - tune.zetaR) * 16 / effectiveAvgZeta;
 - `zetaF > zetaR` (front damped harder than rear) → **negative** → understeer.
 - `zetaR > zetaF` (rear damped harder than front) → **positive** → oversteer.
 - This is the formula that governs the Damping Bias slider: right
-  (REAR bias, front stays firm) = oversteer; left (FRONT bias) = understeer.
+  (REAR bias: rear damped firmer relative to front) = oversteer; left (FRONT bias) = understeer.
 - `tune.zetaF`/`tune.zetaR` themselves come from whichever Damping Balance
-  Mode is active (STANDARD/SYNC/NEUTRAL — see [SLIDERS.md](SLIDERS.md)), but
+  Mode is active (STANDARD / TIME SYNC / HYBRID / EQUAL FORCE — see [SLIDERS.md](SLIDERS.md)), but
   this formula doesn't care how they were derived, only their final values —
   same reasoning as `bSp`/`bAb` not caring which ARB Balance Mode produced
   the roll-stiffness split feeding them.
@@ -78,6 +80,11 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
   CG/wheelbase weight-transfer term dominates. The floor was 50 until it was
   found to be silently truncating those cases — see
   [HISTORY.md](HISTORY.md).
+- **Neutral point.** `bBrakeEntry` measures against a flat 50%, while `recBrakeBias`
+  itself adds weight transfer and PRO's ENTRY BRK measures against `idealBrakeF`
+  (see "Phase margins"), so the card's own recommendation usually reads as understeer
+  here. The tips explain that rather than telling the user to move the bias; the three
+  are not reconciled ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
 
 ## Differential (`computeDiff`)
 
@@ -103,7 +110,7 @@ bDiffDecel = bFD + bRD;
 - `DIFF_BIAS_SCALE = 0.14`.
 - Decel lock always pushes **understeer**, regardless of which axle is
   driven — it models "decel lock resists rotation" (matches the EXIT/ENTRY
-  slider hint text, e.g. "STABLE increases lock — resists lift-off
+  slider hint text, e.g. "STABLE = more lock, resists lift-off
   oversteer"). Accel lock, by contrast, always pushes toward oversteer on
   the driven axle. Unlike accel lock, decel lock's sign does **not** flip
   between RWD/AWD-rear and FWD-front — it's negative (understeer) in every

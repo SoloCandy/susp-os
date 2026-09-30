@@ -251,7 +251,7 @@ went looking:
 - **Garage.** An entry is `{id, name, ch?, fe?, dr?, tags, notes, …}`. SAVE CAR
   captures neither Alignment Mode nor any manual angle.
 
-For **BUILD** mode this is invisible and arguably correct: `computeAlignment` is a
+For AUTO with Nudge OFF (`al.mode` `'build'`) this is invisible and arguably correct: `computeAlignment` is a
 pure function of `ch`/`tune`/`layout`/`buildType`, all of which travel, so the
 receiver recomputes identical angles. That is presumably why the group was never
 given ids — the same "computed-locally, shared-as-output" reasoning that still
@@ -259,7 +259,7 @@ justifies excluding `useRideHeightCG`.
 
 It stops holding the moment `al.mode` is anything but `'build'`. A PRO user who
 picks MANUAL and types exact angles, then shares a code or saves a car, ships or
-stores a tune whose alignment silently reverts to the computed values. MECH/GRIP
+stores a tune whose alignment silently reverts to the computed values. Nudge MECH/GRIP
 plus Nudge Strength have the same problem: they are inputs with no other carrier.
 Nothing warns either party.
 
@@ -649,6 +649,51 @@ damping have no size in PRO at all: `DIFF_BIAS_SCALE` is uncalibrated (see the B
 above), and damping acts in transients a steady-state model cannot size. Sizing either needs
 at-limit data the three-car protocol does not collect.
 
+## Open — VISUALS shows the Balance Target when nothing solves toward it
+
+The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
+under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks
+draw the green target tick, label and rings whenever `feEffective.arbBalTarget` differs from NAT,
+and `resolveFeEffective` always resolves it: an untouched target falls back to
+`MECH_BALANCE_TARGET` (0.60). So INT, which cannot set a target, sees a green 0.60 mark on most
+cars. The `ride-roll-damping` glossary entry explains it at INT rather than hiding it; making the
+two displays agree is a code change not yet made.
+
+## Open — three brake-bias models disagree
+
+Brake bias is read three ways, and they do not share a neutral point:
+
+- **BRAKES card** (every tier and game): `recBrakeBias` is the front weight plus
+  `cgHeight/wheelbase × 50`, a build-type mod and, at PRO only, a grip-balance adjustment,
+  clamped to 45–68. Its note reads FRONT above 55, REAR below 50.
+- **BEG/INT Handling Balance** (the BRK segment and its correction tip): `bBrakeEntry` measures
+  that same value against a fixed 50%. The card's own recommendation is usually front of 50, so
+  the bar almost always counts it as understeer.
+- **PRO ENTRY** (`PhaseVerdict`): `phaseMargins` measures it against `idealBrakeF`, the front
+  weight plus `ENTRY_G × cgHeight/wheelbase` (0.3 g of braking). The card counts more weight
+  transfer than that, so the recommendation normally sits forward of the PRO ideal and ENTRY
+  reads BRK as understeer too.
+
+So the app recommends a value that two of its own readouts call understeer-biased. The hints no
+longer tell the user to move it, and the ENTRY line says the card usually reads this way, but
+the models are unreconciled. Picking one reference is a model decision with no telemetry behind
+it (see the scale entry above for `BRAKE_BIAS_SCALE`).
+
+## Open — the RIDE Hz track marks the rear row amber whichever axle clamped
+
+`physics.rearHzClamped` means the *derived* axle's Hz hit the band, and the RIDE card and
+`hzClampNote` read `physics.rideRef` to name it. `VisSuspTracks`' RIDE Hz track passes the flag
+only to the rear row, so under a REAR ride reference, where the front is the derived axle, the
+amber lands on the rear row that was set directly. The summary's amber is right; the row is not.
+
+## Open — the recommended AWD center split can exceed what the slider applies
+
+`recommendedCenter` is clamped to 45–90% rear, but CENTER POWER SPLIT and `computeDiff` stop
+at 80. DRIFT starts at 80, so any rear weight bias or larger rear tyre pushes it past: the
+DIFFERENTIAL card's CENTER SPLIT box recommends, say, 85. → USE stores 85 and the box then reads
+it as matched, but outside MANUAL diff `computeDiff` applies 80 (the slider's readout shows
+`→ 80%`), and the exported split is 80.
+
 ## Open — the unmeasured natural reads low against Forza
 
 In-game measurement on three cars found the geometric estimate (`natGeomOf`) reads
@@ -756,14 +801,8 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
   oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
   rear-biased and amber for front-biased.
-- **DAMPERS table mixes pre- and post-solve ζ** *(reproduced)*. Rebound ζ, Bump ζ, AVG ζ, Force and Roll ζ read
-  `physics.zeta*`; Settle, MEAS and the output cards read `tune.zeta*`. They diverge under
-  CO-SOLVE + SYNC/NEUTRAL, BeamNG snapping, and Forza damper clamping (90% shown vs 85.9%
-  exported on a 12000 lb Motorsport car).
 - **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
   allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
-- **Balance Mode hint shows a literal "%%"** ("raw weight %%"), from a printf-style escape in
-  a template literal.
 - **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
   successful cancel.
 - **Stale `~index.html:NNNN` references** in the FWD diff-polarity comments (in `computeDiff`

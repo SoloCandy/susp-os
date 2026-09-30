@@ -93,7 +93,9 @@ One horizontal bar, front on the left and rear on the right.
   model-space shading are never compared with each other.
 - **Ticks:** grey = NAT (`natMechBalance`, from `natDisplayOf`); green = the Balance
   Target (`feEffective.arbBalTarget`), drawn only when it differs from NAT by at
-  least 0.005 so the two don't sit on top of each other.
+  least 0.005 so the two don't sit on top of each other. It is not tier-gated, so INT,
+  which has no control that sets a target, sees the untouched default (0.60) here — see
+  [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - **Footer**, left to right:
   - `roll X.XX°`: body roll at 1 g (`tune.rollDeg`, two decimals), amber when `tune.rollClamped`. In
     ROLL ARB mode it adds `/ rollTarget`.
@@ -118,7 +120,8 @@ edge is the same value in the unit the output card uses.
 | DAMPING ζ | 10–200 %, the Rebound ζ slider's range | see below | `B/R f% · r%`, amber when bump crosses above rebound |
 
 **RIDE Hz.** `tune.fHz` / `tune.rHz`. The rear dot goes amber with the summary when
-the rear Hz was clamped at the band.
+`physics.rearHzClamped` is set — which flags the *derived* axle, so under a REAR ride
+reference the amber lands on the wrong row ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
 
 **ARB.** `tune.arbF` / `tune.arbR`. A dot goes amber past 88% of the ceiling. In a
 physical-unit game mode (`physMode`) there is no ceiling, so the caller passes a
@@ -203,7 +206,8 @@ derivation and the figures are in
 
 This settle figure deliberately differs from the analytic one the DAMPERS card
 quotes. The analytic figure sees rebound ζ only, and SETTLE TIME mode back-solves
-against it, so changing it would break that round trip. The chart's Hint says so.
+against it, so changing it would break that round trip. The chart's ⓘ links to its
+`dynamics-chart` glossary entry, which says so; the hint itself is too short to.
 
 ## SAG vs LOAD
 

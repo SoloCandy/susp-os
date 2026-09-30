@@ -29,7 +29,10 @@ not a `TUTORIALS` guide, but part of the same flow. It points at the header's
 BEG / INT / PRO and `?` buttons and is dismissed with GOT IT or a backdrop click.
 See [Onboarding popup](#onboarding-popup) below.
 
-The TERMS glossary is a separate, non-sequential reference and is not covered here.
+The TERMS glossary (`GlossaryModal`) is a separate, non-sequential reference with its
+own doc coverage in CODE_MAP; tutorials link into it rather than repeating it. A step's
+`glossary` ids render as TERMS chips on the card (see [The card](#the-card-tutorialpanel)),
+so the step body stays short and the depth lives in one place.
 
 ---
 
@@ -101,18 +104,19 @@ unlocked" line naming it. `closeOnboard` resets it to `false`.
 ## The card (`TutorialPanel`)
 
 Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
-tier guides only — `units` / `setUnits` for the units step, `appState` (the
-live `fe`) for step tasks, and `notice` for the locked-tier redirect message
+tier guides only — `quick` / `onQuick` for the QUICK START path, `units` /
+`setUnits` for the units step, `appState` (the live `fe`) for step tasks, and `notice` for the locked-tier redirect message
 (step 0 only; see Tier gating).
 
 - **Header**: `{label} GUIDE · n / total`, the step title, and ✕. For tier guides
-  ✕ and DONE ✓ share one handler (`closeTutEnd`), so closing early has the same
-  side-effects as finishing.
+  ✕ is `closeTutEnd` and DONE ✓ is `finishTut`, which clears the saved step and then
+  calls `closeTutEnd`, so closing early has the same popup and garage side-effects as
+  finishing.
 - **Progress bar**: one segment per step — done, current (indigo), upcoming.
-- **Body**: either the step's `body` string, or its `terms` list rendered as bold
-  term / definition pairs (the same treatment as the TERMS modal). A step with
-  `units:true` appends the `UnitsPicker` — the same control the UNITS modal uses,
-  so a choice made here is the real setting.
+- **Body**: the step's `body` string, in a `data-tut-body` element styled
+  `white-space: pre-line`, so a `\n\n` in the string renders as a paragraph break.
+  A step with `units:true` appends the `UnitsPicker` — the same control the UNITS
+  modal uses, so a choice made here is the real setting.
 - **Task**: a step with `task` appends a `TRY IT ·` line with a ○ marker. When the
   step opens, `appState` is snapshotted; whenever it changes, `task.check(appState,
   snapshot)` runs, and once it returns true the marker latches to ✓ (green) for the
@@ -120,8 +124,13 @@ live `fe`) for step tasks, and `notice` for the locked-tier redirect message
   check counts as not done. The task never gates NEXT — it is a nudge, and the
   spotlit zone is already clickable (see `dim()`), so the user acts in place. The
   balance guide passes no `appState`, so tasks there would never tick.
+- **TERMS chips**: a step with `glossary` ends with a `TERMS` row (`data-tut-terms`),
+  one chip per id labelled by `glossaryLabel`. A chip calls `glossaryBridge.open(id)`,
+  which opens `GlossaryModal` scrolled to and flashing that entry. The glossary sits
+  above the card (z-index 1100 vs 700), so the tour is still there when it closes,
+  and focus returns to the chip when it was opened from the keyboard.
 - **Buttons**: ← PREV from step 2 on; NEXT → until the last step, then DONE ✓.
-  DONE calls `onDone` if given (tier guides: `closeTutEnd`), otherwise `onClose`
+  DONE calls `onDone` if given (tier guides: `finishTut`), otherwise `onClose`
   (balance guide).
 - **Overflow**: if the body scrolls, a `▼ SCROLL FOR MORE` fade appears; it is
   re-checked twice after layout settles because the first measurement can run
@@ -162,8 +171,8 @@ Each step is an object in its guide's array:
 | Field | Required | Meaning |
 |---|---|---|
 | `title` | yes | Card heading. |
-| `body` | one of `body` / `terms` | Plain-text paragraph. `\n\n` renders as-is inside the body. |
-| `terms` | one of `body` / `terms` | `[{term, def}]`, rendered glossary-style. |
+| `body` | yes | Plain text, kept short (about 320 characters at most); depth goes in the glossary. `\n\n` renders as a paragraph break (the body is `pre-line`). |
+| `glossary` | no | Array of `GLOSSARY` ids, rendered as TERMS chips that open the glossary at that entry. Keep it to three at most, and only entries whose `tier` is at or below the guide's tier, so a chip never opens a term the reader can't see yet. |
 | `focus` | yes (may be `null`) | Array of zone keys to spotlight. `null` = info step, nothing spotlit. |
 | `sidebar` | no | `'open'` or `'close'` forces the sidebar. |
 | `units` | no | `true` embeds the units picker. |
@@ -227,58 +236,59 @@ every step title of its guide, in order.
 | 1 | Welcome to SUSP.OS | — | close | What the app does; a working tune comes first, refinement after. | |
 | 2 | Choose Your Units | — | | Embedded units picker; match Forza's spring units. | ✓ |
 | 3 | Load a Preset | `garage` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. | ✓ |
-| 4 | Getting Around | `toolbar` | | ☰ sidebar, ↩ / ↪ and keyboard undo, ⓘ hints. | |
+| 4 | Getting Around | `toolbar` | | ☰ sidebar, ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
 | 5 | Layout & Build Type | `layout-build`, `build-type` | | Drive layout and build type and what they drive. | |
 | 6 | Weight & Front Bias | `weight` | | Take them from the car selection screen. | |
 | 7 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
 | 8 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
 | 9 | Character | `character` | | STABLE ↔ AGILE damping feel. | |
 | 10 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. | |
-| 11 | Reading the Results | `output` | | The six result cards; amber = near a game limit. | ✓ |
+| 11 | Reading the Results | `output` | | Values to type in, card by card; amber = near a game limit. | ✓ |
 | 12 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. | |
 | 13 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. | |
 
 ### Intermediate <!--@tutorial intermediate-->
 
+There are no Key Terms cards any more: Hz, ζ and roll stiffness are TERMS chips on
+the Welcome card and live in the glossary.
+
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Welcome — Intermediate Mode | — | | Collapsible sections, SECTIONS − / +, per-section ↺. |
-| 2 | Key Terms — Frequency & Damping | — | | *terms:* Hz, ζ, Settle Time. |
-| 3 | Key Terms — ARB & Roll Stiffness | — | | *terms:* Bump Ratio, ARB, Roll Stiffness. |
-| 4 | Chassis | `chassis` | | Layout / weight / bias moved here; CG height source. |
-| 5 | Diff Type | `drivetrain` | | Race / Sport / Rally / Offroad / Drift lock curves. |
-| 6 | Corner Exit & Entry | `drivetrain` | | Per-axle groups; DIFF rows in the balance bar. |
-| 7 | AWD Center Diff | `drivetrain` | | Power Split recommendation, Front Exit Push. |
-| 8 | Build Type | `build` | | What build type sets. |
-| 9 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
-| 10 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
-| 11 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; MULTIPLIER / FLAT RIDE / INDEPENDENT. |
-| 12 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and the DAMP row. |
-| 13 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS, SAG readouts. |
-| 14 | Handling Balance Bar | `balance-bar` | close | Per-contributor breakdown incl. DIFF and DAMP. |
-| 15 | Reading the Results | `output` | close | The six result cards. |
-| 16 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
-| 17 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
-| 18 | Organizing & Searching | `garage` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
-| 19 | Sharing & Backup | `garage` | close | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. |
+| 1 | Welcome — Intermediate Mode | — | | Collapsible sections, SECTIONS − / +, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
+| 2 | Chassis | `chassis` | | Layout / weight / bias moved here; CG height source. |
+| 3 | Diff Type | `drivetrain` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
+| 4 | Corner Exit & Entry | `drivetrain` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF rows follow. |
+| 5 | AWD Center Diff | `drivetrain` | | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. |
+| 6 | Build Type | `build` | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
+| 7 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
+| 8 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
+| 9 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
+| 10 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and the DAMP row. |
+| 11 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
+| 12 | Handling Balance Bar | `balance-bar` | close | Per-contributor breakdown incl. DIFF and DAMP. |
+| 13 | Reading the Results | `output` | close | Values to type in, card by card; amber = near a game limit. |
+| 14 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
+| 15 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
+| 16 | Organizing & Searching | `garage` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
+| 17 | Sharing & Backup | `garage` | close | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. |
 
 ### Pro <!--@tutorial pro-->
 
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Welcome — Pro Mode | — | | What PRO adds. |
-| 2 | Chassis Geometry | `chassis` | | Tyres, wheelbase, track widths; CHASSIS BAL., GRIP BIAS, STABILITY; GEOMETRY GAP. |
-| 3 | Manual Differential | `drivetrain` | | Per-axle accel/decel lock, range hints, MATCH CHASSIS, AWD split breakdown. |
-| 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE's step 1; saved Hz, CLEAR / ✕. |
+| 1 | Welcome — Pro Mode | — | | What PRO adds; alignment stays AUTO unless set to MANUAL, brakes always computed. |
+| 2 | Chassis Geometry | `chassis` | | Tyres, wheelbase, track widths; how they set the Balance Guide's NATURAL and GRIP BIAS. |
+| 3 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
+| 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
 | 5 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
-| 6 | Mech Balance Target | `balance-target` | | Offset from NAT, 0.05–0.95 clamp, BALANCE GUIDE. |
-| 7 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset, GEOMETRY GAP. |
-| 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share. |
-| 9 | Hz MECH & Balance Target Mode | `arb`, `visuals` | | Hz MECH; target mode applies to all three. |
-| 10 | Alignment Mode | `alignment` | | BUILD / MECH / GRIP / MANUAL, Nudge Strength. |
-| 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT), PITCH shown not added, diff/damp direction-only; tips, RESPONSE, MECH BALANCE strip. |
-| 12 | Handling Balance Expanded (2/2) | `balance-bar` | | LOAD TRANSFER: XFER F/R, OUT / IN. |
-| 13 | Output Panel & Tune Check | `toolbar` | | CHECK, MEASURE tab, SHARE, RESET. |
+| 6 | Mech Balance Target | `balance-target` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
+| 7 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset. |
+| 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
+| 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
+| 10 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
+| 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
+| 12 | Handling Balance Expanded (2/2) | `balance-bar` | | LOAD TRANSFER at 1 g: CORNER, XFER, OUT / IN. |
+| 13 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
 
 ### Handling balance <!--@tutorial balance-->
 
@@ -288,9 +298,9 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 |---|---|---|---|---|
 | 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
 | 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
-| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC; value and % share. PRO groups by phase instead, diff and damping direction-only. |
-| 4 | Using the Correction Tip | — | | Which input to reach for, per tier. |
-| 5 | Response Bar | — | | PLANTED ↔ REACTIVE, what it's weighted on. |
+| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC (diff, brakes, damping); value and % share. PRO groups by phase instead. |
+| 4 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
+| 5 | Response Bar | — | | PLANTED ↔ REACTIVE, separate from understeer / oversteer. |
 
 ---
 
@@ -308,7 +318,11 @@ state — a reload closes it — but every step change in a tier guide writes th
 to `suspos_tutorial_step_v1`. Pressing the header `?` with a saved step above 0
 shows a small choice, **RESUME AT STEP n** or **START OVER**; with nothing saved it
 opens at step 1 as before. The saved step is clamped to the guide's current length,
-since steps get added and removed. Resuming goes through `openTut(mode, step)`, so
+since steps get added and removed. It is an index, not a title, so removing a step
+shifts every later saved position: when the intermediate guide's two Key Terms cards
+were dropped (their terms now live in the glossary, reached from the Welcome card's
+TERMS chips), an INT save resumes two steps further on than where it was left.
+That was accepted rather than migrated. Resuming goes through `openTut(mode, step)`, so
 the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
 state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
 The balance guide is not tracked — it's five steps.
@@ -326,7 +340,10 @@ tier, and the balance guide the next time the Handling Balance bar is expanded
 ## Adding or changing a step
 
 1. Edit the step in `TUTORIALS`. Keep it about the tier it's in — INT and PRO
-   guides only cover what that tier adds.
+   guides only cover what that tier adds. Keep the body short and point at the
+   glossary for depth: add or reuse a `GLOSSARY` entry and list its id in `glossary`
+   rather than growing the body. Definitions belong in the glossary, not in a
+   tutorial step.
 2. If it spotlights something new, give that element a `zone-*` id wrapper with
    `style={dim('your-key')}`, and update CODE_MAP's zone list and count.
 3. If the spotlit control lives in a collapsible section, add the key to the

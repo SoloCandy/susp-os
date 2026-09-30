@@ -11,6 +11,73 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — hints and tutorials trimmed; depth moved to a tier-tagged, linked glossary
+
+Hints, tutorial bodies and inline notes had grown into paragraphs, and many restated the same
+explanation at every tier. They are now short (hints and notes aimed at 200 characters, tutorial
+bodies at 320) and keep only what their tier needs; the detail moved to the glossary.
+`tests-docs.js` enforces a looser ceiling on the hint strings it can parse.
+
+- **Glossary rebuilt.** `GLOSSARY` is now thirteen groups of entries with a stable `id`, a `tier`
+  (the lowest tier that sees the thing), an optional `short` label and `see` links. A definition
+  runs in paragraphs; a paragraph that only matters higher up starts with `[INT]` or `[PRO]`.
+  `GLOSSARY_BY_ID`, `glossaryLabel` and `glossaryBridge` sit beside it.
+- **TERMS links.** A `Hint` given a `term` shows a TERMS link that opens the glossary at that
+  entry; `TermLink` does the same inline. Fields, sliders, VISUALS tracks, toggles, cards, the
+  Handling Balance rows and the RESPONSE rows carry one. Tutorial steps list theirs in a
+  `glossary` field, shown as TERMS chips, replacing the old `terms` field.
+- **Glossary modal.** Tier badges, an ALL / BEG / INT / PRO filter (session only, not
+  persisted), search within the filter, SEE jumps with a flash on the target, and Escape to close.
+- **Key Terms steps removed.** The two INT "Key Terms" tutorial steps were glossary copies and are
+  gone. A saved INT tutorial position past them now resumes two steps later than before; this was
+  accepted rather than migrated.
+- **Dead PRO GRIP BIAS block removed.** `HandlingVerdict` carried a `uiMode==='pro'` GRIP BIAS
+  note, but PRO renders `PhaseVerdict` instead, so it could never show. The PRO Balance Guide's
+  GRIP BIAS row already says the same.
+
+Fact fixes made on the way. Text only unless noted:
+
+- Damping Balance Mode is described as four peer modes (STANDARD, TIME SYNC, HYBRID, EQUAL FORCE).
+  There is no "Sync Method" control; the glossary terms dropped that suffix.
+- FLAT RIDE was called one of three ways to set the secondary axle's Hz. Hz MODE has up to five
+  (MULTIPLIER, MECH at PRO, FLAT RIDE, INDEPENDENT, SHARED with BOTTOM G's), and FLAT RIDE
+  addresses pitch bounce over bumps, not brake dive or squat.
+- Natural balance was said to be read at 2.5 Hz. An unmeasured natural is probed at 2.2 Hz
+  (`NAT_BAL_PROBE_HZ`); 2.5 Hz (`NAT_BAL_REF_HZ`) only reads old measurements.
+- Accel Lock's glossary line had the sign backwards: more accel lock adds exit oversteer on RWD
+  and the AWD rear, and exit understeer on FWD and the AWD front.
+- The RWD Decel Lock hint said lower decel gives less lift-off oversteer. It gives more.
+- The Balance Mode hint showed a literal "%%".
+- Settle time and the DYNAMICS strip were described as ±10% of ride height. The band is ±10% of
+  the initial disturbance (`SETTLE_ENV`).
+- Alignment was described with a BUILD mode. The modes are AUTO (with Nudge OFF / MECH / GRIP)
+  and MANUAL; the PRO welcome step no longer says alignment is always computed.
+- Stiffness Mode MAN was labelled PRO-only. It is available at INT too.
+- Brake tips no longer tell the user to move the brake bias the BRAKES card recommends. The bar and
+  PRO ENTRY measure it against different references (50% and the entry-load ideal), which
+  [KNOWN_ISSUES.md](KNOWN_ISSUES.md) records.
+- Smaller corrections in tutorial and hint wording: the Balance Guide's real row names, which
+  modes solve toward the Balance Target, NEUTRAL's EQUAL ROLL option, SHARED and MECH in the ride
+  reference step, and the AWD center split being a user setting with a recommendation beside it.
+
+## Fixed — BEG/INT brakes tip picked its wording by the total, not by BRK's own sign
+
+`HandlingVerdict`'s `domTips.brakes` chose "below 50% front" or "above 50% front" by `total>0`.
+When BRK dominated against the total (BRK −4, springs and ARB +3.5 each), it stated a bias below
+50% for a bias above it. It now branches on `bBrakeEntry`'s sign. The PRO FIT? badge hint also
+stops stacking the hard CG detail with every soft flag's full detail, which ran past 200
+characters: with more than one flag the soft ones are listed by tag.
+
+## Fixed — Handling Balance rows remounted on every render
+
+`HandlingVerdict` rendered its rows through `<GroupSection/>` and `PhaseVerdict` through `<Seg/>`,
+both defined inside the component body, so each `App` render made them a new component type and
+React remounted every row and its ⓘ. An open tooltip there closed on any state change, and a
+keyboard user who opened the glossary from one of those ⓘ lost focus to the page on Escape: the ⓘ
+`closeGlossary` returns focus to had been replaced by the render that opened the glossary.
+`GroupSection` is now called as a function and `Seg` is module-level. Do not turn either back into
+a component defined inside the body.
+
 ## Fixed — DAMPERS table read pre-CO-SOLVE zetas, so EQUAL FORCE showed off 50/50
 
 The table multiplied `physics.zetaF/zetaR` by `tune.fHz/rHz`. computeTune re-solves the damping

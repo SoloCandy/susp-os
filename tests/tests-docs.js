@@ -64,6 +64,41 @@ function objectBody(name) {
   throw new Error(`unbalanced braces reading ${name}`);
 }
 
+// String-aware bracket matching. objectBody's plain brace count is fine for the DEF_*
+// tables, but prose-heavy literals (GLOSSARY definitions, hint ternaries) carry their own
+// brackets — "[INT] …", "(0.50 = even)" — and template literals nest `${…}`. `s[i]` must be
+// an opening quote / bracket; returns the index just past the string / of the closer.
+function skipString(s, i) {
+  const q = s[i];
+  for (i++; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\') { i++; continue; }
+    if (q === '`' && c === '$' && s[i + 1] === '{') { i = matchClose(s, i + 1); continue; }
+    if (c === q) return i + 1;
+  }
+  throw new Error(`unterminated ${q} string`);
+}
+function matchClose(s, i) {
+  let depth = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === "'" || c === '"' || c === '`') { i = skipString(s, i); continue; }
+    if (c === '{' || c === '[' || c === '(') depth++;
+    else if (c === '}' || c === ']' || c === ')') { depth--; if (depth === 0) return i; }
+    i++;
+  }
+  throw new Error('unbalanced brackets');
+}
+
+// Bracket-matched array literal following `const NAME=[`, objectBody's twin (string-aware,
+// for the reason above). Returns the raw body text.
+function arrayBody(name) {
+  const at = SRC.indexOf(`const ${name}=[`);
+  if (at < 0) throw new Error(`${name} not found in index.html`);
+  const open = SRC.indexOf('[', at);
+  return SRC.slice(open + 1, matchClose(SRC, open));
+}
+
 // Top-level `key:` names only — nested object values would otherwise leak their
 // own keys in (DEF_* are flat today, but this keeps the check honest if one nests).
 function topLevelKeys(body) {
@@ -644,6 +679,362 @@ check('VISUALS.md states the ζ zones, the settle band and the ARB bands the cod
   }
   return problems.length === 0 || `not stated in VISUALS.md: ${problems.join(', ')}`;
 });
+
+// ── glossary ────────────────────────────────────────────────────────────────
+section('glossary');
+
+// Every hint, tutorial chip and "TERMS: … ›" link resolves to a GLOSSARY id at runtime, and an
+// unknown id fails soft (glossaryLabel echoes the raw id, the modal opens on nothing), so a
+// renamed or deleted entry would ship as a dead link nobody sees in review. The hints were
+// also trimmed so depth lives in the glossary; the length guard keeps them that way.
+const TIER_RANK = { beginner: 0, intermediate: 1, pro: 2 };
+const PARA_LABEL_TIER = { INT: 'intermediate', PRO: 'pro' };
+
+// GLOSSARY is pure data, so evaluating its body is safe and exact. A throw here is itself a
+// finding (the literal stopped being plain data), reported by the first check.
+let GLOSSARY_ERR = null;
+const GLOSSARY_BODY = arrayBody('GLOSSARY');
+const GLOSSARY = (() => {
+  try { return new Function(`return [${GLOSSARY_BODY}];`)(); }
+  catch (e) { GLOSSARY_ERR = e.message; return []; }
+})();
+const GLOSSARY_ENTRIES = GLOSSARY.flatMap(g => (g.terms || []).map(t => ({ ...t, group: g.group })));
+const GLOSSARY_BY_ID = new Map(GLOSSARY_ENTRIES.map(t => [t.id, t]));
+
+check('GLOSSARY entries are well-formed: unique ids, known tiers, SEE targets exist', () => {
+  if (GLOSSARY_ERR) return `GLOSSARY does not evaluate as plain data: ${GLOSSARY_ERR}`;
+  const problems = [];
+  // Counted on the source text, not the evaluated array: an entry that lost its id: (or a
+  // duplicated key that the object literal silently collapsed) shows up only here.
+  const nTerm = (GLOSSARY_BODY.match(/[{,]\s*term:/g) || []).length;
+  const nId = (GLOSSARY_BODY.match(/[{,]\s*id:/g) || []).length;
+  if (nTerm !== nId) problems.push(`${nTerm} term: vs ${nId} id: in the source`);
+  if (nId !== GLOSSARY_ENTRIES.length) problems.push(`${nId} id: in the source vs ${GLOSSARY_ENTRIES.length} entries evaluated`);
+  const seen = new Set();
+  for (const g of GLOSSARY) if (!g.group || !Array.isArray(g.terms)) problems.push(`group without group/terms: ${JSON.stringify(g).slice(0, 60)}`);
+  for (const t of GLOSSARY_ENTRIES) {
+    if (typeof t.id !== 'string' || !/^[a-z0-9-]+$/.test(t.id)) problems.push(`bad id ${JSON.stringify(t.id)}`);
+    if (seen.has(t.id)) problems.push(`duplicate id ${t.id}`);
+    seen.add(t.id);
+    if (typeof t.term !== 'string' || !t.term) problems.push(`${t.id}: no term`);
+    if (typeof t.def !== 'string' || !t.def) problems.push(`${t.id}: no def`);
+    if (!(t.tier in TIER_RANK)) problems.push(`${t.id}: tier ${JSON.stringify(t.tier)}`);
+    for (const s of t.see || []) {
+      if (!GLOSSARY_BY_ID.has(s)) problems.push(`${t.id}: SEE ${s} does not exist`);
+      if (s === t.id) problems.push(`${t.id}: SEE points at itself`);
+    }
+  }
+  return problems.length === 0 || problems.join('; ');
+});
+
+// "[INT] " / "[PRO] " open a paragraph written for a higher tier than the entry's own. A label
+// at or below the entry's tier is noise (every reader of that entry already has it), and on the
+// first paragraph it would leave the entry with no text for its own tier.
+check('GLOSSARY [INT]/[PRO] paragraph labels sit above the entry\'s tier, never first', () => {
+  const problems = [];
+  for (const t of GLOSSARY_ENTRIES) {
+    (t.def || '').split('\n\n').forEach((p, i) => {
+      const m = /^\[([A-Z]+)\]/.exec(p);
+      if (!m) return;
+      const tier = PARA_LABEL_TIER[m[1]];
+      if (!tier) problems.push(`${t.id}: unknown label [${m[1]}]`);
+      else if (i === 0) problems.push(`${t.id}: [${m[1]}] on the first paragraph`);
+      else if (TIER_RANK[tier] <= TIER_RANK[t.tier]) problems.push(`${t.id} (${t.tier}): [${m[1]}] is not above its tier`);
+      if (tier && !/^\[[A-Z]+\] \S/.test(p)) problems.push(`${t.id}: [${m[1]}] not followed by one space`);
+    });
+  }
+  return problems.length === 0 || problems.join('; ');
+});
+
+// Tier of the reader each guide can reach. beginner / intermediate / pro run as the tutorial for
+// that uiMode. balance is the Handling Balance guide: openBalTut fires from the bar's ? GUIDE
+// button and on the bar's first expand, with no uiMode gate, so a BEG reader sees it. A new
+// guide key fails here until someone decides its tier.
+const GUIDE_TIER = { beginner: 'beginner', intermediate: 'intermediate', pro: 'pro', balance: 'beginner' };
+
+check('tutorial TERMS chips name real glossary ids at or below the guide\'s tier', () => {
+  if (GLOSSARY_ERR) return 'skipped: GLOSSARY does not evaluate (see the first glossary check)';
+  const body = objectBody('TUTORIALS');
+  const heads = [...body.matchAll(/^  (\w+):\[/gm)];
+  const problems = [];
+  let chips = 0;
+  heads.forEach((h, i) => {
+    const guide = h[1];
+    const tier = GUIDE_TIER[guide];
+    if (!tier) { problems.push(`guide ${guide} has no GUIDE_TIER entry`); return; }
+    const seg = body.slice(h.index, i + 1 < heads.length ? heads[i + 1].index : body.length);
+    for (const m of seg.matchAll(/glossary:\[([^\]]*)\]/g))
+      for (const k of m[1].matchAll(/'([^']*)'/g)) {
+        chips++;
+        const t = GLOSSARY_BY_ID.get(k[1]);
+        if (!t) problems.push(`${guide}: ${k[1]} is not a glossary id`);
+        else if (TIER_RANK[t.tier] > TIER_RANK[tier]) problems.push(`${guide}: ${k[1]} is ${t.tier}`);
+      }
+  });
+  if (chips === 0) problems.push('no glossary:[…] chips found — has the step field been renamed?');
+  if (/\bterms:\s*\[/.test(body)) problems.push('a step still uses the retired terms: field');
+  return problems.length === 0 || problems.join('; ');
+});
+
+// ── glossary references in code ──
+// Source with comments and the GLOSSARY literal removed: glossary entries have term: keys of
+// their own, and comments quote attribute syntax.
+const GLOSSARY_SPAN = (() => {
+  const at = SRC_NC.indexOf('const GLOSSARY=[');
+  return [at, matchClose(SRC_NC, SRC_NC.indexOf('[', at)) + 1];
+})();
+const SRC_REFS = SRC_NC.slice(0, GLOSSARY_SPAN[0]) + SRC_NC.slice(GLOSSARY_SPAN[1]);
+
+// The value that starts at s[i]: a quoted literal, a JSX `{…}` expression (braces dropped),
+// or a bare object value / default running to the next top-level , ; } ] ).
+function valueAt(s, i) {
+  while (s[i] === ' ') i++;
+  const c = s[i];
+  if (c === "'" || c === '"' || c === '`') return { lit: true, text: s.slice(i, skipString(s, i)) };
+  if (c === '{') return { lit: false, text: s.slice(i + 1, matchClose(s, i)).trim() };
+  let j = i, depth = 0;
+  while (j < s.length) {
+    const d = s[j];
+    if (d === "'" || d === '"' || d === '`') { j = skipString(s, j); continue; }
+    if (d === '{' || d === '[' || d === '(') depth++;
+    else if (d === '}' || d === ']' || d === ')') { if (depth === 0) break; depth--; }
+    else if ((d === ',' || d === ';') && depth === 0) break;
+    j++;
+  }
+  const text = s.slice(i, j).trim();
+  return { lit: /^(['"`]).*\1$/s.test(text) && skipString(text, 0) === text.length, text };
+}
+
+// Evaluated length of one literal. A `${…}` counts 4 — a number or a short word — unless the
+// placeholder carries string literals of its own (`${physMode?'N/m …':'…'}`), in which case it
+// counts as its longest one: that branch is text the reader sees.
+const unescLen = t => t.replace(/\\(u\{[^}]*\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])/g, 'x').length;
+function literalLen(lit) {
+  if (lit[0] !== '`') return unescLen(lit.slice(1, -1));
+  let n = 0, chunk = '';
+  for (let i = 1; i < lit.length - 1; i++) {
+    const c = lit[i];
+    if (c === '\\') { chunk += lit.slice(i, i + 2); i++; continue; }
+    if (c === '$' && lit[i + 1] === '{') {
+      const end = matchClose(lit, i + 1);
+      const inner = literalsIn(lit.slice(i + 2, end)).map(l => l.len);
+      n += Math.max(4, ...inner);
+      i = end;
+      continue;
+    }
+    chunk += c;
+  }
+  return n + unescLen(chunk);
+}
+
+// Every string literal in an expression, each with its length and whether it is a comparison
+// operand (`mode==='range'`) rather than a value. Adjacent literals joined by + — with at most
+// one simple operand between them, counted 4 — are measured as one string.
+function literalsIn(expr) {
+  const out = [];
+  for (let i = 0; i < expr.length;) {
+    const c = expr[i];
+    if (c !== "'" && c !== '"' && c !== '`') { i++; continue; }
+    const end = skipString(expr, i);
+    const raw = expr.slice(i, end);
+    const before = expr.slice(Math.max(0, i - 4), i), after = expr.slice(end, end + 4);
+    const cmp = /[=!]==?\s*$/.test(before) || /^\s*[=!]==?/.test(after);
+    const prev = out[out.length - 1];
+    const gap = prev ? expr.slice(prev.end, i) : null;
+    const join = !prev || prev.cmp || cmp ? null
+      : /^\s*\+\s*$/.test(gap) ? 0 : /^\s*\+\s*[\w$.]+(\([^()]*\))?\s*\+\s*$/.test(gap) ? 4 : null;
+    const len = literalLen(raw);
+    if (join !== null) Object.assign(prev, { raw: prev.raw + ' + ' + raw, len: prev.len + join + len, end });
+    else out.push({ raw, len, cmp, end });
+    i = end;
+  }
+  return out;
+}
+const valueLiterals = expr => literalsIn(expr).filter(l => !l.cmp);
+const litText = raw => raw.replace(/\s+/g, ' ').slice(0, 60);
+
+// Expressions that pass a glossary id through from somewhere this check already reads, listed
+// one by one so a new non-literal reference has to be looked at before it can pass.
+const TERM_PASS_THROUGH = new Set([
+  'hintTerm',           // term={hintTerm} / hintTerm={hintTerm}: Field, FeelSlider, VisTrack, Toggle, Card, … forward their own prop
+  'term',               // term={term}: Hint forwards its prop; the RESPONSE rows forward row.term (term: keys, checked below)
+  'hintTerms[name]',    // HandlingVerdict rows; every hintTerms map value is checked below
+  'null',               // hintTerm=null destructured defaults; glossaryBridge.open(null) opens the index
+  'id',                 // glossaryBridge.open(id): TermLink and the tutorial chips forward theirs
+]);
+
+const HINT_TERMS_MAPS = [...SRC_REFS.matchAll(/const hintTerms=\{/g)].map(m => {
+  const open = m.index + m[0].length - 1;
+  return new Function(`return {${SRC_REFS.slice(open + 1, matchClose(SRC_REFS, open))}};`)();
+});
+
+check('every term / hintTerm / TermLink / glossaryBridge.open id outside GLOSSARY resolves', () => {
+  if (GLOSSARY_ERR) return 'skipped: GLOSSARY does not evaluate (see the first glossary check)';
+  const problems = [], refs = [];
+  const take = (where, v) => {
+    if (v.lit) return refs.push([where, v.text.slice(1, -1)]);
+    if (TERM_PASS_THROUGH.has(v.text)) return;
+    const key = /^hintTerms\.(\w+)$/.exec(v.text);
+    if (key) {
+      const hit = HINT_TERMS_MAPS.find(mp => key[1] in mp);
+      return hit ? refs.push([where, hit[key[1]]]) : problems.push(`${where}={${v.text}}: no hintTerms map has ${key[1]}`);
+    }
+    // A branch expression: its values are the literals that are not comparison operands.
+    const lits = valueLiterals(v.text);
+    if (lits.length === 0) return problems.push(`${where}={${v.text}}: not a literal and not a known pass-through`);
+    for (const l of lits) refs.push([where, l.raw.slice(1, -1)]);
+  };
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])(term|hintTerm)=/g)) take(m[1], valueAt(SRC_REFS, m.index + m[0].length));
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])term:/g)) take('term:', valueAt(SRC_REFS, m.index + m[0].length));
+  for (const m of SRC_REFS.matchAll(/<TermLink\b([^>]*?)\/>/g)) {
+    const at = m[1].search(/(?<![\w-])id=/);
+    if (at < 0) { problems.push(`<TermLink${m[1]}/> has no id`); continue; }
+    take('TermLink id', valueAt(m[1], at + 3));
+  }
+  for (const m of SRC_REFS.matchAll(/glossaryBridge\.open\(/g)) {
+    const arg = valueAt(SRC_REFS, m.index + m[0].length);
+    if (arg.text === 'term') continue;   // Hint forwards its own term prop (checked at each <Hint term=…>)
+    take('glossaryBridge.open', arg);
+  }
+  HINT_TERMS_MAPS.forEach(mp => { for (const [k, v] of Object.entries(mp)) refs.push([`hintTerms.${k}`, v]); });
+  if (refs.length < 20) problems.push(`only ${refs.length} literal references found — has the prop been renamed?`);
+  for (const [where, id] of refs) if (!GLOSSARY_BY_ID.has(id)) problems.push(`${where} '${id}' is not a glossary id`);
+  return problems.length === 0 || [...new Set(problems)].join('; ');
+});
+
+// ── hint length guard ──
+// Hints were trimmed to ≤200 characters with the depth moved to the glossary; 260 leaves room
+// for a ${…} that renders long without letting a paragraph creep back in. Titles are tooltips
+// on buttons, so shorter.
+const HINT_MAX = 260, TITLE_MAX = 160, ENVELOPE_MIN = 20;
+
+// Over-length hints let through, keyed by their opening words. Each entry must still match a
+// hint that is over the limit, so trimming one makes this list fail until the entry goes.
+// Both are the physMode (BeamNG) branches of hint ternaries inside the Forza-only output block
+// `{!physMode&&(<>`, so they never render — dead text left in place on purpose (CODE_MAP,
+// intentionally-retained). The live BeamNG cards sit in `{physMode&&(()=>{` and are trimmed.
+const HINT_LONG_ALLOWED = [
+  '"Anti-Roll Spring Rate per axle in N/m, matching BeamNG',
+  '"Rebound (REB) and bump (BUMP) damping in N/m/s, matching BeamNG',
+];
+
+// Non-literal hint values that are measured where they are written, listed explicitly.
+const HINT_REFERENCES = [
+  /^hint$/,                  // hint={hint} / <Hint text={hint}>: components forwarding their own prop
+  /^hints\[name\]\?\?''$/,   // HandlingVerdict rows: the const hints object is measured below
+  /^hints\.\w+$/,            // PhaseVerdict rows: likewise
+  /^HINT_[A-Z_]+$/,          // shared hint consts, measured below
+  /^[a-z]\w*Hint$/,          // suspHint / beamngAlignHint / destHint consts, measured below
+  /^null$/,                  // hint=null destructured defaults
+];
+
+// Opening JSX tag enclosing s[pos]: from the last `<Name` before it to its closing `>`.
+function tagAround(s, pos) {
+  let at = pos;
+  while (at > 0 && !(s[at] === '<' && /[A-Za-z]/.test(s[at + 1] || ''))) at--;
+  let i = at + 1;
+  while (i < s.length && s[i] !== '>') {
+    if (s[i] === '{' ) { i = matchClose(s, i) + 1; continue; }
+    if (s[i] === '"' || s[i] === "'") { i = skipString(s, i); continue; }
+    i++;
+  }
+  return s.slice(at, i + 1);
+}
+// Object literal enclosing s[pos].
+function objectAround(s, pos) {
+  let depth = 0, at = pos;
+  for (; at > 0; at--) {
+    if (s[at] === '}') depth++;
+    else if (s[at] === '{') { if (depth === 0) break; depth--; }
+  }
+  return s.slice(at, matchClose(s, at) + 1);
+}
+
+// Every measurable hint string, with whether it carries a glossary link.
+const HINT_ITEMS = (() => {
+  const items = [], unmeasured = [];
+  const add = (where, v, linked, max = HINT_MAX) => {
+    if (!v.lit && HINT_REFERENCES.some(r => r.test(v.text))) return;
+    const lits = v.lit ? literalsIn(v.text) : valueLiterals(v.text);
+    if (lits.length === 0) return unmeasured.push(`${where}: ${litText(v.text)}`);
+    for (const l of lits) items.push({ where, len: l.len, text: litText(l.raw), linked, max });
+  };
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])hint=/g)) {
+    const v = valueAt(SRC_REFS, m.index + m[0].length);
+    if (v.text === 'null') continue;
+    add('hint=', v, /(?<![\w-])(hintTerm|term)=/.test(tagAround(SRC_REFS, m.index)));
+  }
+  for (const m of SRC_REFS.matchAll(/<Hint\s+text=/g))
+    add('<Hint text>', valueAt(SRC_REFS, m.index + m[0].length), /(?<![\w-])term=/.test(tagAround(SRC_REFS, m.index)));
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])hint:/g))
+    add('hint:', valueAt(SRC_REFS, m.index + m[0].length), /(?<![\w-])term:/.test(objectAround(SRC_REFS, m.index)));
+  // const hints={…} / const tips=… bodies, and tips.push(…) in PhaseVerdict. Their links are the
+  // sibling hintTerms maps (checked above) or a trailing <TermLink>, so they count as linked.
+  for (const m of SRC_REFS.matchAll(/const (hints|tips)=/g)) {
+    const v = valueAt(SRC_REFS, m.index + m[0].length);
+    if (v.text === '[]') continue;   // PhaseVerdict's tips=[]: its strings arrive by tips.push, below
+    add(`const ${m[1]}`, { lit: false, text: v.text }, true);
+  }
+  for (const m of SRC_REFS.matchAll(/\btips\.push\(/g)) {
+    const open = m.index + m[0].length - 1;
+    add('tips.push', { lit: false, text: SRC_REFS.slice(open + 1, matchClose(SRC_REFS, open)) }, true);
+  }
+  // Lower-case first letter: RangeHint and friends are components, not strings.
+  for (const m of SRC_REFS.matchAll(/const (HINT_[A-Z_]+|[a-z]\w*Hint)=/g))
+    add(`const ${m[1]}`, valueAt(SRC_REFS, m.index + m[0].length), true);
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])title=/g)) {
+    const v = valueAt(SRC_REFS, m.index + m[0].length);
+    // A title with no literal of its own (title={title}) is a label passed in from a caller
+    // whose own title= is measured here; histTitle() builds from short verbs.
+    if (!v.lit && valueLiterals(v.text).length === 0) continue;
+    add('title=', v, true, TITLE_MAX);
+  }
+  return { items, unmeasured };
+})();
+
+check(`hints, tips and hint consts stay ≤ ${HINT_MAX} characters; titles ≤ ${TITLE_MAX}`, () => {
+  const problems = HINT_ITEMS.unmeasured.map(u => `cannot measure ${u}`);
+  if (HINT_ITEMS.items.length < 50) problems.push(`only ${HINT_ITEMS.items.length} hint strings found — has the prop been renamed?`);
+  const allowedHit = new Set();
+  for (const it of HINT_ITEMS.items) {
+    if (it.len <= it.max) continue;
+    const allow = HINT_LONG_ALLOWED.find(p => it.text.startsWith(p.slice(0, 60)));
+    if (allow) { allowedHit.add(allow); continue; }
+    problems.push(`${it.where} ${it.len} > ${it.max}: ${it.text}…`);
+  }
+  for (const p of HINT_LONG_ALLOWED)
+    if (!allowedHit.has(p)) problems.push(`HINT_LONG_ALLOWED entry no longer needed: ${p}`);
+  return problems.length === 0 || problems.join('; ');
+});
+
+// balanceEnvelope's details feed the FIT? badge hint, joined with the tag. Each one alone has to
+// fit, and has to say something: an empty or stub detail renders as a bare tag.
+check(`balanceEnvelope details are ${ENVELOPE_MIN + 1}–${HINT_MAX} characters`, () => {
+  const at = SRC_REFS.indexOf('const balanceEnvelope=');
+  if (at < 0) return 'balanceEnvelope not found';
+  const open = SRC_REFS.indexOf('{', SRC_REFS.indexOf('=>', at));
+  const body = SRC_REFS.slice(open, matchClose(SRC_REFS, open));
+  const problems = [];
+  let n = 0;
+  for (const m of body.matchAll(/(?<![\w-])detail:/g)) {
+    const lits = valueLiterals(valueAt(body, m.index + m[0].length).text);
+    if (lits.length === 0) problems.push('a detail: with no literal text');
+    for (const l of lits) {
+      n++;
+      if (l.len <= ENVELOPE_MIN || l.len > HINT_MAX) problems.push(`${l.len}: ${litText(l.raw)}`);
+    }
+  }
+  if (n === 0) problems.push('no detail: strings found');
+  return problems.length === 0 || problems.join('; ');
+});
+
+// Info only: hints that open no glossary entry. Not every hint needs one, but the list is where
+// to look when a reader asks "what does this mean" and the tooltip has no TERMS link.
+{
+  const unlinked = HINT_ITEMS.items.filter(it => !it.linked && it.max === HINT_MAX);
+  console.log(`  ·  ${unlinked.length} hint string(s) with no TERMS link (info)`);
+  for (const it of unlinked) console.log(`       ${it.where} ${it.text}`);
+}
 
 // ── report ──────────────────────────────────────────────────────────────────
 console.log(`\n${pass + fail} checks: ${pass} passed, ${fail} failed`);

@@ -539,7 +539,7 @@ stops there instead of overshooting into overdamped territory where a higher
 Damping Balance Mode then does the exact same split from that one number:
 
 - **`settleZetas(rideRef,fHz,rHz,refZeta,biasMult)`** — holds *real* settle
-  time equal between axles. Used by SYNC, under either REBOUND MODE. Ignores
+  time equal between axles. Used by TIME SYNC (stored `sync`) and, averaged, by HYBRID, under either REBOUND MODE. Ignores
   corner mass. Solves in rate-space via `dampRate`/`rateToZeta` (the same
   piecewise rate `settleTimeFromZeta` uses below), not a naive `ζ·Hz`
   constant — that naive version is only correct while both axles stay
@@ -554,8 +554,8 @@ Damping Balance Mode then does the exact same split from that one number:
 - **`forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult)`** — `wF,wR =
   mF·fHz, mR·rHz`. Holds actual damping force equal (force ∝ `ζ·m·Hz`, see
   `solveDampRaw` above). Used by EQUAL FORCE (stored as `neutral`), under either REBOUND MODE.
-  Corrects for corner-mass asymmetry that SYNC ignores.
-- **HYBRID** (SYNC sub-mode) — `balModeZetas` averages the `settleZetas` and
+  Corrects for corner-mass asymmetry that TIME SYNC ignores.
+- **HYBRID** (stored as `hybrid`; a peer of the other three, not a sub-mode of TIME SYNC) — `balModeZetas` averages the `settleZetas` and
   `forceZetas` results per axle. Both hold the anchor axle at `refZeta`, so
   the mean does too.
 - **STANDARD** doesn't call either — it biases `baseZeta` directly by
@@ -566,8 +566,8 @@ Damping Balance Mode then does the exact same split from that one number:
   is a fixed anchor). Before this, the exact-anchor axle flipped with the
   Damping Bias slider's sign rather than following Ride Reference at all.
 
-Under SETTLE TIME, only SYNC guarantees *both* axles hit the target time —
-STANDARD/NEUTRAL still anchor the reference axle to it exactly, but the
+Under SETTLE TIME, only TIME SYNC guarantees *both* axles hit the target time —
+STANDARD, EQUAL FORCE and HYBRID still anchor the reference axle to it exactly, but the
 other axle's real settle time is whatever that mode's split produces (`
 tune.settleF`/`settleR` report the honest achieved values either way, not
 a claim of equality).
@@ -582,7 +582,7 @@ on BUMP MODE:
   ζ, so scaling both `zetaF` and `zetaR` by `bumpRatioVal/100` carries
   whatever split the balance mode already solved straight onto bump.
 - **INDEPENDENT** has no such link — the typed `fe.bumpZeta` is an anchor
-  in its own right, not a function of rebound. So under the SYNC methods it is
+  in its own right, not a function of rebound. So under TIME SYNC, HYBRID and EQUAL FORCE it is
   run through the *same solver a second time*, with the typed value as
   `refZeta` and the same `biasMult`. `balModeZetas(mode, …)` exists for
   exactly this: it picks `forceZetas` or `settleZetas` by mode, so the two
@@ -594,7 +594,7 @@ axle's own rebound ζ: crossing above rebound is a warned-but-allowed state
 everywhere else (the slider reaches 115% and the readout says `⚠ CROSSED`),
 so clipping it here would contradict the rest of the app.
 
-Before this, INDEPENDENT under SYNC/NEUTRAL did the opposite of both rules —
+Before this, INDEPENDENT under TIME SYNC/EQUAL FORCE did the opposite of both rules —
 it fed the same typed ζ to *both* axles and then clipped each to that axle's
 rebound ζ. See [HISTORY.md](HISTORY.md).
 
@@ -651,7 +651,7 @@ interpolated), which lands within ~1-2% of the closed-form answer and also
 picks up the rebound/bump ζ alternation `settleTimeFromZeta` cannot see —
 it takes rebound ζ only. So the chart's readout sits **above** the DAMPERS
 figure past ζ≈79% and below it under that; both are correct for what they
-measure, and the chart's hint says so.
+measure, and the chart's `dynamics-chart` glossary entry (linked from its ⓘ) says so.
 
 The DAMPERS table (label | FRONT | REAR; rows Rebound ζ, Bump ζ, Settle,
 Force, Roll ζ) quotes the analytic figure in its **Settle** row (what SETTLE
@@ -703,7 +703,7 @@ Two consequences worth keeping in view, neither of them addressed here:
   against the real response an aggressive target would be better served
   near ζ≈59% than at 100%. See [HISTORY.md](HISTORY.md).
 
-`computeTune` re-runs whichever SYNC method is active a second time
+`computeTune` re-runs whichever of TIME SYNC, HYBRID or EQUAL FORCE is active a second time
 after CO-SOLVE resolves `effectiveRHz`, so the settle-time or force split
 matches the *post*-CO-SOLVE rear Hz rather than the pre-solve value
 `feelToPhysics` saw. It runs under **either** REBOUND MODE, including
@@ -1094,7 +1094,7 @@ the LLT model, which runs in every mode, and are not.
 
 **Tyre pressure is deliberately not a check.** The whole fit is pressure-conditional
 in every state, so a flag that is always on would say nothing; that caveat lives in the
-badge's tooltip instead.
+badge's `fit-badge` glossary entry (linked from its ⓘ) instead.
 
 **Balance Target modes.** PRO's Balance Target picks what the Mech Balance Target
 is measured from. `resolveFeEffective` turns each one into the absolute
@@ -1330,7 +1330,7 @@ computed) keeps this resolved, live — on ride-height edits, on a
 build/share-code load landing a different target on the current chassis, and
 on mount. It also handles the one case that must go the *other* direction:
 switching RIDE REF. (FRONT/SHARED/REAR) must never itself change the actual
-front/rear Hz (see the RIDE REF. hint text) — so on an axle switch, the
+front/rear Hz (the RIDE REF. hint and its `ride-ref` glossary entry both promise this) — so on an axle switch, the
 effect mirrors the stored target to the newly-active axle's already-current
 g instead of resolving Hz from the old axle's target. It distinguishes these
 two cases with a `useRef` that remembers only the previous RIDE REF. value

@@ -65,7 +65,11 @@ The source runs top to bottom in this order:
    core `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
-7. **Tutorial content** — the `TUTORIALS` object and `TutorialPanel`. Documented in [TUTORIALS.md](TUTORIALS.md).
+7. **Tutorial and glossary content** — the `TUTORIALS` object, then `GLOSSARY` and its
+   helpers (`GLOSSARY_BY_ID`, `glossaryLabel`, `glossaryBridge`), the shared hint strings
+   `HINT_LAYOUT` / `HINT_BUILD_TYPE`, then `TutorialPanel`. Tutorials are documented in
+   [TUTORIALS.md](TUTORIALS.md); the glossary under [Glossary and hints](#glossary-and-hints).
+   `GlossaryModal` and its tier helpers sit earlier, with the shared components.
 8. **`App()`** — all remaining state, the derived `useMemo` chain, and the
    entire sidebar + output JSX.
 9. **Bootstrap** — the Babel/eval block described above.
@@ -191,7 +195,8 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 
 | Component | Rendered in |
 |---|---|
-| `Hint` | everywhere — the ⓘ affordance |
+| `Hint` | everywhere — the ⓘ affordance. Portaled `role="tooltip"`; mouse hover opens it and a mouse click never closes it, a tap or pen tap toggles it, keyboard focus opens it; a press outside, scroll, resize, blur or Escape closes it. An optional `term` (a `GLOSSARY` id) adds a "TERMS: … ›" link that opens the glossary at that entry through `glossaryBridge.open` — the tooltip then takes pointer events, so the mouse can cross onto the link, and Enter on an open ⓘ follows it. Every component that takes a `hint` prop (`Field`, `FeelSlider`, `VisTrack`, `Toggle`, `Card`, `SuspensionCard`, `AlignCard`, `BiasSeg`, `DirSeg`) also takes `hintTerm` and passes it on as that `term`; `HandlingVerdict` and `PhaseVerdict` key theirs in a `hintTerms` object beside `hints`, and a RESPONSE factor row takes an optional `term`. `BiasSeg` and `DirSeg` draw no ⓘ when `hint` is empty |
+| `TermLink` | the same "TERMS: … ›" link inline, for footers and notes that have no ⓘ; `label` overrides `glossaryLabel(id)` |
 | `Field` | numeric inputs across all sections |
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
@@ -204,14 +209,14 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH) |
 | `DirSeg` | a contributor with a direction but no calibrated size — PRO's diff lock and damping rows. Shows toward OS / toward US / — and a NO SIZE label |
 | `VisRollSplit`, `VisSuspTracks` (over `VisTrack` and the `visGhost` helper) | the pinned VISUALS card — its RIDE · ROLL · DAMPING group (`open.visRide`). `VisRollSplit` draws the split divide at `tune.mechBalance`, the display-space value the MECH BALANCE strip plots, so its NAT/TGT ticks match that strip; the springs/ARBs shading within each end uses model-space stiffnesses and is a share of that end only. `VisSuspTracks` renders ride Hz, ARB and damping ζ as F/R rows on shared tracks; the Hz and ARB ghost rings (NAT grey, target green) sit on the derived axle, the one Ride Reference does not fix. These replaced the `SpringDial` / `ArbDial` / `DampingDial` arc dials. What each group draws, marker by marker, is in [VISUALS.md](VISUALS.md). The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
-| `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. The brakes tip refers to the recommended brake balance in the BRAKES card, which every tier shows |
+| `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. The brakes tip explains the BRAKES card's computed bias, which every tier shows, and deliberately does not tell the user to move it — the bar and the card use different neutral points ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). `GroupSection` is called as a function, not rendered as `<GroupSection/>`: a component defined in the body remounts its rows (and their ⓘ) on every `App` render ([HISTORY.md](HISTORY.md)) |
 | `mechReachNote` | a plain helper, not a component: the cause-and-fix sentence both `mechBalClamped` warnings (ARB card and the warnings strip) end with. It works out which bar is at its ceiling or floor from `tune.arbF`/`arbR` against `lim.arb`, and names the fix for the active stiffness mode and CO-SOLVE's Spring Share |
-| `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null |
+| `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null. Its `Seg` (a `BiasSeg` at the phase scale) is module-level, just above it, for the same reason as `HandlingVerdict`'s `GroupSection` |
 | `EntryCard` | one garage entry inside the GARAGE drawer |
 | `CheckerModal` | TUNE CHECK (DECODE / MEASURE). **The overlay has no backdrop-click close, unlike every other modal — that is deliberate, not a missing handler:** MEASURE's two ARB readings are component state taken one at a time with a trip into the game between them, and a stray click on the dim margin used to discard them silently. ✕ is the only way out. They stay component state rather than lifting to `App` because `probeHz` re-seeds per car from `ch.measuredNatBalHz` on open and `App` has no car identity to re-seed against. MEASURE is one column of two numbered steps — `STEP 1 · NAT BAL SETUP`, then `STEP 2 · ARB SCALE SETUP`, which is locked until step 1 has a reading because `solveArbScale` needs it. Each step's `Card` `headerRight` carries its own state chip (NOT SET / SET n / DEFAULT n / RE-MEASURE n) — step 1's goes amber on `natBalStale` and step 2's on `arbScaleStale`, so both steps flag a reading the chassis has moved out from under, and step 1's amber block also says the ARB scale below rests on it, and the module-scope `CkPhase` / `CkChip` / `CkNote` / `CkWarn` / `CkIntro` helpers exist so both steps — and both **tabs** — share one rhythm: what to set, then what to type back. (They were local to this block until DECODE became numbered steps too.) Step 2 ends in a **SCALE IN USE** toggle (`DEFAULT 540` / `MEASURED n`) rather than APPLY/RESET buttons — `DEFAULT` nulls the stored reading to hold `sanitizeTune`'s flag-off-means-null invariant, and `MEASURED` is disabled until `arbCanMeasure` (a fresh pair of readings, or a scale already applied). `arbSolveHz` anchors both solves to `ch.measuredNatBalHz`, never the live `probeHz`, and `arbHzMismatch` surfaces the difference. A stale scale whose NAT BAL was cleared renders a `USE DEFAULT` button inside the locked branch — without it that state has no way back to the default, since every other route to the toggle needs step 1. DECODE is the same two-numbered-step column: `STEP 1 · TUNE INPUTS` (mass, springs, damping, bars, each under its own `CkPhase`) then `STEP 2 · DECODED TUNE`. Step 2 renders **nothing** — no readouts, no buttons — until `ckEntered`, which the `pS`/`pD`/`pA` setters flip on the first spring/damper/ARB edit; the mass fields do not flip it, since they write to `ch` and are shared with the sidebar. Without that gate the seeded stock figures (`ckSpr` 400/300 lb/in and friends, needed because `Field` requires a number) decoded on open and read as a real tune. DECODE's two buttons share one `decodedFe` patch and stack under a **WHERE IT GOES** phase, each with its own line of what it keeps and what it touches: IMPORT TUNE writes the patch to the tune, IMPORT AS DNA (PRO, `onImportDna`) reads it back into the DNA editor without touching this car. `decodedFe` anchors ζ and bump on the **front** axle because it writes `rideRef:'front'` and STANDARD's exact-anchor axle follows Ride Reference — the two have to move together, and once didn't ([HISTORY.md](HISTORY.md)) |
-| `GlossaryModal` | glossary lookup |
+| `GlossaryModal` | glossary lookup (TERMS in the header). zIndex 1100, above every other modal, the ⓘ tooltip and the tutorial card. Opens on ALL; the BEG / INT / PRO chips show entries at or below that tier and hide `[INT] `/`[PRO] ` paragraphs above it (session state, not persisted), and search runs inside the filter. `focus` (a `GLOSSARY` id) scrolls to and flashes that entry on open; SEE buttons jump the same way, widening the filter or clearing the search when either hides the target. Scrolls by `offsetTop` inside its own scroller, never `scrollIntoView` (it can move the page behind on mobile). Escape closes it from a capture-phase document listener, so nothing underneath sees the key. `App` owns the wiring: `glossaryBridge.open(id,{from,keyboard})` sets `glossaryFocus` and re-keys the modal per focus, and on close focus returns to `from` only when the link was used from the keyboard |
 | the data modal | SHARE (COPY CODE / COPY LINK) / LOAD CODE / BACKUP / RESTORE (inline in `App`, not a component). LOAD CODE stages into `pending` and applies through `mergeTune` — see the share-parts suite below. RESTORE stages too, in its own way: one `chosen(kind)` predicate drives both the per-row counts it prints (`3 restored, replacing your 1 entry`, amber where something of yours drops) and the entries actually dropped, so the summary can never describe a different restore than the one that runs. It is the only action that replaces entries the garage cannot undo, hence the net-effect box and the two-tap `ConfirmBtn` |
-| `TutorialPanel` | the guided tours |
+| `TutorialPanel` | the guided tours. The body (`data-tut-body`) is `white-space: pre-line`, so a `\n` in a step's `body` is a line break. A step's optional `glossary` ids render a TERMS row of links (`data-tut-terms`) under the body that open the glossary at that entry; this replaced the old per-step `terms:` field and the INT guide's two "Key Terms" steps |
 | `OverwriteBtn` | *(no current call site — `useTwoTap`, the hook behind it, is what the garage reuses)* |
 | `ConfirmBtn` | A labelled full-width two-tap button (`RESTORE` → `SURE?`), the same idea as `OverwriteBtn`'s glyph. It exists as a component because `useTwoTap` is a hook and its caller — the RESTORE panel — is an IIFE inside `App`'s render |
 | `ErrorBoundary` | wraps the app |
@@ -225,6 +230,48 @@ the handling-balance panel is expanded, the RIDE · ROLL · DAMPING tracks rende
 VISUALS (hidden entirely in BEG), and the GARAGE drawer renders behind a toolbar
 toggle. None of them are reachable from a cold page load, which matters when
 testing.
+
+### Glossary and hints
+
+**`GLOSSARY`** is an array of groups (`{group, terms}`) in the app's own section order —
+Geometry & Weight, Differential, Balance Target (PRO), Roll & Anti-Roll Bars, ARB Modes,
+Ride & Springs, Ride Setup, Damping, Alignment, Brakes, Handling Balance, Readouts &
+Visuals, Tools — not alphabetical. Each entry is `{id, term, tier, short?, def, see?}`:
+
+- `id` — kebab-case, the handle every link uses (`hintTerm`, `term`, a tutorial step's
+  `glossary`, a `see` list). Renaming one breaks every link to it silently: an unknown id
+  labels its link with the raw id and the jump does nothing.
+- `tier` — the **lowest** tier that can see the thing the entry describes, not who it is
+  written for.
+- `short` — optional link label; `glossaryLabel` uses it, else `term` minus a trailing
+  parenthetical.
+- `def` — paragraphs split on a blank line (`\n\n`). A paragraph opening `[INT] `
+  or `[PRO] ` applies only from that tier up; `glossParas` turns the label into a badge and
+  the brackets are never shown.
+- `see` — related ids, rendered as SEE buttons that jump within the modal.
+
+`GLOSSARY_BY_ID` resolves an id; `glossaryLabel(id)` is the text of a "TERMS: … ›" link;
+`glossaryBridge.open` is a module-level slot `App` fills so a `Hint` or `TermLink` deep in
+the tree can open the modal without prop drilling. Beside `GlossaryModal`: `TIER_RANK`
+(the filter's ordering), `TIER_COLOR` and `TierBadge` (the only place tiers are coloured —
+the header BEG/INT/PRO buttons are plain `.tbtn`) and `glossParas`. The modal's filter
+chips and search are session state; nothing about the glossary is persisted.
+
+**Where depth lives.** A hint (`Hint` text, a verdict tip, a `title`, a tutorial body) is
+the one-line version: what the control does and which way it moves things, kept to about
+200 characters (tips 160, `title` tooltips 120, tutorial bodies 320). Mechanism, formulas,
+edge cases and the "why" go in the glossary entry the hint links to. When a hint grows past
+that, move the detail into the entry rather than widening the tooltip. `tests-docs.js`
+enforces looser ceilings (hints and tips 260, `title` 160) so a template hint whose
+interpolated value runs long doesn't fail the suite; the targets above are the habit.
+
+**The tier-context rule.** A hint names only controls and readouts that every tier
+rendering it can see — a control shown at INT and PRO must not tell an INT user to use a
+PRO-only setting. Where a hint genuinely differs by tier, the existing `uiMode` branches in
+the hint expression stay (the EXIT and ENTRY sliders' MATCH CHASSIS clauses, the ARB
+Balance Mode hint's PRO-only modes, `HandlingVerdict`'s BEG/INT tips); do not collapse them into one string. The glossary does the reverse: its
+untagged paragraphs must hold for the entry's own tier, and anything higher goes in an
+`[INT] `/`[PRO] ` paragraph.
 
 ---
 
@@ -415,7 +462,7 @@ value that no UI control sets is the intended design here, not an oversight.
 Index 4 is `'man'`, relocated from `ARB_BAL_MODE`. Both positions are frozen.
 
 **`al.alignManual`** — `DEF_AL` still defines it and `alignMode` still falls
-back to it (`al.mode ?? (al.alignManual ? 'manual' : 'build')`) for state
+back to it (`ALIGN_MODE_DEC.includes(al.mode) ? al.mode : (al.alignManual ? 'manual' : 'build')`) for state
 saved before `al.mode` existed. The *other* former use of it — the ALIGNMENT
 card's hint prefix — was a genuine bug and has been fixed to read `alignMode`;
 that does not make the fallback removable.
@@ -487,6 +534,15 @@ answer at extreme balance targets.
 **`_basicBudget`'s `?? ARB_UTIL_REF` guards** (two sites) — BASIC mode's button is
 hidden in physical modes, so these look unreachable. They cover a persisted
 `arbMode:'basic'` surviving a game-mode switch before the migration effect runs.
+
+**The `physMode` tests inside the Forza output block** — the Forza cards sit inside
+`{!physMode&&(<>`, so every `physMode` test within that block is always false: the
+ANTI-ROLL BARS, SPRINGS and DAMPERS card hint ternaries' BeamNG branches, the ARB
+motion-ratio warning, and the Forza copy of `arbLim:physMode?null:lim.arb`. They are
+dead, and left in place: the block was wrapped rather than rewritten when BeamNG got its
+own layout (its comment says so), and the live BeamNG versions are in the
+`{physMode&&(()=>{` layout below it. Deleting them is safe but buys nothing; editing only one copy of a hint is
+the real trap — BeamNG text belongs in the BeamNG block.
 
 **`TutorialPanel`'s `right` positioning fallback** — still unreachable (every
 `setPos` sets `left`). The GARAGE drawer is the first right-side, full-height

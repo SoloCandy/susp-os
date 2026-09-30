@@ -333,7 +333,7 @@ undocumented.
 | `ARB_MODE_DEC` | 0 `auto` · 1 `roll` · 2 `share` · 3 `auto` · 4 `man` · 5 `basic` |
 | `ARB_BAL_MODE_DEC` | 0 `weight` · 1 `mech` · 2 `coSolve` · 3 `man` · 4 `neutral` · 5 `chassis` · 6 `manual` |
 | `RIDE_REF_DEC` | 0 `front` · 1 `rear` · 2 `shared` |
-| `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` · 3 `hybrid` (UI: SYNC → TIME SYNC (`sync`) / EQUAL FORCE (`neutral`) / HYBRID) |
+| `DAMP_BAL_MODE_DEC` | 0 `standard` · 1 `sync` · 2 `neutral` · 3 `hybrid` (UI: four peer buttons — STANDARD, TIME SYNC (`sync`), HYBRID, EQUAL FORCE (`neutral`)) |
 | `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
 | `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
 | `TIER_DEC` | 0 `beginner` · 1 `intermediate` · 2 `pro` (UI labels: BEG / INT / PRO) |
@@ -407,8 +407,8 @@ reinterprets old codes under new rules. Two examples so far:
   left on the simpler raw-weight formula rather than switched over.
 - **ids 48/49 (`settleBias`/`settleMode`) → id 62 (`dampBalMode`)** — the
   boolean "Settle Sync" toggle (id 49) plus its own bias field (id 48) were
-  replaced by a 3-way Damping Balance Mode (STANDARD/SYNC/NEUTRAL, id 62)
-  that shares the existing `dampingBias` field (id 33) instead of a second
+  replaced by a 3-way Damping Balance Mode (STANDARD/SYNC/NEUTRAL, id 62;
+  now four modes, STANDARD / TIME SYNC / HYBRID / EQUAL FORCE) that shares the existing `dampingBias` field (id 33) instead of a second
   one. Both old ids stay in `CODEC_FIELDS` purely so old codes still decode
   the raw values — `sanitizeTune` immediately migrates them: a decoded
   `settleMode:true` becomes `dampBalMode:'sync'`, and its `settleBias` value
@@ -418,7 +418,7 @@ reinterprets old codes under new rules. Two examples so far:
   car at save time. A matching one-time migration effect in `App()` does the
   same for plain persisted state. New codes never emit ids 48/49 — `dampBalMode`/
   `dampingBias` are the only fields written going forward. See
-  [SLIDERS.md](SLIDERS.md) for the three modes and [FORMULAS.md](FORMULAS.md)
+  [SLIDERS.md](SLIDERS.md) for the modes and [FORMULAS.md](FORMULAS.md)
   for how `bDampBias` reads the result.
 - **id 15 (`arbMode`) `'basic'`** — new mode (index 5), added alongside new
   id 57 (`arbBasicMan`). Sets an ARB roll-stiffness budget directly as a
@@ -535,10 +535,10 @@ carries **none** of `al.mode`, `al.nudgeStrength`, or the MANUAL
 
 The consequence is worth stating plainly, because it is silent: a PRO user who
 sets Alignment Mode to MANUAL and types exact angles, then sends a code, ships a
-tune whose recipient sees BUILD-mode computed alignment instead. Nothing warns
+tune whose recipient sees AUTO (Nudge OFF) computed alignment instead. Nothing warns
 either party. The same is true of a MECH/GRIP nudge and its Nudge Strength.
 
-For BUILD mode this is harmless and arguably correct — `computeAlignment` is a
+For AUTO with Nudge OFF (`al.mode:'build'`) this is harmless and arguably correct — `computeAlignment` is a
 pure function of `ch`/`tune`/`layout`/`buildType`, all of which *do* travel, so
 the receiver recomputes identical angles from the same inputs. That is the
 "computed-locally, shared-as-output" pattern `useRideHeightCG` follows above, and

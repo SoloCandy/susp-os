@@ -109,7 +109,7 @@ property above is specifically a `ch`/`fe`/`dr` property — those are the three
 payloads an entry carries. `al` is persisted in its own key (`suspos_al_v2`) and is
 not part of the entry shape, so SAVE CAR does **not** capture Alignment Mode, Nudge
 Strength, or MANUAL camber/toe/caster, and LOAD CHASSIS / LOAD BUILD leave whatever
-alignment state is currently live untouched. For BUILD mode that is invisible,
+alignment state is currently live untouched. For AUTO with Nudge OFF (`al.mode:'build'`) that is invisible,
 since `computeAlignment` re-derives the same angles from `ch` + the tune. For
 MANUAL it means typed angles are lost on save. The share codec has the identical
 gap for the identical reason — see [CODEC.md](CODEC.md) and
