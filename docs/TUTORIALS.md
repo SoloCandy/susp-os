@@ -278,9 +278,9 @@ the Welcome card and live in the glossary.
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
 | 1 | Welcome — Pro Mode | — | | What PRO adds; alignment stays AUTO unless set to MANUAL, brakes always computed. |
-| 2 | Chassis Geometry | `chassis` | | Tyres, wheelbase, track widths; how they set the Balance Guide's NATURAL and GRIP BIAS. |
+| 2 | Chassis Geometry | `chassis` | | FROM THE GAME vs LOOK UP ONLINE; tyres, wheelbase, track widths; how they set the Balance Guide's NATURAL and GRIP BIAS. |
 | 3 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
-| 4 | Calibrating Natural Balance | `balance-target` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
+| 4 | Calibrating Natural Balance | `chassis` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
 | 5 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
 | 6 | Mech Balance Target | `balance-target` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
 | 7 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset. |
@@ -459,7 +459,7 @@ TRY IT task (ticks when the check passes):
 
 #### 2. Chassis Geometry
 
-> CHASSIS now takes tyre sizes, wheelbase and track widths; the defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, moving GRIP BIAS and its AGILE–PLANTED tag.
+> CHASSIS now splits by source. FROM THE GAME adds tyre sizes and MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, moving GRIP BIAS and its AGILE–PLANTED tag.
 
 #### 3. Manual Differential
 
@@ -467,7 +467,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Calibrating Natural Balance
 
-> MEASURE NAT BAL, below the Balance Guide, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.
+> MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.
 
 #### 5. Calibrating ARB Scale
 

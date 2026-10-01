@@ -203,6 +203,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
 | `Sec` | the nine collapsible sidebar sections (`div.stog` header) |
+| `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
 | `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode` |
 | `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a generic per-axle differential card. The BeamNG layout itself (summary strip, CENTER SPLIT card, the fixed 2-column `.beamng-grid`) is inline JSX in `App`, not a separate component — see the `physMode` branch in the output panel |
@@ -297,7 +298,9 @@ depends on the tier.
   `zone-visuals`, plus output and balance bar.
 - **PRO** adds `zone-balance-target` and `zone-alignment`, and unlocks extra
   controls inside the shared sections (CHASSIS geometry, ARB MECH/CO-SOLVE,
-  Hz MECH mode, Alignment Mode).
+  Hz MECH mode, Alignment Mode). PRO's CHASSIS is grouped by data source with
+  `SrcHead` headers, and holds the MEASURE NAT BAL entry point under FROM THE
+  GAME; `zone-balance-target` keeps only the ARB SCALE RE-MEASURE flag.
 
 ### Leaving PRO: what the tier effects reset
 

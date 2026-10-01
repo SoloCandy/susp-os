@@ -3515,6 +3515,16 @@ const Sec=({title,open,onToggle,onReset,children})=>{
   );
 };
 
+// A group header inside a Sec, naming where the inputs under it come from. CHASSIS uses it to
+// keep what the game shows apart from what has to be looked up elsewhere.
+const SrcHead=({label,note,first=false})=>(
+  <div style={{display:'flex',alignItems:'baseline',gap:8,margin:first?'0 0 8px':'14px 0 8px',
+               paddingBottom:3,borderBottom:'1px solid #1e293b'}}>
+    <span style={{fontSize:10,color:'#cbd5e1',letterSpacing:2,fontWeight:600,flexShrink:0}}>{label}</span>
+    <span style={{fontSize:9,color:'#64748b'}}>{note}</span>
+  </div>
+);
+
 const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,sub=null})=>(
   <div className="ro" style={primary?{borderColor:'#e2e8f022'}:{}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:1}}>
@@ -5305,15 +5315,15 @@ const TUTORIALS={
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
      focus:['chassis'],
-     body:'CHASSIS now takes tyre sizes, wheelbase and track widths; the defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
+     body:'CHASSIS now splits by source. FROM THE GAME adds tyre sizes and MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
      glossary:['tyre-size','track-width','balance-guide']},
     {title:'Manual Differential',
      focus:['drivetrain'],
      body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
      glossary:['diff-mode','match-chassis','power-split']},
     {title:'Calibrating Natural Balance',
-     focus:['balance-target'],
-     body:'MEASURE NAT BAL, below the Balance Guide, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.',
+     focus:['chassis'],
+     body:'MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.',
      glossary:['measure-nat-bal','natural-balance']},
     {title:'Calibrating ARB Scale',
      focus:['balance-target'],
@@ -5396,8 +5406,8 @@ const GLOSSARY=[
     {id:'ride-height',term:'Ride Height',tier:'intermediate',def:"Front and rear ride height as Forza shows it on the car's stat or tuning screen. It is entered in inches (0.5–48) or centimetres (1.3–122) and shown only when CG Height Source is RIDE HEIGHT. With tyre radius it gives the CG height estimate.\n\nIt is also the travel available before bottoming. The BOTTOM G's stiffness mode and the SAG vs LOAD chart measure static sag and cornering compression against it.",see:['cg-source','sag','bottoming','sag-vs-load']},
     {id:'cg-height',term:'CG Height',tier:'intermediate',def:"Height of the centre of gravity above the ground. The game doesn't show it, so it is either estimated from ride height or typed under MANUAL (200–1500 mm, 5 mm steps). With RIDE HEIGHT as the source, the estimate shows as CG HEIGHT (EST.). Guide values: 400–460 mm for sports cars, 480–550 mm for sedans, 580–700 mm for SUVs and 800–1100 mm for lifted off-roaders.\n\nA higher CG gives a bigger roll moment: body mass times CG height above the roll centre, which sits at 20% of CG height. The body then rolls more, AUTO asks for stiffer ARBs, and more load moves to the outside tyres. CG over wheelbase sets how much weight moves forward under braking, which front-biases the brake recommendation.\n\n[PRO] The same ratio sets the ENTRY and EXIT reference splits in the phase readout.",see:['cg-source','roll-stiffness','load-transfer','brake-balance']},
     {id:'tyre-size',term:'Tyre Size',tier:'pro',def:"Front and rear tyre size as on the sidewall, e.g. 265/35R18, the default. Any separator works. Width must be 50–500 mm, aspect 10–100 and rim 8–30 in. A blank box uses a 265 mm width, and = FRONT copies the front size to the rear.\n\nWidth sets each axle's grip at the limit. Wider means more grip on that end, rising less than proportionally. It moves GRIP BIAS, GRIP TARGET and the Balance Guide's AGILE-to-PLANTED tag, but not roll stiffness. Forza's displayed Mech Balance does add a small width term, 0.08 × ln(rear width ÷ front width), which the app includes in displayed balances and removes from targets.\n\nAspect and rim give the diameter and radius. These feed the RIDE HEIGHT CG estimate and the AWD AVG RADIUS readout. They also feed the recommended CENTER SPLIT: a larger rear diameter moves it rearward. The FIT? badge flags widths outside the 215–335 mm the model was fitted on.",see:['grip-bias','target-grip','cg-source','power-split']},
-    {id:'wheelbase',term:'Wheelbase',tier:'pro',def:"Distance between the front and rear axles, 400–4000 mm in 5 mm steps; typical cars run 2400–2900 mm. FLAT RIDE uses it to time the rear Hz to your Target Speed. With CG height it sets the forward weight transfer under braking. That feeds the brake balance recommendation and the ENTRY and EXIT phase readouts. It stays in use when a MEASURE NAT BAL reading replaces the track widths.\n\nBelow PRO it isn't an input: it is scaled from Weight, and leaving PRO rescales it.",see:['flat-ride','brake-balance','cg-height','track-width']},
-    {id:'track-width',term:'Track Width',tier:'pro',def:"Distance between the left and right wheels on each axle, 1000–2600 mm in 5 mm steps. Typical is 1400–1800 mm, and the rear is often slightly wider. An axle's roll stiffness grows with track squared, so a wider track resists roll more on the same springs and transfers less load. Track also scales what one ARB click is worth.\n\nTrack widths and corner masses give the predicted natural balance. A wider rear or narrower front raises the rear's share of roll stiffness, toward oversteer. GEOMETRY GAP suggests track changes toward your target.\n\nThe fields hide while a MEASURE NAT BAL reading is in use, because the game's reading already reflects the real geometry, track width upgrades included. Below PRO they are scaled from Weight, and leaving PRO rescales them.",see:['natural-balance','roll-stiffness','arb-scale','grip-gap']},
+    {id:'wheelbase',term:'Wheelbase',tier:'pro',def:"Distance between the front and rear axles, 400–4000 mm in 5 mm steps; typical cars run 2400–2900 mm. Forza doesn't show it, so it sits under LOOK UP ONLINE in CHASSIS: take it from the car's spec sheet. FLAT RIDE uses it to time the rear Hz to your Target Speed. With CG height it sets the forward weight transfer under braking. That feeds the brake balance recommendation and the ENTRY and EXIT phase readouts. It stays in use when a MEASURE NAT BAL reading replaces the track widths.\n\nBelow PRO it isn't an input: it is scaled from Weight, and leaving PRO rescales it.",see:['flat-ride','brake-balance','cg-height','track-width']},
+    {id:'track-width',term:'Track Width',tier:'pro',def:"Distance between the left and right wheels on each axle, 1000–2600 mm in 5 mm steps. Typical is 1400–1800 mm, and the rear is often slightly wider. Forza doesn't show them, so they sit under LOOK UP ONLINE in CHASSIS; MEASURE NAT BAL is the in-game alternative. An axle's roll stiffness grows with track squared, so a wider track resists roll more on the same springs and transfers less load. Track also scales what one ARB click is worth.\n\nTrack widths and corner masses give the predicted natural balance. A wider rear or narrower front raises the rear's share of roll stiffness, toward oversteer. GEOMETRY GAP suggests track changes toward your target.\n\nThe fields hide while a MEASURE NAT BAL reading is in use, because the game's reading already reflects the real geometry, track width upgrades included. Below PRO they are scaled from Weight, and leaving PRO rescales them.",see:['natural-balance','roll-stiffness','arb-scale','grip-gap']},
     {id:'motion-ratio',term:'Motion Ratio',tier:'pro',def:"How far the spring and damper move per unit of wheel travel, 0.2–1.5. It is BeamNG only: Forza shows wheel rate, so the fields are hidden there. The default 1.0 is direct-acting, like a strut on the hub. Lower means the spring sits inboard on a control arm and must be stiffer for the same wheel rate. Spring and damper outputs are divided by the ratio squared, so 0.7 roughly doubles them.\n\nBeamNG's sliders act at the spring, so this is what makes the numbers match. It does not change Hz, roll stiffness or handling balance. Leave it at 1.0 unless you know the car's geometry.",see:['arb-motion-ratio','spring-rate']},
     {id:'arb-motion-ratio',term:'ARB Motion Ratio',tier:'pro',def:"The anti-roll bar's arm as a fraction of track: where the drop link attaches, not where the spring does. It is BeamNG only and separate from Motion Ratio. The range is 0.2–1.5 and the default is 1.0. At 1.0 the app assumes the bar acts at the wheels, so the printed N/m reads low, roughly 4–6× soft on a sampled vehicle. A typical inboard link is about 0.4–0.5 (arm ÷ track), which raises the printed rate by (1/ratio)².\n\nIt affects only ARB display and MAN entry. The roll stiffness the app solves, the balance bar and Hz are unchanged.",see:['motion-ratio','arb']},
   ]},
@@ -7582,6 +7592,10 @@ function App(){
           </div>}
           <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')}
             onReset={()=>setCh({...DEF_CH})}>
+            {/* PRO splits CHASSIS by where each number comes from: what Forza shows (or measures)
+                first, then what has to be looked up elsewhere. Below PRO every input is in-game,
+                so there is nothing to separate and no headers. */}
+            {uiMode==='pro'&&<SrcHead first label="FROM THE GAME" note="stat, selection & upgrade screens"/>}
             <Toggle label="Layout" value={ch.layout} onChange={pCh('layout')}
               options={[{value:'FWD',label:'FWD'},{value:'RWD',label:'RWD'},{value:'AWD',label:'AWD'}]}
               hint={HINT_LAYOUT} hintTerm="layout"/>
@@ -7655,36 +7669,6 @@ function App(){
                 })()}
               </>);
             })()}
-            {uiMode==='pro'&&<>
-            <Field noSlider label="Wheelbase" value={Math.round(ch.wheelbase*1000)} onChange={v=>pCh('wheelbase')(v/1000)} min={400} max={4000} step={5} unit="mm"
-              hint="Axle-to-axle distance; typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths." hintTerm="wheelbase"/>
-            {!ch.useMeasuredNatBal&&
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              <Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
-                hint="Distance between left and right wheels at the front. Typical: 1400–1800 mm. Wider = more roll resistance." hintTerm="track-width"/>
-              <Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
-                hint="Distance between left and right wheels at the rear. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"/>
-            </div>}
-            {/* Physical-unit modes only. Forza's tuning screen shows wheel rate, which is what
-                the solver already produces, so a motion ratio would be meaningless there — the
-                fields are hidden rather than shown inert. */}
-            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              {[['F','motionRatioF','Front'],['R','motionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider stacked key={ax} label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
-                  onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"/>
-              ))}
-            </div>}
-            {/* ARB drop link, not the spring mount — separate geometry, separate field. Only the
-                ARB N/m output and MAN-mode entry read it; nothing in the solve does. */}
-            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              {[['F','arbMotionRatioF','Front'],['R','arbMotionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider stacked key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
-                  onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"/>
-              ))}
-            </div>}
-            </>}
             <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:8,flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>CG Height Source</span>
               <Hint text="RIDE HEIGHT estimates CG height from Forza's ride heights plus tyre radius. MANUAL lets you type CG height if you have a better source." term="cg-source"/>
@@ -7718,10 +7702,67 @@ function App(){
                 {!tyresOk&&<div style={{fontSize:9,color:'#f59e0b',padding:'2px 0 8px'}}>{uiMode==='pro'?'Enter valid tyre sizes above to compute CG height from ride height.':'Invalid tyre size on this chassis — switch to PRO to fix it, or use MANUAL CG entry.'}</div>}
                 <div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>SAG vs LOAD is in the pinned VISUALS card below ↓</div>
               </>);
-            })():
-              <Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
+            })():uiMode==='pro'
+              // PRO enters a MANUAL CG height under ESTIMATES below: the game doesn't show it.
+              ?<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>CG Height is entered under ESTIMATES below ↓</div>
+              :<Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
                 hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/>
             }
+            {uiMode==='pro'&&<>
+            <div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,padding:'5px 10px',marginTop:6,display:'flex',alignItems:'center',gap:6}}>
+              {/* Unset, this used to sit at #475569 on a #060c17 panel and read as disabled
+                  rather than as the entry point it is — it is the only way in to the
+                  measured-balance workflow. Idle now carries .tbtn's normal weight; set
+                  keeps the blue that matches the reading shown beside it. */}
+              <button className="tbtn" style={{fontSize:11,flexShrink:0,fontWeight:600,
+                      color:ch.useMeasuredNatBal?'#60a5fa':'#cbd5e1',
+                      borderColor:ch.useMeasuredNatBal?'#60a5fa55':'#334155',
+                      background:ch.useMeasuredNatBal?'transparent':'#0f172a'}}
+                onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>MEASURE NAT BAL</button>
+              <Hint text="Reads natural balance from the game instead of predicting it from the track widths below, which it then hides. Opens Tune Check's MEASURE step; the reading shows here and ✕ clears it." term="measure-nat-bal"/>
+              {ch.useMeasuredNatBal&&<>
+                <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:natBalStale(ch)?'#f59e0b':'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
+                <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
+                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>✕</button>
+              </>}
+            </div>
+            {natBalStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
+              title="The chassis changed since this reading, which is still used as-is. Tap to re-measure, or clear it with ✕."
+              onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>NAT BAL: RE-MEASURE</button>}
+            <SrcHead label="LOOK UP ONLINE" note="not shown in game · car's spec sheet"/>
+            <Field noSlider label="Wheelbase" value={Math.round(ch.wheelbase*1000)} onChange={v=>pCh('wheelbase')(v/1000)} min={400} max={4000} step={5} unit="mm"
+              hint="Axle-to-axle distance. Forza doesn't show it: look it up in the car's spec sheet online. Typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths." hintTerm="wheelbase"/>
+            {!ch.useMeasuredNatBal
+              ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+                <Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+                  hint="Distance between left and right wheels at the front. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm. Wider = more roll resistance." hintTerm="track-width"/>
+                <Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+                  hint="Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"/>
+              </div>
+              :<div style={{fontSize:9,color:'#64748b',padding:'0 0 8px'}}>Track widths not needed: the MEASURE NAT BAL reading above replaces them.</div>}
+            {(physMode||!ch.useRideHeightCG)&&<SrcHead label="ESTIMATES" note="not shown anywhere · typical values"/>}
+            {!ch.useRideHeightCG&&<Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
+                hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/>}
+            {/* Physical-unit modes only. Forza's tuning screen shows wheel rate, which is what
+                the solver already produces, so a motion ratio would be meaningless there — the
+                fields are hidden rather than shown inert. */}
+            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+              {[['F','motionRatioF','Front'],['R','motionRatioR','Rear']].map(([ax,key,side])=>(
+                <Field noSlider stacked key={ax} label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
+                  onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
+                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"/>
+              ))}
+            </div>}
+            {/* ARB drop link, not the spring mount — separate geometry, separate field. Only the
+                ARB N/m output and MAN-mode entry read it; nothing in the solve does. */}
+            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+              {[['F','arbMotionRatioF','Front'],['R','arbMotionRatioR','Rear']].map(([ax,key,side])=>(
+                <Field noSlider stacked key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
+                  onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
+                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"/>
+              ))}
+            </div>}
+            </>}
           </Sec></div>
 
           <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')}
@@ -8135,26 +8176,8 @@ function App(){
                 </div>
               );
             })()}
-            {uiMode==='pro'&&<div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,padding:'5px 10px',marginTop:6,display:'flex',alignItems:'center',gap:6}}>
-              {/* Unset, this used to sit at #475569 on a #060c17 panel and read as disabled
-                  rather than as the entry point it is — it is the only way in to the
-                  measured-balance workflow. Idle now carries .tbtn's normal weight; set
-                  keeps the blue that matches the reading shown beside it. */}
-              <button className="tbtn" style={{fontSize:11,flexShrink:0,fontWeight:600,
-                      color:ch.useMeasuredNatBal?'#60a5fa':'#cbd5e1',
-                      borderColor:ch.useMeasuredNatBal?'#60a5fa55':'#334155',
-                      background:ch.useMeasuredNatBal?'transparent':'#0f172a'}}
-                onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>MEASURE NAT BAL</button>
-              <Hint text="Reads natural balance from the game instead of predicting it from track widths. Opens Tune Check's MEASURE step; the reading shows here and ✕ clears it." term="measure-nat-bal"/>
-              {ch.useMeasuredNatBal&&<>
-                <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:natBalStale(ch)?'#f59e0b':'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
-                <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
-                  onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>✕</button>
-              </>}
-            </div>}
-            {uiMode==='pro'&&natBalStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
-              title="The chassis changed since this reading, which is still used as-is. Tap to re-measure, or clear it with ✕."
-              onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>NAT BAL: RE-MEASURE</button>}
+            {/* MEASURE NAT BAL lives in CHASSIS under FROM THE GAME, beside the track widths its
+                reading replaces. The ARB scale flag stays here with the bars it calibrates. */}
             {uiMode==='pro'&&arbScaleStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
               title="The ARB click scale was measured against a different MEAS. NAT BAL. Open MEASURE and take the ARB readings again."
               onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>ARB SCALE: RE-MEASURE</button>}

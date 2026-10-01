@@ -81,6 +81,15 @@ apart.
 
 Layout uses `HINT_LAYOUT`, quoted under [BEG panel](#beg-panel).
 
+In PRO the section is split by where each value comes from, under three `SrcHead`
+group headers: **FROM THE GAME** (*stat, selection & upgrade screens*) — Layout,
+Weight, Front Weight Bias, TYRE SIZE, CG Height Source with Ride Height, and MEASURE
+NAT BAL; **LOOK UP ONLINE** (*not shown in game · car's spec sheet*) — Wheelbase and
+Track Width; **ESTIMATES** (*not shown anywhere · typical values*), shown only when it
+has something in it — a MANUAL CG Height and BeamNG's motion ratios. Below PRO every
+input is in-game and there are no headers. With MANUAL CG in PRO, the CG source block
+reads *CG Height is entered under ESTIMATES below ↓*.
+
 **Weight:**
 
 > Total vehicle weight, from the car's stat page. Scales the spring, damper and ARB outputs.
@@ -93,15 +102,19 @@ Layout uses `HINT_LAYOUT`, quoted under [BEG panel](#beg-panel).
 
 > Sidewall size, e.g. 265/35R18. Wider = more grip at that end: it moves GRIP BIAS, not roll stiffness.
 
+**MEASURE NAT BAL** (PRO; last item under FROM THE GAME):
+
+> Reads natural balance from the game instead of predicting it from the track widths below, which it then hides. Opens Tune Check's MEASURE step; the reading shows here and ✕ clears it.
+
 **Wheelbase** (PRO):
 
-> Axle-to-axle distance; typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths.
+> Axle-to-axle distance. Forza doesn't show it: look it up in the car's spec sheet online. Typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths.
 
-**Track Width F / Track Width R** (PRO; hidden while a measured natural balance is in use):
+**Track Width F / Track Width R** (PRO; while a measured natural balance is in use they are replaced by *Track widths not needed: the MEASURE NAT BAL reading above replaces them.*):
 
-> Distance between left and right wheels at the front. Typical: 1400–1800 mm. Wider = more roll resistance.
+> Distance between left and right wheels at the front. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm. Wider = more roll resistance.
 
-> Distance between left and right wheels at the rear. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance.
+> Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance.
 
 **Motion Ratio F / R** (PRO, BeamNG) — `{side}` is front or rear:
 
@@ -257,9 +270,7 @@ target row:
 
 > TARGET when MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural.
 
-**MEASURE NAT BAL:**
-
-> Reads natural balance from the game instead of predicting it from track widths. Opens Tune Check's MEASURE step; the reading shows here and ✕ clears it.
+MEASURE NAT BAL sits in CHASSIS (see above), not here.
 
 ---
 

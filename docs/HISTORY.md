@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PRO's CHASSIS separates in-game data from data looked up online
+
+CHASSIS mixed values the game shows (weight, front bias, ride heights) with ones it never does
+(wheelbase, track widths) in one undivided list, and the in-game alternative to track widths,
+MEASURE NAT BAL, sat in a different section below the Balance Guide. PRO's CHASSIS now has
+three `SrcHead` groups: FROM THE GAME (layout, weight, bias, tyres, CG source and ride heights,
+MEASURE NAT BAL), LOOK UP ONLINE (wheelbase, track widths) and ESTIMATES (MANUAL CG Height and
+BeamNG's motion ratios, shown only when one is present). MEASURE NAT BAL moved into CHASSIS so
+it sits directly above the track widths its reading replaces; with a reading in use the track
+widths give way to a one-line note instead of vanishing. The ARB SCALE RE-MEASURE flag stays
+in BALANCE beside the bars it calibrates. PRO's Calibrating Natural Balance tutorial step now
+spotlights `chassis`.
+
 ## Fixed — a malformed `#t=` link stopped the app loading, and RELOAD couldn't recover
 
 The link effect called `decodeURIComponent` on the hash before `stageCode`'s try/catch, so a
