@@ -243,7 +243,7 @@ every step title of its guide, in order.
 | 7 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
 | 8 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
 | 9 | Character | `character` | | STABLE ↔ AGILE damping feel. | |
-| 10 | Handling Balance Bar | `balance-bar` | close | Colour zones; tap to expand. | |
+| 10 | Handling Balance Bar | `balance-bar` | close | Sign; CAR tick, NET headline, TOTAL line; tap to expand. | |
 | 11 | Reading the Results | `output` | | Values to type in, card by card; amber = near a game limit. | ✓ |
 | 12 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. | |
 | 13 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. | |
@@ -258,15 +258,15 @@ the Welcome card and live in the glossary.
 | 1 | Welcome — Intermediate Mode | — | | Collapsible sections, SECTIONS − / +, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
 | 2 | Chassis | `chassis` | | Layout / weight / bias moved here; CG height source. |
 | 3 | Diff Type | `drivetrain` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
-| 4 | Corner Exit & Entry | `drivetrain` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF rows follow. |
+| 4 | Corner Exit & Entry | `drivetrain` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
 | 5 | AWD Center Diff | `drivetrain` | | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. |
 | 6 | Build Type | `build` | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
 | 7 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
 | 8 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
 | 9 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
-| 10 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and the DAMP row. |
+| 10 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
 | 11 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
-| 12 | Handling Balance Bar | `balance-bar` | close | Per-contributor breakdown incl. DIFF and DAMP. |
+| 12 | Handling Balance Bar | `balance-bar` | close | NET vs the ENTRY / EXIT lanes and TOTAL; tap for the rows. |
 | 13 | Reading the Results | `output` | close | Values to type in, card by card; amber = near a game limit. |
 | 14 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
 | 15 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
@@ -297,11 +297,12 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
-| 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
-| 3 | Reading Each Row | — | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. |
-| 4 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
-| 5 | Response Bar | — | | PLANTED ↔ REACTIVE, separate from understeer / oversteer. |
+| 1 | Handling Balance | — | | NET headline; sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
+| 2 | Reading the Bar | — | | CAR tick → SPR / ARB → NET tick; ENTRY / EXIT lanes off NET and the TOTAL line (BEG/INT). |
+| 3 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
+| 4 | Reading Each Row | — | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. |
+| 5 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
+| 6 | Response Bar | — | | PLANTED ↔ REACTIVE, separate from understeer / oversteer. |
 
 ---
 
@@ -367,7 +368,7 @@ TRY IT task (ticks when the check passes):
 
 #### 10. Handling Balance Bar
 
-> This bar shows your total handling tendency: + toward oversteer, − toward understeer. Its zones run neutral, mild (typical for intentional bias) and aggressive. Tap it for a breakdown of every contributor.
+> This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. The pink TOTAL line above adds brakes and diff. Tap it for the breakdown.
 
 #### 11. Reading the Results
 
@@ -397,7 +398,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Corner Exit & Entry
 
-> EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the Handling Balance DIFF rows follow.
+> EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
 
 #### 5. AWD Center Diff
 
@@ -421,7 +422,7 @@ TRY IT task (ticks when the check passes):
 
 #### 10. Dampers
 
-> Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); the DAMP row of Handling Balance shows it.
+> Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.
 
 #### 11. VISUALS Card
 
@@ -429,7 +430,7 @@ TRY IT task (ticks when the check passes):
 
 #### 12. Handling Balance Bar
 
-> The Handling Balance bar at the bottom of the results shows your total tendency: + toward oversteer, − toward understeer. Tap it for one row per contributor, including DIFF and DAMP, to see which change actually moved the balance.
+> The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. Diff, brakes and damping sit in ENTRY and EXIT lanes off NET, and TOTAL above adds them in. Tap it for the rows behind each.
 
 #### 13. Reading the Results
 
@@ -509,21 +510,25 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Handling Balance
 
-> The headline is NET: the car's own lean plus springs and bars. + leans oversteer, − understeer. Brakes, diff and damping show what changes on entry and exit. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.
+> The headline is NET: the car's own lean plus springs and bars. + leans oversteer, − understeer. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.
 
-#### 2. Typical Targets by Build
+#### 2. Reading the Bar
+
+> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. In BEG and INT, the ENTRY and EXIT lanes below stack brakes, diff and damping off NET, and the pink TOTAL line above marks where everything lands.
+
+#### 3. Typical Targets by Build
 
 > Drift and rotation-heavy builds typically run +15 to +35, track builds +5 to +20, street and GT builds mild understeer. Read the bar for where balance comes from, not as a number to zero. These are BEG/INT points; PRO's grip-margin percent is a smaller unit, NEUTRAL within ±1%.
 
-#### 3. Reading Each Row
+#### 4. Reading Each Row
 
 > CAR STARTS is the car's own lean before tuning. The rows below move it: springs and anti-roll bars make NET, then diff, brakes and damping act on entry and exit. Each shows its value and share, so the dominant one stands out. PRO groups the rows by corner phase.
 
-#### 4. Using the Correction Tip
+#### 5. Using the Correction Tip
 
 > The tip at the top of the expanded panel names the largest contributor and which way to move. Reach for that input first; for big shifts, your main balance control has the most leverage.
 
-#### 5. Response Bar
+#### 6. Response Bar
 
 > RESPONSE rates how quickly the car reacts to steering, separately from understeer and oversteer: a neutral car can still be very planted or very reactive. PLANTED (left) is settled and predictable but slower to change direction; REACTIVE (right) turns in sharply but can feel nervous.
 
@@ -598,7 +603,7 @@ TERMS chips), an INT save resumes two steps further on than where it was left.
 That was accepted rather than migrated. Resuming goes through `openTut(mode, step)`, so
 the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
 state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
-The balance guide is not tracked — it's five steps.
+The balance guide is not tracked — it's six steps.
 
 RESET (⟲) with **Tutorials** ticked sets all three tier flags and
 `suspos_baltut_seen_v1` back to `false` and zeroes `suspos_tutorial_step_v1`, which re-locks INT and PRO until their
