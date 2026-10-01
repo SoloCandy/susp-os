@@ -11,6 +11,29 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Tyre Size moved from PRO to INT
+
+INT's default CG Height Source, RIDE HEIGHT, adds tyre radius to the ride heights, and INT's
+recommended CENTER SPLIT and displayed Mech Balance also read the tyres, yet the TYRE SIZE
+inputs were PRO-only. An INT user was stuck with whatever size was saved (or 265/35R18), and an
+invalid one could only be fixed by switching to PRO. The inputs now show from INT up, as an
+in-game value beside the other CHASSIS inputs. The hint branches by tier: INT's names the CG
+estimate, PRO's keeps GRIP BIAS, which INT cannot see. The `tyre-size` glossary entry is now
+INT, with the grip-model paragraph under `[PRO]`.
+
+## Changed — glossary separates tiers instead of interleaving them
+
+The tags were accurate (an entry's `tier` is the lowest tier that can see the thing), but the
+modal blurred them. Inside a group BEG, INT and PRO entries alternated in source order; an
+entry's own tier and a paragraph's "from this tier up" label used the same outlined badge; and a
+tier chip could only show everything at or below it, so there was no way to see what INT or PRO
+actually adds. Now each group is split by tier rules (BEGINNER → INTERMEDIATE → PRO), entry tags
+are solid while paragraph tags are an outlined `INT+` / `PRO` on a ruled block, and the tier
+chips gain a scope: ONLY (default) lists that tier's own entries plus, under "ADDED AT …", just
+the paragraphs it adds to lower-tier entries; UP TO is the old cumulative view. The group
+"Balance Target (PRO)" lost its suffix — the tags carry tier now, and a name that does too can
+disagree with them.
+
 ## Changed — PRO's CHASSIS separates in-game data from data looked up online
 
 CHASSIS mixed values the game shows (weight, front bias, ride heights) with ones it never does

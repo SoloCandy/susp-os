@@ -4361,11 +4361,20 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
 // the module-level one next to TIER_ENC; both are read at render time only.
 const TIER_RANK={beginner:0,intermediate:1,pro:2};
 const TIER_COLOR={beginner:'#4ade80',intermediate:'#38bdf8',pro:'#fbbf24'};
-const TierBadge=({tier})=>(
-  <span data-tier-badge={tier}
+const TIER_NAME={beginner:'BEGINNER',intermediate:'INTERMEDIATE',pro:'PRO'};
+const TIERS=['beginner','intermediate','pro'];
+// Two tags that must never be confused. The entry's own tier is a solid tag: the lowest tier
+// that can see the thing. A paragraph's tier is an outlined "INT+" / "PRO" tag on a ruled
+// block: extra detail on that entry that only applies from that tier up.
+const TierBadge=({tier,para=false})=>(
+  <span data-tier-badge={tier} data-tier-badge-kind={para?'para':'entry'}
+    title={para?`Applies from ${TIER_NAME[tier]} up`:`Visible from ${TIER_NAME[tier]} up`}
     style={{display:'inline-block',fontSize:9,letterSpacing:1,lineHeight:'13px',padding:'0 4px',
-            color:TIER_COLOR[tier],border:'1px solid '+TIER_COLOR[tier],borderRadius:2,
-            fontWeight:400,verticalAlign:'middle',whiteSpace:'nowrap'}}>{TIER_LABEL[tier]}</span>
+            color:para?TIER_COLOR[tier]:'#020617',background:para?'none':TIER_COLOR[tier],
+            border:'1px solid '+TIER_COLOR[tier],borderRadius:2,
+            fontWeight:para?400:700,verticalAlign:'middle',whiteSpace:'nowrap'}}>
+    {TIER_LABEL[tier]}{para&&tier!=='pro'?'+':''}
+  </span>
 );
 // A def is paragraphs split on a blank line; one that opens "[INT] " or "[PRO] " only
 // applies from that tier up. The label becomes a badge; the brackets are never shown.
@@ -4373,12 +4382,27 @@ const glossParas=def=>def.split('\n\n').map((text,i)=>{
   const m=/^\[(INT|PRO)\] /.exec(text);
   return m?{i,tier:m[1]==='INT'?'intermediate':'pro',text:text.slice(m[0].length)}:{i,tier:null,text};
 });
+// Thin labelled rule that splits a group into its tiers.
+const TierRule=({tier,label})=>(
+  <div data-glossary-tier-rule={tier}
+       style={{display:'flex',alignItems:'center',gap:6,margin:'6px 0 6px',
+               fontSize:9,letterSpacing:1.5,color:TIER_COLOR[tier]}}>
+    <span style={{whiteSpace:'nowrap'}}>{label||TIER_NAME[tier]}</span>
+    <span style={{flex:1,height:1,background:TIER_COLOR[tier]+'33'}}/>
+  </div>
+);
 
 // focus: a GLOSSARY id to scroll to and flash on open (App re-keys the modal per focus).
 // uiMode only marks the viewer's own tier chip; the filter always starts at ALL.
+// Within a group, entries are shown tier by tier (BEGINNER, then INTERMEDIATE, then PRO) under
+// a TierRule, in GLOSSARY's own order inside each tier.
+// A tier chip has two scopes. ONLY: that tier's own entries, then the paragraphs that tier adds
+// to lower-tier entries ("ADDED AT INT"), shown alone. UP TO: every entry at or below the tier,
+// with paragraphs above it hidden — what a reader at that tier can see.
 const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
   const[q,setQ]=useState('');
-  const[filter,setFilter]=useState('all');      // 'all' | a tier: entries and paragraphs at or below it
+  const[filter,setFilter]=useState('all');      // 'all' | a tier
+  const[scope,setScope]=useState('only');       // 'only' | 'upto': how a tier chip filters
   const[pending,setPending]=useState(null);     // {id,n}: a jump waiting for the next commit
   const[flash,setFlash]=useState(null);         // {id,n}: the entry highlighted after a jump
   const scrollRef=useRef(null);
@@ -4388,17 +4412,37 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
     terms:g.terms.map(t=>({t,paras:glossParas(t.def)}))})),[]);
   const query=q.trim().toLowerCase();
   const rankOf=f=>f==='all'?2:TIER_RANK[f];
-  const tierOk=(t,f)=>TIER_RANK[t.tier]<=rankOf(f);
+  // Whether an entry is shown whole (not only as an ONLY-scope addendum) under f / sc.
+  const tierOk=(t,f,sc)=>f==='all'?true:sc==='only'?t.tier===f:TIER_RANK[t.tier]<=rankOf(f);
   const visParas=(paras,f)=>paras.filter(p=>!p.tier||TIER_RANK[p.tier]<=rankOf(f));
-  const matches=(e,f,qq)=>!qq||e.t.term.toLowerCase().includes(qq)
+  const addParas=(paras,f)=>paras.filter(p=>p.tier===f);
+  const textHit=(e,paras,qq)=>!qq||e.t.term.toLowerCase().includes(qq)
     ||(e.t.short||'').toLowerCase().includes(qq)
-    ||visParas(e.paras,f).some(p=>p.text.toLowerCase().includes(qq));
-  const filtered=entries.map(g=>({group:g.group,
-    terms:g.terms.filter(e=>tierOk(e.t,filter)&&matches(e,filter,query))})).filter(g=>g.terms.length);
+    ||paras.some(p=>p.text.toLowerCase().includes(qq));
+  const matches=(e,f,qq)=>textHit(e,visParas(e.paras,f),qq);
+  // Per group: sections of {key, tier, label?, items:[{e, paras, add}]}, empty ones dropped.
+  const filtered=entries.map(g=>{
+    let sections;
+    if(filter!=='all'&&scope==='only'){
+      sections=[
+        {key:'own',tier:filter,items:g.terms.filter(e=>e.t.tier===filter)
+          .map(e=>({e,paras:visParas(e.paras,filter),add:false}))},
+        {key:'add',tier:filter,label:`ADDED AT ${TIER_LABEL[filter]} TO EARLIER ENTRIES`,
+          items:g.terms.filter(e=>TIER_RANK[e.t.tier]<TIER_RANK[filter])
+            .map(e=>({e,paras:addParas(e.paras,filter),add:true})).filter(x=>x.paras.length)},
+      ];
+    }else{
+      sections=TIERS.filter(tr=>TIER_RANK[tr]<=rankOf(filter)).map(tr=>({key:tr,tier:tr,
+        items:g.terms.filter(e=>e.t.tier===tr).map(e=>({e,paras:visParas(e.paras,filter),add:false}))}));
+    }
+    sections=sections.map(s=>({...s,items:s.items.filter(x=>textHit(x.e,x.paras,query))}))
+      .filter(s=>s.items.length);
+    return{group:g.group,sections};
+  }).filter(g=>g.sections.length);
   const jump=id=>{
     const t=GLOSSARY_BY_ID[id];
     if(!t)return;
-    const f=tierOk(t,filter)?filter:'all';
+    const f=tierOk(t,filter,scope)?filter:'all';
     if(f!==filter)setFilter(f);
     const e=entries.flatMap(g=>g.terms).find(x=>x.t.id===id);
     if(query&&e&&!matches(e,f,query))setQ('');
@@ -4435,6 +4479,59 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
     return()=>document.removeEventListener('keydown',onKey,true);
   },[]);
   const chipCol=k=>k==='all'?'#e2e8f0':TIER_COLOR[k];
+  const entryView=({e:{t},paras,add})=>{
+    const lit=!add&&flash&&flash.id===t.id;
+    return(
+      <div key={t.id} {...(add?{'data-glossary-add':t.id}:{id:'gl-'+t.id,'data-glossary-entry':t.id,tabIndex:-1})}
+           style={{marginBottom:10,paddingLeft:8,outline:'none',
+                   borderLeft:'2px solid '+(lit?'#818cf8':'transparent'),
+                   background:lit?'#818cf811':'transparent',
+                   transition:'background .4s,border-color .4s'}}>
+        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:2}}>
+          {add
+            ?<button type="button" onClick={()=>jump(t.id)}
+                title="Show the whole entry"
+                style={{background:'none',border:'none',padding:0,cursor:'pointer',fontSize:12,
+                        fontWeight:700,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>{t.term} ›</button>
+            :<span style={{fontSize:13,fontWeight:700,color:'#e2e8f0',
+                           fontFamily:'var(--font-mono)'}}>{t.term}</span>}
+          <TierBadge tier={t.tier}/>
+        </div>
+        {paras.map((p,j)=>{
+          const tagged=p.tier&&!add;
+          return(
+            <div key={p.i} data-glossary-para-tier={p.tier||undefined}
+                 style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-line',marginTop:j?6:0,
+                         ...(tagged?{borderLeft:'2px solid '+TIER_COLOR[p.tier]+'66',paddingLeft:8}:null)}}>
+              {tagged&&<><TierBadge tier={p.tier} para/>{' '}</>}{p.text}
+            </div>
+          );
+        })}
+        {!add&&t.see&&t.see.length>0&&
+          <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px 6px',marginTop:6}}>
+            <span style={{fontSize:9,color:'#64748b',letterSpacing:1}}>SEE</span>
+            {t.see.map(s=>(
+              <button key={s} type="button" data-glossary-see={s} onClick={()=>jump(s)}
+                style={{background:'none',border:'1px solid #312e81',borderRadius:2,color:'#818cf8',
+                        fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
+                        padding:'1px 6px',cursor:'pointer'}}>{glossaryLabel(s)}</button>
+            ))}
+          </div>}
+      </div>
+    );
+  };
+  const scopeBtn=(k,label,title)=>{
+    const on=scope===k,dis=filter==='all';
+    return(
+      <button key={k} type="button" data-glossary-scope={k} aria-pressed={on} disabled={dis} title={title}
+        onClick={()=>setScope(k)}
+        style={{background:on&&!dis?'#0f172a':'none',border:'1px solid '+(on&&!dis?'#64748b':'#1e293b'),
+                borderRadius:2,color:dis?'#334155':on?'#e2e8f0':'#94a3b8',fontFamily:'var(--font-mono)',
+                fontSize:10,letterSpacing:1,padding:'3px 7px',cursor:dis?'default':'pointer',lineHeight:1.4}}>
+        {label}
+      </button>
+    );
+  };
   return(
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:1100,
                  display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -4465,6 +4562,11 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
               </button>
             );
           })}
+          <span style={{flex:1}}/>
+          <div role="group" aria-label="Tier scope" style={{display:'flex',gap:4}}>
+            {scopeBtn('only','ONLY','Only what this tier introduces')}
+            {scopeBtn('upto','UP TO','Everything visible at this tier')}
+          </div>
         </div>
         <div style={{padding:'8px 14px 10px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
           <input type="text" value={q} onChange={e=>setQ(e.target.value)}
@@ -4480,45 +4582,21 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
             <div style={{fontSize:12,color:'#475569',textAlign:'center',padding:'20px 0'}}>
               {filter==='all'
                 ?<>No terms match "{q}".</>
-                :<>No {TIER_LABEL[filter]}-and-below terms match "{q}". Try ALL.</>}
+                :scope==='only'
+                  ?<>No {TIER_LABEL[filter]} terms match{query?<> "{q}"</>:null}. Try UP TO or ALL.</>
+                  :<>No {TIER_LABEL[filter]}-and-below terms match "{q}". Try ALL.</>}
             </div>}
           {filtered.map(g=>(
-            <div key={g.group} style={{marginBottom:14}}>
-              <div style={{fontSize:10,color:'#64748b',letterSpacing:2,marginBottom:6}}>
+            <div key={g.group} data-glossary-group={g.group} style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:'#64748b',letterSpacing:2,marginBottom:2}}>
                 {g.group.toUpperCase()}
               </div>
-              {g.terms.map(({t,paras})=>{
-                const lit=flash&&flash.id===t.id;
-                return(
-                  <div key={t.id} id={'gl-'+t.id} data-glossary-entry={t.id} tabIndex={-1}
-                       style={{marginBottom:10,paddingLeft:8,outline:'none',
-                               borderLeft:'2px solid '+(lit?'#818cf8':'transparent'),
-                               background:lit?'#818cf811':'transparent',
-                               transition:'background .4s,border-color .4s'}}>
-                    <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:2}}>
-                      <span style={{fontSize:13,fontWeight:700,color:'#e2e8f0',
-                                    fontFamily:'var(--font-mono)'}}>{t.term}</span>
-                      <TierBadge tier={t.tier}/>
-                    </div>
-                    {visParas(paras,filter).map((p,j)=>(
-                      <div key={p.i} style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-line',
-                                             marginTop:j?6:0}}>
-                        {p.tier&&<><TierBadge tier={p.tier}/>{' '}</>}{p.text}
-                      </div>
-                    ))}
-                    {t.see&&t.see.length>0&&
-                      <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px 6px',marginTop:6}}>
-                        <span style={{fontSize:9,color:'#64748b',letterSpacing:1}}>SEE</span>
-                        {t.see.map(s=>(
-                          <button key={s} type="button" data-glossary-see={s} onClick={()=>jump(s)}
-                            style={{background:'none',border:'1px solid #312e81',borderRadius:2,color:'#818cf8',
-                                    fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
-                                    padding:'1px 6px',cursor:'pointer'}}>{glossaryLabel(s)}</button>
-                        ))}
-                      </div>}
-                  </div>
-                );
-              })}
+              {g.sections.map(s=>(
+                <div key={s.key} data-glossary-section={s.key}>
+                  <TierRule tier={s.tier} label={s.label}/>
+                  {s.items.map(entryView)}
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -5245,7 +5323,7 @@ const TUTORIALS={
      glossary:['hz','zeta','roll-stiffness']},
     {title:'Chassis',
      focus:['chassis'],
-     body:'Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. CG Height Source (RIDE HEIGHT or MANUAL) is here too.',
+     body:'Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.',
      glossary:['cg-source']},
     {title:'Diff Type',
      focus:['drivetrain'],
@@ -5311,11 +5389,11 @@ const TUTORIALS={
   pro:[
     {title:'Welcome — Pro Mode',
      focus:null,
-     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (tyres, wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL; brakes are always computed. This guide covers only what\'s new.',
+     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL; brakes are always computed. This guide covers only what\'s new.',
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
      focus:['chassis'],
-     body:'CHASSIS now splits by source. FROM THE GAME adds tyre sizes and MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
+     body:'CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
      glossary:['tyre-size','track-width','balance-guide']},
     {title:'Manual Differential',
      focus:['drivetrain'],
@@ -5402,10 +5480,10 @@ const GLOSSARY=[
     {id:'build-type',term:'Build Type',tier:'beginner',def:"The car's intended use: STREET (the default), TRACK, DRIFT, RALLY, OFFROAD or DRAG. It shifts the alignment targets, the differential's automatic locks on FWD and RWD, and the brake balance recommendation. For brakes it adds front bias: TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, and 0 points for STREET and RALLY. It also picks which FACTORY preset gets the ★ FOR YOUR BUILD mark.\n\n[INT] The DIFFERENTIAL card's RECOMMENDED diff type comes from it: Street suggests Sport, Track and Drag suggest Race, and the others suggest the type of the same name. On AWD it is also the starting point for the recommended CENTER SPLIT.\n\n[PRO] It picks the Balance Guide's recommended RANGE band, which RANGE target mode aims at.",see:['layout','diff-type','brake-balance','target-range']},
     {id:'weight',term:'Weight',tier:'beginner',def:"Total vehicle weight. Take it from the car's stat page or car selection screen, not the tuning menu. The box takes 100–18000 lb (45–8165 kg); the default is 3200 lb. Weight sets each corner's mass, so it directly scales spring rates, damper forces and ARB stiffness. Ride frequency in Hz stays put, because spring rate scales with corner mass times Hz squared.\n\nThe BEG panel warns outside the typical Forza range of 1600–6500 lb (725–2950 kg). Treat that as a prompt to recheck the stat screen, not as a limit.\n\nIn BEG and INT, changing Weight also rescales wheelbase and track widths from the default car. CG Height is rescaled too, unless it is estimated from ride height.\n\n[PRO] PRO keeps the wheelbase, track widths and CG you enter. Dropping to INT or BEG rescales them from Weight again.",see:['front-weight-bias','corner-mass','spring-rate','cg-height']},
     {id:'front-weight-bias',term:'Front Weight Bias',tier:'beginner',def:"The share of total weight on the front axle, 30–70% in 1% steps; the default is 52%. Take it from the car selection screen, not the tuning menu. 50% is an even split, and most front-engined cars sit at 52–58%. The BEG panel flags a value outside the usual range for the layout: 55–70% on FWD, 38–55% on RWD and 45–58% on AWD.\n\nIt splits the weight into front and rear corner masses. Those set each axle's spring and damper rates and the car's natural balance. It is the base of the brake balance recommendation and, in BEG, of the ARB split. More rear weight also raises the automatic decel lock.\n\n[INT] WEIGHT balance mode splits the ARBs from it. On AWD the recommended CENTER SPLIT moves about 3% rearward for every 10% of extra rear weight.",see:['weight','corner-mass','layout','bal-weight']},
-    {id:'cg-source',term:'CG Height Source',tier:'intermediate',def:"Chooses where CG height comes from. RIDE HEIGHT, the default, estimates it from the front and rear ride heights Forza shows, plus tyre radius. MANUAL takes a CG Height you type in.\n\nThe estimate is the average tyre radius plus the two ride heights weighted by Front Weight Bias. It is held inside 200–1500 mm. It is a rough heuristic, because real CG also depends on engine position, body height and mass distribution, which the app has no inputs for. It still beats a guess. It needs valid tyre sizes. At INT an invalid size can't be fixed in place: switch to PRO, where tyres are edited, or use MANUAL.\n\nRIDE HEIGHT also enables STIFFNESS BOTTOM G's and SHARED Hz mode in RIDE, and the SAG vs LOAD chart in VISUALS.\n\n[PRO] The FIT? badge flags CG when the raw estimate falls outside 200–1500 mm. Past that point, ride-height edits stop moving CG.",see:['cg-height','ride-height','tyre-size','sag-vs-load']},
+    {id:'cg-source',term:'CG Height Source',tier:'intermediate',def:"Chooses where CG height comes from. RIDE HEIGHT, the default, estimates it from the front and rear ride heights Forza shows, plus tyre radius. MANUAL takes a CG Height you type in.\n\nThe estimate is the average tyre radius plus the two ride heights weighted by Front Weight Bias. It is held inside 200–1500 mm. It is a rough heuristic, because real CG also depends on engine position, body height and mass distribution, which the app has no inputs for. It still beats a guess. It needs valid tyre sizes, entered just above it.\n\nRIDE HEIGHT also enables STIFFNESS BOTTOM G's and SHARED Hz mode in RIDE, and the SAG vs LOAD chart in VISUALS.\n\n[PRO] The FIT? badge flags CG when the raw estimate falls outside 200–1500 mm. Past that point, ride-height edits stop moving CG.",see:['cg-height','ride-height','tyre-size','sag-vs-load']},
     {id:'ride-height',term:'Ride Height',tier:'intermediate',def:"Front and rear ride height as Forza shows it on the car's stat or tuning screen. It is entered in inches (0.5–48) or centimetres (1.3–122) and shown only when CG Height Source is RIDE HEIGHT. With tyre radius it gives the CG height estimate.\n\nIt is also the travel available before bottoming. The BOTTOM G's stiffness mode and the SAG vs LOAD chart measure static sag and cornering compression against it.",see:['cg-source','sag','bottoming','sag-vs-load']},
     {id:'cg-height',term:'CG Height',tier:'intermediate',def:"Height of the centre of gravity above the ground. The game doesn't show it, so it is either estimated from ride height or typed under MANUAL (200–1500 mm, 5 mm steps). With RIDE HEIGHT as the source, the estimate shows as CG HEIGHT (EST.). Guide values: 400–460 mm for sports cars, 480–550 mm for sedans, 580–700 mm for SUVs and 800–1100 mm for lifted off-roaders.\n\nA higher CG gives a bigger roll moment: body mass times CG height above the roll centre, which sits at 20% of CG height. The body then rolls more, AUTO asks for stiffer ARBs, and more load moves to the outside tyres. CG over wheelbase sets how much weight moves forward under braking, which front-biases the brake recommendation.\n\n[PRO] The same ratio sets the ENTRY and EXIT reference splits in the phase readout.",see:['cg-source','roll-stiffness','load-transfer','brake-balance']},
-    {id:'tyre-size',term:'Tyre Size',tier:'pro',def:"Front and rear tyre size as on the sidewall, e.g. 265/35R18, the default. Any separator works. Width must be 50–500 mm, aspect 10–100 and rim 8–30 in. A blank box uses a 265 mm width, and = FRONT copies the front size to the rear.\n\nWidth sets each axle's grip at the limit. Wider means more grip on that end, rising less than proportionally. It moves GRIP BIAS, GRIP TARGET and the Balance Guide's AGILE-to-PLANTED tag, but not roll stiffness. Forza's displayed Mech Balance does add a small width term, 0.08 × ln(rear width ÷ front width), which the app includes in displayed balances and removes from targets.\n\nAspect and rim give the diameter and radius. These feed the RIDE HEIGHT CG estimate and the AWD AVG RADIUS readout. They also feed the recommended CENTER SPLIT: a larger rear diameter moves it rearward. The FIT? badge flags widths outside the 215–335 mm the model was fitted on.",see:['grip-bias','target-grip','cg-source','power-split']},
+    {id:'tyre-size',term:'Tyre Size',tier:'intermediate',def:"Front and rear tyre size as on the sidewall or the upgrade screen, e.g. 265/35R18, the default. Any separator works. Width must be 50–500 mm, aspect 10–100 and rim 8–30 in. A blank box uses a 265 mm width, and = FRONT copies the front size to the rear.\n\nAspect and rim give the diameter and radius. These feed the RIDE HEIGHT CG estimate and the AWD AVG RADIUS readout. They also feed the recommended CENTER SPLIT: a larger rear diameter moves it rearward. Width does not change roll stiffness, but Forza's displayed Mech Balance adds a small width term, 0.08 × ln(rear width ÷ front width), which the app includes in displayed balances.\n\n[PRO] Width sets each axle's grip at the limit. Wider means more grip on that end, rising less than proportionally. It moves GRIP BIAS, GRIP TARGET and the Balance Guide's AGILE-to-PLANTED tag, and the width term is removed from targets. The FIT? badge flags widths outside the 215–335 mm the model was fitted on.",see:['cg-source','power-split','grip-bias','target-grip']},
     {id:'wheelbase',term:'Wheelbase',tier:'pro',def:"Distance between the front and rear axles, 400–4000 mm in 5 mm steps; typical cars run 2400–2900 mm. Forza doesn't show it, so it sits under LOOK UP ONLINE in CHASSIS: take it from the car's spec sheet. FLAT RIDE uses it to time the rear Hz to your Target Speed. With CG height it sets the forward weight transfer under braking. That feeds the brake balance recommendation and the ENTRY and EXIT phase readouts. It stays in use when a MEASURE NAT BAL reading replaces the track widths.\n\nBelow PRO it isn't an input: it is scaled from Weight, and leaving PRO rescales it.",see:['flat-ride','brake-balance','cg-height','track-width']},
     {id:'track-width',term:'Track Width',tier:'pro',def:"Distance between the left and right wheels on each axle, 1000–2600 mm in 5 mm steps. Typical is 1400–1800 mm, and the rear is often slightly wider. Forza doesn't show them, so they sit under LOOK UP ONLINE in CHASSIS; MEASURE NAT BAL is the in-game alternative. An axle's roll stiffness grows with track squared, so a wider track resists roll more on the same springs and transfers less load. Track also scales what one ARB click is worth.\n\nTrack widths and corner masses give the predicted natural balance. A wider rear or narrower front raises the rear's share of roll stiffness, toward oversteer. GEOMETRY GAP suggests track changes toward your target.\n\nThe fields hide while a MEASURE NAT BAL reading is in use, because the game's reading already reflects the real geometry, track width upgrades included. Below PRO they are scaled from Weight, and leaving PRO rescales them.",see:['natural-balance','roll-stiffness','arb-scale','grip-gap']},
     {id:'motion-ratio',term:'Motion Ratio',tier:'pro',def:"How far the spring and damper move per unit of wheel travel, 0.2–1.5. It is BeamNG only: Forza shows wheel rate, so the fields are hidden there. The default 1.0 is direct-acting, like a strut on the hub. Lower means the spring sits inboard on a control arm and must be stiffer for the same wheel rate. Spring and damper outputs are divided by the ratio squared, so 0.7 roughly doubles them.\n\nBeamNG's sliders act at the spring, so this is what makes the numbers match. It does not change Hz, roll stiffness or handling balance. Leave it at 1.0 unless you know the car's geometry.",see:['arb-motion-ratio','spring-rate']},
@@ -5421,7 +5499,7 @@ const GLOSSARY=[
     {id:'power-split',term:'Center Power Split',tier:'beginner',short:'Center split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Center Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTER POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTER SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
     {id:'match-chassis',term:'MATCH CHASSIS',tier:'pro',def:"An automatic-differential option, off by default. When on, it biases the diff by how far your Mech Balance Target sits from natural balance. A target set for more oversteer leans the diff toward rotation, and one set for understeer leans it toward stability. The offset is 150× that gap, capped at ±25 points. It is added to the EXIT intent, and half of it to ENTRY. It is flipped on FWD, because more lock there means more push. The sliders don't move; their hints say when the bias is on.\n\nIt acts only while an ARB or Hz mode solves toward the target; otherwise the button dims and the diff is unchanged. It has no effect in MANUAL. Leaving PRO turns it off. If a share code or garage load brings it in below PRO, the EXIT and ENTRY hints say so.",see:['mech-balance-target','natural-balance','exit-bias','entry-bias']},
   ]},
-  {group:'Balance Target (PRO)',terms:[
+  {group:'Balance Target',terms:[
     {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE and GRIP add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. Switching modes keeps the target where it is. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip']},
     {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build. It is set as a fraction of the gap from NATURAL toward GRIP TARGET, not as a flat offset. So the further a chassis sits from grip-neutral, the further its band sits from natural. TRACK, for example, uses 0.55–0.95 of that gap on FWD and RWD, and 0.45–0.80 on AWD.\n\nDRIFT (0.90–1.55, AWD 0.75–1.30) and RWD DRAG (0.60–1.05) deliberately go past grip-neutral toward oversteer. The band is at least 0.03 wide and stays inside 0.05–0.95. On most mid- and rear-engined cars, grip-neutral sits below natural. The RANGE row shows the band, with its edges as deltas from NAT.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
     {id:'target-grip',term:'GRIP (Balance Target Mode)',tier:'pro',short:'GRIP target',def:"A Balance Target mode that aims at GRIP TARGET plus Balance Offset. GRIP TARGET is the mech balance at which the grip model reads exactly neutral for this chassis. At 0 offset the suspension cancels the chassis's own understeer or oversteer tendency instead of reinforcing it. GRIP TARGET is not GRIP BIAS mirrored about 0.50. The two use different units, and the model isn't symmetric enough for a mirror to land on neutral.\n\nIn Forza modes each tyre flexes in series with its axle, so GRIP TARGET shifts slightly with total roll stiffness. The solver uses the value at the tune's own stiffness. When GRIP TARGET falls outside the RANGE band, GRIP GAP appears.",see:['grip-neutral','grip-bias','balance-offset','grip-gap']},
@@ -7608,7 +7686,6 @@ function App(){
             <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
               hint="Share of weight on the front axle, from the car selection screen. 50% = an even split; most front-engined cars are 52–58%." hintTerm="front-weight-bias"/>
             {(()=>{
-              if(uiMode!=='pro')return null;
               const tyreInput=(key,label,onCopyFront)=>{
                 const val=ch[key]??DEF_CH[key];
                 const isBlank=val.trim()==='';
@@ -7651,7 +7728,9 @@ function App(){
               return(<>
                 <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>TYRE SIZE</span>
-                  <Hint text="Sidewall size, e.g. 265/35R18. Wider = more grip at that end: it moves GRIP BIAS, not roll stiffness." term="tyre-size"/>
+                  <Hint text={uiMode==='pro'
+                    ?"Sidewall size, e.g. 265/35R18. Wider = more grip at that end: it moves GRIP BIAS, not roll stiffness."
+                    :"Sidewall size, e.g. 265/35R18, from the upgrade screen. Its radius feeds the RIDE HEIGHT CG estimate below."} term="tyre-size"/>
                 </div>
                 <div style={{display:'flex',gap:8,marginBottom:8}}>
                   {tyreInput('tyreF','FRONT')}
@@ -7699,7 +7778,7 @@ function App(){
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>CG HEIGHT (EST.)</span>
                   <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:13,color:'#60a5fa'}}>{Math.round(ch.cgHeight*1000)} mm</span>
                 </div>
-                {!tyresOk&&<div style={{fontSize:9,color:'#f59e0b',padding:'2px 0 8px'}}>{uiMode==='pro'?'Enter valid tyre sizes above to compute CG height from ride height.':'Invalid tyre size on this chassis — switch to PRO to fix it, or use MANUAL CG entry.'}</div>}
+                {!tyresOk&&<div style={{fontSize:9,color:'#f59e0b',padding:'2px 0 8px'}}>Enter valid tyre sizes above to compute CG height from ride height.</div>}
                 <div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>SAG vs LOAD is in the pinned VISUALS card below ↓</div>
               </>);
             })():uiMode==='pro'

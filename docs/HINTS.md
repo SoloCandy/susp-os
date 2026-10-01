@@ -98,7 +98,9 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 > Share of weight on the front axle, from the car selection screen. 50% = an even split; most front-engined cars are 52–58%.
 
-**TYRE SIZE** (PRO):
+**TYRE SIZE** (INT and PRO; the text differs by tier, since GRIP BIAS is PRO-only):
+
+> Sidewall size, e.g. 265/35R18, from the upgrade screen. Its radius feeds the RIDE HEIGHT CG estimate below.
 
 > Sidewall size, e.g. 265/35R18. Wider = more grip at that end: it moves GRIP BIAS, not roll stiffness.
 
