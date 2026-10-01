@@ -722,6 +722,17 @@ Trade-offs, and why it is not done here:
 - None of the three has telemetry behind it; the margin option is the only one that changes no
   output, only what the readouts measure from.
 
+## Open — AUTO diff locks saturate at 100% on an Offroad diff
+
+AUTO solves in effective (Race-equivalent) lock and divides by `DIFF_TYPE_SCALE`, then
+`lockPct` caps the result at 100%. Offroad's 0.52 puts anything above 52 effective past
+that cap: RWD accel tops out at 65 effective (125%) and AWD rear accel at 70 (135%), both
+entered as 100%. Two things then stop holding at those extremes: the diff balance reads
+100 × 0.52 = 52 effective, less than the same intent on Race, and the % can sit above
+Offroad's `DIFF_TYPE_RANGES` typical top of 90. It takes a far-ROTATE EXIT or MATCH
+CHASSIS push to get there. No higher % exists in the game, so the cap itself is right; the
+open question is only whether the balance should say the diff is out of lock instead.
+
 ## Open — a SPORT diff's hidden centre split still weights the AWD DIFF balance
 
 A Sport diff has no centre lock: CENTER POWER SPLIT hides and the card's Center Split reads N/A.

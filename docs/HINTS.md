@@ -165,6 +165,13 @@ dimmed while it doesn't:
 
 > A PRO-only diff setting is also biasing this; switch to PRO to turn it off.
 
+**MANUAL diff below PRO** — a note under the diff controls, in place of the AUTO sliders, when a
+share code or garage load brings a MANUAL diff in at BEG or INT. It reads "This tune's diff locks
+were typed in MANUAL, a PRO-only mode:", then the locks in use (accel and decel, or front, rear and
+center split on AWD; decel left out on a Sport diff), then:
+
+> Switch to PRO to edit them or return to AUTO.
+
 **ENTRY** (not on a Sport diff) — FWD, RWD, then AWD:
 
 > Front decel lock. STABLE = more lock, more entry understeer. LOOSE = less lock, freer corner entry.

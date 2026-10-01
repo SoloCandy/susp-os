@@ -116,8 +116,10 @@ bDiffDecel = bFD + bRD;
   round: each lock formula and its clamp is the effective (Race-equivalent) lock it wants, and
   `lockPct(eff) = min(100, round(eff / scale))` turns that into the % to enter. A gentler diff
   is therefore asked for **more** %, as `DIFF_TYPE_RANGES` and the MANUAL typical ranges say, and
-  AUTO's diff balance is the same on every type up to % rounding. AUTO used to multiply by the
-  scale, which did the opposite (see [HISTORY.md](HISTORY.md)).
+  AUTO's diff balance is the same on every type up to % rounding, until `lockPct` hits 100%:
+  Offroad's high-lock intents saturate there, and their balance then reads less than Race's
+  (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). AUTO used to multiply by the scale, which did the
+  opposite (see [HISTORY.md](HISTORY.md)).
 - **MATCH CHASSIS** adds `clamp(±25, (feEffective.arbBalTarget − natDisplayOf(ch)) × 150)` to the
   EXIT intent and half of it to ENTRY (negated on FWD), in AUTO only, and only while
   `hasBalTargetSolve(fe)`. With nothing solving toward the target it is the hidden

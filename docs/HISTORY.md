@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a MANUAL diff loaded below PRO left the diff section blank
+
+Leaving PRO turns `diffManual` off, but a share code or garage load doesn't change `uiMode`,
+so it can bring a MANUAL diff in at BEG or INT. The AUTO sliders render only outside MANUAL
+and the lock fields only in PRO, so DRIVETRAIN showed nothing under DIFF TYPE while
+`computeDiff` ran on the loaded locks. The load still keeps them, so the tune computes as
+shared; DRIVETRAIN now says the locks are MANUAL and lists them, as the EXIT/ENTRY hints
+already do for MATCH CHASSIS.
+
 ## Changed — AWD center split reaches 90% rear
 
 `AWD_CENTER_MAX` went from 80 to 90, so CENTER POWER SPLIT now runs −30..+40 (20–90% rear),

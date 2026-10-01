@@ -316,8 +316,11 @@ Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
   that way on every switch to BEG.
 
 Nothing is restored on returning to PRO. A PRO-only setting that arrives *below* PRO by a share
-code or garage load (neither changes `uiMode`) stays until the next tier change, which is why the
-EXIT/ENTRY hints keep their "A PRO-only diff setting is also biasing this" branch.
+code or garage load (neither changes `uiMode`) stays until the next tier change, so the loaded
+tune computes as its author made it. The screen says so instead of hiding it: the EXIT/ENTRY
+hints keep their "A PRO-only diff setting is also biasing this" branch for MATCH CHASSIS, and a
+MANUAL diff below PRO, which has neither the AUTO sliders nor the PRO-only lock fields, gets a
+note in DRIVETRAIN listing the locks in use instead of a blank diff section.
 
 ### Tier differences that look like gaps but aren't
 
