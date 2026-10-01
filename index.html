@@ -3707,7 +3707,7 @@ const DiffCard=({title,rows})=>(
 // row that is context rather than something to tune (PRO's PITCH).
 // tick draws a position instead of a fill and takes no share: the car's own starting lean, which
 // the tuning rows below it move from.
-const BiasSeg=({label,val,hint,primary,totalAbs,scale=15,dead=0.5,muted,hintTerm=null,tick})=>{
+const BiasSeg=({label,val,hint,primary,totalAbs,scale=15,dead=0.5,muted,hintTerm=null,tick,digits=1})=>{
   // positive = oversteer (red/right), negative = understeer (blue/left)
   const c=muted?'#64748b':val>dead?'#ef4444':val<-dead?'#3b82f6':'#cbd5e1';
   const pct=Math.min(50,Math.abs(val)/scale*50);
@@ -3730,9 +3730,9 @@ const BiasSeg=({label,val,hint,primary,totalAbs,scale=15,dead=0.5,muted,hintTerm
           :Math.abs(val)>dead&&<div style={{position:'absolute',top:1,bottom:1,borderRadius:1,
           background:c+(primary?'ee':'99'),...barStyle}}/>}
       </div>
-      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:c,width:34,textAlign:'right',flexShrink:0,
+      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:c,width:digits>1?44:34,textAlign:'right',flexShrink:0,
                      fontWeight:primary?700:400}}>
-        {val>=0?'+':''}{val.toFixed(1)}
+        {val>=0?'+':''}{val.toFixed(digits)}
       </span>
       <span style={{fontSize:10,color:pctOfTotal>40?c:'#475569',width:28,textAlign:'right',flexShrink:0}}>
         {pctOfTotal!=null?`${pctOfTotal}%`:''}
@@ -3890,11 +3890,11 @@ const DirSeg=({label,dir,hint,hintTerm=null})=>(
 );
 const PHASE_NEUTRAL=1;   // ±% grip margin that reads NEUTRAL — PRO's counterpart of the ±3-point band
 const signOf=v=>Math.abs(v??0)>0.3?Math.sign(v):0;
-const fmtPct=v=>`${v>=0?'+':''}${v.toFixed(1)}%`;
+const fmtPct=v=>`${v>=0?'+':''}${v.toFixed(2)}%`;   // PRO's grip-margin percent, to 0.01
 // PhaseVerdict's BiasSeg at the phase scale. Module-level so its type is stable: defined inside
 // PhaseVerdict it was a new component every render, and each App render remounted the rows and
 // their ⓘ, closing an open tooltip and dropping the glossary's return focus.
-const Seg=p=><BiasSeg scale={10} dead={0.2} {...p}/>;
+const Seg=p=><BiasSeg scale={10} dead={0.2} digits={2} {...p}/>;
 // PRO's Handling Balance breakdown, by phase, in grip-margin percent (phaseMargins). Replaces
 // HandlingVerdict in PRO only; BEG/INT keep the point bar, which recommendedDiffType also reads.
 const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,gripBalance})=>{

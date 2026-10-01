@@ -11,6 +11,13 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PRO's Handling Balance percentages read to 0.01
+
+`fmtPct` printed one decimal, so a tune change worth a few hundredths of a percent of grip
+margin often did not move the readout at all. PRO's headline, ENTRY / MID / EXIT line, phase
+totals, TOTAL tooltip and breakdown rows (`Seg`, via `BiasSeg`'s new `digits`) now show two.
+The NEUTRAL band (±1%) is unchanged, and BEG/INT's point figures stay at one decimal.
+
 ## Added — GRIP USE: a predicted grip budget per axle, by phase
 
 A PRO group under LOAD TRANSFER in VISUALS, with the same top-down sketch, shaded by how much of
