@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — BRAKES' GRIP Centre (PRO)
+
+PRO's BRAKES section gained a Centre toggle, REC or GRIP, choosing what Brake Bias shifts from.
+GRIP is the bias at which both axles reach their braking limit together in a straight line at a
+Decel (0.3–1.5 g, default 1.0), from the grip model's own axle capacities (`gripBrakeBiasOf`, with
+`axleGrip` gaining a `latG` argument, 1 everywhere else). It was chosen over an ENTRY-target solve
+because it rests only on physics the model already has, can be property-tested (equal use at the
+solved bias), and the springs and bars cannot move it, so it cannot be pinned at 45 or 68 to cover
+for a balance problem. The shift still applies on top: the proposal's SHIFT and GRIP modes became
+one slider with a choice of centre, since a GRIP mode without a nudge would have had to reinvent
+it. Codec ids 81 (`brakeCentre`) and 82 (`brakeDecel`); INT reads a `grip` Centre as REC.
+
 ## Changed — sidebar order, with the guides and glossary to match
 
 The INT/PRO sidebar now reads CHASSIS, BUILD, BALANCE (PRO), ALIGNMENT (PRO), ANTI-ROLL BARS,

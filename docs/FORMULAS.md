@@ -75,8 +75,9 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
   → negative → understeer on entry. Below 50 (more rear brake) → positive
   → oversteer-leaning (more prone to rear lock-up rotation).
 - `brakeBias` is `recBrakeBias`, shifted at INT and PRO by BRAKES' Brake Bias:
-  `clamp(recBrakeBias − dr.brakeBiasShift, 45, 68)`, the shift ±5 with + = rearward. BEG ignores
-  the shift. `recBrakeBias` is clamped
+  `clamp(centre − dr.brakeBiasShift, 45, 68)`, the shift ±5 with + = rearward. The centre is
+  `recBrakeBias`, or at PRO with `dr.brakeCentre === 'grip'` the rounded `gripBrakeBiasOf(ch,
+  dr.brakeDecel)` (see "GRIP brake bias" below). BEG ignores the shift and INT the Centre. `recBrakeBias` is clamped
   to **45–68**, so `bBrakeEntry` spans roughly **+1.0 … −3.6**. The sub-50
   half of that range is only reachable on rear-weighted cars in DRIFT/DRAG
   builds; every other combination lands front-biased because the
@@ -266,6 +267,30 @@ ENTRY and EXIT to isolate the tune, so the two can disagree, most on EXIT. The l
 sign with `gripMargin` at the same load, which `tests-balance.js` asserts, along with use = 1 on
 the limiting axle and that `axleGrip` + the friction circle is exactly `axleLatG`. There is no
 friction coefficient, so `g_lim` is in the model's own units and is not shown.
+
+## GRIP brake bias (`gripBrakeBiasOf`, PRO only)
+
+BRAKES' GRIP Centre: the brake bias at which both axles reach their braking limit at the same
+moment, braking in a straight line at `decel` g (`dr.brakeDecel`, 0.3–1.5, default 1.0).
+`axleGrip(ch, 1, 1, −decel, ·, latG = 0)` gives each axle's capacity `Fy` at its pitch-shifted
+load with no lateral transfer; a brake share `f` asks the axles for `f·Fx` and `(1−f)·Fx`, so
+equal use (`x/Fy` the same front and rear) is
+
+```
+gripBrakeBias = 100 × FyF / (FyF + FyR)
+```
+
+On square tyres that is close to the classic ideal, `frontBias + 100 × decel × cgHeight /
+wheelbase`, pulled slightly toward 50/50 by `TIRE_LOAD_SENS`; staggered tyres move it by their
+`WIDTH_GRIP_EXP` weighting. Default chassis: 56% at 0.3 g, 66% at 1.0 g, and 74% at 1.5 g, which
+`brakeBias` then clamps to 68. It leaves out the build mods and the PRO grip term, and with no
+cornering the springs and bars cannot move it — it is a centre that follows the chassis, not a
+lever that could cover a balance problem the springs made. `tests-balance.js` asserts equal use at
+the solved bias, forward movement with decel and CG height, and the tyre-width direction.
+
+It is not PRO ENTRY's `idealBrakeF`: that is the load-proportional split at `ENTRY_G` (no tyre
+widths or load sensitivity), and ENTRY measures the brake bias against it. At Decel 0.3 g the two
+are close but not equal, so BRK need not read zero at GRIP's centre.
 
 ---
 

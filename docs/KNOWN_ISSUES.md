@@ -703,7 +703,9 @@ the models are unreconciled. Picking one reference is a model decision with no t
 it (see the scale entry above for `BRAKE_BIAS_SCALE`).
 
 At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 5 points from `recBrakeBias`; at
-its default and in BEG they are equal. So the BRK segment mostly shows how far the app's own
+its default and in BEG they are equal. PRO's GRIP Centre (`gripBrakeBiasOf`) is a fourth reading,
+the straight-line ideal at a chosen decel; it replaces the card's value as the centre when picked,
+but the BRK segment and ENTRY still measure against their own references. So the BRK segment mostly shows how far the app's own
 recommendation leans, and today most of
 that is the weight transfer the card adds on purpose. The card's `cgHeight/wheelbase × 50` is the
 load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is the same split at `ENTRY_G`,

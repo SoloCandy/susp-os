@@ -245,6 +245,18 @@ Build Type uses `HINT_BUILD_TYPE`, quoted under [BEG panel](#beg-panel).
 
 > Shifts the recommended brake bias ({recommended}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
 
+With Centre on GRIP (PRO), `{grip}` is `gripBrakeBias`:
+
+> Shifts the GRIP brake bias ({grip}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
+
+**Centre** (PRO):
+
+> What Brake Bias shifts from. REC = the recommendation, with its build offsets. GRIP = the bias at which both axles reach their braking limit together, braking straight at the Decel below.
+
+**Decel** (PRO, Centre GRIP):
+
+> How hard GRIP assumes you brake. More decel moves more load forward, so GRIP moves forward: about 1.0 g for threshold braking, less for a lighter trail-brake.
+
 ---
 
 ## BALANCE (PRO)

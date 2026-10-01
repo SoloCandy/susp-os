@@ -758,7 +758,9 @@ const latLoadTransfer=(ch,Kf,Kr)=>{
 // axleGrip is axleLatG's first half, split out so GRIP USE can read the raw forces: each axle's
 // lateral capacity at its pitch-shifted, transfer-capped loads (FyF/FyR, N, before the friction
 // circle), the longitudinal force it is asked for (xF/xR), and the wheel loads behind them.
-const axleGrip=(ch,Kf,Kr,ax=0,fxF=0)=>{
+// latG scales the lateral transfer: 1 (every caller but one) is the model's 1 g of cornering;
+// gripBrakeBiasOf passes 0 for braking in a straight line.
+const axleGrip=(ch,Kf,Kr,ax=0,fxF=0,latG=1)=>{
   const g=9.81;
   const{twF,twR}=tyreWidths(ch);
   const{dWf,dWr,Mf,Mr}=latLoadTransfer(ch,Kf,Kr);
@@ -786,7 +788,7 @@ const axleGrip=(ch,Kf,Kr,ax=0,fxF=0)=>{
   // Capped HERE and not in latLoadTransfer, whose other consumer (the SAG vs LOAD outside-wheel
   // line) wants the uncapped compression the springs would see. fy therefore no longer needs a
   // max(0,Fz) floor either — with the cap, w-t is zero at worst, never negative.
-  const tF=Math.min(dWf,wF),tR=Math.min(dWr,wR);
+  const tF=Math.min(dWf*latG,wF),tR=Math.min(dWr*latG,wR);
   const FyF=Math.pow(twF/265,WIDTH_GRIP_EXP)*(fy(wF+tF)+fy(wF-tF));
   const FyR=Math.pow(twR/265,WIDTH_GRIP_EXP)*(fy(wR+tR)+fy(wR-tR));
   const Fx=ax?(Mf+Mr)*g*Math.abs(ax):0;
@@ -914,6 +916,17 @@ const gripUseOf=(ch,tune,phase,brakeBias,diff)=>{
   };
   const front=axle(a.FyF,a.xF,a.Mf,a.wF,a.tF),rear=axle(a.FyR,a.xR,a.Mr,a.wR,a.tR);
   return{limit:gF<=gR?'front':'rear',front,rear};
+};
+// BRAKES' GRIP centre (PRO): the brake bias at which both axles reach their braking limit at the
+// same moment, braking in a straight line at `decel` g — the ideal brake distribution, from the
+// grip model's own capacities, so tyre widths and load sensitivity count as well as the weight
+// split and its forward transfer. Each axle's use is its brake force ÷ its capacity; equal use
+// means the force splits as the capacities do, which is the whole solve. No cornering (latG 0),
+// so the springs and bars cannot move it: it is a centre that follows the chassis, not a lever
+// that could hide a balance problem the springs made. % front, unclamped; App applies 45-68.
+const gripBrakeBiasOf=(ch,decel)=>{
+  const a=axleGrip(ch,1,1,-Math.abs(decel),0.5,0);
+  return a.FyF+a.FyR>0?100*a.FyF/(a.FyF+a.FyR):ch.frontBias;
 };
 // pure roll-stiffness rear fraction Kr/(Kf+Kr) → balance
 const balanceFromRsBal=(ch,rsBal)=>{
@@ -2887,8 +2900,11 @@ const DEF_DR={buildType:'street',diffType:'sport',
               diffFrontAccel:28,diffFrontDecel:0,
               diffRearAccel:48,diffRearDecel:8,diffCenter:65,
               // BRAKES (INT+): points the brake bias moves from its recommendation, + = toward ROTATE
-              // (rearward). 0 = the recommendation. See brakeBias in App.
-              brakeBiasShift:0};
+              // (rearward). 0 = the centre. See brakeBias in App.
+              brakeBiasShift:0,
+              // BRAKES' centre (PRO): 'rec' = recBrakeBias, 'grip' = gripBrakeBiasOf at brakeDecel g.
+              brakeCentre:'rec',brakeDecel:1.0};
+const BRAKE_CENTRE_DEC=['rec','grip'];
 const DEF_AL={alignManual:false,
               camberF:-2.3,camberR:-1.8,toeF:-0.1,toeR:0.1,caster:5.5,
               mode:'build',nudgeStrength:50};
@@ -4843,6 +4859,8 @@ const CODEC_FIELDS=[
   // 80: BRAKES' Brake Bias shift. Not a revival of the brake ids pruned in the v1 redesign —
   // those predate numbering; this is new. Travels with the drivetrain, like the diff intents.
   {id:80,group:'dr',key:'brakeBiasShift'},
+  {id:81,group:'dr',key:'brakeCentre',enc:{rec:0,grip:1},dec:BRAKE_CENTRE_DEC},
+  {id:82,group:'dr',key:'brakeDecel'},
   {id:55,group:'fe',key:'springShareAuto',bool:true},
   {id:56,group:'fe',key:'arbSplitOpposite',bool:true},
   // 58/59: motion ratios. group:'ch' because they describe the car's suspension geometry,
@@ -4998,7 +5016,7 @@ const SHARE_PARTS=[
   {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes',
    keys:['buildType','diffType','diffManual','diffComplement','diffBiasEntry','diffBiasExit',
          'diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel',
-         'diffRearAccel','diffRearDecel','diffCenter','brakeBiasShift']},
+         'diffRearAccel','diffRearDecel','diffCenter','brakeBiasShift','brakeCentre','brakeDecel']},
   {id:'tier',group:'meta',label:'TIER',sub:'Recorded, never applied',applies:false,keys:['tier']},
 ];
 const SHARE_PART_IDS=SHARE_PARTS.filter(p=>p.applies!==false).map(p=>p.id);
@@ -5161,6 +5179,8 @@ const sanitizeTune=({ch,fe,dr})=>{
       diffRearDecel:  cl(dr?.diffRearDecel,   0,  100,  DEF_DR.diffRearDecel),
       diffCenter:     cl(dr?.diffCenter,      0,  100,  DEF_DR.diffCenter),
       brakeBiasShift: cl(dr?.brakeBiasShift,  -5,  5,   DEF_DR.brakeBiasShift),
+      brakeCentre:    BRAKE_CENTRE_DEC.includes(dr?.brakeCentre)?dr.brakeCentre:DEF_DR.brakeCentre,
+      brakeDecel:     cl(dr?.brakeDecel,      0.3, 1.5, DEF_DR.brakeDecel),
     },
   };
 };
@@ -5666,7 +5686,7 @@ const GLOSSARY=[
     {id:'damper-table',term:'Damper Comparison Table',tier:'intermediate',short:'Damper table',def:"The table under Damping Bias compares front and rear on five rows and highlights the one the current Damping Balance Mode equalises. A mismatched row turns amber, with ◄ or ► pointing at the axle that is firmer, faster, working harder or less roll-damped; hover a row for its full reading.\n\nRebound ζ and Bump ζ are each axle's damping ratios; Bump ζ's tooltip adds the bump/rebound mean, a rough overall figure that hides which stroke comes first. Settle is the quick settle-time estimate SETTLE TIME targets, graded by the slower axle, with the DYNAMICS chart's measured figure (MEAS) in its tooltip. Force is each axle's share of actual damping force, ζ × corner mass × Hz; EQUAL FORCE targets 50/50. Roll ζ is rebound ζ in roll: ζ × √(the springs' share of that axle's roll stiffness), since the bar adds stiffness without damping. The less roll-damped axle takes its load first on turn-in, and front and rear match in both ride and roll only when the bar fractions match (NEUTRAL EQUAL ROLL). Roll centres and chassis coupling are ignored.",see:['damping-balance-mode','settle-time','equal-force','bal-neutral']},
   ]},
   {group:'Brakes',terms:[
-    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 5 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 45–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 45–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, a load-proportional split at 0.3 g braking (front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
+    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 5 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 45–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 45–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, a load-proportional split at 0.3 g braking (front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.\n\n[PRO] BRAKES' Centre picks what Brake Bias shifts from. REC is the recommendation above. GRIP is the bias at which both axles reach their braking limit at the same moment, braking in a straight line at the Decel you set (about 1.0 g for threshold braking): each axle gets brake force in proportion to the grip it has under that load, so a taller CG, a shorter wheelbase or harder braking moves it forward, and a wider rear tyre moves it back. It leaves out the build offsets and the grip term, and the springs and bars do not move it; the shift is where intent goes. Switching Centre moves the bias.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
   ]},
   {group:'Differential',terms:[
     {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MED below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
@@ -6807,11 +6827,18 @@ function App(){
   // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
   // See docs/HISTORY.md for the worked cases and docs/FORMULAS.md for the resulting span.
   const recBrakeBias=Math.round(Math.max(45,Math.min(68,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
-  // BRAKES' Brake Bias shift (INT+) moves it from the recommendation, + = rearward (ROTATE), inside
-  // the same 45-68 span. BEG has no BRAKES section, so a shift carried in from INT or a share code
+  // PRO can centre the bias on GRIP instead: the straight-line ideal at brakeDecel g from the grip
+  // model (gripBrakeBiasOf), which leaves out the build mods and the grip-balance term — the shift
+  // is where intent goes. INT keeps the recommendation whatever brakeCentre says, as BEG keeps it
+  // whatever the shift says.
+  const gripBrakeBias=Math.round(gripBrakeBiasOf(ch,dr.brakeDecel??DEF_DR.brakeDecel));
+  const brakeGrip=uiMode==='pro'&&dr.brakeCentre==='grip';
+  const brakeCentre=brakeGrip?gripBrakeBias:recBrakeBias;
+  // BRAKES' Brake Bias shift (INT+) moves it from that centre, + = rearward (ROTATE), inside the
+  // same 45-68 span. BEG has no BRAKES section, so a shift carried in from INT or a share code
   // is ignored there rather than reset: switching back up restores it.
   const brakeBias=uiMode==='beginner'?recBrakeBias
-    :Math.max(45,Math.min(68,recBrakeBias-(dr.brakeBiasShift??0)));
+    :Math.max(45,Math.min(68,brakeCentre-(dr.brakeBiasShift??0)));
   // positive = oversteer, negative = understeer
   const bBrakeEntry=-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
   const effectiveAvgZeta=(tune.zetaF+tune.zetaR)/2||70;
@@ -9096,7 +9123,21 @@ function App(){
               while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
               a typed value, so the bias keeps following the chassis and build. */}
           {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')}
-            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift}))}>
+            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift,brakeCentre:DEF_DR.brakeCentre,brakeDecel:DEF_DR.brakeDecel}))}>
+            {/* PRO: what the shift is measured from. REC = the recommendation; GRIP = where both axles
+                reach their braking limit together (gripBrakeBiasOf). Switching moves the bias — it
+                is a different answer, not a different way of writing the same one. */}
+            {uiMode==='pro'&&<>
+              <Toggle label="Centre" value={brakeGrip?'grip':'rec'} onChange={pDr('brakeCentre')}
+                options={[{value:'rec',label:'REC'},{value:'grip',label:'GRIP'}]}
+                hint="What Brake Bias shifts from. REC = the recommendation, with its build offsets. GRIP = the bias at which both axles reach their braking limit together, braking straight at the Decel below." hintTerm="brake-balance"/>
+              {brakeGrip&&<Field label="Decel" value={dr.brakeDecel??DEF_DR.brakeDecel} onChange={pDr('brakeDecel')}
+                min={0.3} max={1.5} step={0.05} unit="g"
+                hint="How hard GRIP assumes you brake. More decel moves more load forward, so GRIP moves forward: about 1.0 g for threshold braking, less for a lighter trail-brake." hintTerm="brake-balance"/>}
+              <div style={{fontSize:11,color:'#64748b',marginBottom:6}}>
+                REC {recBrakeBias}% · GRIP {gripBrakeBias}% at {(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g
+              </div>
+            </>}
             <FeelSlider
               label="Brake Bias"
               value={dr.brakeBiasShift??0}
@@ -9105,7 +9146,9 @@ function App(){
               leftLabel="STABLE"
               rightLabel="ROTATE"
               markers={[{value:0,color:'#475569'}]}
-              hint={`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`}
+              hint={brakeGrip
+                ?`Shifts the GRIP brake bias (${gripBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`
+                :`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`}
               readout={`${brakeBias}% F`} hintTerm="brake-balance"/>
           </Sec></div>}
 

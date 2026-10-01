@@ -54,7 +54,7 @@ const M = new Function(
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
   'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
-  'axleGrip,gripUseOf,driveFrontOf};'
+  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -917,6 +917,46 @@ t('more front brake bias puts more of the front axle\'s grip into braking on ent
     const hi = M.gripUseOf(ch, rsTune(0.5), 'entry', 70, { layout: 'RWD' });
     ok(hi.front.lon > lo.front.lon && hi.rear.lon < lo.rear.lon, `${name}: braking share did not follow the bias`);
     near(M.gripUseOf(ch, rsTune(0.5), 'mid', 55, { layout: 'RWD' }).front.lon, 0, 0, `${name}: MID asks for braking`);
+  }
+});
+
+// BRAKES' GRIP centre: the brake split at which both axles reach their braking limit together.
+console.log('\nGRIP BRAKE BIAS');
+const DECELS = [0.3, 0.6, 1.0, 1.5];
+
+t('at the GRIP brake bias both axles use the same share of their grip, braking straight', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const d of DECELS) {
+      const f = M.gripBrakeBiasOf(ch, d) / 100;
+      const a = M.axleGrip(ch, 1, 1, -d, f, 0);
+      near(a.xF / a.FyF, a.xR / a.FyR, 1e-9, `${name} ${d} g: front vs rear use`);
+    }
+});
+
+t('GRIP brake bias moves forward with decel and CG height', () => {
+  for (const { name, ch } of CHASSIS) {
+    for (let i = 1; i < DECELS.length; i++)
+      ok(M.gripBrakeBiasOf(ch, DECELS[i]) > M.gripBrakeBiasOf(ch, DECELS[i - 1]), `${name}: not forward of ${DECELS[i - 1]} g at ${DECELS[i]} g`);
+    ok(M.gripBrakeBiasOf({ ...ch, cgHeight: ch.cgHeight + 0.1 }, 1) > M.gripBrakeBiasOf(ch, 1), `${name}: taller CG did not move it forward`);
+  }
+});
+
+t('GRIP brake bias follows tyre width: a wider rear moves it rearward', () => {
+  const base = { ...M.DEF_CH, useRideHeightCG: false };
+  ok(M.gripBrakeBiasOf({ ...base, tyreR: '305/30R19' }, 1) < M.gripBrakeBiasOf(base, 1), 'wider rear did not move it back');
+  ok(M.gripBrakeBiasOf({ ...base, tyreF: '305/30R19' }, 1) > M.gripBrakeBiasOf(base, 1), 'wider front did not move it forward');
+});
+
+t('GRIP brake bias sits between the load-proportional split and 50/50 on square tyres', () => {
+  // The classic ideal is front weight + decel x h/L. Load sensitivity gives the more loaded axle a
+  // little less grip per kg, which pulls GRIP from that split toward even, never far.
+  for (const { name, ch } of CHASSIS) {
+    if (ch.tyreF !== ch.tyreR) continue;
+    for (const d of DECELS) {
+      const lp = Math.min(100, ch.frontBias + 100 * d * ch.cgHeight / ch.wheelbase);
+      const g = M.gripBrakeBiasOf(ch, d);
+      ok(Math.min(lp, 50) - 1e-9 <= g && g <= Math.max(lp, 50) + 1e-9 && Math.abs(lp - g) < 6, `${name} ${d} g: GRIP ${g.toFixed(2)} vs load-proportional ${lp.toFixed(2)}`);
+    }
   }
 });
 

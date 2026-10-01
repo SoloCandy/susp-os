@@ -83,7 +83,8 @@ SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still li
 | ENTRY (not SPORT, same axle group as EXIT) | −50..+50, STABLE↔LOOSE | Decel-lock intent. Stored `dr.diffBiasEntry` positive = more decel lock = STABLE on **every** layout; the slider is an unconditional negation (`value={-(dr.diffBiasEntry??0)}`) to land right = LOOSE, so the stored sign is the opposite of the reading here — see [PRESETS.md](PRESETS.md) | Right = OVERSTEER-leaning |
 | EXIT — FRONT AXLE (AWD only) | −50..+50, PUSH↔NEUTRAL | Front-axle accel lock (independent of the FRONT/REAR AXLE EXIT above, which is rear-axle for AWD) | Left (PUSH) = more UNDERSTEER |
 | POWER SPLIT (AWD, grouped under CENTER) | −30..+40 (20–90% rear) | Center torque split | Right (REAR) = OVERSTEER |
-| <!--@range dr.brakeBiasShift-->Brake Bias (BRAKES) | −5..+5 points | Shifts the recommended brake bias (`recBrakeBias`); the readout is the resulting % front, kept within 45–68. Stored `dr.brakeBiasShift` positive = rearward = ROTATE, matching the slider. Ignored in BEG, which has no BRAKES section | Right (ROTATE) = OVERSTEER-leaning on entry |
+| <!--@range dr.brakeBiasShift-->Brake Bias (BRAKES) | −5..+5 points | Shifts the brake bias centre: `recBrakeBias`, or at PRO with Centre GRIP `gripBrakeBias`; the readout is the resulting % front, kept within 45–68. Stored `dr.brakeBiasShift` positive = rearward = ROTATE, matching the slider. Ignored in BEG, which has no BRAKES section | Right (ROTATE) = OVERSTEER-leaning on entry |
+| <!--@range dr.brakeDecel-->Decel (BRAKES, PRO, Centre GRIP) | 0.30..1.50 g, step 0.05 | The braking load GRIP's brake bias is solved at (`gripBrakeBiasOf`). Default 1.0 g, threshold braking. Shown only with Centre GRIP; INT reads Centre as REC | Right = GRIP moves forward = steadier entry |
 
 ## Pro (PRO) — adds these
 
