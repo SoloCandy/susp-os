@@ -249,6 +249,12 @@ With Centre on GRIP (PRO), `{grip}` is `gripBrakeBias`:
 
 > Shifts the GRIP brake bias ({grip}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
 
+**ENTRY BRK** (PRO, under the Centre toggle) — the ENTRY phase's BRK term, signed, coloured
+neutral / oversteer / understeer as in the expanded panel; `{entry g}` is `ENTRY_G`, `{ideal}` the
+rounded `idealBias`:
+
+> What this brake bias adds to the ENTRY phase, as in the expanded Handling Balance panel. 0 at GRIP with a {entry g} g Decel ({ideal}% front on this car); each point of bias moves it about half a percent.
+
 **Centre** (PRO):
 
 > What Brake Bias shifts from. REC = the recommendation, with its build offsets. GRIP = the bias at which both axles reach their braking limit together, braking straight at the Decel below.
@@ -832,8 +838,8 @@ EXIT — AWD, then RWD and FWD:
 
 **Phase rows** — MID: CAR STARTS (a tick), SPRINGS, ARB; ENTRY: BRAKES, PITCH; EXIT: DRIVE (CENTRE
 on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT's DAMP.
-`{entry g}` / `{exit g}` as above; `{ideal front %}` and `{ideal rear %}` are this car's
-load-proportional splits:
+`{entry g}` / `{exit g}` as above; `{ideal front %}` is BRAKES' GRIP bias at `{entry g}` g and
+`{ideal rear %}` the load-proportional drive split:
 
 > Where the car sits mid-corner before any tuning: its own lean at the weight-matched stiffness split. SPRINGS and ARB move it from here.
 

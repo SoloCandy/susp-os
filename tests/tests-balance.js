@@ -743,10 +743,10 @@ t('CHAS is zero exactly where the chassis is grip-neutral at the weight split', 
   }
 });
 
-t('BRK is zero at load-proportional bias and falls as front bias rises', () => {
+t('BRK is zero at GRIP\'s bias for ENTRY_G and falls as front bias rises', () => {
   for (const { name, ch } of CHASSIS) {
     const tn = tuneOf(ch), ideal = M.phaseMargins(ch, tn, 50, { layout: 'RWD' }).entry.idealBias;
-    near(ideal, ch.frontBias + 100 * M.ENTRY_G * ch.cgHeight / ch.wheelbase, 1e-9, `${name}: ideal bias`);
+    near(ideal, M.gripBrakeBiasOf(ch, M.ENTRY_G), 1e-9, `${name}: ideal bias`);
     near(M.phaseMargins(ch, tn, ideal, { layout: 'RWD' }).entry.brk, 0, 1e-9, `${name}: BRK at ideal`);
     let prev = Infinity;
     for (let b = 45; b <= 68; b++) {

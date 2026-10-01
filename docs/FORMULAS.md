@@ -211,9 +211,11 @@ NEUTRAL.
 
 - **Reference loads.** `ENTRY_G = 0.3` g braking, `EXIT_G = 0.2` g drive. Arbitrary but stated
   on screen: how hard someone brakes or feeds in throttle is the driver's, not the tune's.
-- **Ideal splits** are load-proportional at that load: `idealBrakeF = nf + ENTRY_G·h/L` (front
-  brake share), `idealDriveF = nf − EXIT_G·h/L` (front drive share). BRK and DRIVE are zero when
-  the axles share the work in proportion to what they carry, so they measure the *setting*.
+- **Ideal splits.** `idealBrakeF = gripBrakeBiasOf(ch, ENTRY_G) / 100`, BRAKES' GRIP solve at
+  the ENTRY load (see "GRIP brake bias"): close to `nf + ENTRY_G·h/L`, pulled toward even by load
+  sensitivity and moved by tyre stagger. `idealDriveF = nf − EXIT_G·h/L` (front drive share) is
+  still load-proportional. BRK and DRIVE are zero when the axles share the work as they can carry
+  it, so they measure the *setting*.
 - **Drive front share:** RWD 0, FWD 1, AWD `1 − center/100`.
 - **PITCH** — `gripMargin` at the ideal split minus MID — is shown per phase, muted, and **not
   added** to either total. It is the car's own weight transfer (+ on entry, − on exit), not
@@ -222,7 +224,7 @@ NEUTRAL.
   `bDiffDecel`, `bDiffAccel` and `bDampBias` above. `DIFF_BIAS_SCALE` is uncalibrated and damping
   acts only in transients, which a steady-state model cannot size.
 - **The identities `tests-balance.js` asserts:** CHAS + SPR + ARB = MID; MID has GRIP BIAS's sign;
-  BRK is zero at `idealBrakeF` and falls as front bias rises; DRIVE is + for RWD, − for FWD and
+  BRK is zero at `idealBrakeF` (= GRIP at `ENTRY_G`) and falls as front bias rises; DRIVE is + for RWD, − for FWD and
   rises with AWD rear share; none of it moves with `MECH_BAL_GAIN`.
 
 ---
@@ -288,9 +290,17 @@ cornering the springs and bars cannot move it — it is a centre that follows th
 lever that could cover a balance problem the springs made. `tests-balance.js` asserts equal use at
 the solved bias, forward movement with decel and CG height, and the tyre-width direction.
 
-It is not PRO ENTRY's `idealBrakeF`: that is the load-proportional split at `ENTRY_G` (no tyre
-widths or load sensitivity), and ENTRY measures the brake bias against it. At Decel 0.3 g the two
-are close but not equal, so BRK need not read zero at GRIP's centre.
+PRO ENTRY measures BRK from it: `idealBrakeF` is `gripBrakeBiasOf(ch, ENTRY_G)`, so GRIP at a
+0.3 g Decel reads BRK 0, give or take the bias's 1% rounding. BRAKES shows that BRK under the
+Centre toggle as ENTRY BRK; it moves about 0.45% per point of bias on the test chassis, nearly
+independent of the spring split.
+
+**Why no ENTRY TARGET solve.** Solving the bias to put ENTRY on a target was considered and not
+built. ENTRY = MID is just this GRIP figure at 0.3 g; the Balance Target is a mech balance (0–1)
+with no calibrated map to grip-margin percent; any other target makes the bias absorb MID, which
+the springs set (about 5 points of bias for a −2.2% MID); the 45–68 span covers only about ±5% of
+margin; the off-throttle diff, the main entry lever, has no size in PRO; and BRK's scale is set by
+the arbitrary `ENTRY_G`. The ENTRY BRK readout lets the shift slider serve as a hand-run target.
 
 ---
 

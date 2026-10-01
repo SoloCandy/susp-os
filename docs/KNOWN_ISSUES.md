@@ -692,8 +692,9 @@ Brake bias is read three ways, and they do not share a neutral point:
 - **BEG/INT Handling Balance** (the BRK segment and its correction tip): `bBrakeEntry` measures
   that same value against a fixed 50%. The card's own recommendation is usually front of 50, so
   the bar almost always counts it as understeer.
-- **PRO ENTRY** (`PhaseVerdict`): `phaseMargins` measures it against `idealBrakeF`, the front
-  weight plus `ENTRY_G × cgHeight/wheelbase` (0.3 g of braking). The card counts more weight
+- **PRO ENTRY** (`PhaseVerdict`): `phaseMargins` measures it against `idealBrakeF`, BRAKES' GRIP
+  bias at `ENTRY_G` (0.3 g of braking), close to the front weight plus `ENTRY_G ×
+  cgHeight/wheelbase`. The card counts more weight
   transfer than that, so the recommendation normally sits forward of the PRO ideal and ENTRY
   reads BRK as understeer too.
 
@@ -703,18 +704,18 @@ the models are unreconciled. Picking one reference is a model decision with no t
 it (see the scale entry above for `BRAKE_BIAS_SCALE`).
 
 At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 5 points from `recBrakeBias`; at
-its default and in BEG they are equal. PRO's GRIP Centre (`gripBrakeBiasOf`) is a fourth reading,
-the straight-line ideal at a chosen decel; it replaces the card's value as the centre when picked,
-but the BRK segment and ENTRY still measure against their own references. So the BRK segment mostly shows how far the app's own
+its default and in BEG they are equal. PRO's GRIP Centre (`gripBrakeBiasOf`) is the
+same solve as ENTRY's reference at a chosen decel, so at 0.3 g the two PRO readings agree; the
+card and the BEG/INT BRK segment still do not. So the BRK segment mostly shows how far the app's own
 recommendation leans, and today most of
 that is the weight transfer the card adds on purpose. The card's `cgHeight/wheelbase × 50` is the
-load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is the same split at `ENTRY_G`,
-0.3 g. On the default chassis (h/L ≈ 0.167) that is +8 against +5, and BEG/INT counts all +10
+load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is GRIP's split at `ENTRY_G`,
+0.3 g, within about a point of the load-proportional one. On the default chassis (h/L ≈ 0.167) that is +8 against +5, and BEG/INT counts all +10
 above 50.
 
 **Proposal — one reference, `brakeRefF(ch) = frontBias + 100 × ENTRY_G × cgHeight / wheelbase`.**
-PRO's `phaseMargins` already uses it (as `idealBrakeF`), and `ENTRY_G` is the load the grip model
-sizes ENTRY at, so it is the only choice that is consistent with the model reading it. Then:
+PRO's `phaseMargins` uses its grip-model form (`idealBrakeF = gripBrakeBiasOf(ch, ENTRY_G)`,
+within about a point of this), and `ENTRY_G` is the load the grip model sizes ENTRY at, so it is the only choice that is consistent with the model reading it. Then:
 
 - BEG/INT: `bBrakeEntry = −(brakeBias − brakeRefF) × BRAKE_BIAS_SCALE`, replacing the fixed 50.
 - The card: `recBrakeBias = brakeRefF + BRAKE_STABILITY_MARGIN + build mod (+ PRO grip term)`,

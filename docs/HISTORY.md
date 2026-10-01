@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PRO ENTRY measures brakes from GRIP, and BRAKES shows ENTRY BRK
+
+`phaseMargins`' `idealBrakeF` was the load-proportional split at `ENTRY_G`; it is now
+`gripBrakeBiasOf(ch, ENTRY_G)`, the GRIP Centre's own solve at that load, so GRIP at a 0.3 g Decel
+reads BRK 0 and the two PRO brake readings share one reference. The ideal moves by about a point
+at most (load sensitivity pulls it toward even; stagger moves it), and so do BRK and PITCH. PRO's
+BRAKES section shows the resulting ENTRY BRK under the Centre toggle. This was done instead of an
+ENTRY TARGET solve, for the reasons in [FORMULAS.md](FORMULAS.md) "GRIP brake bias".
+
 ## Added — BRAKES' GRIP Centre (PRO)
 
 PRO's BRAKES section gained a Centre toggle, REC or GRIP, choosing what Brake Bias shifts from.
