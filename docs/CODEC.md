@@ -261,6 +261,10 @@ link over edits made since. Nothing about the link is persisted; see
 Pasting a whole link into the LOAD CODE box works too: everything after `#t=` is read as
 the code.
 
+Both paths decode through `safeDecodeURI`, not bare `decodeURIComponent`: a link whose
+`%`-escapes were cut in transit falls back to its raw text and fails as an ordinary
+"Invalid code", rather than throwing.
+
 ## Retired — never reuse
 
 - **70/71** — `useMeasuredArbScale`/`measuredArbScale`. MEASURE ARB's click

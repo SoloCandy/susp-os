@@ -6165,6 +6165,9 @@ function App(){
   const[resetOpts,setResetOpts]=useState({tune:true,tutorials:false});
   // Decode a code into `pending` without touching the live tune. Returns true on success;
   // a bad code lands in importErr and clears whatever was staged.
+  // decodeURIComponent throws URIError on a broken %-escape (a link truncated by a messenger).
+  // Fall back to the raw text and let stageCode reject it with its usual "Invalid code".
+  const safeDecodeURI=s=>{try{return decodeURIComponent(s);}catch{return s;}};
   const stageCode=(code,from)=>{
     const clean=String(code??'').replace(/\s/g,'');
     if(!clean)return false;
@@ -6183,13 +6186,16 @@ function App(){
   // A shared link (…#t=CODE) stages once on open, with the SHARE panel already on LOAD CODE,
   // then the hash is cleared so a reload can't restage over edits made since. Staging, not
   // applying: an opened link never moves the tune on its own. See docs/CODEC.md "Parts".
+  // The hash is cleared FIRST: a link mangled in transit used to throw out of
+  // decodeURIComponent here, before the clear, so RELOAD re-crashed on the same hash forever.
   useEffect(()=>{
     const m=location.hash.match(/^#t=(.+)$/);
     if(!m)return;
-    setShowDataModal(true);setDataMode('load');
-    setImportCode(decodeURIComponent(m[1]));
-    stageCode(decodeURIComponent(m[1]),'link');
     history.replaceState(null,'',location.pathname+location.search);
+    const code=safeDecodeURI(m[1]);
+    setShowDataModal(true);setDataMode('load');
+    setImportCode(code);
+    stageCode(code,'link');
   },[]); // eslint-disable-line
 
   const[sidebarOpen,setSidebarOpen]=useState(false);
@@ -10016,7 +10022,7 @@ function App(){
                         // A pasted LINK is accepted too: everything after #t= is the code.
                         const raw=importCode.trim();
                         const h=raw.indexOf('#t=');
-                        stageCode(h>=0?decodeURIComponent(raw.slice(h+3)):raw,'paste');
+                        stageCode(h>=0?safeDecodeURI(raw.slice(h+3)):raw,'paste');
                       }}>{pending?'RE-READ CODE':'READ CODE'}</button>
                   </div>
                   {importErr&&<div style={{fontSize:9,color:'#f87171',marginBottom:8,letterSpacing:0.5}}>{importErr}</div>}

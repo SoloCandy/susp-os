@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a malformed `#t=` link stopped the app loading, and RELOAD couldn't recover
+
+The link effect called `decodeURIComponent` on the hash before `stageCode`'s try/catch, so a
+broken `%`-escape (a link truncated by a messenger) threw a `URIError` out of the effect and
+`ErrorBoundary` showed "Failed to load". The hash was cleared only *after* that call, so the
+error screen's RELOAD re-read the same hash and crashed again, until the URL was edited by
+hand. The hash is now cleared first, and both the link and the pasted-link path decode
+through `safeDecodeURI`, which falls back to the raw text so `stageCode` rejects it as an
+ordinary invalid code. The paste path couldn't crash the app (it runs in a click handler),
+but READ CODE silently did nothing there.
+
 ## Fixed — a MANUAL diff loaded below PRO left the diff section blank
 
 Leaving PRO turns `diffManual` off, but a share code or garage load doesn't change `uiMode`,
