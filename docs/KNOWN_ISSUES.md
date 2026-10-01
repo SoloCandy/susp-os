@@ -655,6 +655,10 @@ damping have no size in PRO at all: `DIFF_BIAS_SCALE` is uncalibrated (see the B
 above), and damping acts in transients a steady-state model cannot size. Sizing either needs
 at-limit data the three-car protocol does not collect.
 
+The bar's TOTAL line in PRO adds BRK and DRIVE to MID, so it sums terms read at two different
+chosen loads, and leaves diff and damping out for want of a size. It says where the sized terms
+land together, not what the car does at any one moment.
+
 ## Open — VISUALS shows the Balance Target when nothing solves toward it
 
 Only the displays are affected: MATCH CHASSIS and alignment Nudge MECH, which also read the

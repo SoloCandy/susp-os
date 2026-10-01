@@ -612,7 +612,7 @@ where `{wheels}` is one of:
 
 **Segment legend** — PRO, then BEG/INT:
 
-> CAR (grey tick): the car's own MID lean. SPR (springs) and ARB (anti-roll bars) stack from it to NET (white tick), the MID margin; ±10% fills half the bar. ENTRY / EXIT are below.
+> CAR (grey): the car's own MID lean. SPR and ARB stack from it to NET (white), the MID margin. Lanes stack brakes and drive off NET; arrows are diff and damping. TOTAL (pink) adds the sized ones.
 
 > CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack off NET; TOTAL (pink, top lane) is where it all lands.
 

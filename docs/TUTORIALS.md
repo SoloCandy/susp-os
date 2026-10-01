@@ -298,7 +298,7 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
 | 1 | Handling Balance | — | | NET headline; sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
-| 2 | Reading the Bar | — | | CAR tick → SPR / ARB → NET tick; ENTRY / EXIT lanes off NET and the TOTAL line (BEG/INT). |
+| 2 | Reading the Bar | — | | CAR tick → SPR / ARB → NET tick; ENTRY / EXIT lanes off NET and the TOTAL line. PRO arrows diff and damping. |
 | 3 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
 | 4 | Reading Each Row | — | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. |
 | 5 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
@@ -514,7 +514,7 @@ TRY IT task (ticks when the check passes):
 
 #### 2. Reading the Bar
 
-> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. In BEG and INT, the ENTRY and EXIT lanes below stack brakes, diff and damping off NET, and the pink TOTAL line above marks where everything lands.
+> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. The ENTRY and EXIT lanes below stack brakes, diff and damping off NET (PRO arrows diff and damping, and adds the drive split), and the pink TOTAL line above marks where everything lands.
 
 #### 3. Typical Targets by Build
 

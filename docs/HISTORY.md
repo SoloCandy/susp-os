@@ -39,6 +39,12 @@ most about 4 points (−1.6 to +6.5 overall), well inside those ranges' spread.
 The full sum came back as a single pink TOTAL line in its own lane above the bar, so where
 everything lands is still visible without it being the headline.
 
+PRO first shipped without the lanes or TOTAL, on the reasoning that its ENTRY / MID / EXIT line
+already carried them; on PRO the bar then looked unchanged. It now has both: ENTRY stacks BRK
+(`phase.entry.brk`) off NET and EXIT stacks DRIVE (`phase.exit.drive`, CENTRE on AWD), ×5 like
+the main bar. Diff lock and damping have no size in PRO, so they are arrows at the end of their
+lane, and TOTAL is MID + BRK + DRIVE.
+
 ## Changed — Tyre Size moved from PRO to INT
 
 INT's default CG Height Source, RIDE HEIGHT, adds tyre radius to the ride heights, and INT's
