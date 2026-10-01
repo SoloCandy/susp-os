@@ -74,7 +74,9 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
 - `brakeBias` is % front brake bias (50 = even). Above 50 (more front brake)
   → negative → understeer on entry. Below 50 (more rear brake) → positive
   → oversteer-leaning (more prone to rear lock-up rotation).
-- `recBrakeBias` (the only producer — there is no manual override) is clamped
+- `brakeBias` is `recBrakeBias`, shifted at INT and PRO by BRAKES' Brake Bias:
+  `clamp(recBrakeBias − dr.brakeBiasShift, 45, 68)`, the shift ±5 with + = rearward. BEG ignores
+  the shift. `recBrakeBias` is clamped
   to **45–68**, so `bBrakeEntry` spans roughly **+1.0 … −3.6**. The sub-50
   half of that range is only reachable on rear-weighted cars in DRIFT/DRAG
   builds; every other combination lands front-biased because the

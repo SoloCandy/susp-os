@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — BRAKES returns at INT, as a shift from the recommendation
+
+Brake bias had been computed only since the old AUTO/MANUAL BRAKES section was removed, on the
+reasoning recorded below ("Why there is no manual override"): users finalise brakes by feel
+in-game. It is back as a deliberate reversal, in a basic form: an INT+ sidebar section with one
+Brake Bias slider, STABLE ↔ ROTATE, shifting `recBrakeBias` by up to 5 points (`dr.brakeBiasShift`,
+codec id 80, + = rearward), still inside 45–68. A shift rather than a typed value keeps the bias
+following the chassis and build, the way the diff's EXIT and ENTRY intents do. The BRAKES card,
+the ENTRY lane, PRO's ENTRY phase and GRIP USE all read the shifted value. BEG ignores the shift,
+without resetting it. At INT the BRAKES correction tip now names the slider, still telling the user
+to set it by feel rather than to zero the row. Brake pressure stays out.
+
 ## Changed — the balance bar's lanes and TOTAL by tier
 
 After the lanes and TOTAL went into every tier, BEG showed three bars, though nothing in the lanes

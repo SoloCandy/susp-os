@@ -96,8 +96,14 @@ future version might not carry.
 | 77 | meta | tier | enum (`TIER_ENC/DEC`) |
 | 78 | ch | measuredNatBalRef | raw number — staleness reference, see note |
 | 79 | fe | arbBalAbs | raw number — MANUAL Balance Target's absolute mech balance |
+| 80 | dr | brakeBiasShift | raw number — BRAKES' Brake Bias shift from the recommendation, + = rearward; see note |
 
-**Next available id: 80.**
+**Next available id: 81.**
+
+Id 80 is new, not a revival: the brake fields pruned in the v1 sparse-table redesign
+(`brakeManual`/`brakeBias`/`brakePressure`) were never individually numbered. It stores a
+shift, not a bias, so a code carries the sender's intent and lands on the reader's car as
+that car's recommendation plus the shift. It rides with the DRIVETRAIN part.
 
 Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
 only field in the `meta` group, and the only field that is not an input to any solve
@@ -210,7 +216,7 @@ choice, decided after the code is read.
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
-| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter |
+| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 
 > **Rule: every codec field belongs to exactly one part.** A field added to

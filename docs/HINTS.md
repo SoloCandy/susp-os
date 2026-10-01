@@ -239,6 +239,14 @@ Build Type uses `HINT_BUILD_TYPE`, quoted under [BEG panel](#beg-panel).
 
 ---
 
+## BRAKES (INT+)
+
+**Brake Bias** — `{recommended}` is `recBrakeBias`:
+
+> Shifts the recommended brake bias ({recommended}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
+
+---
+
 ## BALANCE (PRO)
 
 **Balance Target** (the target-mode toggle):
@@ -727,11 +735,15 @@ DIFF EXIT, DIFF ENTRY, DIFF F, DIFF R (INT):
 
 > Move the REAR AXLE EXIT toward ROTATE to add rotation under power.
 
-BRAKES — by the sign of the brake contributor, oversteer then understeer:
+BRAKES — by the sign of the brake contributor, oversteer then understeer; BEG, then INT:
 
 > The BRAKES card's brake bias sits below 50% front, which this bar reads as oversteer. It is computed for this car, not a setting to chase.
 
 > The BRAKES card's brake bias sits above 50% front, which this bar reads as understeer. It is computed for this car, not a setting to chase.
+
+> Brake bias sits below 50% front, which this bar reads as oversteer. Brake Bias toward STABLE steadies entry; set it by feel, not to zero this row.
+
+> Brake bias sits above 50% front, which this bar reads as understeer. Brake Bias toward ROTATE frees entry; set it by feel, not to zero this row.
 
 DAMP (INT; BEG uses its balance line):
 

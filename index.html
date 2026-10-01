@@ -2885,7 +2885,10 @@ const DEF_DR={buildType:'street',diffType:'sport',
               diffBiasExit:0,diffBiasEntry:0,diffFrontExitBias:0,
               diffAccel:35,diffDecel:10,
               diffFrontAccel:28,diffFrontDecel:0,
-              diffRearAccel:48,diffRearDecel:8,diffCenter:65};
+              diffRearAccel:48,diffRearDecel:8,diffCenter:65,
+              // BRAKES (INT+): points the brake bias moves from its recommendation, + = toward ROTATE
+              // (rearward). 0 = the recommendation. See brakeBias in App.
+              brakeBiasShift:0};
 const DEF_AL={alignManual:false,
               camberF:-2.3,camberR:-1.8,toeF:-0.1,toeR:0.1,caster:5.5,
               mode:'build',nudgeStrength:50};
@@ -3813,8 +3816,10 @@ const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,
     'diff entry': beg?begDiff:(os?'Move ENTRY toward STABLE — more decel lock resists lift-off rotation.':'Move ENTRY toward LOOSE to allow freer rotation on entry.'),
     'diff front': beg?begDiff:(os?'Move the FRONT AXLE EXIT toward PUSH — more front lock pulls the nose out of the corner.':'Move the FRONT AXLE EXIT toward NEUTRAL to free the front on throttle.'),
     'diff rear':  beg?begDiff:(os?'Move the REAR AXLE EXIT toward GRIP, or ENTRY toward STABLE.':'Move the REAR AXLE EXIT toward ROTATE to add rotation under power.'),
-    brakes:    (bBrakeEntry??0)>0?'The BRAKES card\'s brake bias sits below 50% front, which this bar reads as oversteer. It is computed for this car, not a setting to chase.'
-                 :'The BRAKES card\'s brake bias sits above 50% front, which this bar reads as understeer. It is computed for this car, not a setting to chase.',
+    brakes:    beg?((bBrakeEntry??0)>0?'The BRAKES card\'s brake bias sits below 50% front, which this bar reads as oversteer. It is computed for this car, not a setting to chase.'
+                 :'The BRAKES card\'s brake bias sits above 50% front, which this bar reads as understeer. It is computed for this car, not a setting to chase.')
+                 :((bBrakeEntry??0)>0?'Brake bias sits below 50% front, which this bar reads as oversteer. Brake Bias toward STABLE steadies entry; set it by feel, not to zero this row.'
+                 :'Brake bias sits above 50% front, which this bar reads as understeer. Brake Bias toward ROTATE frees entry; set it by feel, not to zero this row.'),
     damping:   beg?begBal
                   :(os?'Move Damping Bias toward FRONT — firmer front damping resists weight transfer off the front.'
                       :'Move Damping Bias toward REAR to let the front take weight more freely.'),
@@ -4835,6 +4840,9 @@ const CODEC_FIELDS=[
   {id:53,group:'fe',key:'arbBalTargetMode',enc:{natural:0,manual:0,grip:1,range:2,abs:3},dec:['natural','grip','range','abs']},
   {id:54,group:'fe',key:'arbBalDelta'},
   {id:79,group:'fe',key:'arbBalAbs'},
+  // 80: BRAKES' Brake Bias shift. Not a revival of the brake ids pruned in the v1 redesign —
+  // those predate numbering; this is new. Travels with the drivetrain, like the diff intents.
+  {id:80,group:'dr',key:'brakeBiasShift'},
   {id:55,group:'fe',key:'springShareAuto',bool:true},
   {id:56,group:'fe',key:'arbSplitOpposite',bool:true},
   // 58/59: motion ratios. group:'ch' because they describe the car's suspension geometry,
@@ -4987,10 +4995,10 @@ const SHARE_PARTS=[
    keys:['arbBias','arbMode','arbTargetRollMan','arbShareMan','arbBasicMan',
          'arbBalMode','arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs',
          'arbManF','arbManR','arbSplitOpposite','arbNeutralEqual','springShare','springShareAuto']},
-  {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff',
+  {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes',
    keys:['buildType','diffType','diffManual','diffComplement','diffBiasEntry','diffBiasExit',
          'diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel',
-         'diffRearAccel','diffRearDecel','diffCenter']},
+         'diffRearAccel','diffRearDecel','diffCenter','brakeBiasShift']},
   {id:'tier',group:'meta',label:'TIER',sub:'Recorded, never applied',applies:false,keys:['tier']},
 ];
 const SHARE_PART_IDS=SHARE_PARTS.filter(p=>p.applies!==false).map(p=>p.id);
@@ -5152,6 +5160,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       diffRearAccel:  cl(dr?.diffRearAccel,   0,  100,  DEF_DR.diffRearAccel),
       diffRearDecel:  cl(dr?.diffRearDecel,   0,  100,  DEF_DR.diffRearDecel),
       diffCenter:     cl(dr?.diffCenter,      0,  100,  DEF_DR.diffCenter),
+      brakeBiasShift: cl(dr?.brakeBiasShift,  -5,  5,   DEF_DR.brakeBiasShift),
     },
   };
 };
@@ -5663,7 +5672,7 @@ const GLOSSARY=[
     {id:'nudge',term:'Nudge Strength',tier:'pro',def:"Nudge Strength sets how far a MECH or GRIP nudge moves camber and toe away from the AUTO values: 0% gives the pure build-type AUTO values, 100% the full nudge, default 50%. It sets size only; direction comes from the nudge source.\n\nMECH nudges toward the gap between your resolved Mech Balance Target and natural balance, reinforcing the understeer or oversteer intent set there (the same signal MATCH CHASSIS uses). Like MATCH CHASSIS, it acts only while an ARB or Hz mode solves toward the target; otherwise its button dims and MECH equals OFF. GRIP nudges against the chassis's own grip tendency, how far GRIP BIAS sits from 0.5, independent of ARB mode. The gap is normalised over 0.30, so a gap of 0.30 or more gives the full nudge.\n\nAt full strength an oversteer-leaning nudge adds up to 0.5° of front negative camber, removes up to 0.3° of rear camber and moves front and rear toe up to 0.10° toward toe-out; an understeer-leaning one does the reverse. Toe rounds to 0.1°, so small nudges often leave it unchanged. Caster is never nudged.",see:['align-mode','camber','toe','mech-balance-target']},
   ]},
   {group:'Brakes',terms:[
-    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS always computes it; there is no brake input. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 45–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the recommendation; it is not a request to move it.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, a load-proportional split at 0.3 g braking (front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
+    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 5 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 45–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 45–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, a load-proportional split at 0.3 g braking (front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
   ]},
   {group:'Handling Balance',terms:[
     {id:'understeer',term:'Understeer (US)',tier:'beginner',def:"Understeer is when the front tyres run out of grip before the rears, so the car turns less than the steering asks and runs wide. It feels stable and safe but resists rotation.\n\nSUSP.OS shows understeer as negative (−) and blue, on the US side of the Handling Balance bar. More front roll stiffness (springs or bars), more front brake bias, more front rebound damping, more decel lock, and more accel lock on a driven front axle all push toward it.",see:['oversteer','balance-bar','roll-stiffness','response']},
@@ -5677,7 +5686,7 @@ const GLOSSARY=[
   {group:'Readouts & Visuals',terms:[
     {id:'balance-bar',term:'Handling Balance Bar',tier:'beginner',def:"The Handling Balance bar, pinned under the results, shows NET, the steady-state balance: the car's own lean plus springs and bars. + (red, OS) toward oversteer, − (blue, US) toward understeer, NEUTRAL within ±3 points. Zero means neither end should give up grip mid-corner.\n\nA grey tick, CAR in the legend, marks where the car itself sits before any tuning (its CHASSIS lean). SPR and ARB stack out from it as coloured segments to a white tick, NET, the headline. Pushes toward oversteer go right, toward understeer left; tiny segments are hidden. Brakes, diff and damping are not in NET: the expanded breakdown lists them. Shaded zones mark neutral, mild and aggressive, but the right number depends on the goal: rotation and drift builds typically run +15 to +35, track builds +5 to +20 for feel under power, street and GT builds mild understeer for stability. Read it for where balance comes from, not as a target to zero. Tap it (on phones, then CONTRIBUTIONS) for the breakdown and a tip.\n\n[INT] Two thin lanes below the bar start at NET: ENTRY holds brakes, off-throttle diff lock and damping, EXIT the on-throttle lock, so the ENTRY and EXIT diff sliders and Damping Bias show where they push.\n\n[PRO] PRO uses a different unit: mid-corner grip margin, how much more lateral grip the front axle has left than the rear at the limit, as a percent of their mean (+ = the rear gives up first), NEUTRAL within ±1%. The bar uses the same markers in percent, ±10% filling a half: the grey tick at the car's own MID lean, SPR and ARB from it to the white NET tick at the MID margin. The ENTRY lane stacks BRK off NET and the EXIT lane DRIVE (CENTRE on AWD); diff lock and damping, which have no size in PRO, show as arrows at the lane's end. A pink TOTAL line in a lane above the bar adds MID, brakes and drive. An ENTRY / MID / EXIT line below gives the figures; the point ranges do not apply.",see:['balance-contributors','handling-verdict','phase-verdict','understeer']},
     {id:'balance-contributors',term:'Balance Contributors',tier:'beginner',short:'Contributors',def:"The rows behind the BEG and INT Handling Balance bar, in points, + toward oversteer. CAR STARTS comes first: CHASSIS, the car's own at-limit lean from tyre widths, track widths, CG height and weight split, shown as the stiffness bias it takes to cancel it (−10 means 10 points of rear-biased roll stiffness just to reach neutral). It is drawn as a tick, the point the tuning rows move from, and takes no share. Each tuning row shows its share of their combined size.\n\nMID · MAKES NET: SPRINGS and ARB compare each one's front/rear roll-stiffness split with the weight split, weighted by its share of total roll stiffness: + means the rear is relatively stiffer.\n\nENTRY / EXIT · NOT IN NET: shown as the bar's lanes, not added to the headline. DIFF EXIT and DIFF ENTRY on FWD and RWD, or DIFF F and DIFF R on AWD (accel and decel combined, scaled by centre split and axle weight). Rear accel lock is +; front accel lock and decel lock on either axle are −. BRAKES is the computed brake bias against 50/50, − above 50% front. DAMP is the front/rear rebound damping split, − when the front is firmer.\n\nAlignment is not counted, though it also affects balance.",see:['balance-bar','handling-verdict','brake-balance','mech-balance']},
-    {id:'handling-verdict',term:'Correction Tip',tier:'beginner',def:"The line atop the expanded Handling Balance panel at BEG and INT. Within ±3 points of NET it calls the setup balanced, naming the largest tuning row over 2 points to watch; otherwise it names the largest contributor (if over 2 points) and which way to move. BEG spring, bar and damping tips point to the Balance slider (toward UNDERSTEER against oversteer, toward OVERSTEER against understeer); BEG diff tips explain the lock comes from Build Type and Layout. A CHASSIS tip means the car itself leans that way: shift balance toward the front for oversteer, the rear for understeer. For big shifts the main balance control has the most leverage.\n\n[INT] INT tips name the control, here for oversteer (reverse for understeer): ARB Bias toward FRONT HEAVY (in MAN, raise ARB F relative to ARB R); lower rear Hz relative to front via the RIDE multiplier; Damping Bias toward FRONT; EXIT toward GRIP or ENTRY toward STABLE (AWD: FRONT AXLE EXIT toward PUSH, REAR AXLE EXIT toward GRIP). ARB Bias and Damping Bias suit small residual changes.\n\nA BRAKES tip describes the computed brake balance, measured from 50/50; it is not a setting to chase.",see:['balance-contributors','balance-bar','balance-slider','arb-bias']},
+    {id:'handling-verdict',term:'Correction Tip',tier:'beginner',def:"The line atop the expanded Handling Balance panel at BEG and INT. Within ±3 points of NET it calls the setup balanced, naming the largest tuning row over 2 points to watch; otherwise it names the largest contributor (if over 2 points) and which way to move. BEG spring, bar and damping tips point to the Balance slider (toward UNDERSTEER against oversteer, toward OVERSTEER against understeer); BEG diff tips explain the lock comes from Build Type and Layout. A CHASSIS tip means the car itself leans that way: shift balance toward the front for oversteer, the rear for understeer. For big shifts the main balance control has the most leverage.\n\n[INT] INT tips name the control, here for oversteer (reverse for understeer): ARB Bias toward FRONT HEAVY (in MAN, raise ARB F relative to ARB R); lower rear Hz relative to front via the RIDE multiplier; Damping Bias toward FRONT; EXIT toward GRIP or ENTRY toward STABLE (AWD: FRONT AXLE EXIT toward PUSH, REAR AXLE EXIT toward GRIP). ARB Bias and Damping Bias suit small residual changes.\n\nA BRAKES tip describes the brake balance, measured from 50/50; it is not a setting to chase. At INT the tip names the BRAKES section's Brake Bias, to set by feel.",see:['balance-contributors','balance-bar','balance-slider','arb-bias']},
     {id:'phase-verdict',term:'Phase Breakdown',tier:'pro',def:"PRO's expanded Handling Balance panel, by corner phase in grip-margin percent (+ = the rear gives up first; within ±1% is NEUTRAL). MID is the steady-state margin: CAR STARTS at the weight-matched split (the car's own lean, CHASSIS), with SPRINGS and ARB sharing the rest in proportion to how far each moves the split. ENTRY adds BRAKES, the bias against the entry-load ideal (the load-proportional split at 0.3 g braking). EXIT adds DRIVE (CENTRE on AWD), the drive split against the load-proportional one at 0.2 g of drive; + means the rear carries more than its share.\n\nPITCH, the car's own weight transfer at that load, is shown muted and left out of the totals: it is not tunable, depends on how hard you brake or accelerate, and would bury every setting. Diff lock (DIFF ENTRY, DIFF EXIT) and damping (DAMP, under TRANSIENT) show a direction only, marked NO SIZE, since nothing has calibrated how far they push; the compact line shows the diff's direction as an arrow.\n\nTips name the dominant MID term, compare brake bias with the ENTRY ideal (Brake Balance explains why that differs from the card), and for EXIT point to the centre split on AWD; on FWD and RWD only throttle and exit diff lock manage it.",see:['balance-bar','brake-balance','grip-bias','load-transfer']},
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
@@ -6269,8 +6278,8 @@ function App(){
   // still collapsing and toggling normally, which is how `alignment` hid: absent from the
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
-  const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true,visLoad:true,visGrip:true});
+  const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true,visLoad:true,visGrip:true});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
   // VISUALS scroll box is capped to the RIDE · ROLL · DAMPING group's own height, so that
@@ -6793,7 +6802,11 @@ function App(){
   // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
   // See docs/HISTORY.md for the worked cases and docs/FORMULAS.md for the resulting span.
   const recBrakeBias=Math.round(Math.max(45,Math.min(68,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
-  const brakeBias=recBrakeBias;
+  // BRAKES' Brake Bias shift (INT+) moves it from the recommendation, + = rearward (ROTATE), inside
+  // the same 45-68 span. BEG has no BRAKES section, so a shift carried in from INT or a share code
+  // is ignored there rather than reset: switching back up restores it.
+  const brakeBias=uiMode==='beginner'?recBrakeBias
+    :Math.max(45,Math.min(68,recBrakeBias-(dr.brakeBiasShift??0)));
   // positive = oversteer, negative = understeer
   const bBrakeEntry=-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
   const effectiveAvgZeta=(tune.zetaF+tune.zetaR)/2||70;
@@ -8176,6 +8189,23 @@ function App(){
               options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
               hint={HINT_BUILD_TYPE} hintTerm="build-type"/>
           </Sec></div>
+
+          {/* BRAKES (INT+): one shift from the recommended brake bias. Brakes were auto-only for a
+              while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
+              a typed value, so the bias keeps following the chassis and build. */}
+          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')}
+            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift}))}>
+            <FeelSlider
+              label="Brake Bias"
+              value={dr.brakeBiasShift??0}
+              onChange={pDr('brakeBiasShift')}
+              min={-5} max={5}
+              leftLabel="STABLE"
+              rightLabel="ROTATE"
+              markers={[{value:0,color:'#475569'}]}
+              hint={`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`}
+              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>
+          </Sec></div>}
 
           {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')}
             onReset={()=>setFe(p=>({...p,arbBalTarget:DEF_FE.arbBalTarget,arbBalTargetMode:DEF_FE.arbBalTargetMode,arbBalDelta:DEF_FE.arbBalDelta,arbBalAbs:DEF_FE.arbBalAbs}))}>

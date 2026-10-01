@@ -702,8 +702,9 @@ longer tell the user to move it, and the ENTRY line says the card usually reads 
 the models are unreconciled. Picking one reference is a model decision with no telemetry behind
 it (see the scale entry above for `BRAKE_BIAS_SCALE`).
 
-There is no brake-bias input: `brakeBias` *is* `recBrakeBias`. So the BEG/INT BRK segment never
-measures a user's choice; it shows how far the app's own recommendation leans, and today most of
+At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 5 points from `recBrakeBias`; at
+its default and in BEG they are equal. So the BRK segment mostly shows how far the app's own
+recommendation leans, and today most of
 that is the weight transfer the card adds on purpose. The card's `cgHeight/wheelbase × 50` is the
 load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is the same split at `ENTRY_G`,
 0.3 g. On the default chassis (h/L ≈ 0.167) that is +8 against +5, and BEG/INT counts all +10

@@ -205,7 +205,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
-| `Sec` | the nine collapsible sidebar sections (`div.stog` header) |
+| `Sec` | the ten collapsible sidebar sections (`div.stog` header) |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
 | `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode` |
@@ -286,7 +286,7 @@ untagged paragraphs must hold for the entry's own tier, and anything higher goes
 ## Sidebar zones and tier gating
 
 Every spotlightable region carries an `id="zone-…"`, used by the tutorial
-system for focus/dimming. There are 19 in the source; which exist in the DOM
+system for focus/dimming. There are 20 in the source; which exist in the DOM
 depends on the tier.
 
 - **All tiers**: `zone-garage` — the right-side GARAGE drawer. It is *not* part
@@ -300,7 +300,7 @@ depends on the tier.
   `zone-weight`, `zone-ride-stiffness`, `zone-balance`, `zone-character`, plus
   `zone-output` and `zone-balance-bar`. No `Sec` sections at all, and no VISUALS.
 - **INT** switches to the sectioned sidebar: `zone-chassis`, `zone-build`,
-  `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
+  `zone-brakes`, `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
   `zone-visuals`, plus output and balance bar.
 - **PRO** adds `zone-balance-target` and `zone-alignment`, and unlocks extra
   controls inside the shared sections (CHASSIS geometry, ARB MECH/CO-SOLVE,
@@ -348,7 +348,7 @@ INT/PRO BUILD section (safe only because the two were mutually exclusive on
 Sections are collapsed on load — `open` is plain `useState`, not persisted.
 
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
-exactly one per `Sec`, all nine including `visuals` — are listed in `SECTION_KEYS`
+exactly one per `Sec`, all ten including `visuals` — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
 detail overlay), `factoryOpen` and `dnaSavedOpen` (the GARAGE factory list and the DNA modal's MY DNA drawer) and the `vis*` cards
 nested *inside* the VISUALS section.
@@ -635,17 +635,13 @@ measures a second time at 260ms, after the .2s slide.
 The mirror of the section above: things whose *absence* is a decision, where
 the git history makes the removal look accidental.
 
-**Manual brake bias / brake pressure.** `brakeBias` is computed only
-(`const brakeBias=recBrakeBias`), with no AUTO/MANUAL toggle. There used to be
-one — `7932982` added it, `1c66ba2` removed the UI, and `082d51e` pruned the
-now-dead `brakeManual`/`brakeBias`/`brakePressure` state and their codec ids.
-`1c66ba2`'s commit message is about tutorial card positioning and never
-mentions brakes, so this reads like collateral damage in the log. **It was
-deliberate.** SUSP.OS produces a starting point to enter into the game; users
-finalise by feel in-game, like other tuning calculators. A manual brake field
-is only reachable after the user has finished with the calculator, so it earns
-nothing. Same reasoning covers alignment being auto-only outside PRO's
-Alignment Mode. Retired codec ids are never reused — see
+**Brake pressure, and a typed brake bias.** Brake bias was computed only for a while: `7932982`
+added an AUTO/MANUAL BRAKES section with brake pressure, `1c66ba2` removed the UI (its message is
+about tutorial positioning, so the log reads like an accident) and `082d51e` pruned the state.
+That was deliberate, on the reasoning that users finalise brakes by feel in-game. BRAKES came
+back at INT as a **shift** from the recommendation (`dr.brakeBiasShift`, ±5 points), not a typed
+value, so the bias still follows the chassis and build; see [HISTORY.md](HISTORY.md). A typed
+bias and brake pressure remain absent. Retired codec ids are never reused — see
 [CODEC.md](CODEC.md).
 
 ---
