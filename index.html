@@ -5386,7 +5386,7 @@ const TUTORIALS={
      glossary:['character']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],sidebar:'close',
-     body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. The pink TOTAL line above adds brakes and diff. Tap it for the breakdown.',
+     body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff.',
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Results',
      focus:['output'],quick:true,
@@ -5448,7 +5448,7 @@ const TUTORIALS={
      glossary:['ride-roll-damping','dynamics-chart','sag-vs-load']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],sidebar:'close',
-     body:'The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. Diff, brakes and damping sit in ENTRY and EXIT lanes off NET, and TOTAL above adds them in. Tap it for the rows behind each.',
+     body:'The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. INT adds ENTRY and EXIT lanes off NET for diff, brakes and damping. Tap it for the rows behind each.',
      glossary:['balance-bar','balance-contributors']},
     {title:'Reading the Results',
      focus:['output'],sidebar:'close',
@@ -5532,7 +5532,7 @@ const TUTORIALS={
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Bar',
      focus:null,
-     body:'The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. The ENTRY and EXIT lanes below stack brakes, diff and damping off NET (PRO arrows diff and damping, and adds the drive split), and the pink TOTAL line above marks where everything lands.',
+     body:'The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. From INT, ENTRY and EXIT lanes below stack brakes, diff and damping off NET; PRO arrows diff and damping, adds the drive split, and draws a pink TOTAL line above.',
      glossary:['balance-bar','balance-contributors']},
     {title:'Typical Targets by Build',
      focus:null,
@@ -5675,7 +5675,7 @@ const GLOSSARY=[
     {id:'response',term:'Response (Planted / Reactive)',tier:'beginner',def:"Response is a separate bar from understeer/oversteer that rates transient character: how quickly the car reacts to steering, not which end lets go. PLANTED (left) is settled and damped, predictable but slower to change direction; REACTIVE (right) turns in immediately but can feel nervous. Within ±15 it reads BALANCED. A car can be perfectly neutral and still sit at either extreme.\n\nThe score weights front Hz 35%, rear Hz 20%, front toe 15%, caster 10%, front rebound damping 12% and rear rebound damping 8%. Higher Hz, lower rebound damping, more front toe-out and lower caster all read reactive. Anti-roll bars and weight bias are left out: they set balance, not response speed.\n\nBump damping is deliberately absent. At low shaft speed it resists roll initiation (planted); over bumps it deflects the car instead of absorbing them (skittish). One damping ratio cannot separate the two, so any sign here would be wrong on some surface.",see:['response-factors','hz','rebound','toe']},
   ]},
   {group:'Readouts & Visuals',terms:[
-    {id:'balance-bar',term:'Handling Balance Bar',tier:'beginner',def:"The Handling Balance bar, pinned under the results, shows NET, the steady-state balance: the car's own lean plus springs and bars. + (red, OS) toward oversteer, − (blue, US) toward understeer, NEUTRAL within ±3 points. Zero means neither end should give up grip mid-corner.\n\nA grey tick, CAR in the legend, marks where the car itself sits before any tuning (its CHASSIS lean). SPR and ARB stack out from it as coloured segments to a white tick, NET, the headline. Two thin lanes below start at NET: ENTRY holds brakes, off-throttle diff lock and damping, EXIT the on-throttle lock. Pushes toward oversteer go right, toward understeer left; tiny segments are hidden. A pink line in a lane above the bar, TOTAL, marks where everything lands: NET plus both lanes. Shaded zones mark neutral, mild and aggressive, but the right number depends on the goal: rotation and drift builds typically run +15 to +35, track builds +5 to +20 for feel under power, street and GT builds mild understeer for stability. Read it for where balance comes from, not as a target to zero. Tap it (on phones, then CONTRIBUTIONS) for the breakdown and a tip.\n\n[PRO] PRO uses a different unit: mid-corner grip margin, how much more lateral grip the front axle has left than the rear at the limit, as a percent of their mean (+ = the rear gives up first), NEUTRAL within ±1%. The bar uses the same markers in percent, ±10% filling a half: the grey tick at the car's own MID lean, SPR and ARB from it to the white NET tick at the MID margin. The ENTRY lane stacks BRK off NET and the EXIT lane DRIVE (CENTRE on AWD); diff lock and damping, which have no size in PRO, show as arrows at the lane's end. TOTAL adds MID, brakes and drive. An ENTRY / MID / EXIT line below gives the figures; the point ranges do not apply.",see:['balance-contributors','handling-verdict','phase-verdict','understeer']},
+    {id:'balance-bar',term:'Handling Balance Bar',tier:'beginner',def:"The Handling Balance bar, pinned under the results, shows NET, the steady-state balance: the car's own lean plus springs and bars. + (red, OS) toward oversteer, − (blue, US) toward understeer, NEUTRAL within ±3 points. Zero means neither end should give up grip mid-corner.\n\nA grey tick, CAR in the legend, marks where the car itself sits before any tuning (its CHASSIS lean). SPR and ARB stack out from it as coloured segments to a white tick, NET, the headline. Pushes toward oversteer go right, toward understeer left; tiny segments are hidden. Brakes, diff and damping are not in NET: the expanded breakdown lists them. Shaded zones mark neutral, mild and aggressive, but the right number depends on the goal: rotation and drift builds typically run +15 to +35, track builds +5 to +20 for feel under power, street and GT builds mild understeer for stability. Read it for where balance comes from, not as a target to zero. Tap it (on phones, then CONTRIBUTIONS) for the breakdown and a tip.\n\n[INT] Two thin lanes below the bar start at NET: ENTRY holds brakes, off-throttle diff lock and damping, EXIT the on-throttle lock, so the ENTRY and EXIT diff sliders and Damping Bias show where they push.\n\n[PRO] PRO uses a different unit: mid-corner grip margin, how much more lateral grip the front axle has left than the rear at the limit, as a percent of their mean (+ = the rear gives up first), NEUTRAL within ±1%. The bar uses the same markers in percent, ±10% filling a half: the grey tick at the car's own MID lean, SPR and ARB from it to the white NET tick at the MID margin. The ENTRY lane stacks BRK off NET and the EXIT lane DRIVE (CENTRE on AWD); diff lock and damping, which have no size in PRO, show as arrows at the lane's end. A pink TOTAL line in a lane above the bar adds MID, brakes and drive. An ENTRY / MID / EXIT line below gives the figures; the point ranges do not apply.",see:['balance-contributors','handling-verdict','phase-verdict','understeer']},
     {id:'balance-contributors',term:'Balance Contributors',tier:'beginner',short:'Contributors',def:"The rows behind the BEG and INT Handling Balance bar, in points, + toward oversteer. CAR STARTS comes first: CHASSIS, the car's own at-limit lean from tyre widths, track widths, CG height and weight split, shown as the stiffness bias it takes to cancel it (−10 means 10 points of rear-biased roll stiffness just to reach neutral). It is drawn as a tick, the point the tuning rows move from, and takes no share. Each tuning row shows its share of their combined size.\n\nMID · MAKES NET: SPRINGS and ARB compare each one's front/rear roll-stiffness split with the weight split, weighted by its share of total roll stiffness: + means the rear is relatively stiffer.\n\nENTRY / EXIT · NOT IN NET: shown as the bar's lanes, not added to the headline. DIFF EXIT and DIFF ENTRY on FWD and RWD, or DIFF F and DIFF R on AWD (accel and decel combined, scaled by centre split and axle weight). Rear accel lock is +; front accel lock and decel lock on either axle are −. BRAKES is the computed brake bias against 50/50, − above 50% front. DAMP is the front/rear rebound damping split, − when the front is firmer.\n\nAlignment is not counted, though it also affects balance.",see:['balance-bar','handling-verdict','brake-balance','mech-balance']},
     {id:'handling-verdict',term:'Correction Tip',tier:'beginner',def:"The line atop the expanded Handling Balance panel at BEG and INT. Within ±3 points of NET it calls the setup balanced, naming the largest tuning row over 2 points to watch; otherwise it names the largest contributor (if over 2 points) and which way to move. BEG spring, bar and damping tips point to the Balance slider (toward UNDERSTEER against oversteer, toward OVERSTEER against understeer); BEG diff tips explain the lock comes from Build Type and Layout. A CHASSIS tip means the car itself leans that way: shift balance toward the front for oversteer, the rear for understeer. For big shifts the main balance control has the most leverage.\n\n[INT] INT tips name the control, here for oversteer (reverse for understeer): ARB Bias toward FRONT HEAVY (in MAN, raise ARB F relative to ARB R); lower rear Hz relative to front via the RIDE multiplier; Damping Bias toward FRONT; EXIT toward GRIP or ENTRY toward STABLE (AWD: FRONT AXLE EXIT toward PUSH, REAR AXLE EXIT toward GRIP). ARB Bias and Damping Bias suit small residual changes.\n\nA BRAKES tip describes the computed brake balance, measured from 50/50; it is not a setting to chase.",see:['balance-contributors','balance-bar','balance-slider','arb-bias']},
     {id:'phase-verdict',term:'Phase Breakdown',tier:'pro',def:"PRO's expanded Handling Balance panel, by corner phase in grip-margin percent (+ = the rear gives up first; within ±1% is NEUTRAL). MID is the steady-state margin: CAR STARTS at the weight-matched split (the car's own lean, CHASSIS), with SPRINGS and ARB sharing the rest in proportion to how far each moves the split. ENTRY adds BRAKES, the bias against the entry-load ideal (the load-proportional split at 0.3 g braking). EXIT adds DRIVE (CENTRE on AWD), the drive split against the load-proportional one at 0.2 g of drive; + means the rear carries more than its share.\n\nPITCH, the car's own weight transfer at that load, is shown muted and left out of the totals: it is not tunable, depends on how hard you brake or accelerate, and would bury every setting. Diff lock (DIFF ENTRY, DIFF EXIT) and damping (DAMP, under TRANSIENT) show a direction only, marked NO SIZE, since nothing has calibrated how far they push; the compact line shows the diff's direction as an arrow.\n\nTips name the dominant MID term, compare brake bias with the ENTRY ideal (Brake Balance explains why that differs from the card), and for EXIT point to the centre split on AWD; on FWD and RWD only throttle and exit diff lock manage it.",see:['balance-bar','brake-balance','grip-bias','load-transfer']},
@@ -10726,7 +10726,10 @@ function App(){
                 // off-throttle lock and damping (turn-in) on the way in; on-throttle lock (and in PRO
                 // the drive split) on the way out. PRO sizes only brakes and drive: diff lock and
                 // damping have a direction but no calibrated size there, so they are arrows (dirs)
-                // at the end of their lane, and TOTAL leaves them out.
+                // at the end of their lane, and TOTAL leaves them out. BEG has no lanes: nothing in
+                // them is a BEG control (brake bias is computed, the diff comes from Build and Layout,
+                // damping moves only through the Balance slider, already in NET), and their point
+                // sizes rest on uncalibrated scales, so the expanded panel lists them instead.
                 const big=s=>Math.abs(s.val)>0.3;
                 const lanes=phase?[
                   {key:'in', label:'ENTRY', segs:[
@@ -10740,7 +10743,7 @@ function App(){
                   ].filter(big), dirs:[
                     {key:'da', dir:signOf(diff.bDiffAccel),  col:'#f59e0b'},
                   ].filter(d=>d.dir)},
-                ]:[
+                ]:uiMode==='beginner'?[]:[
                   {key:'in', label:'ENTRY', segs:[
                     {key:'br', val:bBrakeEntry,              col:'#34d399'},  // brakes — green
                     {key:'de', val:diff.bDiffDecel??0,       col:'#f59e0b'},  // diff — amber
@@ -10750,8 +10753,10 @@ function App(){
                     {key:'da', val:diff.bDiffAccel??0,       col:'#f59e0b'},
                   ].filter(big), dirs:[]},
                 ];
-                // TOTAL: NET plus everything sized in the lanes. PRO's is MID + brakes + drive, in
-                // the same ×5 units; its phases are separate loads, so read it as a sum, not a phase.
+                // TOTAL (PRO only): MID + brakes + drive, in the same ×5 units; its phases are separate
+                // loads, so read it as a sum, not a phase. BEG/INT do not draw it: their sum would add
+                // the uncalibrated diff, brake and damping points to the steady state, and NET is the
+                // number to read there. bTotFull is still computed for recommendedDiffType.
                 const total=phase?(phase.mid.total+phase.entry.brk+phase.exit.drive)*5:bTotFull;
                 const totalTxt=phase?fmtPct(total/5):`${bTotFull>=0?'+':''}${bTotFull.toFixed(1)}`;
                 // Arrows for the direction-only terms, outward from where the lane's segments end.
@@ -10777,9 +10782,9 @@ function App(){
                   });
                 };
                 return(<>
-                  {/* TOTAL lane: one line where everything lands — NET plus both lanes (bTotFull in
-                      BEG/INT). Above the bar so it reads as the summary of what is drawn beneath. */}
-                  {
+                  {/* TOTAL lane (PRO): one line where everything sized lands. Above the bar so it
+                      reads as the summary of what is drawn beneath. */}
+                  {phase&&
                     <div style={{position:'relative',height:9,marginBottom:2,background:'#0a0f1a',
                                  border:'1px solid #1e293b',borderRadius:2,overflow:'hidden'}}>
                       <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:1,background:'#334155'}}/>
@@ -10860,14 +10865,14 @@ function App(){
                   // The lanes' chips, grouped under their lane's name. Diff is amber in both lanes.
                   const inn=phase?[
                     {key:'br',col:'#34d399',label:'BRK',  val:phase.entry.brk*5},
-                  ].filter(big):[
+                  ].filter(big):uiMode==='beginner'?[]:[
                     {key:'br',col:'#34d399',label:'BRK',  val:bBrakeEntry},
                     {key:'de',col:'#f59e0b',label:'DIFF', val:diff.bDiffDecel??0},
                     {key:'dm',col:'#a78bfa',label:'DAMP', val:bDampBias},
                   ].filter(big);
                   const out=phase?[
                     {key:'dr',col:'#a3e635',label:diff.layout==='AWD'?'CENTRE':'DRIVE', val:phase.exit.drive*5},
-                  ].filter(big):[
+                  ].filter(big):uiMode==='beginner'?[]:[
                     {key:'da',col:'#f59e0b',label:'DIFF', val:diff.bDiffAccel??0},
                   ].filter(big);
                   const innDir=phase?[
@@ -10892,8 +10897,8 @@ function App(){
                     </span>
                     {group('ENTRY',inn,innDir)}
                     {group('EXIT',out,outDir)}
-                    {/* TOTAL — the pink line in the lane above the bar */}
-                    {<span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'#94a3b8'}}>
+                    {/* TOTAL — the pink line in the lane above the bar (PRO) */}
+                    {phase&&<span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'#94a3b8'}}>
                       <span style={{display:'inline-block',width:2,height:9,background:'#f472b6',flexShrink:0}}/>
                       TOTAL
                     </span>}
@@ -10901,7 +10906,9 @@ function App(){
                 })()}
                 <Hint text={phase
                   ?'CAR (grey): the car\'s own MID lean. SPR and ARB stack from it to NET (white), the MID margin. Lanes stack brakes and drive off NET; arrows are diff and damping. TOTAL (pink) adds the sized ones.'
-                  :"CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack off NET; TOTAL (pink, top lane) is where it all lands."} term={phase?'phase-verdict':'balance-contributors'}/>
+                  :uiMode==='beginner'
+                    ?"CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. Brakes, diff and damping are listed in the breakdown."
+                    :"CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack brakes, diff and damping off NET."} term={phase?'phase-verdict':'balance-contributors'}/>
               </div>
               {/* PRO: the three phases on one line. ENTRY/EXIT are MID plus the brake or drive term;
                   diff lock has a direction only. */}

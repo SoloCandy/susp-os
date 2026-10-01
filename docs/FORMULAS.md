@@ -176,9 +176,10 @@ springs and bars. Brakes, decel lock and damping act on corner entry and accel l
 the bar draws them as ENTRY and EXIT lanes stacked off NET instead of adding them in. The
 Correction Tip judges `bNet` too.
 
-`bTotFull` is the pink TOTAL line in a lane above the bar: where everything lands, NET plus
-both lanes. It is not the headline. It is computed in every tier because `recommendedDiffType`
-reads it (RACE → SPORT above +8). PRO shows the phase margins below instead.
+`bTotFull` is not shown. BEG draws only NET; INT adds the ENTRY and EXIT lanes but no TOTAL
+line, since summing the uncalibrated diff, brake and damping points into the steady state adds
+precision it does not have. It is computed in every tier because `recommendedDiffType` reads it
+(RACE → SPORT above +8). PRO's TOTAL line is its own sum, MID + BRK + DRIVE. PRO shows the phase margins below instead.
 
 ---
 

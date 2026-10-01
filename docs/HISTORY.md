@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the balance bar's lanes and TOTAL by tier
+
+After the lanes and TOTAL went into every tier, BEG showed three bars, though nothing in the lanes
+is a BEG control (brake bias is computed, diff lock comes from Build and Layout, damping moves only
+through the Balance slider, which is already in NET) and their point sizes rest on uncalibrated
+scales. BEG now draws one bar, CAR → SPR / ARB → NET, and lists the rest in the breakdown. INT
+keeps the ENTRY / EXIT lanes, which its diff sliders and Damping Bias move, but not TOTAL: adding
+those points to the steady state gave a precision they do not have. PRO keeps lanes and TOTAL.
+
 ## Changed — PRO's Handling Balance percentages read to 0.01
 
 `fmtPct` printed one decimal, so a tune change worth a few hundredths of a percent of grip

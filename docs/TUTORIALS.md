@@ -243,7 +243,7 @@ every step title of its guide, in order.
 | 7 | Ride Stiffness | `ride-stiffness` | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
 | 8 | Balance | `balance` | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
 | 9 | Character | `character` | | STABLE ↔ AGILE damping feel. | |
-| 10 | Handling Balance Bar | `balance-bar` | close | Sign; CAR tick, NET headline, TOTAL line; tap to expand. | |
+| 10 | Handling Balance Bar | `balance-bar` | close | Sign; CAR tick, NET headline; tap to expand. | |
 | 11 | Reading the Results | `output` | | Values to type in, card by card; amber = near a game limit. | ✓ |
 | 12 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. | |
 | 13 | Saving Your Own | `garage` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. | |
@@ -266,7 +266,7 @@ the Welcome card and live in the glossary.
 | 9 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
 | 10 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
 | 11 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
-| 12 | Handling Balance Bar | `balance-bar` | close | NET vs the ENTRY / EXIT lanes and TOTAL; tap for the rows. |
+| 12 | Handling Balance Bar | `balance-bar` | close | NET vs the ENTRY / EXIT lanes INT adds; tap for the rows. |
 | 13 | Reading the Results | `output` | close | Values to type in, card by card; amber = near a game limit. |
 | 14 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
 | 15 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
@@ -298,7 +298,7 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
 | 1 | Handling Balance | — | | NET headline; sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
-| 2 | Reading the Bar | — | | CAR tick → SPR / ARB → NET tick; ENTRY / EXIT lanes off NET and the TOTAL line. PRO arrows diff and damping. |
+| 2 | Reading the Bar | — | | CAR tick → SPR / ARB → NET tick; from INT, ENTRY / EXIT lanes off NET; PRO's arrows and TOTAL line. |
 | 3 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
 | 4 | Reading Each Row | — | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. |
 | 5 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
@@ -368,7 +368,7 @@ TRY IT task (ticks when the check passes):
 
 #### 10. Handling Balance Bar
 
-> This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. The pink TOTAL line above adds brakes and diff. Tap it for the breakdown.
+> This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff.
 
 #### 11. Reading the Results
 
@@ -430,7 +430,7 @@ TRY IT task (ticks when the check passes):
 
 #### 12. Handling Balance Bar
 
-> The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. Diff, brakes and damping sit in ENTRY and EXIT lanes off NET, and TOTAL above adds them in. Tap it for the rows behind each.
+> The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. INT adds ENTRY and EXIT lanes off NET for diff, brakes and damping. Tap it for the rows behind each.
 
 #### 13. Reading the Results
 
@@ -514,7 +514,7 @@ TRY IT task (ticks when the check passes):
 
 #### 2. Reading the Bar
 
-> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. The ENTRY and EXIT lanes below stack brakes, diff and damping off NET (PRO arrows diff and damping, and adds the drive split), and the pink TOTAL line above marks where everything lands.
+> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. From INT, ENTRY and EXIT lanes below stack brakes, diff and damping off NET; PRO arrows diff and damping, adds the drive split, and draws a pink TOTAL line above.
 
 #### 3. Typical Targets by Build
 

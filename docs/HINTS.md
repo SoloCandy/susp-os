@@ -638,11 +638,13 @@ where `{wheels}` is one of:
 
 > Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased.
 
-**Segment legend** — PRO, then BEG/INT:
+**Segment legend** — PRO, then BEG, then INT:
 
 > CAR (grey): the car's own MID lean. SPR and ARB stack from it to NET (white), the MID margin. Lanes stack brakes and drive off NET; arrows are diff and damping. TOTAL (pink) adds the sized ones.
 
-> CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack off NET; TOTAL (pink, top lane) is where it all lands.
+> CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. Brakes, diff and damping are listed in the breakdown.
+
+> CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack brakes, diff and damping off NET.
 
 **ENTRY · MID · EXIT** line (PRO) — `{entry g}` and `{exit g}` are `ENTRY_G` and `EXIT_G`:
 
