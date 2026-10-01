@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — ENTRY is described as trail braking
+
+ENTRY was already the trail-braking phase (corner entry at `ENTRY_G` of braking), but its hints and
+glossary never used the term players search for. The Centre, Entry vs MID and ENTRY BRK hints, the
+Brake Balance and Phase Breakdown glossary entries and the README now say so. Wording only. A
+separate TRAIL Centre was considered and not built: solving for both axles' combined-load limit
+is the ENTRY-total target already rejected (see "ENTRY brake target" in FORMULAS.md).
+
 ## Changed — Brake Bias reaches ±10 points, and the floor drops to 40%
 
 The shift's 1% step already matches the game's, so a finer step would have shown values the game

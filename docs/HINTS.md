@@ -253,15 +253,15 @@ With Centre on GRIP (PRO), `{grip}` is `gripBrakeBias`:
 neutral / oversteer / understeer as in the expanded panel; `{entry g}` is `ENTRY_G`, `{ideal}` the
 rounded `idealBias`:
 
-> What this brake bias adds to the ENTRY phase, as in the expanded Handling Balance panel. 0 at GRIP with a {entry g} g Decel ({ideal}% front on this car); each point of bias moves it about half a percent.
+> What this brake bias adds to the ENTRY (trail-braking) phase, as in the expanded Handling Balance panel. 0 at GRIP with a {entry g} g Decel ({ideal}% front on this car); each point of bias moves it about half a percent.
 
 **Centre** (PRO):
 
-> REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved so entry sits where you set it against mid-corner.
+> REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved for trail braking: how turn-in on the brakes sits against mid-corner.
 
 **Entry vs MID** (PRO, Centre ENTRY):
 
-> How much looser (+) or tighter (−) entry should be than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included.
+> How much looser (+) or tighter (−) the car should be trail braking into the corner than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included.
 
 With Centre ENTRY the Brake Bias slider is replaced by a plain `{bias}% F` readout. When the target
 is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
