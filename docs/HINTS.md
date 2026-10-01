@@ -569,7 +569,7 @@ BEG/INT (which have no ARB Motion Ratio field):
 
 > Mid-corner grip margin: how much more grip the front has left than the rear. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% is NEUTRAL. Tap for ENTRY and EXIT.
 
-> All tuning inputs combined into one handling tendency: + = oversteer, − = understeer. Tap for the breakdown and a tip.
+> NET: the car's own lean plus springs and bars. + = oversteer, − = understeer. Brakes, diff and damping show as ENTRY / EXIT lanes. Tap for the breakdown and a tip.
 
 **FIT?** badge (PRO, only while a figure is outside the fitted set). Its hint takes one
 of three forms. Only extrapolated (soft) flags — with one flag its detail, with more
@@ -612,9 +612,9 @@ where `{wheels}` is one of:
 
 **Segment legend** — PRO, then BEG/INT:
 
-> The MID margin by source: CHAS (the car's own lean), SPR (springs), ARB (anti-roll bars); ±10% fills half the bar. Brakes, drive, diff and damping show in the ENTRY / EXIT line and the expanded panel.
+> CAR (grey tick): the car's own MID lean. SPR (springs) and ARB (anti-roll bars) stack from it to NET (white tick), the MID margin; ±10% fills half the bar. ENTRY / EXIT are below.
 
-> Each segment is one contributor: CHAS (the car's own lean), SPR (springs), ARB (anti-roll bars), DIFF (differential), BRK (brakes), DAMP (damping). Together they make the balance total.
+> CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack off NET; TOTAL (pink, top lane) is where it all lands.
 
 **ENTRY · MID · EXIT** line (PRO) — `{entry g}` and `{exit g}` are `ENTRY_G` and `EXIT_G`:
 
@@ -626,7 +626,8 @@ where `{wheels}` is one of:
 
 > Setup is well balanced.
 
-plus, when one contributor is still large (`{NAME}` is its name in capitals):
+plus, when a tuning row is still large (`{NAME}` is the largest one in capitals; CHASSIS is
+never named here, since nothing in the tune moves it):
 
 > Keep an eye on {NAME} if the car feels inconsistent.
 
@@ -708,10 +709,11 @@ DAMP (INT; BEG uses its balance line):
 
 > Move Damping Bias toward REAR to let the front take weight more freely.
 
-**Contributor rows** — CHASSIS, SPRINGS, ARB (MECHANICAL), then DIFF F, DIFF R (AWD),
-DIFF EXIT and DIFF ENTRY (FWD, then RWD), BRAKES, DAMP (DYNAMIC):
+**Contributor rows** — CAR STARTS (the CHASSIS term, drawn as a tick), then SPRINGS, ARB
+(MID · MAKES NET), then DIFF F, DIFF R (AWD), DIFF EXIT and DIFF ENTRY (FWD, then RWD), BRAKES,
+DAMP (ENTRY / EXIT · NOT IN NET):
 
-> The car's own lean at the limit, before any tuning. − = toward understeer, + = toward oversteer.
+> Where the car sits before any tuning: its own lean at the limit from tyres, track widths, CG and weight split. The rows below move it from here.
 
 > The front/rear spring split compared with the weight split. + = rear springs relatively stiffer (toward oversteer), − = front stiffer (toward understeer).
 
@@ -774,16 +776,16 @@ EXIT — AWD, then RWD and FWD:
 
 > Exit: front drive takes lateral grip from the front under power. Only throttle and exit diff lock manage it.
 
-**Phase rows** — MID: CHASSIS, SPRINGS, ARB; ENTRY: BRAKES, PITCH; EXIT: DRIVE (CENTRE
+**Phase rows** — MID: CAR STARTS (a tick), SPRINGS, ARB; ENTRY: BRAKES, PITCH; EXIT: DRIVE (CENTRE
 on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT's DAMP.
 `{entry g}` / `{exit g}` as above; `{ideal front %}` and `{ideal rear %}` are this car's
 load-proportional splits:
 
-> The car's own mid-corner lean at the weight-matched stiffness split, before springs and bars move it.
+> Where the car sits mid-corner before any tuning: its own lean at the weight-matched stiffness split. SPRINGS and ARB move it from here.
 
-> How far the springs move the MID margin from CHASSIS, by shifting the roll-stiffness split.
+> How far the springs move the MID margin from where the car starts, by shifting the roll-stiffness split.
 
-> How far the anti-roll bars move the MID margin from CHASSIS, by shifting the roll-stiffness split.
+> How far the anti-roll bars move the MID margin from where the car starts, by shifting the roll-stiffness split.
 
 > Brake bias vs the entry-load ideal at {entry g} g braking ({ideal front %}% front on this car). + = the rear brakes more than its share (toward oversteer).
 

@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the Handling Balance bar starts from the car, not from centre
+
+The CHASSIS contributor went in as a sixth segment: first in the stack, with a CHAS legend chip
+and a MECHANICAL row that took its own share of the total. It read as clutter. It is usually the
+largest term and usually opposes the springs, both being measured from the weight split, and
+because positive segments stacked right from centre and negative ones left, the bar sprawled both
+ways around a net it never drew. On the default build it showed CHAS −4.3 left and SPR +6.8 right
+for a headline of +2.5. It is also the one term nothing in the tune moves.
+
+CHASSIS is now the origin. A grey tick marks where the car sits, the tuning segments stack out
+from it, and a white tick marks the total. The grey is the MECH BALANCE strip's NAT tick; teal,
+the chassis term's old colour, was hard to tell from BRK's green on a phone. The CHAS chip became a CAR chip, and a NET chip joined it, each with a tick for a swatch. In the expanded panel (BEG/INT
+and PRO's MID) it is a CAR STARTS row drawn as a tick (`BiasSeg`'s `tick`), with no share; the
+shares are of the tuning rows alone. It still picks the correction tip when it dominates, since it
+is still the cause. No figure changed: `bChassis`, `bTotFull` and `phaseMargins` are untouched.
+
+Then the BEG/INT headline itself changed: it is now NET (`bNet`), the car plus springs and bars.
+Brakes, decel lock and damping act on the way into a corner and accel lock on the way out, so
+adding them into one steady-state figure mixed phases. The bar draws them as two thin lanes, ENTRY
+and EXIT, stacked off the NET tick, and the expanded panel's groups became MID · MAKES NET and
+ENTRY / EXIT · NOT IN NET. The Correction Tip judges NET. `bTotFull` is still computed for
+`recommendedDiffType`, so no output moved. The typical-target ranges were left alone: across all
+six factory builds on three layouts, brakes, diff and damping together moved the old total by at
+most about 4 points (−1.6 to +6.5 overall), well inside those ranges' spread.
+
+The full sum came back as a single pink TOTAL line in its own lane above the bar, so where
+everything lands is still visible without it being the headline.
+
 ## Changed — Tyre Size moved from PRO to INT
 
 INT's default CG Height Source, RIDE HEIGHT, adds tyre radius to the ride heights, and INT's

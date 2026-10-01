@@ -299,7 +299,7 @@ All steps are `focus:null`; the card still anchors to `zone-balance-bar`.
 |---|---|---|---|---|
 | 1 | Handling Balance | — | | Sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
 | 2 | Typical Targets by Build | — | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
-| 3 | Reading Each Row | — | | MECHANICAL (chassis, springs, ARBs) vs DYNAMIC (diff, brakes, damping); value and % share. PRO groups by phase instead. |
+| 3 | Reading Each Row | — | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. |
 | 4 | Using the Correction Tip | — | | Move the largest contributor first; the main balance control for big shifts. |
 | 5 | Response Bar | — | | PLANTED ↔ REACTIVE, separate from understeer / oversteer. |
 
@@ -509,7 +509,7 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Handling Balance
 
-> This breakdown adds every tuning force into one total: + leans oversteer, − understeer, one row per contributor. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.
+> The headline is NET: the car's own lean plus springs and bars. + leans oversteer, − understeer. Brakes, diff and damping show what changes on entry and exit. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.
 
 #### 2. Typical Targets by Build
 
@@ -517,7 +517,7 @@ TRY IT task (ticks when the check passes):
 
 #### 3. Reading Each Row
 
-> Rows fall into two groups: MECHANICAL (the car's own lean as CHASSIS, plus the springs and anti-roll bars) and DYNAMIC (diff, brakes and damping). Each shows its value and share of the total, so the dominant one stands out. PRO groups the rows by corner phase instead.
+> CAR STARTS is the car's own lean before tuning. The rows below move it: springs and anti-roll bars make NET, then diff, brakes and damping act on entry and exit. Each shows its value and share, so the dominant one stands out. PRO groups the rows by corner phase.
 
 #### 4. Using the Correction Tip
 

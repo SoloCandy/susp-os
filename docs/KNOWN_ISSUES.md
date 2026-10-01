@@ -403,7 +403,9 @@ BEG and INT only. PRO reads Handling Balance as grip-margin percent by phase
 (`phaseMargins`, [FORMULAS.md](FORMULAS.md) "Phase margins"), where springs, ARBs, chassis,
 brakes and drive all come out of one grip model in one unit, and diff and damping — the two with
 no defensible size — show a direction only. The point bar below is still what BEG/INT show and
-what `recommendedDiffType` reads.
+what `recommendedDiffType` reads. The headline is only NET (car, springs, bars) now; diff, brakes
+and damping sit in the bar's ENTRY / EXIT lanes, so the mismatch shows as lane length rather than
+as a shift in the headline. `recommendedDiffType` still reads the full sum.
 
 [FORMULAS.md](FORMULAS.md) documents each contributor's *sign* (oversteer
 vs understeer direction) but never claims they're comparable in
@@ -634,7 +636,7 @@ has the grip model's sign by construction and does not depend on `MECH_BAL_GAIN`
 much grip a wider tyre adds — and that exponent has no documented calibration. On the default
 chassis a 235/305 stagger reads about −37; a 255/285 one about −19. The direction is the
 textbook one (wider rears add rear grip, so understeer); whether a 70 mm stagger is worth 37
-points of stiffness bias or 20 is not something the app has measured. PRO's MID CHASSIS row,
+points of stiffness bias or 20 is not something the app has measured. PRO's MID CAR STARTS row,
 in grip-margin percent, comes out of the same grip model and rests on the same exponent.
 
 It matters more now than it did: before the chassis term, `WIDTH_GRIP_EXP` only reached the

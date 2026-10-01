@@ -163,16 +163,22 @@ const bChassis = -100 * (gripNeutralSplitOf(ch) - natOffset - (1 - nf));
   see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - Saturates when no split can neutralise the car (only absurd stagger, e.g. 200/400).
 
-## Total (`bTotFull`)
+## NET (`bNet`) and the full total (`bTotFull`)
 
 ```js
-const bTotFull = tune.bTot + tune.bChassis + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
+const bNet     = tune.bTot + tune.bChassis;   // tune.bTot = bSp + bAb
+const bTotFull = bNet + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
 ```
 
-This is the number shown as the overall Handling Balance total (and its
-color-coded OS/US label) in **BEG and INT**, with ±3 reading NEUTRAL. `tune.bTot` already
-includes `bSp + bAb`. PRO shows the phase margins below instead; `bTotFull` is still computed in
-every tier because `recommendedDiffType` reads it.
+`bNet` is the Handling Balance headline (and its colour-coded OS/US label) in **BEG and INT**,
+with ±3 reading NEUTRAL, and the white NET tick on the bar: the steady-state part, car plus
+springs and bars. Brakes, decel lock and damping act on corner entry and accel lock on exit, so
+the bar draws them as ENTRY and EXIT lanes stacked off NET instead of adding them in. The
+Correction Tip judges `bNet` too.
+
+`bTotFull` is the pink TOTAL line in a lane above the bar: where everything lands, NET plus
+both lanes. It is not the headline. It is computed in every tier because `recommendedDiffType`
+reads it (RACE → SPORT above +8). PRO shows the phase margins below instead.
 
 ---
 
