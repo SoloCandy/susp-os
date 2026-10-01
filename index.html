@@ -3943,7 +3943,7 @@ const fmtPct=v=>`${v>=0?'+':''}${v.toFixed(2)}%`;   // PRO's grip-margin percent
 const Seg=p=><BiasSeg scale={10} dead={0.2} digits={2} {...p}/>;
 // PRO's Handling Balance breakdown, by phase, in grip-margin percent (phaseMargins). Replaces
 // HandlingVerdict in PRO only; BEG/INT keep the point bar, which recommendedDiffType also reads.
-const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,gripBalance})=>{
+const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,brakeCentre,gripBalance})=>{
   const{mid,entry,exit}=phase;
   const isAWD=diffLayout==='AWD';
   const tips=[];
@@ -3956,9 +3956,15 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
                springs:os?'Mid-corner oversteer, mostly from the springs. Lower the Mech Balance Target, or use CO-SOLVE.':'Mid-corner understeer, mostly from the springs. Raise the Mech Balance Target, or use CO-SOLVE.',
                ARB:os?'Mid-corner oversteer, mostly from the bars. Lower the Mech Balance Target or move ARB Bias toward the front.':'Mid-corner understeer, mostly from the bars. Raise the Mech Balance Target or move ARB Bias toward the rear.'}[dom]);
   }
+  // The second sentence names what put the bias there: BRAKES' Centre. ENTRY placed it on purpose,
+  // and GRIP above ENTRY_G counts more weight transfer, as the REC card does.
   if(Math.abs(entry.brk)>=PHASE_NEUTRAL)
-    tips.push(entry.brk>0
+    tips.push(brakeCentre==='entry'
+      ?`Entry: brake bias ${brakeBias}% is BRAKES' ENTRY solve, set by Entry vs MID; change that target to move it.`
+      :entry.brk>0
       ?`Entry: brake bias ${brakeBias}% sits behind the entry-load ideal (≈${Math.round(entry.idealBias)}%), so the rear brakes more than its share.`
+      :brakeCentre==='grip'
+      ?`Entry: brake bias ${brakeBias}% sits forward of the entry-load ideal (≈${Math.round(entry.idealBias)}%). GRIP solved at a Decel above ${ENTRY_G} g counts more weight transfer, and a shift toward STABLE adds to it.`
       :`Entry: brake bias ${brakeBias}% sits forward of the entry-load ideal (≈${Math.round(entry.idealBias)}%). The BRAKES card counts more weight transfer, so it usually reads this way.`);
   if(Math.abs(exit.drive)>=PHASE_NEUTRAL)
     tips.push(isAWD
@@ -5534,7 +5540,7 @@ const TUTORIALS={
   pro:[
     {title:'Welcome — Pro Mode',
      focus:null,
-     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
+     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths), a brake bias Centre and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
      focus:['chassis'],
@@ -5568,6 +5574,10 @@ const TUTORIALS={
      focus:['feel','balance-target','visuals'],
      body:'Hz MODE MECH, in RIDE, derives the other axle\'s Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.',
      glossary:['hz-mode','ride-roll-damping']},
+    {title:'Brake Bias Centre',
+     focus:['brakes'],
+     body:'BRAKES adds Centre. REC shifts Brake Bias from the recommendation; GRIP from the bias where both axles hit their braking limit together at your Decel; ENTRY solves it for trail braking, from Entry vs MID. ENTRY BRK, under the toggle, shows what the bias does to corner entry.',
+     glossary:['brake-balance','phase-verdict']},
     {title:'Manual Differential',
      focus:['drivetrain'],
      body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
@@ -5757,7 +5767,7 @@ const GLOSSARY=[
     {id:'measure-arb-scale',term:'ARB SCALE SETUP',tier:'beginner',def:"Step 2 of Tune Check's MEASURE tab, Forza only. Forza scales its ARB slider differently per car; this finds what one click is worth on this one, so bar-driven balance lands where the game shows it. It unlocks once step 1 is set and is solved against it: keep step 1's springs, ride height and tyres, set the bars each reading lists (front 1 with rear at the ceiling, then the reverse) and type the Mech Balance Forza shows.\n\nEach reading solves its own scale and both are shown, so you can see whether they agree. SCALE IN USE: MEASURED takes their average, DEFAULT returns to the shared 540. Readings over 45% apart get a warning (two-decimal rounding alone can spread them by a quarter, and unequal front and rear bars read wider), but if both are typed as Forza showed them, the average is still the best estimate. A reading no plausible bar fits shows CHECK.\n\nThe scale saves with the chassis and travels in its share code. If step 1 is re-taken or cleared, it reads RE-MEASURE and stays in use until you re-measure or pick DEFAULT. Changing Measure Hz after step 1 does not move the solve, which stays at step 1's Hz.",see:['arb-scale','measure-nat-bal','tune-check','arb']},
     {id:'dna',term:'Vehicle DNA',tier:'beginner',def:"A Vehicle DNA is a set of handling targets the app turns into a complete tune for the current car, so one character can move from car to car. Building and applying one is PRO; below PRO the DNA window only says so.\n\n[PRO] Nine axes: PLATFORM (front Hz), PITCH (rear ÷ front Hz), ARB SHARE (% of roll stiffness from bars), BALANCE (mech balance past grip-neutral, + toward oversteer), REBOUND ζ, BUMP RATIO, DAMP BIAS, DIFF EXIT, DIFF ENTRY. APPLY writes them through fixed modes (FRONT ride reference, Hz stiffness, MULTIPLIER, SHARE %, MECH balance on a GRIP target, CHARACTER, BUMP RATIO, TIME SYNC, AUTO diff), listed under SWITCHES when they change; it overwrites the tune once and ↩ undoes it.\n\n[PRO] The four archetypes (MOMENTUM, RALLY / B-ROAD, GT3, TAIL-HAPPY RWD) are hypotheses to tune in game, not calibration. MY DNA saves DNAs as garage entries (LOAD DNA fills the editor, it does not apply); CODE copies or pastes one DNA on its own code, separate from tune codes. Leaving PRO with a DNA applied changes the tune (BEG and INT cannot use MECH balance; BEG also loses TIME SYNC and damping bias) and removes the link, which returning to PRO does not restore.",see:['dna-priority','dna-match','grip-neutral','tune-check']},
     {id:'dna-priority',term:'DNA Priority & Slack',tier:'pro',short:'DNA priority',def:"How a Vehicle DNA resolves targets that the game's limits will not let it hit together. PRIORITY ranks the five axes that can give way (PLATFORM, BALANCE, ARB SHARE, PITCH, REBOUND ζ; BUMP RATIO rides with REBOUND ζ), most protected first. When an axis misses, APPLY tries moving less-protected axes, nearest clearing value first, and never breaks an axis ranked above the one it moves; if nothing clears the miss, the miss is accepted and reported. The setting axes (DAMP BIAS, DIFF EXIT, DIFF ENTRY) are written verbatim and always land.\n\nACCEPT ± is per-axis slack: how far an outcome axis may land from its target and still count as met, on top of the allowance for game rounding. 0 is a point target.\n\nON THIS CHASSIS previews every axis: ✓ on target (or within ± slack), moved to keep a higher-ranked axis, missed with the cause (such as the rear axle leaving the Hz band or bars at their limit), or not expressible with this diff (a SPORT diff has no ENTRY).",see:['dna','dna-match']},
-    {id:'share-code',term:'Share Code',tier:'beginner',def:"SHARE → COPY CODE turns the tune into a compact text code; COPY LINK wraps it in a URL that opens SUSP.OS with it staged. Include any of CHASSIS (weight, bias, tyres, geometry, layout, MEASURE readings), FEEL (ride, damping, ARB, balance) and DRIVETRAIN (build type, diff). Codes never carry garage entries, and always record the author's tier.\n\nLOAD CODE: paste a code or link, READ CODE to stage it; nothing moves until APPLY SELECTED. Parts are CHASSIS, SPRINGS (which also carries the game mode), DAMPERS, ARB and DRIVETRAIN, each marked same as yours or from the code; only ticked parts are taken, and the ticks persist. TO GARAGE saves the merged result as a new entry and leaves the tune alone. A shared link stages the same way.\n\nThe sender's tier is shown, never applied. Taking ARB without SPRINGS from a code whose bars were set by hand in a game with different ARB units warns you, since the numbers would mean another quantity: tick SPRINGS too. Applying feel or drivetrain parts removes a DNA link; APPLY is one undo step.",see:['backup','garage','game-mode','undo-reset']},
+    {id:'share-code',term:'Share Code',tier:'beginner',def:"SHARE → COPY CODE turns the tune into a compact text code; COPY LINK wraps it in a URL that opens SUSP.OS with it staged. Include any of CHASSIS (weight, bias, tyres, geometry, layout, MEASURE readings), FEEL (ride, damping, ARB, balance) and DRIVETRAIN (build type, diff, brakes). Codes never carry garage entries, and always record the author's tier.\n\nLOAD CODE: paste a code or link, READ CODE to stage it; nothing moves until APPLY SELECTED. Parts are CHASSIS, SPRINGS (which also carries the game mode), DAMPERS, ARB and DRIVETRAIN, each marked same as yours or from the code; only ticked parts are taken, and the ticks persist. TO GARAGE saves the merged result as a new entry and leaves the tune alone. A shared link stages the same way.\n\nThe sender's tier is shown, never applied. Taking ARB without SPRINGS from a code whose bars were set by hand in a game with different ARB units warns you, since the numbers would mean another quantity: tick SPRINGS too. Applying feel or drivetrain parts removes a DNA link; APPLY is one undo step.",see:['backup','garage','game-mode','undo-reset']},
     {id:'backup',term:'Backup & Restore',tier:'beginner',def:"SHARE → BACKUP downloads your garage as suspos-data.json, by kind: CHASSIS, BUILDS, CARS and DNA. It never includes the current unsaved tune. The garage lives only in this browser, so a backup is how you move it to another device or browser, or keep a copy.\n\nRESTORE reads a backup, including files from before the garage was unified, and lists for each kind how many entries the file holds and how many of yours ticking it would replace; a summary gives the net result. Ticked kinds are replaced wholesale by the file's, unticked kinds are kept. A replaced entry cannot be recovered because the garage is outside undo, so RESTORE takes two taps; BACKUP first if you want to keep them. The current tune is not touched.",see:['garage','share-code','undo-reset']},
     {id:'garage',term:'Garage',tier:'beginner',def:"The GARAGE drawer holds everything you save. Name the setup, then SAVE CHASSIS (weight, bias, geometry, layout), SAVE BUILD (feel settings, diff and any applied DNA) or SAVE CAR (both). A car entry has separate LOAD CHASSIS and LOAD BUILD buttons, so one car's chassis can take another's tune; each load is one undo step. An entry's COPY CODE copies it as a share code.\n\nEntries carry notes (up to 2000 characters), your own tags, and automatic tags worked out when shown: layout, BALANCED, NOSE HEAVY or TAIL HEAVY (BALANCED within 2 points of 50% front), stiffness band, build type and the tier it was saved in. All are searchable. Filter by kind and sort by RECENT, OLDEST, NAME A–Z or KIND. ↺ rewrites an entry from the current setup as CHASSIS, BUILD or BOTH (BOTH turns a chassis entry into a car). Deleting takes two taps and cannot be undone, since the garage is outside undo.",see:['factory-presets','backup','share-code','undo-reset']},
     {id:'factory-presets',term:'Factory Presets',tier:'beginner',def:"Six read-only starting tunes under FACTORY in the garage: STREET (road comfort), TRACK (corner focus), RALLY (high travel), DRIFT (rotation), MOTORSPT (max grip) and X COUNTRY (max travel). ★ FOR YOUR BUILD marks the ones matching your Build Type (a TRACK build gets TRACK and MOTORSPT; DRAG gets TRACK). LOAD replaces the feel settings and drivetrain but never the chassis, so the preset fits your car's weight; it removes any DNA link and is one undo step. Presets are not garage entries, so they never appear in counts, search or backups.\n\nAt BEG a loaded preset is adapted to the Beginner controls (automatic bar stiffness, weight-based bar split, a rear-Hz multiplier and standard damping), so the Balance slider behaves the same whether or not you have touched it.",see:['garage','build-type','balance-slider','undo-reset']},
@@ -10445,7 +10455,7 @@ function App(){
                   {[
                     {key:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout'},
                     {key:'fe',label:'FEEL',sub:'Ride · damping · ARB · balance'},
-                    {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff'},
+                    {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes'},
                   ].map(({key,label,sub})=>chkRow(key,label,sub,shareSel[key],
                     e=>{setShareSel(s=>({...s,[key]:e.target.checked}));setShareCopied(false);}))}
                   <textarea readOnly value={sharePayload} rows={3} onFocus={e=>e.target.select()}
@@ -11183,7 +11193,7 @@ function App(){
                 <div style={{maxHeight:isPhone?'42vh':'60vh',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
                 {phase?<PhaseVerdict phase={phase} diffLayout={diff.layout}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel} bDampBias={bDampBias}
-                  brakeBias={brakeBias} gripBalance={tune.gripBalance}/>
+                  brakeBias={brakeBias} brakeCentre={brakeEntry?'entry':brakeGrip?'grip':'rec'} gripBalance={tune.gripBalance}/>
                 :<HandlingVerdict total={bNet}bChassis={tune.bChassis} bSp={tune.bSp} bAb={tune.bAb}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel}
                   bDiffFront={diff.bDiffFront} bDiffRear={diff.bDiffRear}

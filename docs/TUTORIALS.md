@@ -287,10 +287,11 @@ the Welcome card and live in the glossary.
 | 7 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
-| 10 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
-| 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
-| 12 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
-| 13 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
+| 10 | Brake Bias Centre | `brakes` | | Centre REC / GRIP / ENTRY: Decel, Entry vs MID (trail braking), ENTRY BRK. |
+| 11 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
+| 12 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
+| 13 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
+| 14 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
 
 ### Handling balance <!--@tutorial balance-->
 
@@ -461,7 +462,7 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Welcome — Pro Mode
 
-> PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what's new.
+> PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths), a brake bias Centre and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what's new.
 
 #### 2. Chassis Geometry
 
@@ -495,19 +496,23 @@ TRY IT task (ticks when the check passes):
 
 > Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.
 
-#### 10. Manual Differential
+#### 10. Brake Bias Centre
+
+> BRAKES adds Centre. REC shifts Brake Bias from the recommendation; GRIP from the bias where both axles hit their braking limit together at your Decel; ENTRY solves it for trail braking, from Entry vs MID. ENTRY BRK, under the toggle, shows what the bias does to corner entry.
+
+#### 11. Manual Differential
 
 > MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
 
-#### 11. Handling Balance Expanded
+#### 12. Handling Balance Expanded
 
 > Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.
 
-#### 12. Load Transfer
+#### 13. Load Transfer
 
 > LOAD TRANSFER in VISUALS shows the loads at 1 g cornering. FRONT TAKES is the front's share of the transfer against the weight split; springs and bars move it. GRIP USE below it predicts which axle runs out of grip first, mid-corner, on entry and on exit.
 
-#### 13. Output Panel & Tune Check
+#### 14. Output Panel & Tune Check
 
 > The results cards work as in the lower tiers. CHECK opens Tune Check: DECODE reads back an existing tune's frequencies and damping, and MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land; RESET never touches saves, and a tune RESET is one ↩ from undone.
 

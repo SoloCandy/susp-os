@@ -831,11 +831,20 @@ MID — by the dominant contributor (chassis, springs, bars), oversteer then und
 
 > Mid-corner understeer, mostly from the bars. Raise the Mech Balance Target or move ARB Bias toward the rear.
 
-ENTRY — `{bias}` is the recommended brake bias, `{ideal}` the entry-load split:
+ENTRY — `{bias}` is the brake bias in use, `{ideal}` the entry-load split. With BRAKES' Centre
+ENTRY the bias was put there on purpose, so one line replaces both:
+
+> Entry: brake bias {bias}% is BRAKES' ENTRY solve, set by Entry vs MID; change that target to move it.
+
+Otherwise:
 
 > Entry: brake bias {bias}% sits behind the entry-load ideal (≈{ideal}%), so the rear brakes more than its share.
 
+Forward of it, under Centre REC, then GRIP:
+
 > Entry: brake bias {bias}% sits forward of the entry-load ideal (≈{ideal}%). The BRAKES card counts more weight transfer, so it usually reads this way.
+
+> Entry: brake bias {bias}% sits forward of the entry-load ideal (≈{ideal}%). GRIP solved at a Decel above {entry g} g counts more weight transfer, and a shift toward STABLE adds to it.
 
 EXIT — AWD, then RWD and FWD:
 

@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — guide, tip and share text that predated BRAKES' Centre
+
+An audit of the tutorials and glossary after the Centre work found four gaps. The PRO guide never
+mentioned the Centre: it gains a Brake Bias Centre step before Manual Differential, matching the
+sidebar order, and the Welcome lists it. PRO's ENTRY tip blamed the BRAKES card for a forward bias
+whatever the Centre; it now says ENTRY placed the bias on purpose, or that GRIP above `ENTRY_G`
+counts more weight transfer, and keeps the card sentence for REC (`PhaseVerdict` takes
+`brakeCentre`). SHARE's DRIVETRAIN row and the Share Code glossary entry now list brakes, which
+that part has carried since BRAKES was added.
+
 ## Changed — ENTRY is described as trail braking
 
 ENTRY was already the trail-braking phase (corner entry at `ENTRY_G` of braking), but its hints and
