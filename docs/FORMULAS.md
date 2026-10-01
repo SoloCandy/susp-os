@@ -223,6 +223,28 @@ NEUTRAL.
 
 ---
 
+## Load transfer readout (`loadTransferOf`, PRO only)
+
+The LOAD TRANSFER section reads `latLoadTransfer` at the real car's roll-stiffness split
+(`Kr/(Kf+Kr) + natOffsetOf(ch)`, as `phaseMargins` does), in kg per g:
+
+- **XFER** per axle = `dW / g`, split into **SPR+ARB** (elastic: the sprung roll couple
+  `Mt·g·(h − RC)` shared by roll stiffness, ÷ track) and **GEOMETRY** (`M_axle·g·RC ÷ track`,
+  with `RC = 0.2·h`). Only the elastic part moves with the tune.
+- **FRONT TAKES** = `100·dWf/(dWf + dWr)`, shown beside the weight split. More of the transfer on
+  the front than its weight share leans understeer; the CAR tick on the bar is the refined
+  version, since it also counts tyre widths.
+- **OUT / IN** = corner mass ± XFER, both capped where the inner wheel lifts (XFER ≥ corner mass,
+  the point where `axleLatG` caps the transfer): the outer wheel then carries the whole axle.
+- **FORE-AFT**: front axle load = `M_front − Mt·ax·h/L` at `ax = −ENTRY_G` (braking) and
+  `+EXIT_G` (drive), clamped to the car's mass — the pitch the phase margins read, without cornering.
+
+It replaced `2 × corner mass × h ÷ track`, which used the full CG height on each axle and no
+roll-stiffness split, so no tune could move it. `tests-balance.js` asserts it equals
+`latLoadTransfer`, moves with the split, conserves load and agrees with the LIFT check.
+
+---
+
 ## Quick sign reference
 
 | Source | More rear-side stiffness/lock/damping | More front-side stiffness/lock/damping |

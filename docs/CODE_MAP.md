@@ -135,6 +135,7 @@ total roll stiffness — one definition shared by `feelToPhysics`,
 capacity per unit of its own weight, optionally under braking or drive — the grip model's core),
 `mechBalanceLLT`, `balanceFromRsBal`, `gripMargin` / `phaseMargins` / `ENTRY_G` / `EXIT_G` (PRO's
 Handling Balance in grip-margin percent, by phase; see [FORMULAS.md](FORMULAS.md) "Phase margins"),
+`loadTransferOf` (PRO's LOAD TRANSFER readout, from `latLoadTransfer`; see [FORMULAS.md](FORMULAS.md)),
 `gripNeutralSplitOf` (the roll-stiffness split at which the grip model reads neutral — the
 reference `computeTune`'s `bChassis` measures from; see [FORMULAS.md](FORMULAS.md)),
 `balanceBandDelta` (one edge of the PRO Balance

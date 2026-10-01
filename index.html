@@ -740,9 +740,11 @@ const latLoadTransfer=(ch,Kf,Kr)=>{
   const g=9.81,a=1.0;
   const m=cornerMasses(ch),Mf=m.front*2,Mr=m.rear*2,Mt=Mf+Mr,RC=rollCenterHeight(ch);
   const Mphi=Mt*g*a*(ch.cgHeight-RC),sF=Kf/(Kf+Kr);     // sprung roll couple; front elastic share
-  const dWf=Mphi*sF/ch.trackF+Mf*g*a*RC/ch.trackF;       // front lateral load transfer (N): elastic + geometric
-  const dWr=Mphi*(1-sF)/ch.trackR+Mr*g*a*RC/ch.trackR;   // rear
-  return{dWf,dWr,Mf,Mr};
+  const elF=Mphi*sF/ch.trackF,geoF=Mf*g*a*RC/ch.trackF;  // front: through springs/bars, through the roll centre
+  const elR=Mphi*(1-sF)/ch.trackR,geoR=Mr*g*a*RC/ch.trackR;
+  const dWf=elF+geoF;                                     // front lateral load transfer (N): elastic + geometric
+  const dWr=elR+geoR;                                     // rear
+  return{dWf,dWr,Mf,Mr,elF,elR,geoF,geoR};
 };
 // The grip model's core: each axle's lateral capacity per unit of its own static weight — the
 // lateral g that axle can hold at 1 g of lateral load transfer. Steady cornering asks each axle
@@ -843,6 +845,36 @@ const phaseMargins=(ch,tune,brakeBias,diff)=>{
     mid:{total:mid,chas,sp,ab},
     entry:{total:mid+brk,brk,pitch:eRef-mid,idealBias:idealBrakeF*100},
     exit:{total:mid+drive,drive,pitch:xRef-mid,driveF,idealDriveF},
+  };
+};
+// PRO's LOAD TRANSFER readout, from the grip model's own latLoadTransfer — the same split by
+// roll stiffness that sets the balance bar, so the springs and bars move it. (It used to compute
+// axle mass × CG ÷ track on its own, which no tune could move.) In kg per g, at the real car's
+// split: natOffset (MEASURE NAT BAL) moves the solvers' split across, as phaseMargins does.
+// ELASTIC goes through the springs and bars and their split decides which axle takes it;
+// GEOMETRIC goes through the roll centre, which no tune changes. lifts: the inner wheel is
+// unloaded, where axleLatG caps the transfer. entry / exit: axle loads under ENTRY_G braking and
+// EXIT_G of drive — the pitch transfer the phase margins read, with no cornering.
+const loadTransferOf=(ch,tune)=>{
+  const g=9.81,nf=ch.frontBias/100;
+  const Kf=tune.rsSpF+tune.rsAbF,Kr=tune.rsSpR+tune.rsAbR;
+  const rs=Math.max(0,Math.min(1,(Kf+Kr>0?Kr/(Kf+Kr):1-nf)+natOffsetOf(ch)));
+  const t=latLoadTransfer(ch,1-rs,rs);
+  const axle=(M,dW,el,geo)=>{
+    const corner=M/2,xfer=dW/g;
+    // OUT is capped like axleLatG's transfer: once the inner wheel is off the ground the outer one
+    // carries the whole axle, and XFER beyond that is roll the springs would see, not load moved.
+    return{corner,xfer,elastic:el/g,geometric:geo/g,out:corner+Math.min(xfer,corner),inn:Math.max(0,corner-xfer),lifts:xfer>=corner};
+  };
+  const Mt=t.Mf+t.Mr;
+  const lon=ax=>{
+    const front=Math.max(0,Math.min(Mt,t.Mf-Mt*ax*ch.cgHeight/ch.wheelbase));
+    return{front,rear:Mt-front,frontPct:100*front/Mt};
+  };
+  return{
+    front:axle(t.Mf,t.dWf,t.elF,t.geoF),rear:axle(t.Mr,t.dWr,t.elR,t.geoR),
+    frontShare:100*t.dWf/(t.dWf+t.dWr),weightFront:100*t.Mf/Mt,
+    entry:lon(-ENTRY_G),exit:lon(EXIT_G),
   };
 };
 // pure roll-stiffness rear fraction Kr/(Kf+Kr) → balance
@@ -5446,9 +5478,9 @@ const TUTORIALS={
      focus:['balance-bar'],
      body:'Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.',
      glossary:['phase-verdict','mech-balance-strip','response-factors']},
-    {title:'Handling Balance Expanded (2/2)',
-     focus:['balance-bar'],
-     body:'Scroll down in the expanded panel for LOAD TRANSFER at 1 g cornering: CORNER is each corner\'s static mass, XFER the load each axle shifts to its outer wheel per g, OUT / IN the outer and inner wheel loads. A wider track or lower CG reduces transfer.',
+    {title:'Load Transfer',
+     focus:['visuals'],
+     body:'LOAD TRANSFER, the last group in VISUALS, shows the loads at 1 g cornering. FRONT TAKES is the front\'s share of the transfer against the weight split; springs and bars move it. XFER splits into what goes through them and the fixed geometric part; FORE-AFT gives the ENTRY and EXIT axle loads.',
      glossary:['load-transfer']},
     {title:'Output Panel & Tune Check',
      focus:['toolbar'],
@@ -5599,7 +5631,7 @@ const GLOSSARY=[
     {id:'understeer',term:'Understeer (US)',tier:'beginner',def:"Understeer is when the front tyres run out of grip before the rears, so the car turns less than the steering asks and runs wide. It feels stable and safe but resists rotation.\n\nSUSP.OS shows understeer as negative (−) and blue, on the US side of the Handling Balance bar. More front roll stiffness (springs or bars), more front brake bias, more front rebound damping, more decel lock, and more accel lock on a driven front axle all push toward it.",see:['oversteer','balance-bar','roll-stiffness','response']},
     {id:'oversteer',term:'Oversteer (OS)',tier:'beginner',def:"Oversteer is when the rear tyres run out of grip before the fronts, so the car rotates more than the steering asks. It feels lively and turns in freely but can snap if overdone.\n\nSUSP.OS shows oversteer as positive (+) and red, on the OS side of the Handling Balance bar. More rear roll stiffness, more rear brake bias, more rear rebound damping, less decel lock (freer lift-off rotation), and more accel lock on a driven rear axle all push toward it.",see:['understeer','balance-bar','roll-stiffness','response']},
     {id:'grip-bias',term:'Grip Bias',tier:'pro',def:"Grip Bias is the car's at-the-limit lateral grip balance at its natural point, from the load-transfer grip model: tyre widths, track widths, CG height and weight split at the chassis's natural roll-stiffness split, before any tuning. Below 0.5 the front grips out first (understeer-prone); above 0.5 the rear does (oversteer-prone). A MEASURE NAT BAL reading shifts it along with natural balance.\n\nIt is not Mech Balance: two cars with identical mech balance can have different grip bias if their tyre widths or load transfer differ. The Balance Guide shows it as the GRIP BIAS row, which also carries a stability tag (AGILE, BALANCED, STABLE or PLANTED) from average track and tyre width. PRO's Handling Balance figure, grip margin, is the same model's front-minus-rear difference, quoted in percent rather than on the 0–1 scale.",see:['grip-neutral','mech-balance','natural-balance','phase-verdict']},
-    {id:'load-transfer',term:'Load Transfer',tier:'beginner',def:"Load transfer is weight shifting between tyres as the car corners, brakes or accelerates: onto the outside tyres in a corner, onto the fronts under braking, onto the rears under power. Tyres gain grip more slowly than they gain load, so an axle carrying more transfer has less total grip left. A lower CG and wider track reduce cornering transfer; a lower CG and longer wheelbase reduce fore-aft transfer.\n\nHow roll stiffness is split front to rear decides which axle takes more of the cornering transfer, which is why that split sets handling balance. Forward transfer under braking is also why the recommended brake balance sits in front of the weight split.\n\n[PRO] LOAD TRANSFER, at the bottom of the expanded Handling Balance panel, lists at 1 g cornering: CORNER (static corner mass), XFER (axle load transfer per g, 2 × corner mass × CG height ÷ track width) and OUT / IN (outer and inner wheel loads, inner floored at zero). Use it to judge how hard the bars have to work and how much camber the loaded outer tyre needs.",see:['roll-stiffness','brake-balance','sag-vs-load','grip-bias']},
+    {id:'load-transfer',term:'Load Transfer',tier:'beginner',def:"Load transfer is weight shifting between tyres as the car corners, brakes or accelerates: onto the outside tyres in a corner, onto the fronts under braking, onto the rears under power. Tyres gain grip more slowly than they gain load, so an axle carrying more transfer has less total grip left. A lower CG and wider track reduce cornering transfer; a lower CG and longer wheelbase reduce fore-aft transfer.\n\nHow roll stiffness is split front to rear decides which axle takes more of the cornering transfer, which is why that split sets handling balance. Forward transfer under braking is also why the recommended brake balance sits in front of the weight split.\n\n[PRO] LOAD TRANSFER, the last group in the VISUALS card, reads the balance model's own transfer at 1 g cornering, so springs and bars move it. FRONT TAKES is the front axle's share of the total transfer beside the weight split: more on the front than its weight share leans understeer. A top-down sketch shades each wheel by its load in a left turn. CORNER is static corner mass; XFER is each axle's transfer per g, split into SPR+ARB (through the springs and bars, the part the tune moves) and GEOMETRY (through the roll centre, fixed); OUT / IN are the outer and inner wheel loads. LIFTS (amber) marks an inner wheel unloaded before 1 g: past that, more roll stiffness on that end stops shifting balance. FORE-AFT gives the axle loads under the ENTRY and EXIT phase loads (0.3 g braking, 0.2 g drive). Use it to see which end the bars load and how much camber the loaded outer tyre needs.",see:['roll-stiffness','brake-balance','sag-vs-load','grip-bias']},
     {id:'grip-neutral',term:'Grip-Neutral',tier:'pro',def:"Grip-Neutral is the mech balance at which the grip model reads exactly neutral (0.50) for this chassis at the current springs and bars, shown as GRIP TARGET in the Balance Guide. Targeting it cancels the chassis's built-in push or looseness instead of reinforcing it.\n\nGRIP target mode aims here plus Balance Offset, so it lands exactly on grip-neutral only at a 0 offset. It is not the mirror of GRIP BIAS: the two are in different units, and the model is not symmetric enough for a mirror to land on neutral. The Balance Guide's RANGE is scaled between natural balance and this point, and a Vehicle DNA's BALANCE axis is measured from it.",see:['grip-bias','target-grip','target-range','mech-balance-target']},
     {id:'response',term:'Response (Planted / Reactive)',tier:'beginner',def:"Response is a separate bar from understeer/oversteer that rates transient character: how quickly the car reacts to steering, not which end lets go. PLANTED (left) is settled and damped, predictable but slower to change direction; REACTIVE (right) turns in immediately but can feel nervous. Within ±15 it reads BALANCED. A car can be perfectly neutral and still sit at either extreme.\n\nThe score weights front Hz 35%, rear Hz 20%, front toe 15%, caster 10%, front rebound damping 12% and rear rebound damping 8%. Higher Hz, lower rebound damping, more front toe-out and lower caster all read reactive. Anti-roll bars and weight bias are left out: they set balance, not response speed.\n\nBump damping is deliberately absent. At low shaft speed it resists roll initiation (planted); over bumps it deflects the car instead of absorbing them (skittish). One damping ratio cannot separate the two, so any sign here would be wrong on some surface.",see:['response-factors','hz','rebound','toe']},
   ]},
@@ -6199,21 +6231,31 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true,visLoad:true});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
   // VISUALS scroll box is capped to the RIDE · ROLL · DAMPING group's own height, so that
   // group always fits whole and everything else scrolls. Measured live (ResizeObserver),
   // since the group's height depends on sidebar width. null = not measured yet.
-  const[visCap,setVisCap]=useState(null);
-  const visRideRO=useRef(null);
-  const visRideRef=useMemo(()=>el=>{   // stable, so the observer is not rebuilt every render
-    visRideRO.current?.disconnect();visRideRO.current=null;
-    if(!el)return;
-    const measure=()=>setVisCap(Math.ceil(el.getBoundingClientRect().height));
-    measure();   // RO callbacks wait for a rendered frame; measure once up front too
-    const ro=new ResizeObserver(measure);
-    ro.observe(el);visRideRO.current=ro;
+  // VISUALS box height: each group that should always fit whole is measured live, and the box is
+  // capped at the tallest one that is open (see the box's maxHeight). RIDE · ROLL · DAMPING and,
+  // in PRO, LOAD TRANSFER. visMeasureRef(key) is a stable ref callback per key, so the observers
+  // are not rebuilt every render.
+  const[visCaps,setVisCaps]=useState({});
+  const visROs=useRef({});
+  const visMeasureRef=useMemo(()=>{
+    const refs={};
+    return key=>refs[key]??=(el=>{
+      visROs.current[key]?.disconnect();visROs.current[key]=null;
+      if(!el){setVisCaps(c=>c[key]==null?c:{...c,[key]:null});return;}
+      const measure=()=>{
+        const h=Math.ceil(el.getBoundingClientRect().height);
+        setVisCaps(c=>c[key]===h?c:{...c,[key]:h});
+      };
+      measure();   // RO callbacks wait for a rendered frame; measure once up front too
+      const ro=new ResizeObserver(measure);
+      ro.observe(el);visROs.current[key]=ro;
+    });
   },[]);
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
@@ -9220,7 +9262,10 @@ function App(){
             to, so VISUALS stays hidden there. */}
         {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')}>
-            <div style={{maxHeight:open.visRide&&visCap?visCap:(isPhone?'32vh':'50vh'),overflowY:'auto',overscrollBehavior:'contain'}}>
+            <div style={{maxHeight:(()=>{
+              const cap=Math.max(open.visRide?visCaps.ride??0:0,uiMode==='pro'&&open.visLoad?visCaps.load??0:0);
+              return cap||(isPhone?'32vh':'50vh');
+            })(),overflowY:'auto',overscrollBehavior:'contain'}}>
               {dnaLink&&<>
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
@@ -9256,7 +9301,7 @@ function App(){
                 // stiffness rear fraction so the card still draws.
                 const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
                 const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
-                return<div ref={visRideRef}>
+                return<div ref={visMeasureRef('ride')}>
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRide:!p.visRide}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
@@ -9484,6 +9529,89 @@ function App(){
                     </div>
                   </div>}
                 </>);
+              })()}
+              {/* LOAD TRANSFER (PRO): the grip model's own transfer at 1 g (loadTransferOf), so the
+                  springs and bars move it. Moved here from the bottom of the expanded Handling
+                  Balance panel: it is a picture of the car's loads, like the groups above. */}
+              {uiMode==='pro'&&(()=>{
+                const lt=loadTransferOf(ch,tune);
+                const{front:F,rear:R}=lt;
+                const lift='#f59e0b';
+                const Row=({la,lv,ra,rv,dim,last,lw,rw})=>(
+                  <div style={{display:'flex',alignItems:'center',gap:6,padding:'2px 6px',
+                               ...(last?{}:{borderBottom:'1px solid #0f172a'}),
+                               opacity:dim?0.55:1}}>
+                    <span style={{fontSize:9,color:'#475569',letterSpacing:1,minWidth:50}}>{la}</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:lw?lift:'#64748b'}}>{lv}</span>
+                    <div style={{flex:1,height:1,background:'#0f172a'}}/>
+                    <span style={{fontSize:9,color:'#475569',letterSpacing:1}}>{ra}</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:rw?lift:'#64748b'}}>{rv}</span>
+                  </div>
+                );
+                // Top-down sketch at 1 g in a left turn: load moves to the right-hand (outer) wheels.
+                // Front wheels blue, rear orange, as in every VISUALS group; each is shaded by its
+                // share of the heaviest wheel, and a lifted one is an amber dashed outline.
+                const maxW=Math.max(F.out,R.out,1);
+                const Wheel=({x,y,kg,lifts,anchor,lx,col})=>(<>
+                  <rect x={x} y={y} width={12} height={26} rx={2}
+                    fill={lifts?'none':col} fillOpacity={lifts?0:0.15+0.75*kg/maxW}
+                    stroke={lifts?lift:'#334155'} strokeDasharray={lifts?'3 2':undefined}/>
+                  <text x={lx} y={y+16} textAnchor={anchor} fontSize={8} fill={lifts?lift:'#94a3b8'}
+                    fontFamily="var(--font-mono)">{lifts?'LIFT':dispMass(kg)}</text>
+                </>);
+                const d=lt.frontShare-lt.weightFront;
+                const shareCol=Math.abs(d)<1?'#e2e8f0':d>0?'#3b82f6':'#ef4444';
+                const anyLift=F.lifts||R.lifts;
+                return(<div ref={visMeasureRef('load')} style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visLoad:!p.visLoad}))}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>LOAD TRANSFER</span>
+                    <Hint text="Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer." term="load-transfer"/>
+                    {!open.visLoad&&<span style={{fontSize:9,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
+                      F <span style={{color:shareCol}}>{lt.frontShare.toFixed(0)}%</span> · WT {lt.weightFront.toFixed(0)}%
+                      {anyLift&&<span style={{color:lift}}> · LIFT</span>}
+                    </span>}
+                    <span style={{marginLeft:'auto',fontSize:9,color:'#475569'}}>{open.visLoad?'▲':'▼'}</span>
+                  </div>
+                  {open.visLoad&&
+                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:6}}>
+                    <div style={{fontSize:10,color:'#475569',fontFamily:'var(--font-mono)'}}>
+                      FRONT TAKES <span style={{color:shareCol}}>{lt.frontShare.toFixed(1)}%</span>
+                      {' · '}WEIGHT <span style={{color:'#94a3b8'}}>{lt.weightFront.toFixed(0)}%</span>
+                    </div>
+                    <svg viewBox="0 0 170 150" style={{width:150,alignSelf:'center'}} role="img"
+                         aria-label={`Wheel loads at 1 g, left turn: front ${dispMass(F.inn)} inner, ${dispMass(F.out)} outer; rear ${dispMass(R.inn)} inner, ${dispMass(R.out)} outer`}>
+                      <rect x={55} y={14} width={60} height={122} rx={12} fill="#020617" stroke="#1e293b"/>
+                      <text x={85} y={30} textAnchor="middle" fontSize={8} fill="#475569" letterSpacing={1}>FRONT</text>
+                      <text x={85} y={128} textAnchor="middle" fontSize={8} fill="#475569" letterSpacing={1}>REAR</text>
+                      <Wheel x={43} y={26} kg={F.inn} lifts={F.lifts} anchor="end" lx={40} col={VIS_COL_F}/>
+                      <Wheel x={115} y={26} kg={F.out} anchor="start" lx={130} col={VIS_COL_F}/>
+                      <Wheel x={43} y={98} kg={R.inn} lifts={R.lifts} anchor="end" lx={40} col={VIS_COL_R}/>
+                      <Wheel x={115} y={98} kg={R.out} anchor="start" lx={130} col={VIS_COL_R}/>
+                      <text x={85} y={78} textAnchor="middle" fontSize={8} fill="#64748b">◀ TURN</text>
+                      <text x={85} y={148} textAnchor="middle" fontSize={7} fill="#475569">1 g · load to the outside</text>
+                    </svg>
+                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
+                      <Row la="F CORNER" lv={dispMass(F.corner)} ra="R CORNER" rv={dispMass(R.corner)} dim/>
+                      <Row la="XFER F" lv={`${dispMass(F.xfer)}/g`} ra="XFER R" rv={`${dispMass(R.xfer)}/g`}/>
+                      <Row la="· SPR+ARB" lv={dispMass(F.elastic)} ra="· SPR+ARB" rv={dispMass(R.elastic)} dim/>
+                      <Row la="· GEOMETRY" lv={dispMass(F.geometric)} ra="· GEOMETRY" rv={dispMass(R.geometric)} dim/>
+                      <Row la="OUT F" lv={dispMass(F.out)} ra="OUT R" rv={dispMass(R.out)}/>
+                      <Row la="IN F" lv={F.lifts?'LIFTS':dispMass(F.inn)} lw={F.lifts}
+                           ra="IN R" rv={R.lifts?'LIFTS':dispMass(R.inn)} rw={R.lifts} last/>
+                    </div>
+                    {anyLift&&<div style={{fontSize:10,color:lift,lineHeight:1.5}}>
+                      {F.lifts&&R.lifts
+                        ?'Both inside wheels unload before 1 g: past that point more roll stiffness on that end stops shifting balance.'
+                        :`The ${F.lifts?'front':'rear'} inside wheel unloads before 1 g: past that point more roll stiffness on that end stops shifting balance.`}
+                    </div>}
+                    <div style={{fontSize:9,color:'#475569',letterSpacing:1}}>FORE-AFT · AXLE LOADS</div>
+                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
+                      <Row la={`ENTRY ${ENTRY_G} g`} lv={`${dispMass(lt.entry.front)} F · ${dispMass(lt.entry.rear)} R`} ra="" rv={`${lt.entry.frontPct.toFixed(0)}% F`}/>
+                      <Row la={`EXIT ${EXIT_G} g`} lv={`${dispMass(lt.exit.front)} F · ${dispMass(lt.exit.rear)} R`} ra="" rv={`${lt.exit.frontPct.toFixed(0)}% F`} last/>
+                    </div>
+                  </div>}
+                </div>);
               })()}
             </div>
           </Sec>
@@ -10876,35 +11004,6 @@ function App(){
                       })}
                       <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:4}}>
                         Higher Hz and lower damping shift toward reactive. <TermLink id="response-factors"/>
-                      </div>
-                    </div>
-                  );
-                })()}
-                {uiMode==='pro'&&(()=>{
-                  const xferF=2*cm.front*ch.cgHeight/ch.trackF;
-                  const xferR=2*cm.rear*ch.cgHeight/ch.trackR;
-                  const Row=({la,lv,ra,rv,dim,last})=>(
-                    <div style={{display:'flex',alignItems:'center',gap:6,padding:'2px 8px',
-                                 ...(last?{}:{borderBottom:'1px solid #0f172a'}),
-                                 opacity:dim?0.55:1}}>
-                      <span style={{fontSize:9,color:'#475569',letterSpacing:1,minWidth:54}}>{la}</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#64748b'}}>{lv}</span>
-                      <div style={{flex:1,height:1,background:'#0f172a'}}/>
-                      <span style={{fontSize:9,color:'#475569',letterSpacing:1}}>{ra}</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#64748b'}}>{rv}</span>
-                    </div>
-                  );
-                  return(
-                    <div style={{marginTop:10,paddingTop:8,borderTop:'1px solid #0f172a'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                        <span style={{fontSize:9,color:'#334155',letterSpacing:2}}>LOAD TRANSFER</span>
-                        <Hint text="Loads at 1 g cornering. CORNER: static corner mass. XFER: axle load transfer per g. OUT / IN: outer and inner wheel loads." term="load-transfer"/>
-                      </div>
-                      <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
-                        <Row la="F CORNER" lv={dispMass(cm.front)} ra="R CORNER" rv={dispMass(cm.rear)} dim/>
-                        <Row la="XFER F" lv={`${dispMass(xferF)}/g`} ra="XFER R" rv={`${dispMass(xferR)}/g`}/>
-                        <Row la="OUT F" lv={dispMass(cm.front+xferF)} ra="OUT R" rv={dispMass(cm.rear+xferR)}/>
-                        <Row la="IN F" lv={dispMass(Math.max(0,cm.front-xferF))} ra="IN R" rv={dispMass(Math.max(0,cm.rear-xferR))} last/>
                       </div>
                     </div>
                   );

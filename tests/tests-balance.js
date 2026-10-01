@@ -24,6 +24,7 @@
 //      downstream may jump as it does.
 //   7. Calibration envelope — balanceEnvelope flags exactly the fitted bounds it should.
 //   8. Chassis term — the Handling Balance bar's mechanical part agrees with the grip model.
+//   9. LOAD TRANSFER readout — reads the grip model's own transfer, so the tune moves it.
 //
 // Properties 5 and 6 are the ones with history: the drift-band sign inversion and the
 // balanceBandRange V-shape miss were both failures of exactly these (docs/HISTORY.md).
@@ -51,7 +52,7 @@ const M = new Function(
   'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
-  'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G};'
+  'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -807,6 +808,59 @@ t('at the same pitch, the axle doing the braking or driving has less lateral gri
         ok(g.gF >= 0 && g.gR >= 0 && Number.isFinite(g.gF + g.gR), `${name} ax ${ax}: non-finite or negative`);
       ok(allF.gF < allR.gF && allR.gR < allF.gR, `${name} ax ${ax}: the working axle did not lose grip`);
     }
+});
+
+// -- 9. LOAD TRANSFER readout ------------------------------------------------
+console.log('\nLOAD TRANSFER readout');
+
+// A tune carrying only the roll stiffnesses loadTransferOf reads, at a chosen rear split.
+const rsTune = rsBal => ({ rsSpF: 1 - rsBal, rsSpR: rsBal, rsAbF: 0, rsAbR: 0 });
+
+t('loadTransferOf reports exactly the grip model\'s transfer, split into elastic and geometric', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const r of [0.35, 0.5, 0.65]) {
+      const lt = M.loadTransferOf(ch, rsTune(r)), ref = M.latLoadTransfer(ch, 1 - r, r);
+      near(lt.front.xfer, ref.dWf / 9.81, 1e-9, `${name} ${r}: front XFER`);
+      near(lt.rear.xfer, ref.dWr / 9.81, 1e-9, `${name} ${r}: rear XFER`);
+      near(lt.front.elastic + lt.front.geometric, lt.front.xfer, 1e-9, `${name} ${r}: front parts`);
+      near(lt.rear.elastic + lt.rear.geometric, lt.rear.xfer, 1e-9, `${name} ${r}: rear parts`);
+    }
+});
+
+t('the springs and bars move it: more front roll stiffness, more of the transfer on the front', () => {
+  // The readout this replaced was axle mass x CG / track, which no tune could move.
+  for (const { name, ch } of CHASSIS) {
+    let prev = -Infinity;
+    for (const r of [0.7, 0.6, 0.5, 0.4, 0.3]) {
+      const lt = M.loadTransferOf(ch, rsTune(r));
+      ok(lt.frontShare > prev, `${name}: front share did not rise as the rear split fell to ${r}`);
+      prev = lt.frontShare;
+    }
+    const a = M.loadTransferOf(ch, rsTune(0.4)), b = M.loadTransferOf(ch, rsTune(0.6));
+    near(a.front.geometric, b.front.geometric, 1e-9, `${name}: geometric transfer moved with the split`);
+  }
+});
+
+t('wheel loads add up, the inner wheel never goes negative, and lifts agrees with the LIFT check', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const r of [0.2, 0.5, 0.85]) {
+      const lt = M.loadTransferOf(ch, rsTune(r));
+      for (const [k, ax] of [['front', lt.front], ['rear', lt.rear]]) {
+        ok(ax.inn >= 0, `${name} ${r}: ${k} inner wheel negative`);
+        near(ax.out - ax.corner, Math.min(ax.xfer, ax.corner), 1e-9, `${name} ${r}: ${k} outer wheel`);
+        near(ax.out + ax.inn, 2 * ax.corner, 1e-9, `${name} ${r}: ${k} axle load not conserved`);
+      }
+      ok((lt.front.lifts || lt.rear.lifts) === lifts(ch, r), `${name} ${r}: lifts disagrees with the LIFT check`);
+    }
+});
+
+t('fore-aft loads conserve mass and move the right way: forward on entry, rearward on exit', () => {
+  for (const { name, ch } of CHASSIS) {
+    const lt = M.loadTransferOf(ch, rsTune(0.5)), mc = M.cornerMasses(ch), Mt = 2 * (mc.front + mc.rear);
+    for (const ph of [lt.entry, lt.exit]) near(ph.front + ph.rear, Mt, 1e-9, `${name}: axle loads do not sum to the car`);
+    ok(lt.entry.front > 2 * mc.front && lt.exit.front < 2 * mc.front, `${name}: pitch went the wrong way`);
+    near(lt.weightFront, 100 * mc.front / (mc.front + mc.rear), 1e-9, `${name}: weight split`);
+  }
 });
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passed, ${fail} failed\n`);

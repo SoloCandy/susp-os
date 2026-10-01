@@ -288,7 +288,7 @@ the Welcome card and live in the glossary.
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
 | 10 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
 | 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
-| 12 | Handling Balance Expanded (2/2) | `balance-bar` | | LOAD TRANSFER at 1 g: CORNER, XFER, OUT / IN. |
+| 12 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER group at 1 g: FRONT TAKES vs weight, XFER split, wheel loads, FORE-AFT. |
 | 13 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
 
 ### Handling balance <!--@tutorial balance-->
@@ -498,9 +498,9 @@ TRY IT task (ticks when the check passes):
 
 > Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.
 
-#### 12. Handling Balance Expanded (2/2)
+#### 12. Load Transfer
 
-> Scroll down in the expanded panel for LOAD TRANSFER at 1 g cornering: CORNER is each corner's static mass, XFER the load each axle shifts to its outer wheel per g, OUT / IN the outer and inner wheel loads. A wider track or lower CG reduces transfer.
+> LOAD TRANSFER, the last group in VISUALS, shows the loads at 1 g cornering. FRONT TAKES is the front's share of the transfer against the weight split; springs and bars move it. XFER splits into what goes through them and the fixed geometric part; FORE-AFT gives the ENTRY and EXIT axle loads.
 
 #### 13. Output Panel & Tune Check
 

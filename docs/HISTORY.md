@@ -11,6 +11,25 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — LOAD TRANSFER ignored the springs and bars
+
+PRO's LOAD TRANSFER section computed its own transfer, `2 × corner mass × CG height ÷ track`
+per axle, with no roll-stiffness split. Nothing in the tune moved it, though its glossary entry
+said to use it "to judge how hard the bars have to work", and the split it left out is the
+mechanism behind the whole balance bar. On the default chassis it read 219 / 206 kg per g at any
+tune; the grip model gives 179 / 248 at a 40% front roll share and 246 / 179 at 60%.
+
+It now reads `latLoadTransfer` through `loadTransferOf`, so it agrees with the bar. The section
+also gained FRONT TAKES (front share of the transfer against the weight split), XFER split into
+SPR+ARB and GEOMETRY, a LIFTS flag where the grip model caps the transfer, FORE-AFT axle loads at
+the ENTRY and EXIT phase loads, and a top-down sketch of the four wheel loads. It also moved out of the expanded
+Handling Balance panel into the VISUALS card, as a LOAD TRANSFER group (`open.visLoad`), and
+PRO's tutorial step for it became "Load Transfer", spotlighting VISUALS. The VISUALS box's height
+cap, which fitted only RIDE · ROLL · DAMPING, now fits whichever of that group and LOAD TRANSFER
+is taller while open (`visCaps`), so the load card shows whole without scrolling inside it.
+`latLoadTransfer` now also returns its elastic and geometric parts; its other consumer, SAG vs
+LOAD, is unchanged.
+
 ## Changed — the Handling Balance bar starts from the car, not from centre
 
 The CHASSIS contributor went in as a sixth segment: first in the stack, with a CHAS legend chip

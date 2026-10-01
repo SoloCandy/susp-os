@@ -559,6 +559,18 @@ BEG/INT (which have no ARB Motion Ratio field):
 
 **BRAKES:** as on the Forza card above.
 
+**LOAD TRANSFER** (PRO):
+
+> Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer.
+
+When an inside wheel lifts — `{end}` is front or rear:
+
+> The {end} inside wheel unloads before 1 g: past that point more roll stiffness on that end stops shifting balance.
+
+When both do:
+
+> Both inside wheels unload before 1 g: past that point more roll stiffness on that end stops shifting balance.
+
 ---
 
 ## Handling Balance bar
@@ -895,10 +907,6 @@ and in BEG and INT, which have no alignment controls, for either:
 > Front toe-out sharpens turn-in (reactive); toe-in adds straight-line stability.
 
 > Lower caster reduces self-centering, allowing quicker steering response.
-
-### LOAD TRANSFER (PRO)
-
-> Loads at 1 g cornering. CORNER: static corner mass. XFER: axle load transfer per g. OUT / IN: outer and inner wheel loads.
 
 ---
 

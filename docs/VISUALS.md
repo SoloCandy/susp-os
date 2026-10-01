@@ -22,11 +22,13 @@ zones, the settle band, and the ARB bands. The prose is not checked.
   focus (`isPhone&&sbTyping`). With the keyboard up, the pinned card would take
   most of what's left of the screen, so hiding it lets the scrolling controls keep
   their height.
-- **Height:** the body scrolls inside a box capped at the RIDE · ROLL · DAMPING
-  group's own height (`visCap`, measured live with a ResizeObserver), so that group
-  always fits whole and the rest scrolls. While that group is collapsed or not yet
-  measured, the cap falls back to `32vh` on a phone and `50vh` otherwise. Either way
-  an expanded card can't push the input sections off screen.
+- **Height:** the body scrolls inside a box capped at the height of the tallest open
+  group among RIDE · ROLL · DAMPING and, in PRO, LOAD TRANSFER (`visCaps`, each measured
+  live with a ResizeObserver through `visMeasureRef`), so either one always fits whole
+  and the rest scrolls. In PRO with LOAD TRANSFER open that is its height, about 430 px.
+  While neither is open or measured, the cap falls back to `32vh` on a phone and `50vh`
+  otherwise. It is still a cap, so the card cannot grow past it, but on a short window a
+  tall cap leaves less room for the input sections above.
 - **Groups**, in order, each with its own collapse key on `open`:
 
 | Group | `open` key | Shown when |
@@ -35,6 +37,7 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 | [RIDE · ROLL · DAMPING](#ride--roll--damping) | `visRide` | always |
 | [DYNAMICS](#dynamics) | `visDynamics` | always |
 | [SAG vs LOAD](#sag-vs-load) | `visSag` | CHASSIS → CG Height Source is RIDE HEIGHT (`ch.useRideHeightCG`) and both tyre sizes parse to a radius |
+| [LOAD TRANSFER](#load-transfer) | `visLoad` | PRO (`uiMode==='pro'`) |
 
 Every group header is a `collapsible-hdr` row. A collapsed header shows a one-line
 summary where one is useful (RIDE · ROLL · DAMPING, SAG's risk badges), so the card is
@@ -245,6 +248,25 @@ line usually bottoms first, because it starts from static sag rather than zero.
 
 Braking load transfer and bump loads are not modelled by either line. Treat HIGH,
 BOTTOMED and every bottom-out figure as a prompt to check, not a certainty.
+
+## LOAD TRANSFER
+
+PRO only. The grip model's own lateral load transfer at 1 g cornering, from
+`loadTransferOf` (see [FORMULAS.md](FORMULAS.md) "Load transfer readout"), so the springs and
+bars move it. Collapsed, the header reads `F {share}% · WT {weight}%`, plus `· LIFT` in amber
+when an inside wheel lifts.
+
+| Part | Meaning |
+|---|---|
+| FRONT TAKES · WEIGHT | the front axle's share of the total transfer beside the weight split; blue when the front takes more than its weight share (leans understeer), red when less, white within 1 point |
+| top-down sketch | the four wheels in a left turn, load moving to the right-hand (outer) side; front blue, rear orange, each shaded by its share of the heaviest wheel; a lifted wheel is an amber dashed outline reading LIFT |
+| CORNER | static corner mass |
+| XFER | each axle's transfer per g, then split into SPR+ARB (through the springs and bars: the part the tune moves) and GEOMETRY (through the roll centre: fixed) |
+| OUT / IN | outer and inner wheel loads; IN reads LIFTS in amber once the inner wheel unloads, and OUT is then the whole axle |
+| FORE-AFT · AXLE LOADS | front and rear axle loads, and % front, under `ENTRY_G` braking and `EXIT_G` drive, with no cornering |
+
+It sat at the bottom of the expanded Handling Balance panel until it was rebuilt; it moved
+here because it pictures the car's loads, as the other groups do, rather than the balance.
 
 ## Changing a chart
 
