@@ -77,7 +77,9 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
 - `brakeBias` is `recBrakeBias`, shifted at INT and PRO by BRAKES' Brake Bias:
   `clamp(centre − dr.brakeBiasShift, 45, 68)`, the shift ±5 with + = rearward. The centre is
   `recBrakeBias`, or at PRO with `dr.brakeCentre === 'grip'` the rounded `gripBrakeBiasOf(ch,
-  dr.brakeDecel)` (see "GRIP brake bias" below). BEG ignores the shift and INT the Centre. `recBrakeBias` is clamped
+  dr.brakeDecel)` (see "GRIP brake bias" below). With `'entry'` there is no shift: `brakeBias` is
+  the rounded `entryBrakeBiasFor(ch, tune, dr.brakeEntryTarget).bias` ("ENTRY brake target"
+  below). BEG ignores the shift and INT the Centre. `recBrakeBias` is clamped
   to **45–68**, so `bBrakeEntry` spans roughly **+1.0 … −3.6**. The sub-50
   half of that range is only reachable on rear-weighted cars in DRIFT/DRAG
   builds; every other combination lands front-biased because the
@@ -295,12 +297,25 @@ PRO ENTRY measures BRK from it: `idealBrakeF` is `gripBrakeBiasOf(ch, ENTRY_G)`,
 Centre toggle as ENTRY BRK; it moves about 0.45% per point of bias on the test chassis, nearly
 independent of the spring split.
 
-**Why no ENTRY TARGET solve.** Solving the bias to put ENTRY on a target was considered and not
-built. ENTRY = MID is just this GRIP figure at 0.3 g; the Balance Target is a mech balance (0–1)
-with no calibrated map to grip-margin percent; any other target makes the bias absorb MID, which
-the springs set (about 5 points of bias for a −2.2% MID); the 45–68 span covers only about ±5% of
-margin; the off-throttle diff, the main entry lever, has no size in PRO; and BRK's scale is set by
-the arbitrary `ENTRY_G`. The ENTRY BRK readout lets the shift slider serve as a hand-run target.
+## ENTRY brake target (`entryBrakeBiasFor`, PRO only)
+
+BRAKES' ENTRY Centre solves the bias for a target **BRK**, `dr.brakeEntryTarget` (−5..+5, grip-margin
+%, + = entry looser than mid-corner): bisection over 45–68 on `phaseMargins(...).entry.brk`, which
+falls strictly with front bias. Out of reach, it returns the end (`clamped: 'rear'` at 45,
+`'front'` at 68) and the section says so. Target 0 is `gripBrakeBiasOf(ch, ENTRY_G)`.
+
+Deliberately limited:
+
+- **BRK, not the ENTRY total.** ENTRY = MID + BRK. Aiming the total at a value would make the bias
+  absorb MID, which the springs set (about 5 points of bias for a −2.2% MID): the brakes covering
+  a spring problem. BRK barely moves with the spring split, so the solved bias follows the chassis;
+  `tests-balance.js` asserts it moves under one point between rear splits of 0.4 and 0.6.
+- **Not the Balance Target.** That is a mech balance (0–1) with no calibrated map to grip-margin
+  percent.
+- **Diff and damping held fixed.** The off-throttle diff, the main entry lever, and damping have no
+  size in PRO, so they are not in the solve; the hint says so.
+- **Scale.** BRK's size follows the arbitrary `ENTRY_G`, so the target is in the expanded panel's
+  units, not an absolute one. About 0.45% per bias point, so 45–68 reaches roughly ±5%.
 
 ---
 

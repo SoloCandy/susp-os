@@ -706,7 +706,9 @@ it (see the scale entry above for `BRAKE_BIAS_SCALE`).
 At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 5 points from `recBrakeBias`; at
 its default and in BEG they are equal. PRO's GRIP Centre (`gripBrakeBiasOf`) is the
 same solve as ENTRY's reference at a chosen decel, so at 0.3 g the two PRO readings agree; the
-card and the BEG/INT BRK segment still do not. So the BRK segment mostly shows how far the app's own
+card and the BEG/INT BRK segment still do not. PRO's ENTRY Centre solves against that same
+reference, and leaves the off-throttle diff and damping out of the solve because PRO does not size
+them ([FORMULAS.md](FORMULAS.md) "ENTRY brake target"). So the BRK segment mostly shows how far the app's own
 recommendation leans, and today most of
 that is the weight transfer the card adds on purpose. The card's `cgHeight/wheelbase × 50` is the
 load-proportional split at 0.5 g of braking; PRO's `idealBrakeF` is GRIP's split at `ENTRY_G`,

@@ -85,6 +85,7 @@ SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still li
 | POWER SPLIT (AWD, grouped under CENTER) | −30..+40 (20–90% rear) | Center torque split | Right (REAR) = OVERSTEER |
 | <!--@range dr.brakeBiasShift-->Brake Bias (BRAKES) | −5..+5 points | Shifts the brake bias centre: `recBrakeBias`, or at PRO with Centre GRIP `gripBrakeBias`; the readout is the resulting % front, kept within 45–68. Stored `dr.brakeBiasShift` positive = rearward = ROTATE, matching the slider. Ignored in BEG, which has no BRAKES section | Right (ROTATE) = OVERSTEER-leaning on entry |
 | <!--@range dr.brakeDecel-->Decel (BRAKES, PRO, Centre GRIP) | 0.30..1.50 g, step 0.05 | The braking load GRIP's brake bias is solved at (`gripBrakeBiasOf`). Default 1.0 g, threshold braking. Shown only with Centre GRIP; INT reads Centre as REC | Right = GRIP moves forward = steadier entry |
+| <!--@range dr.brakeEntryTarget-->Entry vs MID (BRAKES, PRO, Centre ENTRY) | −5..+5 %, step 0.25 | The ENTRY BRK target `entryBrakeBiasFor` solves the brake bias for, in grip-margin percent; replaces the Brake Bias shift, which is hidden. About 0.45% per bias point, so 45–68 reaches roughly ±5%; past that the bias stops at the end with a note | Right (+) = looser entry = OVERSTEER-leaning |
 
 ## Pro (PRO) — adds these
 

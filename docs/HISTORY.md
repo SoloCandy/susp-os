@@ -11,14 +11,24 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — BRAKES' ENTRY Centre (PRO)
+
+A third Centre, ENTRY, solves the brake bias so ENTRY's BRK lands on an Entry vs MID target
+(`entryBrakeBiasFor`, codec id 83, `BRAKE_CENTRE_DEC` index 2). It was first argued against (the
+entry below records why), then built in the one form that answers those objections: the target is
+BRK, entry relative to mid-corner, not the ENTRY total or the Balance Target, so the springs barely
+move the solve and the brakes cannot be used to cover a spring problem; it stops at 45 or 68 with
+a note rather than pinning there silently; and it says that the diff and damping are not in it. The
+shift slider is hidden in ENTRY, since the target is the intent.
+
 ## Changed — PRO ENTRY measures brakes from GRIP, and BRAKES shows ENTRY BRK
 
 `phaseMargins`' `idealBrakeF` was the load-proportional split at `ENTRY_G`; it is now
 `gripBrakeBiasOf(ch, ENTRY_G)`, the GRIP Centre's own solve at that load, so GRIP at a 0.3 g Decel
 reads BRK 0 and the two PRO brake readings share one reference. The ideal moves by about a point
 at most (load sensitivity pulls it toward even; stagger moves it), and so do BRK and PITCH. PRO's
-BRAKES section shows the resulting ENTRY BRK under the Centre toggle. This was done instead of an
-ENTRY TARGET solve, for the reasons in [FORMULAS.md](FORMULAS.md) "GRIP brake bias".
+BRAKES section shows the resulting ENTRY BRK under the Centre toggle. It was first proposed instead of
+an ENTRY TARGET solve; that solve followed, limited for those reasons (see the entry above).
 
 ## Added — BRAKES' GRIP Centre (PRO)
 

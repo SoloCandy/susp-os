@@ -54,7 +54,7 @@ const M = new Function(
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
   'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
-  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf};'
+  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf,entryBrakeBiasFor};'
 )();
 
 let pass = 0, fail = 0;
@@ -958,6 +958,41 @@ t('GRIP brake bias sits between the load-proportional split and 50/50 on square 
       ok(Math.min(lp, 50) - 1e-9 <= g && g <= Math.max(lp, 50) + 1e-9 && Math.abs(lp - g) < 6, `${name} ${d} g: GRIP ${g.toFixed(2)} vs load-proportional ${lp.toFixed(2)}`);
     }
   }
+});
+
+// BRAKES' ENTRY Centre: the brake bias that puts ENTRY's BRK on a target.
+console.log('\nENTRY BRAKE TARGET');
+const TARGETS = [-4, -2, -0.5, 0, 0.5, 2, 4];
+
+t('the ENTRY solve lands BRK on the target, or reports the end it stopped at', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const r of [0.4, 0.5, 0.6])
+      for (const target of TARGETS) {
+        const tn = rsTune(r), s = M.entryBrakeBiasFor(ch, tn, target);
+        const brk = M.phaseMargins(ch, tn, s.bias, null).entry.brk;
+        if (s.clamped === null) near(brk, target, 1e-6, `${name} ${r} ${target}: BRK`);
+        else if (s.clamped === 'rear') ok(s.bias === 45 && brk <= target, `${name} ${r} ${target}: rear clamp`);
+        else ok(s.bias === 68 && brk >= target, `${name} ${r} ${target}: front clamp`);
+      }
+});
+
+t('ENTRY target 0 is GRIP at ENTRY_G, and a looser target moves the bias rearward', () => {
+  for (const { name, ch } of CHASSIS) {
+    const tn = rsTune(0.5), g = M.gripBrakeBiasOf(ch, M.ENTRY_G), s = M.entryBrakeBiasFor(ch, tn, 0);
+    if (g > 45 && g < 68) near(s.bias, g, 1e-6, `${name}: target 0`);
+    ok(M.entryBrakeBiasFor(ch, tn, 1).bias <= s.bias && M.entryBrakeBiasFor(ch, tn, -1).bias >= s.bias, `${name}: direction`);
+  }
+});
+
+t('the springs barely move the ENTRY solve (it targets BRK, not the ENTRY total)', () => {
+  // The guard against brakes covering a spring problem: across a wide roll-stiffness split the
+  // solved bias moves well under one game step.
+  for (const { name, ch } of CHASSIS)
+    for (const target of [-2, 0, 2]) {
+      const a = M.entryBrakeBiasFor(ch, rsTune(0.4), target), b = M.entryBrakeBiasFor(ch, rsTune(0.6), target);
+      if (a.clamped || b.clamped) continue;
+      ok(Math.abs(a.bias - b.bias) < 1, `${name} ${target}: ${a.bias.toFixed(2)} vs ${b.bias.toFixed(2)}`);
+    }
 });
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passed, ${fail} failed\n`);

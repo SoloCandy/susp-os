@@ -257,7 +257,18 @@ rounded `idealBias`:
 
 **Centre** (PRO):
 
-> What Brake Bias shifts from. REC = the recommendation, with its build offsets. GRIP = the bias at which both axles reach their braking limit together, braking straight at the Decel below.
+> REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved so entry sits where you set it against mid-corner.
+
+**Entry vs MID** (PRO, Centre ENTRY):
+
+> How much looser (+) or tighter (−) entry should be than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included.
+
+With Centre ENTRY the Brake Bias slider is replaced by a plain `{bias}% F` readout. When the target
+is out of reach, an amber note under Entry vs MID, `{end}` 45 or 68:
+
+> Out of reach: brake bias stops at {end}%. Move Entry vs MID toward {toward}, or use the off-throttle diff for the rest.
+
+`{toward}` is `0 or below` at 45, `0 or above` at 68.
 
 **Decel** (PRO, Centre GRIP):
 

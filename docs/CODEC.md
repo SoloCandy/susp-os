@@ -97,19 +97,20 @@ future version might not carry.
 | 78 | ch | measuredNatBalRef | raw number — staleness reference, see note |
 | 79 | fe | arbBalAbs | raw number — MANUAL Balance Target's absolute mech balance |
 | 80 | dr | brakeBiasShift | raw number — BRAKES' Brake Bias shift from its centre, + = rearward; see note |
-| 81 | dr | brakeCentre | enum (`{rec:0,grip:1}`, `BRAKE_CENTRE_DEC`) — PRO's BRAKES Centre |
+| 81 | dr | brakeCentre | enum (`{rec:0,grip:1,entry:2}`, `BRAKE_CENTRE_DEC`) — PRO's BRAKES Centre |
 | 82 | dr | brakeDecel | raw number — the g GRIP's brake bias is solved at |
+| 83 | dr | brakeEntryTarget | raw number — ENTRY Centre's ENTRY BRK target, grip-margin %, + = looser |
 
-**Next available id: 83.**
+**Next available id: 84.**
 
 Id 80 is new, not a revival: the brake fields pruned in the v1 sparse-table redesign
 (`brakeManual`/`brakeBias`/`brakePressure`) were never individually numbered. It stores a
 shift, not a bias, so a code carries the sender's intent and lands on the reader's car as
 that car's recommendation plus the shift. It rides with the DRIVETRAIN part.
 
-Ids 81 and 82 follow the same reasoning: they carry the Centre and the Decel, never a
-resolved bias, so a GRIP code lands on the reader's car as that car's own GRIP figure. INT
-reads a `grip` Centre as REC, as BEG ignores the shift.
+Ids 81–83 follow the same reasoning: they carry the Centre, the Decel and the ENTRY target,
+never a resolved bias, so a GRIP or ENTRY code lands on the reader's car as that car's own
+solve. INT reads a `grip` or `entry` Centre as REC, as BEG ignores the shift.
 
 Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
 only field in the `meta` group, and the only field that is not an input to any solve
@@ -222,7 +223,7 @@ choice, decided after the code is read.
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
-| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel |
+| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 
 > **Rule: every codec field belongs to exactly one part.** A field added to
@@ -353,7 +354,7 @@ undocumented.
 | `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
 | `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
 | `TIER_DEC` | 0 `beginner` · 1 `intermediate` · 2 `pro` (UI labels: BEG / INT / PRO) |
-| `BRAKE_CENTRE_DEC` | 0 `rec` · 1 `grip` (UI labels: REC / GRIP) |
+| `BRAKE_CENTRE_DEC` | 0 `rec` · 1 `grip` · 2 `entry` (UI labels: REC / GRIP / ENTRY) |
 
 `ARB_MODE_DEC` carries `auto` twice on purpose — index 3 is a retired `balance`
 value decoding to `auto` rather than throwing. `ALIGN_MODE_DEC` has no encoder

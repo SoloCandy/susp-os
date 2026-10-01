@@ -138,7 +138,8 @@ Handling Balance in grip-margin percent, by phase; see [FORMULAS.md](FORMULAS.md
 `loadTransferOf` (PRO's LOAD TRANSFER readout, from `latLoadTransfer`; see [FORMULAS.md](FORMULAS.md)),
 `axleGrip` (`axleLatG`'s raw axle forces before the friction circle), `gripUseOf` (PRO's GRIP USE
 prediction, by phase), `gripBrakeBiasOf` (BRAKES' GRIP Centre: the straight-line brake bias at which
-both axles reach their limit together) and `driveFrontOf` (the front axle's share of drive, shared with `phaseMargins`),
+both axles reach their limit together), `entryBrakeBiasFor` (BRAKES' ENTRY Centre: the bias that
+puts ENTRY's BRK on a target) and `driveFrontOf` (the front axle's share of drive, shared with `phaseMargins`),
 `gripNeutralSplitOf` (the roll-stiffness split at which the grip model reads neutral — the
 reference `computeTune`'s `bChassis` measures from; see [FORMULAS.md](FORMULAS.md)),
 `balanceBandDelta` (one edge of the PRO Balance
