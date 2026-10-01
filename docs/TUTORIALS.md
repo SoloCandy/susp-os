@@ -257,36 +257,37 @@ the Welcome card and live in the glossary.
 |---|---|---|---|---|
 | 1 | Welcome — Intermediate Mode | — | | Collapsible sections, SECTIONS − / +, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
 | 2 | Chassis | `chassis` | | Layout / weight / bias moved here; CG height source. |
-| 3 | Diff Type | `drivetrain` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
-| 4 | Corner Exit & Entry | `drivetrain` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
-| 5 | AWD Center Diff | `drivetrain` | | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. |
-| 6 | Build Type | `build` | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
-| 7 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
-| 8 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
-| 9 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
-| 10 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
-| 11 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
-| 12 | Handling Balance Bar | `balance-bar` | close | NET vs the ENTRY / EXIT lanes INT adds; tap for the rows. |
-| 13 | Reading the Results | `output` | close | Values to type in, card by card; amber = near a game limit. |
-| 14 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
-| 15 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
-| 16 | Organizing & Searching | `garage` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
-| 17 | Sharing & Backup | `garage` | close | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. |
+| 3 | Build Type | `build` | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
+| 4 | ARB Stiffness & Balance Mode | `arb` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
+| 5 | ARB Bias & Visuals | `arb`, `visuals` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
+| 6 | Ride Ref & Rear Hz | `feel` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
+| 7 | Dampers | `damping` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
+| 8 | Brakes | `brakes` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation. |
+| 9 | Diff Type | `drivetrain` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
+| 10 | Corner Exit & Entry | `drivetrain` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
+| 11 | AWD Center Diff | `drivetrain` | | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. |
+| 12 | VISUALS Card | `visuals` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
+| 13 | Handling Balance Bar | `balance-bar` | close | NET vs the ENTRY / EXIT lanes INT adds; tap for the rows. |
+| 14 | Reading the Results | `output` | close | Values to type in, card by card; amber = near a game limit. |
+| 15 | Output Toolbar | `toolbar` | | RESET, DNA, CHECK, SHARE. |
+| 16 | Garage | `garage` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
+| 17 | Organizing & Searching | `garage` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
+| 18 | Sharing & Backup | `garage` | close | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. |
 
 ### Pro <!--@tutorial pro-->
 
 | # | Title | Spotlight | Sidebar | Covers |
 |---|---|---|---|---|
-| 1 | Welcome — Pro Mode | — | | What PRO adds; alignment stays AUTO unless set to MANUAL, brakes always computed. |
+| 1 | Welcome — Pro Mode | — | | What PRO adds; alignment stays AUTO unless set to MANUAL. |
 | 2 | Chassis Geometry | `chassis` | | FROM THE GAME vs LOOK UP ONLINE; wheelbase, track widths, and what tyre width does; how they set the Balance Guide's NATURAL and GRIP BIAS. |
-| 3 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
-| 4 | Calibrating Natural Balance | `chassis` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
-| 5 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
-| 6 | Mech Balance Target | `balance-target` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
-| 7 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset. |
+| 3 | Calibrating Natural Balance | `chassis` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
+| 4 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
+| 5 | Mech Balance Target | `balance-target` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
+| 6 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset. |
+| 7 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
-| 10 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
+| 10 | Manual Differential | `drivetrain` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
 | 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
 | 12 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
 | 13 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
@@ -392,63 +393,67 @@ TRY IT task (ticks when the check passes):
 
 > Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.
 
-#### 3. Diff Type
-
-> DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.
-
-#### 4. Corner Exit & Entry
-
-> EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
-
-#### 5. AWD Center Diff
-
-> AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
-
-#### 6. Build Type
+#### 3. Build Type
 
 > Build Type in the BUILD section (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car's intended use. It steers the diff's automatic locks, the recommended diff type, brake balance and alignment.
 
-#### 7. ARB Stiffness & Balance Mode
+#### 4. ARB Stiffness & Balance Mode
 
 > Stiffness Mode sets the total bar stiffness: AUTO, BASIC, ROLL °, SHARE % or MAN (front and rear typed directly, which hides Balance Mode and ARB Bias). Balance Mode splits it front to rear: WEIGHT follows the weight split; NEUTRAL works from the springs, by CANCEL or EQUAL ROLL.
 
-#### 8. ARB Bias & Visuals
+#### 5. ARB Bias & Visuals
 
 > ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS, pinned at the bottom of the sidebar, shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
 
-#### 9. Ride Ref & Rear Hz
+#### 6. Ride Ref & Rear Hz
 
 > RIDE REF. picks the axle the stiffness slider sets: FRONT, SHARED (the average) or REAR. Hz MODE derives the other: MULTIPLIER (fixed ratio, default), FLAT RIDE (less pitch bounce at Target Speed), INDEPENDENT (set by hand; not with SHARED) or SHARED (needs RIDE REF. SHARED and BOTTOM G's).
 
-#### 10. Dampers
+#### 7. Dampers
 
 > Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.
 
-#### 11. VISUALS Card
+#### 8. Brakes
+
+> BRAKES holds Brake Bias, a shift of up to 5 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.
+
+#### 9. Diff Type
+
+> DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.
+
+#### 10. Corner Exit & Entry
+
+> EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
+
+#### 11. AWD Center Diff
+
+> AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
+
+#### 12. VISUALS Card
 
 > VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.
 
-#### 12. Handling Balance Bar
+#### 13. Handling Balance Bar
 
 > The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. INT adds ENTRY and EXIT lanes off NET for diff, brakes and damping. Tap it for the rows behind each.
 
-#### 13. Reading the Results
+#### 14. Reading the Results
 
 > The results panel shows exact values to enter in the game's tuning menu, card by card. Amber means a value is near the game's limit: soften your inputs slightly.
 
-#### 14. Output Toolbar
+#### 15. Output Toolbar
 
 > At the top of the sidebar: ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
 
-#### 15. Garage
+#### 16. Garage
 
 > GARAGE (top right) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car's LOAD CHASSIS and LOAD BUILD let you pair one car's chassis with another's tune, and every load is undoable with ↩.
 
-#### 16. Organizing & Searching
+#### 17. Organizing & Searching
 
 > Entries take notes and your own tags, plus automatic ones, all searchable from the row under the save buttons, with filter and sort. ↺ rewrites an entry from your current setup as CHASSIS, BUILD or BOTH; BOTH turns a chassis entry into a full car.
 
-#### 17. Sharing & Backup
+#### 18. Sharing & Backup
 
 > SHARE copies a code or link (COPY CODE / COPY LINK), loads one (LOAD CODE), and backs up or restores the garage as JSON (BACKUP / RESTORE). A loaded code is staged: tick the parts you want and APPLY SELECTED takes only those.
 
@@ -456,31 +461,31 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Welcome — Pro Mode
 
-> PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL; brakes are always computed. This guide covers only what's new.
+> PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what's new.
 
 #### 2. Chassis Geometry
 
 > CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, moving GRIP BIAS and its AGILE–PLANTED tag.
 
-#### 3. Manual Differential
-
-> MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
-
-#### 4. Calibrating Natural Balance
+#### 3. Calibrating Natural Balance
 
 > MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.
 
-#### 5. Calibrating ARB Scale
+#### 4. Calibrating ARB Scale
 
 > ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each reading lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE.
 
-#### 6. Mech Balance Target
+#### 5. Mech Balance Target
 
 > How far to move Forza's Mech Balance from the car's natural balance (NAT): 0 stays natural, + adds rotation, − adds stability; start from the Balance Guide's range. It shows only while ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, solves toward it; CHASSIS anchors on natural balance instead.
 
-#### 7. Balance Target Mode
+#### 6. Balance Target Mode
 
 > Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide's RANGE), GRIP (GRIP TARGET, the grip-neutral point) or MANUAL (a raw value, e.g. 0.60). In RANGE and GRIP, Balance Offset shifts it toward oversteer (+) or understeer (−).
+
+#### 7. Alignment Mode
+
+> AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target's intent and GRIP against the chassis's own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.
 
 #### 8. PRO ARB Balance Modes
 
@@ -490,9 +495,9 @@ TRY IT task (ticks when the check passes):
 
 > Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.
 
-#### 10. Alignment Mode
+#### 10. Manual Differential
 
-> AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target's intent and GRIP against the chassis's own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.
+> MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
 
 #### 11. Handling Balance Expanded
 

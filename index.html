@@ -5419,18 +5419,6 @@ const TUTORIALS={
      focus:['chassis'],
      body:'Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.',
      glossary:['cg-source']},
-    {title:'Diff Type',
-     focus:['drivetrain'],
-     body:'DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.',
-     glossary:['diff-type']},
-    {title:'Corner Exit & Entry',
-     focus:['drivetrain'],
-     body:'EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.',
-     glossary:['exit-bias','entry-bias']},
-    {title:'AWD Center Diff',
-     focus:['drivetrain'],
-     body:'AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card\'s CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
-     glossary:['power-split','exit-bias']},
     {title:'Build Type',
      focus:['build'],
      body:'Build Type in the BUILD section (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car\'s intended use. It steers the diff\'s automatic locks, the recommended diff type, brake balance and alignment.',
@@ -5451,6 +5439,22 @@ const TUTORIALS={
      focus:['damping'],
      body:'Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.',
      glossary:['zeta','bump-ratio','damping-bias']},
+    {title:'Brakes',
+     focus:['brakes'],
+     body:'BRAKES holds Brake Bias, a shift of up to 5 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.',
+     glossary:['brake-balance']},
+    {title:'Diff Type',
+     focus:['drivetrain'],
+     body:'DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.',
+     glossary:['diff-type']},
+    {title:'Corner Exit & Entry',
+     focus:['drivetrain'],
+     body:'EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.',
+     glossary:['exit-bias','entry-bias']},
+    {title:'AWD Center Diff',
+     focus:['drivetrain'],
+     body:'AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card\'s CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
+     glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
      focus:['visuals'],
      body:'VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.',
@@ -5483,16 +5487,12 @@ const TUTORIALS={
   pro:[
     {title:'Welcome — Pro Mode',
      focus:null,
-     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL; brakes are always computed. This guide covers only what\'s new.',
+     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths) and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
      focus:['chassis'],
      body:'CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
      glossary:['tyre-size','track-width','balance-guide']},
-    {title:'Manual Differential',
-     focus:['drivetrain'],
-     body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
-     glossary:['diff-mode','match-chassis','power-split']},
     {title:'Calibrating Natural Balance',
      focus:['chassis'],
      body:'MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.',
@@ -5509,6 +5509,10 @@ const TUTORIALS={
      focus:['balance-target'],
      body:'Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide\'s RANGE), GRIP (GRIP TARGET, the grip-neutral point) or MANUAL (a raw value, e.g. 0.60). In RANGE and GRIP, Balance Offset shifts it toward oversteer (+) or understeer (−).',
      glossary:['target-range','target-grip','balance-offset']},
+    {title:'Alignment Mode',
+     focus:['alignment'],
+     body:'AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target\'s intent and GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.',
+     glossary:['align-mode','nudge']},
     {title:'PRO ARB Balance Modes',
      focus:['arb'],
      body:'CHASSIS is WEIGHT anchored on the car\'s natural balance instead of raw weight %. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. A target the car can\'t reach within game limits is flagged.',
@@ -5517,10 +5521,10 @@ const TUTORIALS={
      focus:['feel','balance-target','visuals'],
      body:'Hz MODE MECH, in RIDE, derives the other axle\'s Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.',
      glossary:['hz-mode','ride-roll-damping']},
-    {title:'Alignment Mode',
-     focus:['alignment'],
-     body:'AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target\'s intent and GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.',
-     glossary:['align-mode','nudge']},
+    {title:'Manual Differential',
+     focus:['drivetrain'],
+     body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
+     glossary:['diff-mode','match-chassis','power-split']},
     {title:'Handling Balance Expanded',
      focus:['balance-bar'],
      body:'Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.',
@@ -5587,16 +5591,6 @@ const GLOSSARY=[
     {id:'motion-ratio',term:'Motion Ratio',tier:'pro',def:"How far the spring and damper move per unit of wheel travel, 0.2–1.5. It is BeamNG only: Forza shows wheel rate, so the fields are hidden there. The default 1.0 is direct-acting, like a strut on the hub. Lower means the spring sits inboard on a control arm and must be stiffer for the same wheel rate. Spring and damper outputs are divided by the ratio squared, so 0.7 roughly doubles them.\n\nBeamNG's sliders act at the spring, so this is what makes the numbers match. It does not change Hz, roll stiffness or handling balance. Leave it at 1.0 unless you know the car's geometry.",see:['arb-motion-ratio','spring-rate']},
     {id:'arb-motion-ratio',term:'ARB Motion Ratio',tier:'pro',def:"The anti-roll bar's arm as a fraction of track: where the drop link attaches, not where the spring does. It is BeamNG only and separate from Motion Ratio. The range is 0.2–1.5 and the default is 1.0. At 1.0 the app assumes the bar acts at the wheels, so the printed N/m reads low, roughly 4–6× soft on a sampled vehicle. A typical inboard link is about 0.4–0.5 (arm ÷ track), which raises the printed rate by (1/ratio)².\n\nIt affects only ARB display and MAN entry. The roll stiffness the app solves, the balance bar and Hz are unchanged.",see:['motion-ratio','arb']},
   ]},
-  {group:'Differential',terms:[
-    {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MED below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
-    {id:'decel-lock',term:'Decel Lock',tier:'beginner',def:"Locking under lift-off and braking. More decel lock resists rotation on corner entry, so the car is steadier on lift-off but understeers more on entry. Less lock lets the car rotate more freely into the corner and under trail-braking. On a rear-drive axle that includes more lift-off oversteer. On a front-drive axle, less means less entry understeer. On AWD the automatic front decel stays at 0, because any front decel strongly adds entry understeer.\n\nA SPORT diff has no decel lock, so its decel rows read N/A. The Handling Balance DIFF row counts decel lock on either axle toward understeer.\n\n[INT] AUTO sets it from the ENTRY slider plus a little with rear weight; on FWD and RWD also from build type and diff type. The limits are 0–30% on RWD, 0–15% on FWD and 0–20% on the AWD rear.\n\n[PRO] MANUAL takes 0–100%. Typical decel is 8–25% for Race, 11–33% for Rally, 15–48% for Offroad and 0–8% for Drift.",see:['accel-lock','entry-bias','diff-type']},
-    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. A Race suggestion becomes Sport when the Handling Balance total is above +8. BeamNG has no diff-type recommendation.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock.",see:['accel-lock','decel-lock','diff-mode','build-type']},
-    {id:'diff-mode',term:'Differential Mode (AUTO / MANUAL)',tier:'pro',short:'Diff mode',def:"Chooses whether the differential's locks are calculated or typed in. AUTO, the default, works out every lock value from layout, build type, weight bias, diff type and the EXIT, ENTRY and POWER SPLIT sliders. MANUAL hides those sliders and shows each lock % instead. FWD and RWD get Accel Lock and Decel Lock. AWD gets Front and Rear Accel and Decel, plus Center Split. The diff type's typical range sits under each field.\n\nSwitching to MANUAL copies in the current AUTO values, so nothing jumps. MATCH CHASSIS has no effect in MANUAL. Leaving PRO returns the diff to AUTO, because MANUAL's fields exist only in PRO. A share code or garage load can still bring MANUAL in below PRO; the locks it carries stay in use, and DRIVETRAIN lists them.",see:['accel-lock','decel-lock','match-chassis','diff-type']},
-    {id:'exit-bias',term:'EXIT (Diff Slider)',tier:'intermediate',short:'Diff EXIT',def:"The automatic differential's on-throttle intent, from GRIP (left) to ROTATE (right), −50 to +50, default 0. Right means more rotation on every layout, but the lock moves differently. On RWD and AWD, ROTATE adds rear accel lock for more power oversteer, and GRIP removes it for cleaner exit traction. On FWD, GRIP adds front accel lock for exit traction at the cost of push. ROTATE removes it for a freer pivot and less understeer. On AWD, ROTATE also trims front accel lock.\n\nAWD adds a second EXIT under FRONT AXLE, from PUSH to NEUTRAL. Toward PUSH adds front accel lock, for more front pull and exit understeer. It suits AWD cars with strong rear rotation. Each slider shows the resulting lock %, and the Handling Balance DIFF row moves with it.\n\n[PRO] MATCH CHASSIS can add a further offset from your Mech Balance Target.",see:['accel-lock','entry-bias','match-chassis','power-split']},
-    {id:'entry-bias',term:'ENTRY (Diff Slider)',tier:'intermediate',short:'Diff ENTRY',def:"The automatic differential's lift-off and trail-braking intent, from STABLE (left) to LOOSE (right), −50 to +50, default 0. Toward STABLE raises decel lock. On RWD and AWD that resists lift-off oversteer; on FWD it adds entry understeer. Toward LOOSE lowers it for freer rotation into the corner. It moves the rear decel lock on RWD and AWD and the front decel on FWD. AWD front decel stays at 0. It is hidden for a SPORT diff, which has no decel lock.\n\n[PRO] MATCH CHASSIS adds half its offset here.",see:['decel-lock','exit-bias','match-chassis']},
-    {id:'power-split',term:'Center Power Split',tier:'beginner',short:'Center split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Center Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTER POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTER SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
-    {id:'match-chassis',term:'MATCH CHASSIS',tier:'pro',def:"An automatic-differential option, off by default. When on, it biases the diff by how far your Mech Balance Target sits from natural balance. A target set for more oversteer leans the diff toward rotation, and one set for understeer leans it toward stability. The offset is 150× that gap, capped at ±25 points. It is added to the EXIT intent, and half of it to ENTRY. It is flipped on FWD, because more lock there means more push. The sliders don't move; their hints say when the bias is on.\n\nIt acts only while an ARB or Hz mode solves toward the target; otherwise the button dims and the diff is unchanged. It has no effect in MANUAL. Leaving PRO turns it off. If a share code or garage load brings it in below PRO, the EXIT and ENTRY hints say so.",see:['mech-balance-target','natural-balance','exit-bias','entry-bias']},
-  ]},
   {group:'Balance Target',terms:[
     {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE and GRIP add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. Switching modes keeps the target where it is. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip']},
     {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build. It is set as a fraction of the gap from NATURAL toward GRIP TARGET, not as a flat offset. So the further a chassis sits from grip-neutral, the further its band sits from natural. TRACK, for example, uses 0.55–0.95 of that gap on FWD and RWD, and 0.45–0.80 on AWD.\n\nDRIFT (0.90–1.55, AWD 0.75–1.30) and RWD DRAG (0.60–1.05) deliberately go past grip-neutral toward oversteer. The band is at least 0.03 wide and stays inside 0.05–0.95. On most mid- and rear-engined cars, grip-neutral sits below natural. The RANGE row shows the band, with its edges as deltas from NAT.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
@@ -5604,6 +5598,13 @@ const GLOSSARY=[
     {id:'balance-offset',term:'Balance Offset',tier:'pro',def:"In RANGE and GRIP target modes, how far the Mech Balance Target sits from that mode's anchor: −0.20 to +0.20 in 0.005 steps, default 0. Positive means more rear roll stiffness (oversteer tendency), and negative more front (understeer tendency). At 0 it is the middle of the recommended band in RANGE, or grip-neutral in GRIP.\n\nThe two modes share one value. Switching modes re-seeds it so the target doesn't move, but a target more than 0.20 from the new anchor lands at the cap. The Balance Guide shows the resulting target.",see:['target-range','target-grip','mech-balance-target']},
     {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip spans 0.05–0.95. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
     {id:'grip-gap',term:'GRIP GAP / GEOMETRY GAP',tier:'pro',short:'Geometry gap',def:"A panel under the Balance Guide that suggests chassis changes toward the target. In GRIP target mode it is GRIP GAP. It appears when GRIP TARGET sits more than 0.005 outside the RANGE band. It gives the extra front or rear tyre width that brings it inside, in 5 mm steps up to 80 mm. A wider front lowers GRIP TARGET, and a wider rear raises it. Beyond that reach, use Balance Offset.\n\nIn the other modes it is GEOMETRY GAP. It appears when the target is more than 0.015 from natural balance; when nothing solves toward a target, 0.50 stands in. It suggests track changes within ±65 mm, in 5 mm steps. A wider rear track or narrower front raises rear roll stiffness, and the reverse raises the front's. Beyond that, use ARBs or tyre widths.",see:['target-grip','track-width','tyre-size','balance-offset']},
+  ]},
+  {group:'Alignment',terms:[
+    {id:'camber',term:'Camber',tier:'beginner',def:"Camber is the wheel's tilt seen from the front; negative camber leans the top of the tyre inward. It keeps more of the contact patch flat on the road once the body rolls in a corner.\n\nThe ALIGNMENT card gives a static camber chosen so the tyre reaches a dynamic target for your build at the tune's body roll: STREET −1.0°, TRACK −1.5°, DRIFT −2.5°, RALLY −0.8°, OFFROAD −0.3°, DRAG −0.2°. More roll means more static negative camber, and a low-CG car gets more correction per degree of roll. The rear takes only part of the front's roll correction (FWD 0.50, AWD 0.70, RWD 0.75), and FWD front camber is reduced by 0.3° to protect traction. Front stays within −4.0° to 0°, rear within −3.5° to 0°.\n\n[PRO] MANUAL alignment takes camber directly within those ranges. A MECH or GRIP nudge that leans toward oversteer adds front negative camber and removes rear camber, up to 0.5° front and 0.3° rear at full strength; an understeer-leaning nudge does the reverse.",see:['toe','caster','align-mode','nudge']},
+    {id:'toe',term:'Toe',tier:'beginner',def:"Toe is the angle the wheels point relative to straight ahead, seen from above. In SUSP.OS positive is toe-in and negative is toe-out. Toe-in adds stability; toe-out sharpens turn-in at some cost to straight-line stability.\n\nThe recommendation starts from a build and layout table that leans to front toe-out on RWD and AWD TRACK and DRIFT builds, slight front toe-in on OFFROAD and on FWD STREET and TRACK, and rear toe-in on every build except DRAG. Front toe then moves toward toe-in with stiffer front springs; rear toe-in grows with rear weight share and shrinks when the rear springs are stiffer than the front. Toe rounds to 0.1°, the precision the game accepts. Front toe also feeds the RESPONSE bar, where toe-out reads reactive.\n\n[PRO] MANUAL takes front toe from −0.20° to +0.15° and rear from 0° to +0.25°. A MECH or GRIP nudge moves each by up to 0.10° (oversteer-leaning: more front toe-out, less rear toe-in), so a partial nudge often rounds back to the AUTO value.",see:['camber','caster','align-mode','response']},
+    {id:'caster',term:'Caster',tier:'beginner',def:"Caster is the steering axis's fore-aft tilt. More caster adds self-centring and camber gain while steering (the outside tyre gains negative camber as you turn in), at the cost of heavier steering.\n\nThe recommendation starts from a build base (TRACK and RALLY 5.8°, STREET 5.2°, DRIFT 4.8°, OFFROAD 4.5°, DRAG 4.0°), rises with stiffer front springs and more front weight bias, drops 0.5° on FWD, and stays within 4.0–7.5°. Lower caster reads reactive on the RESPONSE bar.\n\n[PRO] Caster is never nudged by MECH or GRIP, because it is not an understeer or oversteer lever. MANUAL takes it directly within 4.0–7.5°.",see:['camber','toe','align-mode','response']},
+    {id:'align-mode',term:'Alignment Mode',tier:'beginner',def:"Alignment Mode decides where the ALIGNMENT card's camber, toe and caster come from. By default (AUTO) the app recommends them from build type, layout, front weight bias, front and rear ride Hz and body roll: general chassis-setup starting points, not values calibrated against the game, so fine-tune by feel.\n\nThe card's hint names your build's dynamic camber target and the layout's toe pattern: FWD gets reduced front camber for traction and leans to toe-in; RWD and AWD TRACK and DRIFT builds get front toe-out for turn-in; rear toe-in adds stability on every build but DRAG.\n\n[PRO] The ALIGNMENT section offers AUTO or MANUAL. MANUAL takes exact values and bypasses the recommendation. Under AUTO, Nudge OFF, MECH or GRIP can tilt camber and toe; picking AUTO resets Nudge to OFF, which gives the pure build-type values. Mode, nudge and manual values live in this browser only (share codes and garage entries do not carry them). Leaving PRO returns the mode to AUTO with Nudge OFF; the manual values are kept for the next MANUAL.",see:['camber','toe','caster','nudge']},
+    {id:'nudge',term:'Nudge Strength',tier:'pro',def:"Nudge Strength sets how far a MECH or GRIP nudge moves camber and toe away from the AUTO values: 0% gives the pure build-type AUTO values, 100% the full nudge, default 50%. It sets size only; direction comes from the nudge source.\n\nMECH nudges toward the gap between your resolved Mech Balance Target and natural balance, reinforcing the understeer or oversteer intent set there (the same signal MATCH CHASSIS uses). Like MATCH CHASSIS, it acts only while an ARB or Hz mode solves toward the target; otherwise its button dims and MECH equals OFF. GRIP nudges against the chassis's own grip tendency, how far GRIP BIAS sits from 0.5, independent of ARB mode. The gap is normalised over 0.30, so a gap of 0.30 or more gives the full nudge.\n\nAt full strength an oversteer-leaning nudge adds up to 0.5° of front negative camber, removes up to 0.3° of rear camber and moves front and rear toe up to 0.10° toward toe-out; an understeer-leaning one does the reverse. Toe rounds to 0.1°, so small nudges often leave it unchanged. Caster is never nudged.",see:['align-mode','camber','toe','mech-balance-target']},
   ]},
   {group:'Roll & Anti-Roll Bars',terms:[
     {id:'roll-stiffness',term:'Roll Stiffness',tier:'beginner',def:"Total resistance to body lean in a corner, from springs and ARBs together. The front/rear split, not the total, sets understeer or oversteer tendency. The axle with the larger share takes more of the cornering load transfer, and because tyre grip falls off with load, that axle lets go first. The total sets how far the body leans. The ANTI-ROLL BARS card header gives body roll at 1 g.\n\nAn axle's spring roll stiffness grows with ride frequency squared, corner mass and track width squared. ARBs add to it without stiffening the ride. What it resists is the roll moment: body mass times CG height above the roll centre. Heavier or taller cars need more.\n\n[INT] In the ANTI-ROLL BARS section, ROLL ° solves the bars for a target roll angle and SHARE % sets the ARB fraction of the total. VISUALS draws the front/rear split.",see:['arb','mech-balance','load-transfer','stiffness-mode']},
@@ -5664,15 +5665,18 @@ const GLOSSARY=[
     {id:'damping-bias',term:'Damping Bias',tier:'intermediate',def:"Damping Bias shifts damping between front and rear. Whichever axle ends up relatively firmer pushes the balance: a firmer front leans understeer and a planted entry, a firmer rear leans oversteer and easier direction changes, shown in the DAMP row of the handling balance. Left (FRONT) always leaves the front relatively firmer and right (REAR) the rear; the reference axle is held and the other moves. The anchor is Rebound ζ under CHARACTER and the Settle Target under SETTLE TIME.\n\nWhat it moves depends on Damping Balance Mode. STANDARD: the other axle swings up to 50% at ±50, firmer one way and softer the other; with a SHARED reference both axles share the swing. TIME SYNC skews settle time, EQUAL FORCE skews force and HYBRID skews both, each reaching a 2× ratio at ±50. The slider never resets when you change mode. The DAMP row reads the rebound ζ difference between the axles whatever caused it, so a TIME SYNC or EQUAL FORCE split can move it even at 0 bias.",see:['damping-balance-mode','damper-table','understeer','oversteer']},
     {id:'damper-table',term:'Damper Comparison Table',tier:'intermediate',short:'Damper table',def:"The table under Damping Bias compares front and rear on five rows and highlights the one the current Damping Balance Mode equalises. A mismatched row turns amber, with ◄ or ► pointing at the axle that is firmer, faster, working harder or less roll-damped; hover a row for its full reading.\n\nRebound ζ and Bump ζ are each axle's damping ratios; Bump ζ's tooltip adds the bump/rebound mean, a rough overall figure that hides which stroke comes first. Settle is the quick settle-time estimate SETTLE TIME targets, graded by the slower axle, with the DYNAMICS chart's measured figure (MEAS) in its tooltip. Force is each axle's share of actual damping force, ζ × corner mass × Hz; EQUAL FORCE targets 50/50. Roll ζ is rebound ζ in roll: ζ × √(the springs' share of that axle's roll stiffness), since the bar adds stiffness without damping. The less roll-damped axle takes its load first on turn-in, and front and rear match in both ride and roll only when the bar fractions match (NEUTRAL EQUAL ROLL). Roll centres and chassis coupling are ignored.",see:['damping-balance-mode','settle-time','equal-force','bal-neutral']},
   ]},
-  {group:'Alignment',terms:[
-    {id:'camber',term:'Camber',tier:'beginner',def:"Camber is the wheel's tilt seen from the front; negative camber leans the top of the tyre inward. It keeps more of the contact patch flat on the road once the body rolls in a corner.\n\nThe ALIGNMENT card gives a static camber chosen so the tyre reaches a dynamic target for your build at the tune's body roll: STREET −1.0°, TRACK −1.5°, DRIFT −2.5°, RALLY −0.8°, OFFROAD −0.3°, DRAG −0.2°. More roll means more static negative camber, and a low-CG car gets more correction per degree of roll. The rear takes only part of the front's roll correction (FWD 0.50, AWD 0.70, RWD 0.75), and FWD front camber is reduced by 0.3° to protect traction. Front stays within −4.0° to 0°, rear within −3.5° to 0°.\n\n[PRO] MANUAL alignment takes camber directly within those ranges. A MECH or GRIP nudge that leans toward oversteer adds front negative camber and removes rear camber, up to 0.5° front and 0.3° rear at full strength; an understeer-leaning nudge does the reverse.",see:['toe','caster','align-mode','nudge']},
-    {id:'toe',term:'Toe',tier:'beginner',def:"Toe is the angle the wheels point relative to straight ahead, seen from above. In SUSP.OS positive is toe-in and negative is toe-out. Toe-in adds stability; toe-out sharpens turn-in at some cost to straight-line stability.\n\nThe recommendation starts from a build and layout table that leans to front toe-out on RWD and AWD TRACK and DRIFT builds, slight front toe-in on OFFROAD and on FWD STREET and TRACK, and rear toe-in on every build except DRAG. Front toe then moves toward toe-in with stiffer front springs; rear toe-in grows with rear weight share and shrinks when the rear springs are stiffer than the front. Toe rounds to 0.1°, the precision the game accepts. Front toe also feeds the RESPONSE bar, where toe-out reads reactive.\n\n[PRO] MANUAL takes front toe from −0.20° to +0.15° and rear from 0° to +0.25°. A MECH or GRIP nudge moves each by up to 0.10° (oversteer-leaning: more front toe-out, less rear toe-in), so a partial nudge often rounds back to the AUTO value.",see:['camber','caster','align-mode','response']},
-    {id:'caster',term:'Caster',tier:'beginner',def:"Caster is the steering axis's fore-aft tilt. More caster adds self-centring and camber gain while steering (the outside tyre gains negative camber as you turn in), at the cost of heavier steering.\n\nThe recommendation starts from a build base (TRACK and RALLY 5.8°, STREET 5.2°, DRIFT 4.8°, OFFROAD 4.5°, DRAG 4.0°), rises with stiffer front springs and more front weight bias, drops 0.5° on FWD, and stays within 4.0–7.5°. Lower caster reads reactive on the RESPONSE bar.\n\n[PRO] Caster is never nudged by MECH or GRIP, because it is not an understeer or oversteer lever. MANUAL takes it directly within 4.0–7.5°.",see:['camber','toe','align-mode','response']},
-    {id:'align-mode',term:'Alignment Mode',tier:'beginner',def:"Alignment Mode decides where the ALIGNMENT card's camber, toe and caster come from. By default (AUTO) the app recommends them from build type, layout, front weight bias, front and rear ride Hz and body roll: general chassis-setup starting points, not values calibrated against the game, so fine-tune by feel.\n\nThe card's hint names your build's dynamic camber target and the layout's toe pattern: FWD gets reduced front camber for traction and leans to toe-in; RWD and AWD TRACK and DRIFT builds get front toe-out for turn-in; rear toe-in adds stability on every build but DRAG.\n\n[PRO] The ALIGNMENT section offers AUTO or MANUAL. MANUAL takes exact values and bypasses the recommendation. Under AUTO, Nudge OFF, MECH or GRIP can tilt camber and toe; picking AUTO resets Nudge to OFF, which gives the pure build-type values. Mode, nudge and manual values live in this browser only (share codes and garage entries do not carry them). Leaving PRO returns the mode to AUTO with Nudge OFF; the manual values are kept for the next MANUAL.",see:['camber','toe','caster','nudge']},
-    {id:'nudge',term:'Nudge Strength',tier:'pro',def:"Nudge Strength sets how far a MECH or GRIP nudge moves camber and toe away from the AUTO values: 0% gives the pure build-type AUTO values, 100% the full nudge, default 50%. It sets size only; direction comes from the nudge source.\n\nMECH nudges toward the gap between your resolved Mech Balance Target and natural balance, reinforcing the understeer or oversteer intent set there (the same signal MATCH CHASSIS uses). Like MATCH CHASSIS, it acts only while an ARB or Hz mode solves toward the target; otherwise its button dims and MECH equals OFF. GRIP nudges against the chassis's own grip tendency, how far GRIP BIAS sits from 0.5, independent of ARB mode. The gap is normalised over 0.30, so a gap of 0.30 or more gives the full nudge.\n\nAt full strength an oversteer-leaning nudge adds up to 0.5° of front negative camber, removes up to 0.3° of rear camber and moves front and rear toe up to 0.10° toward toe-out; an understeer-leaning one does the reverse. Toe rounds to 0.1°, so small nudges often leave it unchanged. Caster is never nudged.",see:['align-mode','camber','toe','mech-balance-target']},
-  ]},
   {group:'Brakes',terms:[
     {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 5 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 45–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 45–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, a load-proportional split at 0.3 g braking (front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
+  ]},
+  {group:'Differential',terms:[
+    {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MED below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
+    {id:'decel-lock',term:'Decel Lock',tier:'beginner',def:"Locking under lift-off and braking. More decel lock resists rotation on corner entry, so the car is steadier on lift-off but understeers more on entry. Less lock lets the car rotate more freely into the corner and under trail-braking. On a rear-drive axle that includes more lift-off oversteer. On a front-drive axle, less means less entry understeer. On AWD the automatic front decel stays at 0, because any front decel strongly adds entry understeer.\n\nA SPORT diff has no decel lock, so its decel rows read N/A. The Handling Balance DIFF row counts decel lock on either axle toward understeer.\n\n[INT] AUTO sets it from the ENTRY slider plus a little with rear weight; on FWD and RWD also from build type and diff type. The limits are 0–30% on RWD, 0–15% on FWD and 0–20% on the AWD rear.\n\n[PRO] MANUAL takes 0–100%. Typical decel is 8–25% for Race, 11–33% for Rally, 15–48% for Offroad and 0–8% for Drift.",see:['accel-lock','entry-bias','diff-type']},
+    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. A Race suggestion becomes Sport when the Handling Balance total is above +8. BeamNG has no diff-type recommendation.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock.",see:['accel-lock','decel-lock','diff-mode','build-type']},
+    {id:'diff-mode',term:'Differential Mode (AUTO / MANUAL)',tier:'pro',short:'Diff mode',def:"Chooses whether the differential's locks are calculated or typed in. AUTO, the default, works out every lock value from layout, build type, weight bias, diff type and the EXIT, ENTRY and POWER SPLIT sliders. MANUAL hides those sliders and shows each lock % instead. FWD and RWD get Accel Lock and Decel Lock. AWD gets Front and Rear Accel and Decel, plus Center Split. The diff type's typical range sits under each field.\n\nSwitching to MANUAL copies in the current AUTO values, so nothing jumps. MATCH CHASSIS has no effect in MANUAL. Leaving PRO returns the diff to AUTO, because MANUAL's fields exist only in PRO. A share code or garage load can still bring MANUAL in below PRO; the locks it carries stay in use, and DRIVETRAIN lists them.",see:['accel-lock','decel-lock','match-chassis','diff-type']},
+    {id:'exit-bias',term:'EXIT (Diff Slider)',tier:'intermediate',short:'Diff EXIT',def:"The automatic differential's on-throttle intent, from GRIP (left) to ROTATE (right), −50 to +50, default 0. Right means more rotation on every layout, but the lock moves differently. On RWD and AWD, ROTATE adds rear accel lock for more power oversteer, and GRIP removes it for cleaner exit traction. On FWD, GRIP adds front accel lock for exit traction at the cost of push. ROTATE removes it for a freer pivot and less understeer. On AWD, ROTATE also trims front accel lock.\n\nAWD adds a second EXIT under FRONT AXLE, from PUSH to NEUTRAL. Toward PUSH adds front accel lock, for more front pull and exit understeer. It suits AWD cars with strong rear rotation. Each slider shows the resulting lock %, and the Handling Balance DIFF row moves with it.\n\n[PRO] MATCH CHASSIS can add a further offset from your Mech Balance Target.",see:['accel-lock','entry-bias','match-chassis','power-split']},
+    {id:'entry-bias',term:'ENTRY (Diff Slider)',tier:'intermediate',short:'Diff ENTRY',def:"The automatic differential's lift-off and trail-braking intent, from STABLE (left) to LOOSE (right), −50 to +50, default 0. Toward STABLE raises decel lock. On RWD and AWD that resists lift-off oversteer; on FWD it adds entry understeer. Toward LOOSE lowers it for freer rotation into the corner. It moves the rear decel lock on RWD and AWD and the front decel on FWD. AWD front decel stays at 0. It is hidden for a SPORT diff, which has no decel lock.\n\n[PRO] MATCH CHASSIS adds half its offset here.",see:['decel-lock','exit-bias','match-chassis']},
+    {id:'power-split',term:'Center Power Split',tier:'beginner',short:'Center split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Center Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTER POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTER SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
+    {id:'match-chassis',term:'MATCH CHASSIS',tier:'pro',def:"An automatic-differential option, off by default. When on, it biases the diff by how far your Mech Balance Target sits from natural balance. A target set for more oversteer leans the diff toward rotation, and one set for understeer leans it toward stability. The offset is 150× that gap, capped at ±25 points. It is added to the EXIT intent, and half of it to ENTRY. It is flipped on FWD, because more lock there means more push. The sliders don't move; their hints say when the bias is on.\n\nIt acts only while an ARB or Hz mode solves toward the target; otherwise the button dims and the diff is unchanged. It has no effect in MANUAL. Leaving PRO turns it off. If a share code or garage load brings it in below PRO, the EXIT and ENTRY hints say so.",see:['mech-balance-target','natural-balance','exit-bias','entry-bias']},
   ]},
   {group:'Handling Balance',terms:[
     {id:'understeer',term:'Understeer (US)',tier:'beginner',def:"Understeer is when the front tyres run out of grip before the rears, so the car turns less than the steering asks and runs wide. It feels stable and safe but resists rotation.\n\nSUSP.OS shows understeer as negative (−) and blue, on the US side of the Handling Balance bar. More front roll stiffness (springs or bars), more front brake bias, more front rebound damping, more decel lock, and more accel lock on a driven front axle all push toward it.",see:['oversteer','balance-bar','roll-stiffness','response']},
@@ -6247,6 +6251,7 @@ function App(){
       build:!!(tutFocus?.includes('build')),
       balance:!!(tutFocus?.includes('balance-target')),
       drivetrain:!!(tutFocus?.includes('drivetrain')),
+      brakes:!!(tutFocus?.includes('brakes')),
       arb:!!(tutFocus?.includes('arb')),
       ride:!!(tutFocus?.includes('feel')),
       dampers:!!(tutFocus?.includes('damping')),
@@ -7963,249 +7968,11 @@ function App(){
             </>}
           </Sec></div>
 
-          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')}
-            onReset={()=>setDr(p=>({...p,
-              diffType:DEF_DR.diffType,
-              diffManual:DEF_DR.diffManual,
-              diffComplement:DEF_DR.diffComplement,
-              diffBiasExit:DEF_DR.diffBiasExit,
-              diffBiasEntry:DEF_DR.diffBiasEntry,
-              diffFrontExitBias:DEF_DR.diffFrontExitBias,
-              diffAccel:DEF_DR.diffAccel,
-              diffDecel:DEF_DR.diffDecel,
-              diffFrontAccel:DEF_DR.diffFrontAccel,
-              diffFrontDecel:DEF_DR.diffFrontDecel,
-              diffRearAccel:DEF_DR.diffRearAccel,
-              diffRearDecel:DEF_DR.diffRearDecel,
-              diffCenter:DEF_DR.diffCenter}))}>
-            {uiMode!=='beginner'&&<div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
-              <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
-                {['race','sport','rally','offroad','drift'].map(t=>(
-                  <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`}
-                    onClick={()=>setDr(p=>({...p,diffType:t}))}>
-                    {t.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>}
-            {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'#94a3b8'}}>Differential Mode</span>
-              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly." term="diff-mode"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
-                <button className={`tog${!dr.diffManual?' on':''}`}
-                  onClick={()=>pDr('diffManual')(false)}>AUTO</button>
-                <button className={`tog${dr.diffManual?' on':''}`}
-                  onClick={()=>{
-                    const d=diff;
-                    setDr(p=>({...p,diffManual:true,
-                      ...(d.layout==='AWD'
-                        ?{diffFrontAccel:d.frontAccel,diffFrontDecel:d.frontDecel,
-                          diffRearAccel:d.rearAccel,diffRearDecel:d.rearDecel,
-                          diffCenter:d.center}
-                        :{diffAccel:d.accel,diffDecel:d.decel})}));
-                  }}>MANUAL</button>
-              </div>
-            </div>}
-            {!dr.diffManual&&(()=>{
-              const groupHdr={fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:3,marginTop:6};
-              const dt=dr.diffType??'race';
-              // Same left/right vocabulary (GRIP↔ROTATE) regardless of layout — previously FWD
-              // used PUSH↔ROTATION for the same slider, which read as a different control when
-              // switching layouts. What is consistent is the BALANCE direction: right = more
-              // rotation-leaning on every layout. That is *not* the same as "more lock" — on
-              // RWD/AWD right adds rear accel lock, but on FWD right REDUCES front accel lock
-              // (via the value flip below), because more front lock means more push. Conflating
-              // the two is what put the wrong lock direction in the FWD hint text below; see
-              // docs/HISTORY.md.
-              return(<>
-                {ch.layout==='AWD'&&uiMode!=='beginner'&&<>
-                  <div style={groupHdr}>FRONT AXLE</div>
-                  <FeelSlider
-                    label="EXIT"
-                    value={-(dr.diffFrontExitBias??0)}
-                    onChange={v=>pDr('diffFrontExitBias')(-v)}
-                    min={-50} max={50}
-                    leftLabel="PUSH"
-                    rightLabel="NEUTRAL"
-                    markers={[{value:0,color:'#475569'}]}
-                    hint="Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation."
-                    readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/>
-                </>}
-                <div style={groupHdr}>{ch.layout==='FWD'?'FRONT AXLE':'REAR AXLE'}</div>
-                {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                  <button className={`tog${dr.diffComplement?' on':''}`}
-                    // Dimmed while nothing solves toward the Balance Target: computeDiff then skips it.
-                    style={hasBalTargetSolve(feEffective)?undefined:{opacity:0.45}}
-                    onClick={()=>pDr('diffComplement')(!dr.diffComplement)}
-                    title="Bias the auto-solver to match chassis mech target.">
-                    MATCH CHASSIS
-                  </button>
-                  <Hint text="Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL." term="match-chassis"/>
-                </div>}
-                <FeelSlider
-                  label={<>{dnaDot('diffExit')}EXIT</>}
-                  // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
-                  // do NOT also flip the sign inside computeDiff's FWD accel formula (the
-                  // `+effBiasExit*0.15` term). That formula is intentionally
-                  // uniform across layouts precisely because this UI layer already carries the
-                  // per-layout inversion; flipping both would double-cancel and silently
-                  // reintroduce the original bug. See docs/HISTORY.md's MATCH CHASSIS entry.
-                  value={ch.layout==='FWD'?-(dr.diffBiasExit??0):(dr.diffBiasExit??0)}
-                  onChange={v=>pDr('diffBiasExit')(ch.layout==='FWD'?-v:v)}
-                  min={-50} max={50}
-                  leftLabel="GRIP"
-                  rightLabel="ROTATE"
-                  markers={[{value:0,color:'#475569'}]}
-                  hint={(ch.layout==='FWD'
-                    ?'Front accel lock. GRIP = more lock: exit traction, but more push. ROTATE = less lock, less understeer.'
-                    :ch.layout==='RWD'
-                    ?'Rear accel lock. ROTATE = more lock, more power oversteer on exit. GRIP = less lock, cleaner exit traction.'
-                    :'Rear accel lock. ROTATE = more lock, more exit oversteer. GRIP = less lock, more traction.')
-                    +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds a bias from your mech target.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
-                  readout={diff.layout==='AWD'
-                    ?`R.Accel ${diff.rearAccel}%`
-                    :`Accel ${diff.accel}%`} hintTerm="exit-bias"/>
-                {dt!=='sport'&&<FeelSlider
-                  label={<>{dnaDot('diffEntry')}ENTRY</>}
-                  value={-(dr.diffBiasEntry??0)}
-                  onChange={v=>pDr('diffBiasEntry')(-v)}
-                  min={-50} max={50}
-                  leftLabel="STABLE"
-                  rightLabel="LOOSE"
-                  markers={[{value:0,color:'#475569'}]}
-                  hint={(ch.layout==='FWD'
-                    ?'Front decel lock. STABLE = more lock, more entry understeer. LOOSE = less lock, freer corner entry.'
-                    :ch.layout==='RWD'
-                    ?'Rear decel lock. STABLE = more lock, resists lift-off oversteer. LOOSE = less lock, freer rotation on entry.'
-                    :'Rear decel lock. STABLE = more lock, resists lift-off oversteer. LOOSE = less lock, more rear rotation on entry.')
-                    +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds half its bias here.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
-                  readout={diff.layout==='AWD'
-                    ?`R.Decel ${diff.rearDecel}%`
-                    :`Decel ${diff.decel}%`} hintTerm="entry-bias"/>}
-                {ch.layout==='AWD'&&uiMode!=='beginner'&&dt!=='sport'&&<>
-                  <div style={groupHdr}>CENTER</div>
-                  <FeelSlider
-                    label="POWER SPLIT"
-                    value={(dr.diffCenter??65)-50}
-                    onChange={v=>pDr('diffCenter')(Math.round(v+50))}
-                    min={-30} max={AWD_CENTER_MAX-50}
-                    leftLabel="FRONT"
-                    rightLabel="REAR"
-                    markers={[{value:0,color:'#475569'}]}
-                    hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
-                    // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
-                    box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
-                          onCommit:v=>pDr('diffCenter')(Math.round(v))}}
-                    // computeDiff clamps the split it uses to 45–90, so say so when that differs.
-                    readout={diff.center!=null&&diff.center!==(dr.diffCenter??65)?`→ ${diff.center}%`:null} hintTerm="power-split"/>
-                </>}
-              </>);
-            })()}
-            {uiMode==='pro'&&dr.diffManual&&(()=>{
-              const dt=dr.diffType??'race';
-              const ranges=DIFF_TYPE_RANGES[dt];
-              const RangeHint=({r})=>r?<div style={{fontSize:10,color:'#475569',marginTop:1,marginBottom:4}}>typical: {r[0]}–{r[1]}%</div>:null;
-              // Accel/decel sit side by side only when the sidebar is wide enough for two
-              // Fields plus their "typical: n–n%" hints. Below that they stack, so the AWD
-              // block reads front accel / front decel / rear accel / rear decel / center
-              // split top to bottom instead of squeezing the labels and number boxes.
-              const pairCols=dt!=='sport'&&sidebarWidth>=400?'1fr 1fr':'1fr';
-              return ch.layout==='AWD'?(
-                <>
-                  <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                    <div>
-                      <Field noSlider label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
-                        min={0} max={100} step={1} unit="%"
-                        hint="Front lock under power. Higher = more front pull on exit, but more understeer." hintTerm="accel-lock"/>
-                      <RangeHint r={ranges.frontAccel}/>
-                    </div>
-                    {dt!=='sport'&&
-                    <div>
-                      <Field noSlider label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
-                        min={0} max={100} step={1} unit="%"
-                        hint="Front lock off throttle. Keep it at 0: any more strongly adds entry understeer." hintTerm="decel-lock"/>
-                      <RangeHint r={[0,0]}/>
-                    </div>}
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                    <div>
-                      <Field noSlider label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
-                        min={0} max={100} step={1} unit="%"
-                        hint="Rear lock under power. Higher = more exit oversteer." hintTerm="accel-lock"/>
-                      <RangeHint r={ranges.rearAccel}/>
-                    </div>
-                    {dt!=='sport'&&
-                    <div>
-                      <Field noSlider label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
-                        min={0} max={100} step={1} unit="%"
-                        hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
-                      <RangeHint r={ranges.decel}/>
-                    </div>}
-                  </div>
-                  <Field noSlider label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
-                    min={0} max={100} step={1} unit="% rear"
-                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/>
-                </>
-              ):(
-                <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                  <div>
-                    <Field noSlider label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
-                      min={0} max={100} step={1} unit="%"
-                      hint={ch.layout==='RWD'
-                        ?'Rear lock under power. Higher = more exit oversteer.'
-                        :'Front lock under power. Higher = more exit understeer.'} hintTerm="accel-lock"/>
-                    <RangeHint r={ranges.accel}/>
-                  </div>
-                  {dt!=='sport'&&
-                  <div>
-                    <Field noSlider label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
-                      min={0} max={100} step={1} unit="%"
-                      hint={ch.layout==='RWD'
-                        ?'Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry.'
-                        :'Front lock off throttle. Lower = less entry understeer.'} hintTerm="decel-lock"/>
-                    <RangeHint r={ranges.decel}/>
-                  </div>}
-                </div>
-              );
-            })()}
-            {/* MANUAL below PRO arrives only by a share code or garage load (leaving PRO turns it off).
-                The tune keeps the author's locks, so say what they are instead of leaving the section
-                blank: the AUTO sliders don't apply and the MANUAL fields are PRO-only. */}
-            {uiMode!=='pro'&&dr.diffManual&&(()=>{
-              const dec=v=>(dr.diffType??'race')==='sport'?'':`, decel ${v}%`; // SPORT has no decel lock
-              const locks=diff.layout==='AWD'
-                ?`front accel ${diff.frontAccel}%${dec(diff.frontDecel)}, rear accel ${diff.rearAccel}%${dec(diff.rearDecel)}, center ${diff.center}% rear`
-                :`accel ${diff.accel}%${dec(diff.decel)}`;
-              return <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.5,marginTop:6}}>
-                This tune's diff locks were typed in MANUAL, a PRO-only mode: {locks}. Switch to PRO to edit them or return to AUTO.
-              </div>;
-            })()}
-          </Sec></div>
-
           <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')}>
             <Toggle label="Build Type" value={dr.buildType??'track'} onChange={pDr('buildType')}
               options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
               hint={HINT_BUILD_TYPE} hintTerm="build-type"/>
           </Sec></div>
-
-          {/* BRAKES (INT+): one shift from the recommended brake bias. Brakes were auto-only for a
-              while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
-              a typed value, so the bias keeps following the chassis and build. */}
-          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')}
-            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift}))}>
-            <FeelSlider
-              label="Brake Bias"
-              value={dr.brakeBiasShift??0}
-              onChange={pDr('brakeBiasShift')}
-              min={-5} max={5}
-              leftLabel="STABLE"
-              rightLabel="ROTATE"
-              markers={[{value:0,color:'#475569'}]}
-              hint={`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`}
-              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>
-          </Sec></div>}
 
           {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')}
             onReset={()=>setFe(p=>({...p,arbBalTarget:DEF_FE.arbBalTarget,arbBalTargetMode:DEF_FE.arbBalTargetMode,arbBalDelta:DEF_FE.arbBalDelta,arbBalAbs:DEF_FE.arbBalAbs}))}>
@@ -8488,6 +8255,56 @@ function App(){
             })()}
           </Sec></div>}
 
+
+          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')}
+            onReset={()=>setAl({...DEF_AL})}>
+            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
+              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>ALIGNMENT MODE</span>
+              <Hint text="AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values." term="align-mode"/>
+            </div>
+            <div style={{display:'flex',gap:3,marginBottom:10,flexWrap:'wrap'}}>
+              <button className={`tog${alignMode!=='manual'?' on':''}`}
+                onClick={()=>setAl(p=>({...p,mode:'build'}))}>AUTO</button>
+              <button className={`tog${alignMode==='manual'?' on':''}`}
+                onClick={()=>setAl(p=>({...p,mode:'manual'}))}>MANUAL</button>
+            </div>
+            {alignMode!=='manual'&&<div style={{marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+                <span style={{fontSize:12,color:'#94a3b8'}}>Nudge</span>
+                <Hint text="OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged." term="nudge"/>
+              </div>
+              <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+                {['build','mech','grip'].map(m=>(
+                  <button key={m} className={`tog${alignMode===m?' on':''}`}
+                    // MECH reads the Balance Target, so it is a no-op (dimmed) while nothing solves toward it.
+                    style={m==='mech'&&!hasBalTargetSolve(feEffective)?{opacity:0.45}:undefined}
+                    onClick={()=>setAl(p=>({...p,mode:m}))}>{m==='build'?'OFF':m.toUpperCase()}</button>
+                ))}
+              </div>
+              {(alignMode==='mech'||alignMode==='grip')&&
+                <div style={{marginTop:8}}>
+                <FeelSlider label="Nudge Strength" value={al.nudgeStrength??50}
+                  onChange={pAl('nudgeStrength')} min={0} max={100} step={1}
+                  leftLabel="SUBTLE" rightLabel="STRONG"
+                  box={{unit:'%'}}
+                  hint="How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted." hintTerm="nudge"/>
+                </div>}
+            </div>}
+            {alignMode==='manual'&&<>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+                <Field noSlider label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
+                  hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
+                <Field noSlider label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
+                  hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
+                <Field noSlider label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
+                  hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/>
+                <Field noSlider label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
+                  hint="Rear toe. Positive = toe-in." hintTerm="toe"/>
+              </div>
+              <Field noSlider label="Caster" value={al.caster} onChange={pAl('caster')} min={4.0} max={7.5} step={0.1} unit="°"
+                hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/>
+            </>}
+          </Sec></div>}
 
           <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')}
             onReset={()=>setFe(p=>({...p,
@@ -9275,55 +9092,243 @@ function App(){
             })()}
           </Sec></div>
 
-          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')}
-            onReset={()=>setAl({...DEF_AL})}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>ALIGNMENT MODE</span>
-              <Hint text="AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values." term="align-mode"/>
-            </div>
-            <div style={{display:'flex',gap:3,marginBottom:10,flexWrap:'wrap'}}>
-              <button className={`tog${alignMode!=='manual'?' on':''}`}
-                onClick={()=>setAl(p=>({...p,mode:'build'}))}>AUTO</button>
-              <button className={`tog${alignMode==='manual'?' on':''}`}
-                onClick={()=>setAl(p=>({...p,mode:'manual'}))}>MANUAL</button>
-            </div>
-            {alignMode!=='manual'&&<div style={{marginBottom:10}}>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                <span style={{fontSize:12,color:'#94a3b8'}}>Nudge</span>
-                <Hint text="OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged." term="nudge"/>
-              </div>
-              <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
-                {['build','mech','grip'].map(m=>(
-                  <button key={m} className={`tog${alignMode===m?' on':''}`}
-                    // MECH reads the Balance Target, so it is a no-op (dimmed) while nothing solves toward it.
-                    style={m==='mech'&&!hasBalTargetSolve(feEffective)?{opacity:0.45}:undefined}
-                    onClick={()=>setAl(p=>({...p,mode:m}))}>{m==='build'?'OFF':m.toUpperCase()}</button>
+          {/* BRAKES (INT+): one shift from the recommended brake bias. Brakes were auto-only for a
+              while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
+              a typed value, so the bias keeps following the chassis and build. */}
+          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')}
+            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift}))}>
+            <FeelSlider
+              label="Brake Bias"
+              value={dr.brakeBiasShift??0}
+              onChange={pDr('brakeBiasShift')}
+              min={-5} max={5}
+              leftLabel="STABLE"
+              rightLabel="ROTATE"
+              markers={[{value:0,color:'#475569'}]}
+              hint={`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.`}
+              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>
+          </Sec></div>}
+
+          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')}
+            onReset={()=>setDr(p=>({...p,
+              diffType:DEF_DR.diffType,
+              diffManual:DEF_DR.diffManual,
+              diffComplement:DEF_DR.diffComplement,
+              diffBiasExit:DEF_DR.diffBiasExit,
+              diffBiasEntry:DEF_DR.diffBiasEntry,
+              diffFrontExitBias:DEF_DR.diffFrontExitBias,
+              diffAccel:DEF_DR.diffAccel,
+              diffDecel:DEF_DR.diffDecel,
+              diffFrontAccel:DEF_DR.diffFrontAccel,
+              diffFrontDecel:DEF_DR.diffFrontDecel,
+              diffRearAccel:DEF_DR.diffRearAccel,
+              diffRearDecel:DEF_DR.diffRearDecel,
+              diffCenter:DEF_DR.diffCenter}))}>
+            {uiMode!=='beginner'&&<div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
+              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
+              <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
+              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
+                {['race','sport','rally','offroad','drift'].map(t=>(
+                  <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`}
+                    onClick={()=>setDr(p=>({...p,diffType:t}))}>
+                    {t.toUpperCase()}
+                  </button>
                 ))}
               </div>
-              {(alignMode==='mech'||alignMode==='grip')&&
-                <div style={{marginTop:8}}>
-                <FeelSlider label="Nudge Strength" value={al.nudgeStrength??50}
-                  onChange={pAl('nudgeStrength')} min={0} max={100} step={1}
-                  leftLabel="SUBTLE" rightLabel="STRONG"
-                  box={{unit:'%'}}
-                  hint="How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted." hintTerm="nudge"/>
-                </div>}
             </div>}
-            {alignMode==='manual'&&<>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                <Field noSlider label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
-                  hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
-                <Field noSlider label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
-                  hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
-                <Field noSlider label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
-                  hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/>
-                <Field noSlider label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
-                  hint="Rear toe. Positive = toe-in." hintTerm="toe"/>
+            {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
+              <span style={{fontSize:12,color:'#94a3b8'}}>Differential Mode</span>
+              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly." term="diff-mode"/>
+              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
+                <button className={`tog${!dr.diffManual?' on':''}`}
+                  onClick={()=>pDr('diffManual')(false)}>AUTO</button>
+                <button className={`tog${dr.diffManual?' on':''}`}
+                  onClick={()=>{
+                    const d=diff;
+                    setDr(p=>({...p,diffManual:true,
+                      ...(d.layout==='AWD'
+                        ?{diffFrontAccel:d.frontAccel,diffFrontDecel:d.frontDecel,
+                          diffRearAccel:d.rearAccel,diffRearDecel:d.rearDecel,
+                          diffCenter:d.center}
+                        :{diffAccel:d.accel,diffDecel:d.decel})}));
+                  }}>MANUAL</button>
               </div>
-              <Field noSlider label="Caster" value={al.caster} onChange={pAl('caster')} min={4.0} max={7.5} step={0.1} unit="°"
-                hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/>
-            </>}
-          </Sec></div>}
+            </div>}
+            {!dr.diffManual&&(()=>{
+              const groupHdr={fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:3,marginTop:6};
+              const dt=dr.diffType??'race';
+              // Same left/right vocabulary (GRIP↔ROTATE) regardless of layout — previously FWD
+              // used PUSH↔ROTATION for the same slider, which read as a different control when
+              // switching layouts. What is consistent is the BALANCE direction: right = more
+              // rotation-leaning on every layout. That is *not* the same as "more lock" — on
+              // RWD/AWD right adds rear accel lock, but on FWD right REDUCES front accel lock
+              // (via the value flip below), because more front lock means more push. Conflating
+              // the two is what put the wrong lock direction in the FWD hint text below; see
+              // docs/HISTORY.md.
+              return(<>
+                {ch.layout==='AWD'&&uiMode!=='beginner'&&<>
+                  <div style={groupHdr}>FRONT AXLE</div>
+                  <FeelSlider
+                    label="EXIT"
+                    value={-(dr.diffFrontExitBias??0)}
+                    onChange={v=>pDr('diffFrontExitBias')(-v)}
+                    min={-50} max={50}
+                    leftLabel="PUSH"
+                    rightLabel="NEUTRAL"
+                    markers={[{value:0,color:'#475569'}]}
+                    hint="Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation."
+                    readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/>
+                </>}
+                <div style={groupHdr}>{ch.layout==='FWD'?'FRONT AXLE':'REAR AXLE'}</div>
+                {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                  <button className={`tog${dr.diffComplement?' on':''}`}
+                    // Dimmed while nothing solves toward the Balance Target: computeDiff then skips it.
+                    style={hasBalTargetSolve(feEffective)?undefined:{opacity:0.45}}
+                    onClick={()=>pDr('diffComplement')(!dr.diffComplement)}
+                    title="Bias the auto-solver to match chassis mech target.">
+                    MATCH CHASSIS
+                  </button>
+                  <Hint text="Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL." term="match-chassis"/>
+                </div>}
+                <FeelSlider
+                  label={<>{dnaDot('diffExit')}EXIT</>}
+                  // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
+                  // do NOT also flip the sign inside computeDiff's FWD accel formula (the
+                  // `+effBiasExit*0.15` term). That formula is intentionally
+                  // uniform across layouts precisely because this UI layer already carries the
+                  // per-layout inversion; flipping both would double-cancel and silently
+                  // reintroduce the original bug. See docs/HISTORY.md's MATCH CHASSIS entry.
+                  value={ch.layout==='FWD'?-(dr.diffBiasExit??0):(dr.diffBiasExit??0)}
+                  onChange={v=>pDr('diffBiasExit')(ch.layout==='FWD'?-v:v)}
+                  min={-50} max={50}
+                  leftLabel="GRIP"
+                  rightLabel="ROTATE"
+                  markers={[{value:0,color:'#475569'}]}
+                  hint={(ch.layout==='FWD'
+                    ?'Front accel lock. GRIP = more lock: exit traction, but more push. ROTATE = less lock, less understeer.'
+                    :ch.layout==='RWD'
+                    ?'Rear accel lock. ROTATE = more lock, more power oversteer on exit. GRIP = less lock, cleaner exit traction.'
+                    :'Rear accel lock. ROTATE = more lock, more exit oversteer. GRIP = less lock, more traction.')
+                    +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds a bias from your mech target.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
+                  readout={diff.layout==='AWD'
+                    ?`R.Accel ${diff.rearAccel}%`
+                    :`Accel ${diff.accel}%`} hintTerm="exit-bias"/>
+                {dt!=='sport'&&<FeelSlider
+                  label={<>{dnaDot('diffEntry')}ENTRY</>}
+                  value={-(dr.diffBiasEntry??0)}
+                  onChange={v=>pDr('diffBiasEntry')(-v)}
+                  min={-50} max={50}
+                  leftLabel="STABLE"
+                  rightLabel="LOOSE"
+                  markers={[{value:0,color:'#475569'}]}
+                  hint={(ch.layout==='FWD'
+                    ?'Front decel lock. STABLE = more lock, more entry understeer. LOOSE = less lock, freer corner entry.'
+                    :ch.layout==='RWD'
+                    ?'Rear decel lock. STABLE = more lock, resists lift-off oversteer. LOOSE = less lock, freer rotation on entry.'
+                    :'Rear decel lock. STABLE = more lock, resists lift-off oversteer. LOOSE = less lock, more rear rotation on entry.')
+                    +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds half its bias here.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
+                  readout={diff.layout==='AWD'
+                    ?`R.Decel ${diff.rearDecel}%`
+                    :`Decel ${diff.decel}%`} hintTerm="entry-bias"/>}
+                {ch.layout==='AWD'&&uiMode!=='beginner'&&dt!=='sport'&&<>
+                  <div style={groupHdr}>CENTER</div>
+                  <FeelSlider
+                    label="POWER SPLIT"
+                    value={(dr.diffCenter??65)-50}
+                    onChange={v=>pDr('diffCenter')(Math.round(v+50))}
+                    min={-30} max={AWD_CENTER_MAX-50}
+                    leftLabel="FRONT"
+                    rightLabel="REAR"
+                    markers={[{value:0,color:'#475569'}]}
+                    hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
+                    // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
+                    box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
+                          onCommit:v=>pDr('diffCenter')(Math.round(v))}}
+                    // computeDiff clamps the split it uses to 45–90, so say so when that differs.
+                    readout={diff.center!=null&&diff.center!==(dr.diffCenter??65)?`→ ${diff.center}%`:null} hintTerm="power-split"/>
+                </>}
+              </>);
+            })()}
+            {uiMode==='pro'&&dr.diffManual&&(()=>{
+              const dt=dr.diffType??'race';
+              const ranges=DIFF_TYPE_RANGES[dt];
+              const RangeHint=({r})=>r?<div style={{fontSize:10,color:'#475569',marginTop:1,marginBottom:4}}>typical: {r[0]}–{r[1]}%</div>:null;
+              // Accel/decel sit side by side only when the sidebar is wide enough for two
+              // Fields plus their "typical: n–n%" hints. Below that they stack, so the AWD
+              // block reads front accel / front decel / rear accel / rear decel / center
+              // split top to bottom instead of squeezing the labels and number boxes.
+              const pairCols=dt!=='sport'&&sidebarWidth>=400?'1fr 1fr':'1fr';
+              return ch.layout==='AWD'?(
+                <>
+                  <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
+                    <div>
+                      <Field noSlider label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
+                        min={0} max={100} step={1} unit="%"
+                        hint="Front lock under power. Higher = more front pull on exit, but more understeer." hintTerm="accel-lock"/>
+                      <RangeHint r={ranges.frontAccel}/>
+                    </div>
+                    {dt!=='sport'&&
+                    <div>
+                      <Field noSlider label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
+                        min={0} max={100} step={1} unit="%"
+                        hint="Front lock off throttle. Keep it at 0: any more strongly adds entry understeer." hintTerm="decel-lock"/>
+                      <RangeHint r={[0,0]}/>
+                    </div>}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
+                    <div>
+                      <Field noSlider label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
+                        min={0} max={100} step={1} unit="%"
+                        hint="Rear lock under power. Higher = more exit oversteer." hintTerm="accel-lock"/>
+                      <RangeHint r={ranges.rearAccel}/>
+                    </div>
+                    {dt!=='sport'&&
+                    <div>
+                      <Field noSlider label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
+                        min={0} max={100} step={1} unit="%"
+                        hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
+                      <RangeHint r={ranges.decel}/>
+                    </div>}
+                  </div>
+                  <Field noSlider label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
+                    min={0} max={100} step={1} unit="% rear"
+                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/>
+                </>
+              ):(
+                <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
+                  <div>
+                    <Field noSlider label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
+                      min={0} max={100} step={1} unit="%"
+                      hint={ch.layout==='RWD'
+                        ?'Rear lock under power. Higher = more exit oversteer.'
+                        :'Front lock under power. Higher = more exit understeer.'} hintTerm="accel-lock"/>
+                    <RangeHint r={ranges.accel}/>
+                  </div>
+                  {dt!=='sport'&&
+                  <div>
+                    <Field noSlider label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
+                      min={0} max={100} step={1} unit="%"
+                      hint={ch.layout==='RWD'
+                        ?'Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry.'
+                        :'Front lock off throttle. Lower = less entry understeer.'} hintTerm="decel-lock"/>
+                    <RangeHint r={ranges.decel}/>
+                  </div>}
+                </div>
+              );
+            })()}
+            {/* MANUAL below PRO arrives only by a share code or garage load (leaving PRO turns it off).
+                The tune keeps the author's locks, so say what they are instead of leaving the section
+                blank: the AUTO sliders don't apply and the MANUAL fields are PRO-only. */}
+            {uiMode!=='pro'&&dr.diffManual&&(()=>{
+              const dec=v=>(dr.diffType??'race')==='sport'?'':`, decel ${v}%`; // SPORT has no decel lock
+              const locks=diff.layout==='AWD'
+                ?`front accel ${diff.frontAccel}%${dec(diff.frontDecel)}, rear accel ${diff.rearAccel}%${dec(diff.rearDecel)}, center ${diff.center}% rear`
+                :`accel ${diff.accel}%${dec(diff.decel)}`;
+              return <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.5,marginTop:6}}>
+                This tune's diff locks were typed in MANUAL, a PRO-only mode: {locks}. Switch to PRO to edit them or return to AUTO.
+              </div>;
+            })()}
+          </Sec></div>
 
           </>}
         </div>

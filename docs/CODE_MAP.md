@@ -239,8 +239,8 @@ testing.
 ### Glossary and hints
 
 **`GLOSSARY`** is an array of groups (`{group, terms}`) in the app's own section order —
-Geometry & Weight, Differential, Balance Target, Roll & Anti-Roll Bars, ARB Modes,
-Ride & Springs, Ride Setup, Damping, Alignment, Brakes, Handling Balance, Readouts &
+Geometry & Weight, Balance Target, Alignment, Roll & Anti-Roll Bars, ARB Modes,
+Ride & Springs, Ride Setup, Damping, Brakes, Differential, Handling Balance, Readouts &
 Visuals, Tools — not alphabetical. Each entry is `{id, term, tier, short?, def, see?}`:
 
 - `id` — kebab-case, the handle every link uses (`hintTerm`, `term`, a tutorial step's

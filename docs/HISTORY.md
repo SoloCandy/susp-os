@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — sidebar order, with the guides and glossary to match
+
+The INT/PRO sidebar now reads CHASSIS, BUILD, BALANCE (PRO), ALIGNMENT (PRO), ANTI-ROLL BARS,
+RIDE, DAMPERS, BRAKES, DRIVETRAIN, then the pinned VISUALS: alignment before the bars, brakes after
+the dampers, and the drivetrain last. The INT and PRO guides were reordered to walk the sidebar in
+that order (INT's diff steps now follow Dampers; PRO's Manual Differential follows Hz MECH and
+Alignment Mode precedes the ARB modes), and the GLOSSARY groups follow it too. INT gained a
+Brakes step (8 of 18), and the tutorial's section-opening map a `brakes` key so the step opens the
+section it spotlights. PRO's Welcome no longer says brakes are always computed. A guide resumed
+from before the reorder lands on the same step number, which may now be a different step.
+
 ## Added — BRAKES returns at INT, as a shift from the recommendation
 
 Brake bias had been computed only since the old AUTO/MANUAL BRAKES section was removed, on the
