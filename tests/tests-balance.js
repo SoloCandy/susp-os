@@ -54,7 +54,7 @@ const M = new Function(
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
   'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
-  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf,entryBrakeBiasFor};'
+  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf,entryBrakeBiasFor,BRAKE_BIAS_MIN,BRAKE_BIAS_MAX};'
 )();
 
 let pass = 0, fail = 0;
@@ -749,7 +749,7 @@ t('BRK is zero at GRIP\'s bias for ENTRY_G and falls as front bias rises', () =>
     near(ideal, M.gripBrakeBiasOf(ch, M.ENTRY_G), 1e-9, `${name}: ideal bias`);
     near(M.phaseMargins(ch, tn, ideal, { layout: 'RWD' }).entry.brk, 0, 1e-9, `${name}: BRK at ideal`);
     let prev = Infinity;
-    for (let b = 45; b <= 68; b++) {
+    for (let b = M.BRAKE_BIAS_MIN; b <= M.BRAKE_BIAS_MAX; b++) {
       const brk = M.phaseMargins(ch, tn, b, { layout: 'RWD' }).entry.brk;
       ok(brk < prev, `${name}: BRK did not fall from ${b - 1}% to ${b}% front`);
       prev = brk;
@@ -971,15 +971,15 @@ t('the ENTRY solve lands BRK on the target, or reports the end it stopped at', (
         const tn = rsTune(r), s = M.entryBrakeBiasFor(ch, tn, target);
         const brk = M.phaseMargins(ch, tn, s.bias, null).entry.brk;
         if (s.clamped === null) near(brk, target, 1e-6, `${name} ${r} ${target}: BRK`);
-        else if (s.clamped === 'rear') ok(s.bias === 45 && brk <= target, `${name} ${r} ${target}: rear clamp`);
-        else ok(s.bias === 68 && brk >= target, `${name} ${r} ${target}: front clamp`);
+        else if (s.clamped === 'rear') ok(s.bias === M.BRAKE_BIAS_MIN && brk <= target, `${name} ${r} ${target}: rear clamp`);
+        else ok(s.bias === M.BRAKE_BIAS_MAX && brk >= target, `${name} ${r} ${target}: front clamp`);
       }
 });
 
 t('ENTRY target 0 is GRIP at ENTRY_G, and a looser target moves the bias rearward', () => {
   for (const { name, ch } of CHASSIS) {
     const tn = rsTune(0.5), g = M.gripBrakeBiasOf(ch, M.ENTRY_G), s = M.entryBrakeBiasFor(ch, tn, 0);
-    if (g > 45 && g < 68) near(s.bias, g, 1e-6, `${name}: target 0`);
+    if (g > M.BRAKE_BIAS_MIN && g < M.BRAKE_BIAS_MAX) near(s.bias, g, 1e-6, `${name}: target 0`);
     ok(M.entryBrakeBiasFor(ch, tn, 1).bias <= s.bias && M.entryBrakeBiasFor(ch, tn, -1).bias >= s.bias, `${name}: direction`);
   }
 });

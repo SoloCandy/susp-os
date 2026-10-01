@@ -688,7 +688,7 @@ Brake bias is read three ways, and they do not share a neutral point:
 
 - **BRAKES card** (every tier and game): `recBrakeBias` is the front weight plus
   `cgHeight/wheelbase × 50`, a build-type mod and, at PRO only, a grip-balance adjustment,
-  clamped to 45–68. Its note reads FRONT above 55, REAR below 50.
+  clamped to 40–68. Its note reads FRONT above 55, REAR below 50.
 - **BEG/INT Handling Balance** (the BRK segment and its correction tip): `bBrakeEntry` measures
   that same value against a fixed 50%. The card's own recommendation is usually front of 50, so
   the bar almost always counts it as understeer.
@@ -703,7 +703,7 @@ longer tell the user to move it, and the ENTRY line says the card usually reads 
 the models are unreconciled. Picking one reference is a model decision with no telemetry behind
 it (see the scale entry above for `BRAKE_BIAS_SCALE`).
 
-At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 5 points from `recBrakeBias`; at
+At INT and PRO, BRAKES' Brake Bias can shift `brakeBias` up to 10 points from `recBrakeBias`; at
 its default and in BEG they are equal. PRO's GRIP Centre (`gripBrakeBiasOf`) is the
 same solve as ENTRY's reference at a chosen decel, so at 0.3 g the two PRO readings agree; the
 card and the BEG/INT BRK segment still do not. PRO's ENTRY Centre solves against that same

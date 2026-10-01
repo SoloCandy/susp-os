@@ -641,7 +641,7 @@ the git history makes the removal look accidental.
 added an AUTO/MANUAL BRAKES section with brake pressure, `1c66ba2` removed the UI (its message is
 about tutorial positioning, so the log reads like an accident) and `082d51e` pruned the state.
 That was deliberate, on the reasoning that users finalise brakes by feel in-game. BRAKES came
-back at INT as a **shift** from the recommendation (`dr.brakeBiasShift`, ±5 points), not a typed
+back at INT as a **shift** from the recommendation (`dr.brakeBiasShift`, ±10 points since widened from ±5), not a typed
 value, so the bias still follows the chassis and build; see [HISTORY.md](HISTORY.md). A typed
 bias and brake pressure remain absent. Retired codec ids are never reused — see
 [CODEC.md](CODEC.md).

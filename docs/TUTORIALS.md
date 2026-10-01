@@ -415,7 +415,7 @@ TRY IT task (ticks when the check passes):
 
 #### 8. Brakes
 
-> BRAKES holds Brake Bias, a shift of up to 5 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.
+> BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.
 
 #### 9. Diff Type
 

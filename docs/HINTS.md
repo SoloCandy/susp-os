@@ -243,11 +243,11 @@ Build Type uses `HINT_BUILD_TYPE`, quoted under [BEG panel](#beg-panel).
 
 **Brake Bias** — `{recommended}` is `recBrakeBias`:
 
-> Shifts the recommended brake bias ({recommended}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
+> Shifts the recommended brake bias ({recommended}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.
 
 With Centre on GRIP (PRO), `{grip}` is `gripBrakeBias`:
 
-> Shifts the GRIP brake bias ({grip}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 45-68%.
+> Shifts the GRIP brake bias ({grip}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.
 
 **ENTRY BRK** (PRO, under the Centre toggle) — the ENTRY phase's BRK term, signed, coloured
 neutral / oversteer / understeer as in the expanded panel; `{entry g}` is `ENTRY_G`, `{ideal}` the
@@ -264,11 +264,11 @@ rounded `idealBias`:
 > How much looser (+) or tighter (−) entry should be than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included.
 
 With Centre ENTRY the Brake Bias slider is replaced by a plain `{bias}% F` readout. When the target
-is out of reach, an amber note under Entry vs MID, `{end}` 45 or 68:
+is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
 
 > Out of reach: brake bias stops at {end}%. Move Entry vs MID toward {toward}, or use the off-throttle diff for the rest.
 
-`{toward}` is `0 or below` at 45, `0 or above` at 68.
+`{toward}` is `0 or below` at 40, `0 or above` at 68.
 
 **Decel** (PRO, Centre GRIP):
 

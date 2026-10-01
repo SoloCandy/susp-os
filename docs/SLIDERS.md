@@ -83,9 +83,9 @@ SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still li
 | ENTRY (not SPORT, same axle group as EXIT) | −50..+50, STABLE↔LOOSE | Decel-lock intent. Stored `dr.diffBiasEntry` positive = more decel lock = STABLE on **every** layout; the slider is an unconditional negation (`value={-(dr.diffBiasEntry??0)}`) to land right = LOOSE, so the stored sign is the opposite of the reading here — see [PRESETS.md](PRESETS.md) | Right = OVERSTEER-leaning |
 | EXIT — FRONT AXLE (AWD only) | −50..+50, PUSH↔NEUTRAL | Front-axle accel lock (independent of the FRONT/REAR AXLE EXIT above, which is rear-axle for AWD) | Left (PUSH) = more UNDERSTEER |
 | POWER SPLIT (AWD, grouped under CENTER) | −30..+40 (20–90% rear) | Center torque split | Right (REAR) = OVERSTEER |
-| <!--@range dr.brakeBiasShift-->Brake Bias (BRAKES) | −5..+5 points | Shifts the brake bias centre: `recBrakeBias`, or at PRO with Centre GRIP `gripBrakeBias`; the readout is the resulting % front, kept within 45–68. Stored `dr.brakeBiasShift` positive = rearward = ROTATE, matching the slider. Ignored in BEG, which has no BRAKES section | Right (ROTATE) = OVERSTEER-leaning on entry |
+| <!--@range dr.brakeBiasShift-->Brake Bias (BRAKES) | −10..+10 points | Shifts the brake bias centre: `recBrakeBias`, or at PRO with Centre GRIP `gripBrakeBias`; the readout is the resulting % front, kept within 40–68 (`BRAKE_BIAS_MIN`/`MAX`). Stored `dr.brakeBiasShift` positive = rearward = ROTATE, matching the slider. Ignored in BEG, which has no BRAKES section | Right (ROTATE) = OVERSTEER-leaning on entry |
 | <!--@range dr.brakeDecel-->Decel (BRAKES, PRO, Centre GRIP) | 0.30..1.50 g, step 0.05 | The braking load GRIP's brake bias is solved at (`gripBrakeBiasOf`). Default 1.0 g, threshold braking. Shown only with Centre GRIP; INT reads Centre as REC | Right = GRIP moves forward = steadier entry |
-| <!--@range dr.brakeEntryTarget-->Entry vs MID (BRAKES, PRO, Centre ENTRY) | −5..+5 %, step 0.25 | The ENTRY BRK target `entryBrakeBiasFor` solves the brake bias for, in grip-margin percent; replaces the Brake Bias shift, which is hidden. About 0.45% per bias point, so 45–68 reaches roughly ±5%; past that the bias stops at the end with a note | Right (+) = looser entry = OVERSTEER-leaning |
+| <!--@range dr.brakeEntryTarget-->Entry vs MID (BRAKES, PRO, Centre ENTRY) | −5..+5 %, step 0.25 | The ENTRY BRK target `entryBrakeBiasFor` solves the brake bias for, in grip-margin percent; replaces the Brake Bias shift, which is hidden. About 0.45% per bias point, so 40–68 reaches roughly +7% to −5%; past that the bias stops at the end with a note | Right (+) = looser entry = OVERSTEER-leaning |
 
 ## Pro (PRO) — adds these
 
@@ -107,9 +107,10 @@ SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still li
 
 ## Auto-computed by default, or PRO's Alignment Mode
 
-BRAKES (balance % — pressure was removed as dead output) is always fully computed from build type/
-layout/weight bias/chassis geometry, with no manual override, and clamped to
-**45–68% front**. Values below 50 (a rear bias, valid for trail-braking and
+BRAKES (balance % — pressure was removed as dead output) is computed from build type/
+layout/weight bias/chassis geometry, and from INT adjustable through the BRAKES section (see
+the Brake Bias rows above); the recommendation and every adjusted bias are clamped to
+**40–68% front**. Values below 50 (a rear bias, valid for trail-braking and
 drift) are reachable only for rear-weighted cars on DRIFT/DRAG builds — the
 CG/wheelbase weight-transfer term front-biases everything else. ALIGNMENT
 (camber, toe, caster) is computed the same way by default (AUTO, stored as

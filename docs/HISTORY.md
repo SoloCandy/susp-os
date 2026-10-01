@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Brake Bias reaches ±10 points, and the floor drops to 40%
+
+The shift's 1% step already matches the game's, so a finer step would have shown values the game
+cannot take; the slider gained range instead, ±5 → ±10 points (`dr.brakeBiasShift`, stored codes
+read unchanged). The span every brake bias stays in moved from 45–68 to 40–68, now one pair of
+constants, `BRAKE_BIAS_MIN`/`BRAKE_BIAS_MAX`, used by the recommendation, the shift and the ENTRY
+solve alike. The recommendation itself changes only on cars it had clamped at 45: rear-weighted
+DRIFT and DRAG builds, which can now land down to 40. ENTRY's rear reach grows to about +7%.
+
 ## Added — BRAKES' ENTRY Centre (PRO)
 
 A third Centre, ENTRY, solves the brake bias so ENTRY's BRK lands on an Entry vs MID target
