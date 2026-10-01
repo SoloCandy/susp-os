@@ -659,6 +659,16 @@ The bar's TOTAL line in PRO adds BRK and DRIVE to MID, so it sums terms read at 
 chosen loads, and leaves diff and damping out for want of a size. It says where the sized terms
 land together, not what the car does at any one moment.
 
+## Open — GRIP USE predicts shares, not the limit itself
+
+GRIP USE says which axle runs out of grip first and how much the other has spare, but not at
+what lateral g: the grip model has no tyre friction coefficient, so its capacities are relative.
+It also reads load transfer at the model's 1 g reference rather than at the limit itself, and
+treats both tyres on an axle as using the same share of their grip (one slip angle, force in
+proportion to capacity); a real tyre pair at different loads and cambers will not match exactly.
+ENTRY and EXIT carry the chosen loads above. Treat it as a ranking of where grip runs out, and
+check it against the car on track.
+
 ## Open — VISUALS shows the Balance Target when nothing solves toward it
 
 Only the displays are affected: MATCH CHASSIS and alignment Nudge MECH, which also read the

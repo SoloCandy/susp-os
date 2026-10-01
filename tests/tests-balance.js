@@ -25,6 +25,7 @@
 //   7. Calibration envelope — balanceEnvelope flags exactly the fitted bounds it should.
 //   8. Chassis term — the Handling Balance bar's mechanical part agrees with the grip model.
 //   9. LOAD TRANSFER readout — reads the grip model's own transfer, so the tune moves it.
+//  10. GRIP USE — the limiting axle is at exactly 100%, and it agrees with the grip margin.
 //
 // Properties 5 and 6 are the ones with history: the drift-band sign inversion and the
 // balanceBandRange V-shape miss were both failures of exactly these (docs/HISTORY.md).
@@ -52,7 +53,8 @@ const M = new Function(
   'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
-  'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf};'
+  'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
+  'axleGrip,gripUseOf,driveFrontOf};'
 )();
 
 let pass = 0, fail = 0;
@@ -860,6 +862,61 @@ t('fore-aft loads conserve mass and move the right way: forward on entry, rearwa
     for (const ph of [lt.entry, lt.exit]) near(ph.front + ph.rear, Mt, 1e-9, `${name}: axle loads do not sum to the car`);
     ok(lt.entry.front > 2 * mc.front && lt.exit.front < 2 * mc.front, `${name}: pitch went the wrong way`);
     near(lt.weightFront, 100 * mc.front / (mc.front + mc.rear), 1e-9, `${name}: weight split`);
+  }
+});
+
+// -- 10. GRIP USE ------------------------------------------------------------
+console.log('\nGRIP USE');
+
+const PHASES = [
+  { phase: 'mid', ax: 0, fx: () => 0 },
+  { phase: 'entry', ax: -M.ENTRY_G, fx: (bias) => bias / 100 },
+  { phase: 'exit', ax: M.EXIT_G, fx: (bias, diff) => M.driveFrontOf(diff) },
+];
+const DIFFS = [{ layout: 'RWD' }, { layout: 'FWD' }, { layout: 'AWD', center: 65 }];
+
+t('axleGrip plus the friction circle is exactly axleLatG (the split moved no number)', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const [ax, fx] of [[0, 0], [-0.3, 0.6], [0.2, 0], [0.2, 1], [-1.2, 0.7]]) {
+      const a = M.axleGrip(ch, 1, 1.3, ax, fx), b = M.axleLatG(ch, 1, 1.3, ax, fx);
+      const lat = (Fy, x) => Math.sqrt(Math.max(0, Fy * Fy - x * x));
+      near(lat(a.FyF, a.xF) / (a.Mf * 9.81), b.gF, 1e-12, `${name} ${ax}: front`);
+      near(lat(a.FyR, a.xR) / (a.Mr * 9.81), b.gR, 1e-12, `${name} ${ax}: rear`);
+    }
+});
+
+t('the limiting axle is at exactly 100%, the other never above it', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const r of [0.3, 0.5, 0.7])
+      for (const { phase } of PHASES)
+        for (const diff of DIFFS) {
+          const u = M.gripUseOf(ch, rsTune(r), phase, 62, diff);
+          const lim = u[u.limit], other = u[u.limit === 'front' ? 'rear' : 'front'];
+          near(lim.use, 1, 1e-9, `${name} ${r} ${phase} ${diff.layout}: limiting axle`);
+          ok(other.use <= 1 + 1e-9, `${name} ${r} ${phase} ${diff.layout}: the other axle passed 100%`);
+        }
+});
+
+t('the limiting axle agrees with the grip margin in every phase', () => {
+  // GRIP USE and the phase margins are one model: the axle with less to spare is the one that
+  // runs out. gripMargin with the phase's load includes PITCH, as GRIP USE does.
+  for (const { name, ch } of CHASSIS)
+    for (const r of [0.3, 0.45, 0.55, 0.7])
+      for (const { phase, ax, fx } of PHASES)
+        for (const diff of DIFFS) {
+          const m = M.gripMargin(ch, r, ax, fx(62, diff));
+          if (Math.abs(m) < 1e-6) continue;
+          const u = M.gripUseOf(ch, rsTune(r), phase, 62, diff);
+          ok(u.limit === (m > 0 ? 'rear' : 'front'), `${name} ${r} ${phase} ${diff.layout}: margin ${m.toFixed(2)} but ${u.limit} limits`);
+        }
+});
+
+t('more front brake bias puts more of the front axle\'s grip into braking on entry', () => {
+  for (const { name, ch } of CHASSIS) {
+    const lo = M.gripUseOf(ch, rsTune(0.5), 'entry', 55, { layout: 'RWD' });
+    const hi = M.gripUseOf(ch, rsTune(0.5), 'entry', 70, { layout: 'RWD' });
+    ok(hi.front.lon > lo.front.lon && hi.rear.lon < lo.rear.lon, `${name}: braking share did not follow the bias`);
+    near(M.gripUseOf(ch, rsTune(0.5), 'mid', 55, { layout: 'RWD' }).front.lon, 0, 0, `${name}: MID asks for braking`);
   }
 });
 

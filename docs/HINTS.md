@@ -571,6 +571,22 @@ When both do:
 
 > Both inside wheels unload before 1 g: past that point more roll stiffness on that end stops shifting balance.
 
+**GRIP USE** (PRO):
+
+> Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps.
+
+The verdict under the sketch — `{where}` is mid-corner, on the brakes, or under power:
+
+> Both axles run out together: balanced at the limit {where}.
+
+> The front runs out first: understeer at the limit {where}.
+
+> The rear runs out first: oversteer at the limit {where}.
+
+On ENTRY and EXIT:
+
+> Includes the car's own weight transfer, which the bar's ENTRY / EXIT figures leave out, so the two can differ.
+
 ---
 
 ## Handling Balance bar

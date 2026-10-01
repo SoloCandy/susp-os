@@ -288,7 +288,7 @@ the Welcome card and live in the glossary.
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
 | 10 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
 | 11 | Handling Balance Expanded | `balance-bar` | | Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. MECH BALANCE strip and RESPONSE via TERMS chips. |
-| 12 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER group at 1 g: FRONT TAKES vs weight, XFER split, wheel loads, FORE-AFT. |
+| 12 | Load Transfer | `visuals` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
 | 13 | Output Panel & Tune Check | `toolbar` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
 
 ### Handling balance <!--@tutorial balance-->
@@ -500,7 +500,7 @@ TRY IT task (ticks when the check passes):
 
 #### 12. Load Transfer
 
-> LOAD TRANSFER, the last group in VISUALS, shows the loads at 1 g cornering. FRONT TAKES is the front's share of the transfer against the weight split; springs and bars move it. XFER splits into what goes through them and the fixed geometric part; FORE-AFT gives the ENTRY and EXIT axle loads.
+> LOAD TRANSFER in VISUALS shows the loads at 1 g cornering. FRONT TAKES is the front's share of the transfer against the weight split; springs and bars move it. GRIP USE below it predicts which axle runs out of grip first, mid-corner, on entry and on exit.
 
 #### 13. Output Panel & Tune Check
 

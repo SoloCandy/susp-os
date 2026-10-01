@@ -23,7 +23,7 @@ zones, the settle band, and the ARB bands. The prose is not checked.
   most of what's left of the screen, so hiding it lets the scrolling controls keep
   their height.
 - **Height:** the body scrolls inside a box capped at the height of the tallest open
-  group among RIDE · ROLL · DAMPING and, in PRO, LOAD TRANSFER (`visCaps`, each measured
+  group among RIDE · ROLL · DAMPING and, in PRO, LOAD TRANSFER and GRIP USE (`visCaps`, each measured
   live with a ResizeObserver through `visMeasureRef`), so either one always fits whole
   and the rest scrolls. In PRO with LOAD TRANSFER open that is its height, about 430 px.
   While neither is open or measured, the cap falls back to `32vh` on a phone and `50vh`
@@ -38,6 +38,7 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 | [DYNAMICS](#dynamics) | `visDynamics` | always |
 | [SAG vs LOAD](#sag-vs-load) | `visSag` | CHASSIS → CG Height Source is RIDE HEIGHT (`ch.useRideHeightCG`) and both tyre sizes parse to a radius |
 | [LOAD TRANSFER](#load-transfer) | `visLoad` | PRO (`uiMode==='pro'`) |
+| [GRIP USE](#grip-use) | `visGrip` | PRO (`uiMode==='pro'`) |
 
 Every group header is a `collapsible-hdr` row. A collapsed header shows a one-line
 summary where one is useful (RIDE · ROLL · DAMPING, SAG's risk badges), so the card is
@@ -267,6 +268,24 @@ when an inside wheel lifts.
 
 It sat at the bottom of the expanded Handling Balance panel until it was rebuilt; it moved
 here because it pictures the car's loads, as the other groups do, rather than the balance.
+
+## GRIP USE
+
+PRO only. A prediction, before the car is driven, of how much of each axle's grip is in use
+when the car reaches its limit, from `gripUseOf` (see [FORMULAS.md](FORMULAS.md) "Grip use").
+A MID / ENTRY / EXIT toggle in the header picks the phase (`gripPhase`, session-only); collapsed,
+the header reads `F LIMIT · {spare}% SPARE`, `R LIMIT · …` or `EVEN`.
+
+| Part | Meaning |
+|---|---|
+| top-down sketch | the four wheels in a left turn, front blue and rear orange, shaded by the share of grip in use; the limiting axle's wheels are outlined white; an unloaded inner wheel is an amber dashed LIFT; ENTRY adds ▲ BRAKING and EXIT ▼ DRIVE |
+| FRONT / REAR lines | the share in use, then on ENTRY / EXIT how much of it the braking or drive takes, then LIMIT for the axle that runs out first or the other's share to spare |
+| verdict | which axle runs out first and what that means at the limit: front → understeer, rear → oversteer, within 2% → balanced |
+| ENTRY / EXIT note | the figures include the car's own weight transfer, which the bar's ENTRY / EXIT figures leave out |
+
+Both tyres on an axle use the same share: they run one slip angle, so the model splits the
+axle's force in proportion to their capacity. The model has no friction coefficient, so the
+limit itself has no g figure, only the shares.
 
 ## Changing a chart
 

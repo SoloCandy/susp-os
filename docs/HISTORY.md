@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Added — GRIP USE: a predicted grip budget per axle, by phase
+
+A PRO group under LOAD TRANSFER in VISUALS, with the same top-down sketch, shaded by how much of
+each axle's grip is in use when the car reaches its limit: mid-corner, under `ENTRY_G` braking at
+the brake bias, or under `EXIT_G` of drive. The first axle to 100% is the LIMIT and sets
+understeer or oversteer; the other shows its spare. It comes from the same grip model as the
+balance bar, so it is a prediction before any laps. `axleLatG` was split so the raw axle forces
+(`axleGrip`) could be read; a test pins the split to the old numbers. GRIP USE includes PITCH
+where the bar's ENTRY / EXIT figures leave it out, which the panel says, since on EXIT especially
+the two can point different ways.
+
 ## Fixed — LOAD TRANSFER ignored the springs and bars
 
 PRO's LOAD TRANSFER section computed its own transfer, `2 × corner mass × CG height ÷ track`

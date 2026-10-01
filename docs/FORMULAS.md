@@ -245,6 +245,27 @@ roll-stiffness split, so no tune could move it. `tests-balance.js` asserts it eq
 
 ---
 
+## Grip use (`gripUseOf`, PRO only)
+
+`axleGrip` is the first half of `axleLatG`, split out: each axle's lateral capacity `Fy`
+(N, at the pitch-shifted, transfer-capped wheel loads, before the friction circle) and the
+longitudinal force `x` it is asked for. For a phase (MID: `ax = 0`; ENTRY: `−ENTRY_G` at the brake
+bias; EXIT: `+EXIT_G` at `driveFrontOf(diff)`):
+
+- lateral capacity left per axle, in g of its own weight: `g_axle = √(Fy² − x²) / (M_axle·g)`
+- the car's limit: `g_lim = min(gF, gR)` — the first axle to saturate
+- **use** per axle = `√((M_axle·g·g_lim)² + x²) / Fy`: exactly 1 on the limiting axle, below 1
+  on the other; `1 − use` is its spare grip
+- **braking / drive share** = `x / Fy`
+
+It includes PITCH, since it predicts what the tyres see; the phase margins leave PITCH out of
+ENTRY and EXIT to isolate the tune, so the two can disagree, most on EXIT. The limit agrees in
+sign with `gripMargin` at the same load, which `tests-balance.js` asserts, along with use = 1 on
+the limiting axle and that `axleGrip` + the friction circle is exactly `axleLatG`. There is no
+friction coefficient, so `g_lim` is in the model's own units and is not shown.
+
+---
+
 ## Quick sign reference
 
 | Source | More rear-side stiffness/lock/damping | More front-side stiffness/lock/damping |
