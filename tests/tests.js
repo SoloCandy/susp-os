@@ -1044,7 +1044,8 @@ console.log('\nmirror vs app (reads index.html)');
     'tyreRollStiffness,inSeries,displayRsBalance,natGeomOf,measuredNatBalOf,natOffsetOf,natRsOf,natDisplayModelOf,natDisplayOf,' +
     'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
-    'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode};'
+    'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
+    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1219,6 +1220,39 @@ console.log('\nmirror vs app (reads index.html)');
      { settleMode: true, settleBias: 20 }, { settleMode: false, settleBias: 20, dampingBias: 5 }, { settleMode: true },
      { ...A.DEF_FE, settleMode: true, settleBias: -10 }, { dampingBias: 99 }, { dampingBias: NaN }, { dampingBias: '7' }],
     fe => diff(migrateDampBalMode(fe), A.migrateDampBalMode(fe)));
+
+  // ── BUMP MODE → LANDING (app functions directly — no mirror, so nothing for the tripwire)
+  // Peak compression of x''+2ζωx'+ω²x=0 from x=0, x'=V, against a brute-force integration.
+  // Spans under-, critically- and overdamped, the three closed-form branches.
+  {
+    const simPeak = z => { let x = 0, v = 1, m = 0; const dt = 1e-5;
+      for (let i = 0; i < 2e6; i++) { v += (-2 * z * v - x) * dt; x += v * dt; if (x > m) m = x; if (v < 0) break; }
+      return m; };
+    for (const z of [10, 30, 59, 100, 115, 180])
+      assert(`landing: peakCompressionFactor(${z}) matches simulation`, A.peakCompressionFactor(z), simPeak(z / 100), 1e-3);
+    assert('landing: factor is 1 undamped', A.peakCompressionFactor(0), 1, 1e-12);
+    // Round trip: the solved ζ catches exactly the target drop.
+    for (const [drop, hz, rh] of [[0.10, 1.75, 0.13], [0.20, 1.5, 0.25], [0.60, 1.5, 0.25]]) {
+      const r = A.landingBumpZeta(drop, hz, rh);
+      assertEq(`landing: ${drop} m at ${hz} Hz / ${rh} m is reachable`, r.reachable, true);
+      assert(`landing: solved ζ catches ${drop} m`, A.landingCatchDrop(r.zeta, hz, rh), drop, 1e-6);
+    }
+    // Floor: a drop even 10% absorbs solves to the floor, not below it.
+    assertEq('landing: tiny drop pins at the 10% floor', A.landingBumpZeta(0.02, 1.5, 0.25).zeta, A.LANDING_ZETA_MIN);
+    // Ceiling: unreachable pins at 115 and says so.
+    const hi = A.landingBumpZeta(1.0, 1.5, 0.25);
+    assertEq('landing: 1 m on 250 mm at 1.5 Hz is unreachable', hi.reachable, false);
+    assertEq('landing: unreachable pins at 115%', hi.zeta, A.LANDING_ZETA_MAX);
+    // Sag past ride height (bottom g ≤ 1): nothing catches anything.
+    assertEq('landing: no travel → unreachable', A.landingBumpZeta(0.05, 0.8, 0.30).reachable, false);
+    assertEq('landing: no travel → catches 0', A.landingCatchDrop(50, 0.8, 0.30), 0);
+    // End to end: under STANDARD with a FRONT ref, the front axle's bump anchor is the solve.
+    const ch = { ...A.DEF_CH, rideHeightF: 0.25, rideHeightR: 0.25 };
+    const fe = { ...A.DEF_FE, rideStiffness: 1.5, rearHzMode: 'multiplier', rearHzMult: 1.0, dampingMode: 'landing', landingDrop: 0.20 };
+    const s = A.solveTune(ch, A.resolveFeEffective(ch, fe), 'beamng');
+    assert('landing: solveTune anchors bump ζ to the drop solve', s.physics.bumpZeta, A.landingBumpZeta(0.20, 1.5, 0.25).zeta, 1e-9);
+    assert('landing: final front bump catches the drop (BeamNG snap only)', A.landingCatchDrop(s.tune.bumpZetaF, s.tune.fHz, 0.25), 0.20, 0.01);
+  }
 
   // ── tripwire: every top-level mirror in this file is compared or exempted with a reason
   const MIRROR_EXEMPT = {

@@ -100,8 +100,14 @@ future version might not carry.
 | 81 | dr | brakeCentre | enum (`{rec:0,grip:1,entry:2}`, `BRAKE_CENTRE_DEC`) — PRO's BRAKES Centre |
 | 82 | dr | brakeDecel | raw number — the g GRIP's brake bias is solved at |
 | 83 | dr | brakeEntryTarget | raw number — ENTRY Centre's ENTRY BRK target, grip-margin %, + = looser |
+| 84 | fe | landingDrop | raw number — BUMP MODE → LANDING's drop height, metres; a target that re-solves bump ζ, see note |
 
-**Next available id: 84.**
+**Next available id: 85.**
+
+Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
+caught, and bump ζ re-solves against the reader's Hz and ride heights. Its mode, `landing`,
+is index 2 of `DAMPING_MODE_DEC` (id 11), appended the same way `beamng` was appended to id
+10: an older client decodes it to nothing and `sanitizeTune` falls back to `ratio`.
 
 Id 80 is new, not a revival: the brake fields pruned in the v1 sparse-table redesign
 (`brakeManual`/`brakeBias`/`brakePressure`) were never individually numbered. It stores a
@@ -221,7 +227,7 @@ choice, decided after the code is read.
 |---|---|---|
 | `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
-| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, settleTarget, settleBias, settleMode |
+| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, landingDrop, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
@@ -345,7 +351,7 @@ undocumented.
 | `DIFF_TYPE_DEC` | 0 `race` · 1 `sport` · 2 `rally` · 3 `offroad` · 4 `drift` |
 | `ALIGN_MODE_DEC` | 0 `build` · 1 `mech` · 2 `grip` · 3 `manual` |
 | `GAME_MODE_DEC` | 0 `horizon` · 1 `motorsport` · 2 `beamng` |
-| `DAMPING_MODE_DEC` | 0 `ratio` · 1 `independent` |
+| `DAMPING_MODE_DEC` | 0 `ratio` · 1 `independent` · 2 `landing` |
 | `REAR_HZ_MODE_DEC` | 0 `flatRide` · 1 `independent` · 2 `multiplier` · 3 `mech` · 4 `shared` |
 | `ARB_MODE_DEC` | 0 `auto` · 1 `roll` · 2 `share` · 3 `auto` · 4 `man` · 5 `basic` |
 | `ARB_BAL_MODE_DEC` | 0 `weight` · 1 `mech` · 2 `coSolve` · 3 `man` · 4 `neutral` · 5 `chassis` · 6 `manual` |

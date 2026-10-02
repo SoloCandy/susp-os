@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — BUMP MODE gains LANDING
+
+A third bump mode solves bump ζ from a drop height instead of a ratio or a typed value
+(codec id 84, `DAMPING_MODE_DEC` index 2). Worth remembering for one design call: it
+returns the *softest* ζ that catches the drop and **reports** when none does, rather than
+pinning silently at 115%. Damping changes peak compression by only about 2.6× across its
+whole range, so a solve that hid an unreachable target would push users toward maximum
+bump, which is the wrong fix when the real fix is Hz or ride height. A force-at-speed mode
+was considered first and rejected; see KNOWN_ISSUES.
+
 ## Changed — sections can be hidden, and every RESET reads one table
 
 INT and PRO gained a SECTIONS modal (EDIT in the SECTIONS row) that hides sidebar sections and

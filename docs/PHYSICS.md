@@ -588,6 +588,10 @@ on BUMP MODE:
   exactly this: it picks `forceZetas` or `settleZetas` by mode, so the two
   anchors cannot drift apart. Under STANDARD the typed value is biased by
   percentage the same way `baseZeta` is.
+- **LANDING** is INDEPENDENT with a solved anchor instead of a typed one:
+  `landingBumpZeta` turns the drop height into a bump ζ on the ride-reference
+  axle (see [LANDING bump mode](#landing-bump-mode)), and from there it takes
+  exactly INDEPENDENT's path through all four balance modes.
 
 Both splits clamp to 10–200%. Bump is deliberately **not** clamped to the
 axle's own rebound ζ: crossing above rebound is a warned-but-allowed state
@@ -712,7 +716,9 @@ so the settle-time guarantee survives a CO-SOLVE rear-Hz shift. (What is
 still pre-solve under SETTLE TIME is `baseZeta`'s own back-solve, which
 used the pre-CO-SOLVE reference Hz; a scope limit, not a skipped pass.) The
 INDEPENDENT bump anchor is re-split in the same pass, off the same
-`effectiveRHz`, so the sidebar preview and the exported tune agree.
+`effectiveRHz`, so the sidebar preview and the exported tune agree. A LANDING
+anchor is re-*solved* there first, because it depends on the ride-reference
+axle's Hz, which CO-SOLVE can move.
 
 ## Rear/secondary Hz modes
 
@@ -1349,6 +1355,66 @@ to disambiguate, closed that race. If this logic is touched again, re-verify
 by loading a build with a known target onto a chassis with a different ride
 height and confirming the resolved Hz matches the target exactly (not a
 value quietly re-derived from whatever Hz happened to be loaded).
+
+### LANDING bump mode
+
+BUMP MODE's third option solves bump ζ from a drop height (`fe.landingDrop`,
+metres) instead of taking it as a ratio or a typed number. It is the dynamic
+twin of BOTTOM G's: that mode asks how much steady load an axle takes before
+it bottoms; this one asks how big a hit it absorbs. Same sag model, same
+ride heights, same RIDE REF. axle.
+
+```js
+travel    = rideHeight - 9.81/ωn²                 // rh·(1 − 1/bottomG): what's left at rest
+V         = √(2·9.81·drop)                        // landing speed
+peak      = (V/ωn) · peakCompressionFactor(ζ)     // max compression after the hit
+solve     : peak = travel  →  factor = travel·ωn/V  →  bisect ζ in 10..115
+```
+
+`peakCompressionFactor` is the closed-form peak of `x'' + 2ζωn·x' + ωn²·x = 0`
+from `x=0, x'=V`: `exp(−ζ/√(1−ζ²)·atan(√(1−ζ²)/ζ))` underdamped, `e⁻¹` at
+critical, and `e^(−ζτ)·sinh(sτ)/s` with `s=√(ζ²−1)`, `tanh(sτ)=s/ζ` overdamped.
+Gravity is already carried by the static spring load at equilibrium, so the
+linear equation about that point is exact *for the model*. `tests.js` checks
+the factor against a brute-force integration.
+
+The factor only runs from about 0.86 at ζ 10% to 0.33 at 115%, so damping
+alone changes how far a hit compresses the suspension by about **2.6×**.
+Most of the answer is already set by Hz and ride height. That is why the
+solve reports instead of pretending:
+
+- `landingBumpZeta` returns the **softest** ζ that catches the drop, not
+  just one that does. Forza's single bump coefficient also firms up every
+  small hit, so more than needed has a cost.
+- Below the softest ζ the slider allows, it pins at **10%** (the readout
+  says FLOOR).
+- When even **115%** bottoms it pins there and returns `reachable:false`.
+  The readout says `⚠ MAX …` and an output warning names the
+  biggest drop that can be caught. When static sag already uses the whole
+  ride height (bottom g ≤ 1), nothing catches anything, and the readout
+  says `⚠ SAG ≥ RIDE HT`.
+
+The solve runs on the RIDE REF. axle's Hz and ride height (`landingRef`; for
+SHARED, the average of both), exactly as SETTLE TIME back-solves on that
+axle. Damping Balance Mode then splits the anchor front/rear like any
+INDEPENDENT bump anchor, so only the reference axle is guaranteed to catch
+the drop. The DAMPERS table adds a **Catch** row while LANDING is active.
+It shows `landingCatchDrop` for each axle's *final* bump ζ (after the split
+and the click snap) on that axle's own Hz and ride height, and turns amber
+when an axle falls short. The row's tooltip gives peak bump force per
+corner at the target drop, `c·V = 2·m·ωn·ζ·V`, in model kN rather than game
+clicks.
+
+Like `rideBottomG`, the drop is a stored target (codec id 84): load a
+LANDING build onto a different chassis and bump ζ re-solves to catch the
+same drop there. The solve reads `ch.rideHeightF/R` regardless of the RIDE
+HEIGHT → CG toggle, as BOTTOM G's does. The LANDING button is offered only
+with the toggle on, but a tune already in LANDING keeps the button.
+Switching in seeds the drop that the current bump anchor already catches,
+so the tune doesn't move.
+
+The model's limits are the same ones the bottoming badge has, plus one of
+its own. They are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md#open--landing-solves-one-linear-coefficient-against-a-rigid-floor).
 
 ---
 

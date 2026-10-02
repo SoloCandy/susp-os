@@ -248,5 +248,26 @@ t('a junk gameMode falls back to the default mode bounds, not a crash', () => {
   assert(out.fe.arbManF === Math.min(65, ceiling), `bounds should follow the fallback mode, got ${out.fe.arbManF}`);
 });
 
+section('BUMP MODE → LANDING');
+
+t('a LANDING tune and its drop height survive the wire format', () => {
+  const tune = mine();
+  tune.fe = { ...tune.fe, dampingMode: 'landing', landingDrop: 0.37 };
+  const out = roundTrip(tune);
+  assert(out.fe.dampingMode === 'landing', `dampingMode came back ${JSON.stringify(out.fe.dampingMode)}`);
+  assert(Math.abs(out.fe.landingDrop - 0.37) < 1e-9, `landingDrop came back ${out.fe.landingDrop}`);
+});
+
+t('an out-of-range drop height clamps to 0.02-1.50 m', () => {
+  const lo = M.sanitizeTune({ ...mine(), fe: { ...M.DEF_FE, landingDrop: 0 } });
+  const hi = M.sanitizeTune({ ...mine(), fe: { ...M.DEF_FE, landingDrop: 9 } });
+  assert(lo.fe.landingDrop === 0.02 && hi.fe.landingDrop === 1.50, `got ${lo.fe.landingDrop} / ${hi.fe.landingDrop}`);
+});
+
+t('an unknown bump mode (an older client\'s view of a newer one) falls back to RATIO', () => {
+  const out = M.sanitizeTune({ ...mine(), fe: { ...M.DEF_FE, dampingMode: 'bogus' } });
+  assert(out.fe.dampingMode === 'ratio', `got ${out.fe.dampingMode}`);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -356,6 +356,40 @@ revisited, for what is really a display preference. What shipped instead is the 
 modal: INT and PRO each hide whatever they don't use, without the tune or the physics knowing
 — see [CODE_MAP.md](CODE_MAP.md#hidden-sections-sections-modal).
 
+## Open — LANDING solves one linear coefficient against a rigid floor
+
+BUMP MODE → LANDING (see [PHYSICS.md](PHYSICS.md#landing-bump-mode)) is a guide figure,
+like BOTTOM G's, and shares its assumptions:
+
+- **Ride height is the whole travel**, and the floor is rigid. There is no tyre flex, no
+  progressive bump stop and no packer, and the "bump stop zone" on the SAG chart is not
+  modelled. Real cars catch somewhat more than the figure says.
+- **The hit starts at static ride height.** A car landing from a jump arrives with the
+  suspension at droop, so it has more travel than the model gives it but also more
+  energy. The model treats the drop as a hit at the landing speed `√(2g·drop)` from rest
+  position. That is closer to a square-edged bump than to a true landing.
+- **One coefficient for every shaft speed.** Forza has a single bump value, so the bump
+  that catches a big landing also stiffens the car over small chatter. Rally setups want
+  soft low-speed bump for exactly that reason. The solve picks the softest ζ that works,
+  which limits the cost but can't remove it. The same limit is why bump stays out of
+  RESPONSE (below).
+- **Only the RIDE REF. axle is guaranteed** to catch the drop. Damping Balance Mode
+  splits the anchor, so the other axle catches whatever its share gives it. The Catch row
+  shows that honestly instead of forcing it, the same way the DAMPERS table treats the
+  non-reference axle's settle time under SETTLE TIME.
+- **The game's click range can undo the solve.** When `dampScale` scales dampers down to
+  fit `lim.damping`, the final bump is softer than solved. The Catch row reads the final ζ,
+  so it shows the shortfall.
+
+## Considered and rejected — a bump mode that works in force at a reference speed
+
+Raised alongside LANDING: set bump as a force (N at some shaft speed) instead of a ζ.
+With the app's linear damper, force at speed `v` is just the coefficient times `v`, so the
+choice of `v` is arbitrary and the control would only relabel the number. It would also
+duplicate EQUAL FORCE, which already balances damping by `ζ·m·Hz`. LANDING gives the speed
+a meaning (the landing speed from a drop height), so force comes out as a result on the
+Catch row's tooltip instead of being typed in.
+
 ## Considered and rejected — putting bump damping into the RESPONSE bar
 
 Left here so the next audit doesn't "fix" the omission again. It was built,

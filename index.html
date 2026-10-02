@@ -727,6 +727,59 @@ const balModeZetas=(mode,rideRef,mF,fHz,mR,rHz,refZeta,biasMult)=>{
   const f=forceZetas(rideRef,mF,fHz,mR,rHz,refZeta,biasMult);
   return{zF:(s.zF+f.zF)/2,zR:(s.zR+f.zR)/2};
 };
+// ── landing bump solve (BUMP MODE → LANDING) ──
+// A linear spring-damper struck at velocity V from static equilibrium compresses at most
+// (V/ωn)·peakCompressionFactor(ζ). The factor is 1 undamped, e^-1 at critical, and keeps
+// falling (ever more slowly) when overdamped — so bump ζ across its whole 10-115% range only
+// moves peak compression by ~2.6×. Gravity is already balanced by the static spring load at
+// equilibrium, so the linear equation about that point is exact for the model.
+const peakCompressionFactor=zPct=>{
+  const z=Math.max(0,zPct/100);
+  if(z<1e-6)return 1;
+  if(Math.abs(z-1)<1e-6)return Math.exp(-1);
+  if(z<1){const s=Math.sqrt(1-z*z);return Math.exp(-z/s*Math.atan2(s,z));}
+  const s=Math.sqrt(z*z-1),tau=Math.atanh(s/z)/s; // tanh(s·τ)=s/ζ at the peak
+  return Math.exp(-z*tau)*Math.sinh(s*tau)/s;
+};
+// Same sag model as BOTTOM G's and the SAG vs LOAD chart: ride height is the travel from the
+// unloaded position, 1g sag is g/ωn², so what's left at rest is rh·(1 − 1/bottomG). Metres.
+const LANDING_G=9.81, LANDING_ZETA_MIN=10, LANDING_ZETA_MAX=115;
+const landingTravel=(hz,rh)=>{
+  const wn=2*Math.PI*hz;
+  return wn>0?rh-LANDING_G/(wn*wn):0;
+};
+// The drop height (m) an axle at this ζ, Hz and ride height absorbs without bottoming:
+// V = travel·ωn/factor, h = V²/2g. 0 when static sag already uses up the ride height.
+const landingCatchDrop=(zPct,hz,rh)=>{
+  const T=landingTravel(hz,rh);
+  if(T<=0)return 0;
+  const V=T*2*Math.PI*hz/peakCompressionFactor(zPct);
+  return V*V/(2*LANDING_G);
+};
+// Softest bump ζ (10-115%) that absorbs a drop of `drop` metres without bottoming. Softest,
+// not just "enough": a single linear coefficient also stiffens every small hit, so the solve
+// stops at the least bump that does the job. reachable:false means even 115% bottoms — the
+// fix is more Hz or ride height, not more damping — and ζ pins at 115.
+const landingBumpZeta=(drop,hz,rh)=>{
+  const T=landingTravel(hz,rh);
+  const V=Math.sqrt(2*LANDING_G*Math.max(0,drop));
+  if(T<=0)return{zeta:LANDING_ZETA_MAX,reachable:false};
+  if(V<=0)return{zeta:LANDING_ZETA_MIN,reachable:true};
+  const r=T*2*Math.PI*hz/V; // factor needed
+  if(r>=peakCompressionFactor(LANDING_ZETA_MIN))return{zeta:LANDING_ZETA_MIN,reachable:true};
+  if(r<peakCompressionFactor(LANDING_ZETA_MAX))return{zeta:LANDING_ZETA_MAX,reachable:false};
+  let lo=LANDING_ZETA_MIN,hi=LANDING_ZETA_MAX; // factor is monotonic decreasing in ζ
+  for(let i=0;i<50;i++){const mid=(lo+hi)/2;if(peakCompressionFactor(mid)>r)lo=mid;else hi=mid;}
+  return{zeta:hi,reachable:true};
+};
+// The ride-reference axle's Hz and ride height for the LANDING anchor — same choice SETTLE
+// TIME makes for its back-solve (SHARED takes the average of both).
+const landingRef=(rideRef,fHz,rHz,ch)=>{
+  const rhF=ch.rideHeightF??0.13,rhR=ch.rideHeightR??0.12;
+  return rideRef==='rear'?{hz:rHz,rh:rhR}
+    :rideRef==='shared'?{hz:(fHz+rHz)/2,rh:(rhF+rhR)/2}
+    :{hz:fHz,rh:rhF};
+};
 
 // ── Mech balance — steady-state US/OS from physics ───────────────────────────
 // Derived from lateral-load-transfer distribution (set by the front/rear roll-
@@ -1368,11 +1421,19 @@ const feelToPhysics=(ch,fe)=>{
         return Math.max(10,Math.min(100,refHz>0?2.302/(settleTarget*refHz*2*Math.PI)*100:70));
       })()
     : reboundZeta;
-  // Bump zeta is always determined by dampingMode (ratio or independent). In RATIO mode this
+  // Bump zeta is always determined by dampingMode (ratio, independent or landing). In RATIO mode this
   // must anchor to baseZeta (not the raw reboundZeta) — otherwise bump output stays frozen at
   // the CHARACTER-mode default under SETTLE TIME, never tracking a Hz or Settle Target change.
+  // LANDING solves the anchor from a drop height instead of taking it typed; past this point
+  // it is treated exactly like INDEPENDENT (its own anchor, split by Damping Balance Mode).
+  const landingDrop=Math.max(0.02,Math.min(1.50,fe.landingDrop??0.10));
+  const landing=dampingMode==='landing'
+    ? (()=>{const r=landingRef(uiRideRef,frontHz,rearHz,ch);return landingBumpZeta(landingDrop,r.hz,r.rh);})()
+    : null;
   bumpZeta=dampingMode==='ratio'
     ? Math.max(10,Math.min(baseZeta,baseZeta*bumpRatioVal/100))
+    : landing
+    ? landing.zeta
     : Math.max(10,Math.min(115,fe.bumpZeta??39));
   if(dampBalMode!=='standard'){
     const{zF,zR}=balModeZetas(dampBalMode,uiRideRef,dampMasses.front,frontHz,dampMasses.rear,rearHz,baseZeta,biasMult);
@@ -1436,7 +1497,8 @@ const feelToPhysics=(ch,fe)=>{
   // coSolve overrides rearHz in computeTune via effectiveRHz; flat-ride fallthrough can
   // set rearHzClamped spuriously. mechBalClamped covers coSolve limits instead.
   if(arbBalModeEarly==='coSolve') rearHzClamped=false;
-  return{frontHz,rearHz,rearHzClamped,rearHzMode,rideRef:uiRideRef,reboundZeta,baseZeta,bumpZeta,zetaF,zetaR,bumpZetaF,bumpZetaR,dampingMode,dampBalMode,dampCharMode,dampingBias:fe.dampingBias??0,bumpRatioVal,arbBalance,arbBias:fe.arbBias??0,arbTargetRoll,arbMode,arbShareMan,arbBasicMan,arbBalTarget,arbBalMode,arbSplitOpposite,arbNeutralEqual:!!fe.arbNeutralEqual,springShare,springShareAuto:fe.springShareAuto!==false,arbManF:fe.arbManF,arbManR:fe.arbManR};
+  return{frontHz,rearHz,rearHzClamped,rearHzMode,rideRef:uiRideRef,reboundZeta,baseZeta,bumpZeta,zetaF,zetaR,bumpZetaF,bumpZetaR,dampingMode,
+    landingDrop,dampBalMode,dampCharMode,dampingBias:fe.dampingBias??0,bumpRatioVal,arbBalance,arbBias:fe.arbBias??0,arbTargetRoll,arbMode,arbShareMan,arbBasicMan,arbBalTarget,arbBalMode,arbSplitOpposite,arbNeutralEqual:!!fe.arbNeutralEqual,springShare,springShareAuto:fe.springShareAuto!==false,arbManF:fe.arbManF,arbManR:fe.arbManR};
 };
 
 // CO-SOLVE spring-share (S) resolution — shared by feelToPhysics (Kcs slider pre-inversion)
@@ -1566,7 +1628,12 @@ const computeTune=(ch,phys,gameMode)=>{
   // slider value, or the settle-time guarantee this recompute exists for breaks under SETTLE.
   if(phys.dampBalMode!=='standard'){
     const biasMult=Math.pow(2,-(phys.dampingBias??0)/50);
-    const bumpRatioVal=phys.bumpRatioVal??56,bumpZ=phys.bumpZeta??39,ratio=phys.dampingMode==='ratio';
+    const bumpRatioVal=phys.bumpRatioVal??56,ratio=phys.dampingMode==='ratio';
+    // LANDING's anchor is solved on the ride-reference axle's Hz, so it re-solves here on the
+    // post-CO-SOLVE rear Hz for the same reason the rebound split does.
+    const bumpZ=phys.dampingMode==='landing'
+      ? (()=>{const r=landingRef(phys.rideRef,fHz,effectiveRHz,ch);return landingBumpZeta(phys.landingDrop,r.hz,r.rh).zeta;})()
+      : phys.bumpZeta??39;
     const{zF,zR}=balModeZetas(phys.dampBalMode,phys.rideRef,m.front,fHz,m.rear,effectiveRHz,phys.baseZeta,biasMult);
     zetaF=Math.max(10,Math.min(200,zF));
     zetaR=Math.max(10,Math.min(200,zR));
@@ -2880,8 +2947,11 @@ const entrySummary=(e,metric)=>{
       bits.push(`${e.fe.rideBottomG.toFixed(2)} g target`);
     }
     bits.push(`${e.fe.reboundZeta??70}% ζ`);
-    bits.push((e.fe.dampingMode??'ratio')==='independent'
+    const dm=e.fe.dampingMode??'ratio';
+    bits.push(dm==='independent'
       ?`${e.fe.bumpZeta??39}% bump ζ`
+      :dm==='landing'
+      ?`${Math.round((e.fe.landingDrop??0.10)*100)} cm landing`
       :`${e.fe.bumpRatio??56}% bump`);
   }
   if(e?.dr)bits.push((e.dr.diffType??DEF_DR.diffType).toUpperCase());
@@ -2914,7 +2984,7 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               // acts-at-the-wheel assumption, so an untouched tune's output is unchanged.
               arbMotionRatioF:1.0,arbMotionRatioR:1.0};
 const DEF_FE={rideStiffness:1.75,arbBias:0,dampingBias:0,dampBalMode:'standard',targetSpeed:70,gameMode:'horizon',
-              dampingMode:'ratio',reboundZeta:70,bumpRatio:56,bumpZeta:39,dampCharMode:'zeta',settleTarget:0.80,
+              dampingMode:'ratio',reboundZeta:70,bumpRatio:56,bumpZeta:39,landingDrop:0.10,dampCharMode:'zeta',settleTarget:0.80,
               arbMode:'auto',arbTargetRollMan:1.8,arbShareMan:15,arbBasicMan:50,
               // Must match sanitizeTune's cl(...,20) fallback — codecFieldDefault (ids 46/47)
               // reads these off DEF_GROUPS.fe, and an absent key there resolves to undefined,
@@ -2970,7 +3040,7 @@ const SECTION_VIS=[
   {key:'alignment', label:'ALIGNMENT',      tiers:['pro'],                fields:['al',null]},
   {key:'arb',       label:'ANTI-ROLL BARS', tiers:['intermediate','pro'], fields:['fe',['arbBias','arbMode','arbBalMode','springShare','arbTargetRollMan','arbShareMan','arbBasicMan','arbSplitOpposite','arbNeutralEqual']]},
   {key:'ride',      label:'RIDE',           tiers:['intermediate','pro'], fields:['fe',['rideStiffness','targetSpeed','rearHzMode','rearHzMan','rearHzMult','rideRef','rideStiffMode','rideBottomG']]},
-  {key:'dampers',   label:'DAMPERS',        tiers:['intermediate','pro'], fields:['fe',['dampingMode','dampingBias','reboundZeta','bumpRatio','bumpZeta','dampCharMode','dampBalMode','settleTarget']]},
+  {key:'dampers',   label:'DAMPERS',        tiers:['intermediate','pro'], fields:['fe',['dampingMode','dampingBias','reboundZeta','bumpRatio','bumpZeta','landingDrop','dampCharMode','dampBalMode','settleTarget']]},
   {key:'brakes',    label:'BRAKES',         tiers:['intermediate','pro'], fields:['dr',['brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']]},
   {key:'drivetrain',label:'DRIVETRAIN',     tiers:['intermediate','pro'], fields:['dr',['diffType','diffManual','diffComplement','diffBiasExit','diffBiasEntry','diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel','diffRearAccel','diffRearDecel','diffCenter']]},
   {key:'visuals',   label:'VISUALS',        tiers:['intermediate','pro'], fields:null},
@@ -4833,8 +4903,10 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
 // of throwing. Values are permanent — never renumber.
 const GAME_MODE_ENC={'horizon':0,'motorsport':1,'beamng':2};
 const GAME_MODE_DEC=['horizon','motorsport','beamng'];
-const DAMPING_MODE_ENC={'ratio':0,'independent':1};
-const DAMPING_MODE_DEC=['ratio','independent'];
+// 'landing':2 appended like beamng above: an older client decodes it to undefined and
+// sanitizeTune's includes() check drops it back to ratio. Never renumber.
+const DAMPING_MODE_ENC={'ratio':0,'independent':1,'landing':2};
+const DAMPING_MODE_DEC=['ratio','independent','landing'];
 const REAR_HZ_MODE_ENC={'flatRide':0,'independent':1,'multiplier':2,'mech':3,'shared':4};
 const REAR_HZ_MODE_DEC=['flatRide','independent','multiplier','mech','shared'];
 const ARB_MODE_ENC={'auto':0,'roll':1,'share':2,'man':4,'basic':5};
@@ -4977,6 +5049,9 @@ const CODEC_FIELDS=[
   {id:81,group:'dr',key:'brakeCentre',enc:{rec:0,grip:1,entry:2},dec:BRAKE_CENTRE_DEC},
   {id:82,group:'dr',key:'brakeDecel'},
   {id:83,group:'dr',key:'brakeEntryTarget'},
+  // 84: BUMP MODE → LANDING's drop-height target, metres. A target like rideBottomG (id 64):
+  // bump ζ re-solves from it against whatever chassis it lands on.
+  {id:84,group:'fe',key:'landingDrop'},
   {id:55,group:'fe',key:'springShareAuto',bool:true},
   {id:56,group:'fe',key:'arbSplitOpposite',bool:true},
   // 58/59: motion ratios. group:'ch' because they describe the car's suspension geometry,
@@ -5124,7 +5199,7 @@ const SHARE_PARTS=[
          'rearHzMode','rearHzMan','rearHzMult','gameMode','targetSpeed']},
   {id:'damp',group:'fe',label:'DAMPERS',sub:'Rebound · bump · damping balance',
    keys:['dampingMode','dampCharMode','dampBalMode','dampingBias',
-         'reboundZeta','bumpRatio','bumpZeta','settleTarget','settleBias','settleMode']},
+         'reboundZeta','bumpRatio','bumpZeta','landingDrop','settleTarget','settleBias','settleMode']},
   {id:'arb',group:'fe',label:'ARB',sub:'Bar stiffness · balance · spring/bar share',
    keys:['arbBias','arbMode','arbTargetRollMan','arbShareMan','arbBasicMan',
          'arbBalMode','arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs',
@@ -5257,6 +5332,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       reboundZeta:      cl(fe?.reboundZeta,       10,  200,  DEF_FE.reboundZeta),
       bumpRatio:        cl(fe?.bumpRatio,         10,  100,  DEF_FE.bumpRatio),
       bumpZeta:         cl(fe?.bumpZeta,          10,  115,  DEF_FE.bumpZeta),
+      landingDrop:      cl(fe?.landingDrop,       0.02, 1.50, DEF_FE.landingDrop),
       arbMode:          (()=>{
                           const am=ARB_MODE_DEC.includes(fe?.arbMode)?fe.arbMode:DEF_FE.arbMode;
                           // Migrate old saves/share codes where MAN was a Balance Mode value.
@@ -5797,7 +5873,8 @@ const GLOSSARY=[
     {id:'settle-time',term:'Settle Time',tier:'beginner',def:"Settle time is the seconds until the suspension is back inside ±10% of the initial bump and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. The DAMPERS card shows it per axle, from rebound ζ and ride frequency.\n\n[INT] Two figures carry the name: the DAMPERS rows and the damper table's Settle row give a quick estimate from rebound ζ and Hz alone, while the DYNAMICS chart and the table's MEAS figure measure the drawn curve, which also sees bump damping, so they can differ. The table grades the slower axle PLANTED (under 0.35 s), RACE (0.60), SPORT (0.90), ROAD (1.30) or SOFT.\n\n[INT] Settle Target, under REBOUND MODE SETTLE TIME, runs 0.10–1.50 s (default 0.80) and back-solves rebound ζ on the reference axle against the quick estimate, so bump damping does not move it. The solve stops at 100% ζ, since past critical damping more damping settles slower. Damping Bias skews the front/rear timing.",see:['zeta','rebound-mode','dynamics-chart','damper-table']},
     {id:'character',term:'Character (Stable / Agile)',tier:'beginner',short:'Character',def:"Character sets damping feel in Beginner — how quickly the suspension settles after a bump or weight transfer — by moving rebound ζ and Bump Ratio together. STABLE (left) raises rebound ζ and lowers the bump ratio: more damped, settles quickly, planted and predictable. AGILE (right) lowers rebound ζ and raises the bump ratio: lighter, livelier and quicker to change direction. Centre is the defaults, 70% rebound ζ and a 56% bump ratio; start there and match it to your driving style.\n\nIt covers only part of the rebound ζ range, so a tune with very light or very heavy rebound damping shows the handle pinned at an end; moving it then overwrites both values.\n\n[INT] It is the Rebound ζ and Bump Ratio sliders in one. Beginner always runs CHARACTER rebound mode, STANDARD damping balance and zero Damping Bias.",see:['zeta','bump-ratio','rebound','settle-time']},
     {id:'rebound-mode',term:'Rebound Mode (CHARACTER / SETTLE TIME)',tier:'intermediate',short:'Rebound Mode',def:"REBOUND MODE decides how the anchor rebound ζ is obtained. CHARACTER: you type it on the Rebound ζ slider and nothing is back-solved. SETTLE TIME: you set a target settle time in seconds and the app back-solves the ζ that hits it on the ride-reference axle. Switching carries the value across — the time you were holding becomes the equivalent ζ and vice versa — so the car does not jump; above 100% ζ the round trip lands on the underdamped ζ with the same settle time, since time alone cannot tell the two apart.\n\nIt is independent of Damping Balance Mode, which decides how the anchor becomes a front/rear pair. Under SETTLE TIME only the anchored axle is guaranteed to hit the target: TIME SYNC matches the other axle to the same time at 0 Damping Bias, while STANDARD, HYBRID and EQUAL FORCE split differently, and the damper table shows the other axle's real time.",see:['settle-time','zeta','damping-balance-mode']},
-    {id:'bump-mode',term:'Bump Mode (BUMP RATIO / INDEPENDENT)',tier:'intermediate',short:'Bump Mode',def:"BUMP MODE sets how bump damping is chosen. BUMP RATIO, the default, sets it as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. INDEPENDENT sets a bump ζ directly, decoupled from rebound, for combinations the ratio cannot express, such as soft bump with firm rebound. Switching seeds the new control from the bump damping already in force (the ride-reference axle's, or the midpoint under SHARED), clamped to the new slider's range, so the tune does not jump; a crossed tune (bump above rebound) moves when switched to BUMP RATIO, which cannot express it. In either mode, Damping Balance Mode splits the bump stroke front/rear as well as rebound.",see:['bump','bump-ratio','damping-balance-mode']},
+    {id:'bump-mode',term:'Bump Mode (BUMP RATIO / INDEPENDENT / LANDING)',tier:'intermediate',short:'Bump Mode',def:"BUMP MODE sets how bump damping is chosen. BUMP RATIO, the default, sets it as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. INDEPENDENT sets a bump ζ directly, decoupled from rebound, for combinations the ratio cannot express, such as soft bump with firm rebound. LANDING solves bump ζ from a drop height the car should absorb without bottoming; it needs RIDE HEIGHT → CG on in CHASSIS. Switching seeds the new control from the bump damping already in force (the ride-reference axle's, or the midpoint under SHARED), clamped to the new slider's range, so the tune does not jump; a crossed tune (bump above rebound) moves when switched to BUMP RATIO, which cannot express it. In every mode, Damping Balance Mode splits the bump stroke front/rear as well as rebound.",see:['bump','bump-ratio','landing','damping-balance-mode']},
+    {id:'landing',term:'LANDING (bump mode)',tier:'intermediate',short:'LANDING',def:"LANDING sets bump damping from a drop height instead of a ratio: the app solves the softest bump ζ that absorbs that drop without bottoming. It is meant for rally, baja and trophy-truck builds, where the job of bump damping is catching big hits. It needs RIDE HEIGHT → CG on in CHASSIS, and the drop is saved with the build and share code, so bump re-solves on whatever chassis it lands on.\n\nThe solve uses the RIDE REF. axle's Hz and ride height, the same sag model as BOTTOM G's: travel left at rest is ride height minus 1g sag, and a hit at the landing speed √(2g·drop) compresses the suspension by (speed ÷ ωn) × a factor that falls with ζ. Damping Balance Mode then splits the result front/rear like any bump anchor, and the DAMPERS table's Catch row shows what each axle really absorbs.\n\nDamping does less than you might expect: across the whole 10–115% range it changes peak compression by only about 2.6×. When even 115% bottoms, the readout says ⚠ MAX with the most it can catch, and the fix is stiffer springs or more ride height. FLOOR means even 10% catches the drop.\n\n[PRO] Forza has one bump coefficient, not separate low- and high-speed settings, so the bump that catches a landing also firms up small chatter; that is why the solve picks the softest ζ that works. The model is linear and ignores tyre flex and progressive bump stops, so treat the figure as a starting point, like BOTTOM G's. The Catch row's tooltip gives peak bump force per corner at the target drop, in model kN rather than game clicks.",see:['bump-mode','bottom-g','bottoming','bump']},
     {id:'damping-balance-mode',term:'Damping Balance Mode',tier:'intermediate',def:"Damping Balance Mode decides how the single anchor ζ becomes a front/rear pair; it is independent of REBOUND MODE, which only decides how the anchor is obtained. It has four modes. STANDARD holds the anchor on the ride-reference axle and lets Damping Bias raise or lower the other by a percentage — simplest, and blind to any front/rear Hz difference. TIME SYNC gives both axles equal settle time from their own Hz and ignores mass. EQUAL FORCE gives equal damping force, scaled by corner mass × Hz. HYBRID sits halfway between TIME SYNC and EQUAL FORCE on each axle.\n\nAll four split the bump stroke as well as rebound, under either BUMP MODE. The damper table highlights the row the mode equalises: Rebound ζ, Settle, Force, or both Settle and Force for HYBRID. The Damping Bias slider works in every mode and never resets on a switch; only the formula reading it changes. Under SETTLE TIME only the anchored axle is guaranteed to hit the target time.",see:['time-sync','equal-force','hybrid','damping-bias']},
     {id:'time-sync',term:'TIME SYNC',tier:'intermediate',def:"TIME SYNC, one of four Damping Balance Modes, solves the front/rear damping split so both axles finish settling at the same time. It holds your ζ on the ride-reference axle and derives the other from its own spring frequency, so the stiffer axle gets proportionally less ζ; corner mass is ignored. It solves in settle-rate terms, so it stays exact past 100% ζ, and if the other axle's Hz is too low to ever match, that axle stops at 100% (critical damping).\n\nDamping Bias skews the timing: left (FRONT) makes the front settle faster, right (REAR) the rear, reaching a 2× ratio at ±50. Under SETTLE TIME it carries the target time to both axles. The damper table highlights its Settle row. Paired with FLAT RIDE it gives the lowest pitch in the app's model.",see:['damping-balance-mode','equal-force','hybrid','flat-ride-time-sync']},
     {id:'hybrid',term:'HYBRID',tier:'intermediate',def:"HYBRID, one of four Damping Balance Modes, gives each axle a ζ halfway between the TIME SYNC and EQUAL FORCE solutions — close to equal settle time and close to equal damping force, without fully committing to either. Both of those hold the ride-reference axle at your ζ, so HYBRID does too. Damping Bias firms the front (left) or the rear (right), reaching a 2× skew at ±50. The damper table highlights both its Settle and Force rows.",see:['time-sync','equal-force','damping-balance-mode']},
@@ -6781,6 +6858,21 @@ function App(){
   const feEffective=useMemo(()=>solved.target==null?feResolved:{...feResolved,arbBalTarget:solved.target},
     [feResolved,solved]);
   const physics=solved.physics,tune=solved.tune;
+  // BUMP MODE → LANDING, re-read on the tune's final Hz (post-CO-SOLVE) for the slider readout,
+  // the DAMPERS table's Catch row and the output warning. null in the other bump modes.
+  const landingSol=physics.dampingMode==='landing'?(()=>{
+    const r=landingRef(physics.rideRef,tune.fHz,tune.rHz,ch);
+    return{...landingBumpZeta(physics.landingDrop,r.hz,r.rh),
+           maxDrop:landingCatchDrop(LANDING_ZETA_MAX,r.hz,r.rh),travel:landingTravel(r.hz,r.rh)};
+  })():null;
+  const fmtLen=m=>mLen?`${Math.round(m*100)} cm`:`${(m/0.0254).toFixed(1)} in`;
+  // Shown under the Forza DAMPERS card and in the BeamNG warnings list alike.
+  const landingWarn=landingSol&&!landingSol.reachable?<>
+    {landingSol.travel<=0
+      ?<>Static sag already uses the {physics.rideRef==='rear'?'rear':physics.rideRef==='shared'?'average':'front'} ride height, so no bump damping can catch a {fmtLen(physics.landingDrop)} landing.</>
+      :<>Bump ζ is pinned at {LANDING_ZETA_MAX}% and still bottoms on a {fmtLen(physics.landingDrop)} landing; the most it can catch is about {fmtLen(landingSol.maxDrop)}.</>}
+    {' '}Stiffer springs or more ride height buy the travel back, not more damping. <TermLink id="landing"/>
+  </>:null;
   // Display space: the mech balance at which the grip model reads neutral (GRIP TARGET), at this
   // tune's roll stiffness. Not 1 − natGripBalance — that mirrors a grip reading into a mech
   // balance; see gripNeutralOf.
@@ -9091,6 +9183,8 @@ function App(){
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP MODE</span>
               <Hint text={dampingMode==='independent'
                 ?"INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound."
+                :dampingMode==='landing'
+                ?"LANDING: set a drop height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds."
                 :"BUMP RATIO: set bump damping as a percentage of rebound ζ, so the two strokes stay linked."} term="bump-mode"/>
             </div>
             <div style={{display:'flex',gap:3,marginBottom:10}}>
@@ -9119,8 +9213,43 @@ function App(){
                     physics.rideRef==='rear'?physics.bumpZetaR
                     :physics.rideRef==='shared'?(physics.bumpZetaF+physics.bumpZetaR)/2
                     :physics.bumpZetaF)))}))}>INDEPENDENT</button>
+              {/* LANDING needs ride heights, so it is offered with RIDE HEIGHT → CG on, like
+                  BOTTOM G's. A tune already in LANDING keeps the button (and the solve, which
+                  reads the stored ride heights regardless of the toggle) so it can be left. */}
+              {(ch.useRideHeightCG||dampingMode==='landing')&&
+              <button className={`tog${dampingMode==='landing'?' on':''}`}
+                onClick={()=>setFe(p=>{
+                  if(p.dampingMode==='landing')return p;
+                  // Seed the drop height the current bump anchor already catches on the
+                  // ride-reference axle, so switching in does not move the tune. Clamped to
+                  // the slider's 0.02-1.50 m; a car whose sag eats its ride height seeds the floor.
+                  const r=landingRef(physics.rideRef,physics.frontHz,physics.rearHz,ch);
+                  const z=Math.max(LANDING_ZETA_MIN,Math.min(LANDING_ZETA_MAX,physics.bumpZeta));
+                  return{...p,dampingMode:'landing',
+                    landingDrop:Math.round(Math.max(0.02,Math.min(1.50,landingCatchDrop(z,r.hz,r.rh)))*100)/100};
+                })}>LANDING</button>}
             </div>
-            {dampingMode==='ratio'
+            {dampingMode==='landing'
+              ? (()=>{
+                  // Stored in metres, shown in the CHASSIS length unit (cm or in).
+                  const k=mLen?100:1/0.0254,u=mLen?'cm':'in';
+                  const bF=physics.bumpZetaF,bR=physics.bumpZetaR;
+                  const split=Math.abs(bF-bR)>0.5;
+                  const cross=(bF>physics.zetaF+0.5||bR>physics.zetaR+0.5)?' ⚠ CROSSED':'';
+                  const zTxt=split?`ζ F ${Math.round(bF)}% | ${Math.round(bR)}% R`:`ζ ${Math.round(bF)}%`;
+                  const readout=!landingSol?zTxt
+                    :landingSol.travel<=0?'⚠ SAG ≥ RIDE HT'
+                    :!landingSol.reachable?`⚠ MAX ${fmtLen(landingSol.maxDrop)}`
+                    :landingSol.zeta<=LANDING_ZETA_MIN+0.01?`${zTxt} · FLOOR${cross}`
+                    :`${zTxt}${cross}`;
+                  return <FeelSlider label="Drop" value={Math.round((physics.landingDrop*k)*10)/10}
+                    onChange={v=>setFe(p=>({...p,landingDrop:Math.max(0.02,Math.min(1.50,v/k))}))}
+                    min={Math.round(0.02*k*10)/10} max={Math.round(1.50*k*10)/10} step={mLen?1:0.5}
+                    leftLabel={`${Math.round(0.02*k*10)/10} ${u}`} rightLabel={`${Math.round(1.50*k*10)/10} ${u}`}
+                    hint={`Drop height the ${physics.rideRef==='rear'?'rear':physics.rideRef==='shared'?'average':'front'} axle should absorb without bottoming. The app solves the softest bump ζ that does it from Hz and ride height; Damping Balance Mode splits it front/rear. FLOOR means even 10% catches it.`}
+                    markers={null} box={{unit:u}} readout={readout} hintTerm="landing"/>;
+                })()
+              : dampingMode==='ratio'
               ? <FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
                   onChange={pFe('bumpRatio')} min={10} max={100} step={1}
                   leftLabel="10%" rightLabel="100%"
@@ -9251,6 +9380,20 @@ function App(){
                  mis:Math.abs(rlD)>=0.03,dir:rlD<0?'F':'R',
                  t:`Rebound ζ in roll; the ARB adds no damping. Arrow = less roll-damped axle, loads first on turn-in${Math.abs(rlD)>=0.03?` (${rlD<0?'F':'R'} LEADS ${Math.round(Math.abs(rlD)*100)}%)`:' (MATCHED)'}.`},
               ];
+              if(landingSol){
+                // What each axle's FINAL bump ζ (after the balance split and the click snap)
+                // actually catches, on its own Hz and ride height. Amber when an axle falls short
+                // of the target — under STANDARD/TIME SYNC/etc. only the ride-reference axle is
+                // solved to it, the same way SETTLE TIME only guarantees that axle's time.
+                const drop=physics.landingDrop,V=Math.sqrt(2*LANDING_G*drop);
+                const cF=landingCatchDrop(bumpZetaF,tune.fHz,ch.rideHeightF),cR=landingCatchDrop(bumpZetaR,tune.rHz,ch.rideHeightR);
+                // Peak bump force per corner at the target drop, model units (not game clicks).
+                const pk=(z,hz,mass)=>2*mass*2*Math.PI*hz*(z/100)*V/1000;
+                const short=c=>c<drop*0.99;
+                rows.push({k:'catch',l:'Catch',f:fmtLen(cF),r:fmtLen(cR),
+                  mis:short(cF)||short(cR),dir:cF<cR?'F':'R',
+                  t:`Drop height each axle absorbs before bottoming at its final bump ζ (target ${fmtLen(drop)}). Arrow = axle that falls short. Peak bump force per corner at the target: F ≈${pk(bumpZetaF,tune.fHz,mF).toFixed(1)} kN · R ≈${pk(bumpZetaR,tune.rHz,mR).toFixed(1)} kN.`});
+              }
               const target={standard:['reb'],sync:['settle'],hybrid:['settle','force'],neutral:['force']}[dampBalMode]??[];
               const hd={fontSize:9,color:'#64748b',letterSpacing:1,textAlign:'right'};
               return(
@@ -10139,6 +10282,9 @@ function App(){
                 </RowGroup>
               </>);
             })()}
+            {landingWarn&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
+                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
+                 border:'1px solid #f5a62333'}}>{landingWarn}</div>}
             {tune.dampingClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
@@ -10306,6 +10452,7 @@ function App(){
               {(fe.springShareAuto!==false)?' Lower the mech balance target or switch to MECH mode.'
                 :' Lower Spring Share or enable AUTO.'} <TermLink id="output-warnings"/>
             </>));
+            if(landingWarn)warnings.push(warnBox('landing','#f59e0b',landingWarn));
             if(tune.dampingClamped)warnings.push(warnBox('damp','#f59e0b',<>
               Dampers scaled to fit within 1–{lim.damping}, keeping the F/R ratio. {uiMode==='beginner'?'Move Character toward AGILE to restore the feel.':'Lower Rebound ζ or Bump Ratio to restore the character.'} <TermLink id="output-warnings"/>
             </>));
