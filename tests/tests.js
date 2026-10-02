@@ -1045,7 +1045,7 @@ console.log('\nmirror vs app (reads index.html)');
     'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
-    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
+    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,snapLandingDrop,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1231,6 +1231,10 @@ console.log('\nmirror vs app (reads index.html)');
     for (const z of [10, 30, 59, 100, 115, 180])
       assert(`landing: peakCompressionFactor(${z}) matches simulation`, A.peakCompressionFactor(z), simPeak(z / 100), 1e-3);
     assert('landing: factor is 1 undamped', A.peakCompressionFactor(0), 1, 1e-12);
+    assert('landing: snap keeps 0.1 in exact', A.snapLandingDrop(3.7*0.0254 + 1e-12) / 0.0254, 3.7, 1e-9);
+    assertEq('landing: snap keeps 0.1 cm exact', A.snapLandingDrop(0.123 + 1e-12), 0.123);
+    assertEq('landing: snap clamps low', A.snapLandingDrop(0.001), 0.02);
+    assertEq('landing: snap clamps high', A.snapLandingDrop(9), 1.5);
     // Round trip: the solved ζ catches exactly the target drop.
     for (const [drop, hz, rh] of [[0.10, 1.75, 0.13], [0.20, 1.5, 0.25], [0.60, 1.5, 0.25]]) {
       const r = A.landingBumpZeta(drop, hz, rh);

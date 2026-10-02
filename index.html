@@ -780,6 +780,9 @@ const landingRef=(rideRef,fHz,rHz,ch)=>{
     :rideRef==='shared'?{hz:(fHz+rHz)/2,rh:(rhF+rhR)/2}
     :{hz:fHz,rh:rhF};
 };
+// Clamp a drop height to the slider's 0.02-1.50 m and round to 10 µm: exact for both 0.1 cm
+// (1 mm) and 0.1 in (2.54 mm) steps, so the share code never carries float noise.
+const snapLandingDrop=m=>Math.round(Math.max(0.02,Math.min(1.50,m))*1e5)/1e5;
 
 // ── Mech balance — steady-state US/OS from physics ───────────────────────────
 // Derived from lateral-load-transfer distribution (set by the front/rear roll-
@@ -2951,7 +2954,7 @@ const entrySummary=(e,metric)=>{
     bits.push(dm==='independent'
       ?`${e.fe.bumpZeta??39}% bump ζ`
       :dm==='landing'
-      ?`${Math.round((e.fe.landingDrop??0.10)*100)} cm landing`
+      ?`${((e.fe.landingDrop??0.10)*100).toFixed(1)} cm landing`
       :`${e.fe.bumpRatio??56}% bump`);
   }
   if(e?.dr)bits.push((e.dr.diffType??DEF_DR.diffType).toUpperCase());
@@ -6865,7 +6868,7 @@ function App(){
     return{...landingBumpZeta(physics.landingDrop,r.hz,r.rh),
            maxDrop:landingCatchDrop(LANDING_ZETA_MAX,r.hz,r.rh),travel:landingTravel(r.hz,r.rh)};
   })():null;
-  const fmtLen=m=>mLen?`${Math.round(m*100)} cm`:`${(m/0.0254).toFixed(1)} in`;
+  const fmtLen=m=>mLen?`${(m*100).toFixed(1)} cm`:`${(m/0.0254).toFixed(1)} in`;
   // Shown under the Forza DAMPERS card and in the BeamNG warnings list alike.
   const landingWarn=landingSol&&!landingSol.reachable?<>
     {landingSol.travel<=0
@@ -9225,8 +9228,10 @@ function App(){
                   // the slider's 0.02-1.50 m; a car whose sag eats its ride height seeds the floor.
                   const r=landingRef(physics.rideRef,physics.frontHz,physics.rearHz,ch);
                   const z=Math.max(LANDING_ZETA_MIN,Math.min(LANDING_ZETA_MAX,physics.bumpZeta));
+                  // Snapped to the slider's 0.1 step in the CHASSIS length unit.
+                  const k=mLen?100:1/0.0254;
                   return{...p,dampingMode:'landing',
-                    landingDrop:Math.round(Math.max(0.02,Math.min(1.50,landingCatchDrop(z,r.hz,r.rh)))*100)/100};
+                    landingDrop:snapLandingDrop(Math.round(landingCatchDrop(z,r.hz,r.rh)*k*10)/10/k)};
                 })}>LANDING</button>}
             </div>
             {dampingMode==='landing'
@@ -9243,8 +9248,8 @@ function App(){
                     :landingSol.zeta<=LANDING_ZETA_MIN+0.01?`${zTxt} · FLOOR${cross}`
                     :`${zTxt}${cross}`;
                   return <FeelSlider label="Drop" value={Math.round((physics.landingDrop*k)*10)/10}
-                    onChange={v=>setFe(p=>({...p,landingDrop:Math.max(0.02,Math.min(1.50,v/k))}))}
-                    min={Math.round(0.02*k*10)/10} max={Math.round(1.50*k*10)/10} step={mLen?1:0.5}
+                    onChange={v=>setFe(p=>({...p,landingDrop:snapLandingDrop(v/k)}))}
+                    min={Math.round(0.02*k*10)/10} max={Math.round(1.50*k*10)/10} step={0.1}
                     leftLabel={`${Math.round(0.02*k*10)/10} ${u}`} rightLabel={`${Math.round(1.50*k*10)/10} ${u}`}
                     hint={`Drop height the ${physics.rideRef==='rear'?'rear':physics.rideRef==='shared'?'average':'front'} axle should absorb without bottoming. The app solves the softest bump ζ that does it from Hz and ride height; Damping Balance Mode splits it front/rear. FLOOR means even 10% catches it.`}
                     markers={null} box={{unit:u}} readout={readout} hintTerm="landing"/>;

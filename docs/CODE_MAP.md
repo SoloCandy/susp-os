@@ -107,7 +107,7 @@ Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 (Damping Balance Mode's front/rear split — `balModeZetas` is the by-mode
 dispatcher, called twice per solve: once for the rebound anchor and once for
 the INDEPENDENT or LANDING bump anchor), `peakCompressionFactor`/`landingTravel`/
-`landingCatchDrop`/`landingBumpZeta`/`landingRef` (BUMP MODE → LANDING: the drop-height
+`landingCatchDrop`/`landingBumpZeta`/`landingRef`/`snapLandingDrop` (BUMP MODE → LANDING: the drop-height
 solve and the per-axle Catch figure, see PHYSICS.md "LANDING bump mode"), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),

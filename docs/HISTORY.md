@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — LANDING's Drop slider steps 0.1 in cm and in alike
+
+It shipped stepping 1 cm or 0.5 in, which is too coarse at the small end where 2 cm vs
+3 cm moves bump ζ a lot. The drop is stored in metres, so a 0.1 in step is 2.54 mm and
+leaves float noise in the share code. `snapLandingDrop` rounds the stored value to 10 µm,
+a grid that both 1 mm and 2.54 mm land on exactly. Seeding on the switch into LANDING
+snaps to the same display step.
+
 ## Changed — BUMP MODE gains LANDING
 
 A third bump mode solves bump ζ from a drop height instead of a ratio or a typed value
