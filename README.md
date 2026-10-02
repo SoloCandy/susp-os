@@ -19,7 +19,7 @@ A single-file suspension tuning calculator for **Forza Horizon**, **Forza Motors
 
 ## Quick Start
 
-**[Open the live app](https://solocandy.github.io/susp-os/)** — or download `index.html` and open it in any browser. No install, no server, no build step.
+**[Open the live app](https://solocandy.github.io/susp-os/)** — or download `index.html` and open it in any browser. No install, no server, no build step. A downloaded copy checks the live site while online, and the GitHub button in its header turns green (↓) once a newer version is out.
 
 > **Offline note:** React and Babel load from a CDN on first use. Once cached, the app works fully offline. For a fully air-gapped setup, open it once with internet access, then it works without a connection.
 

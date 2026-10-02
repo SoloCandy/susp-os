@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a downloaded copy is told about updates; docs-only pushes no longer are
+
+`useDeployCheck` returned early off http(s), so a downloaded `index.html` opened as
+file:// was never told about a push. Its HEAD also targeted `location.pathname`, which
+for a local copy is the user's own file. It now checks the Pages site (`LIVE_URL`) from
+file:// and offers a download link (↓) rather than RELOAD, since reloading a local file
+rereads the same old copy.
+
+It also compares the live file's `#app-source` against the tab's instead of trusting
+`Last-Modified` alone. Every Pages deploy restamps every file, so a docs-only push used
+to light RELOAD for an identical app. The KNOWN_ISSUES entry accepting that said
+contents couldn't be compared because the DOM is rewritten. `#app-source` is the
+exception: Babel compiles a copy of its text, so the element stays as loaded. The date
+still gates the full GET, so a tab downloads the file only after a deploy.
+
 ## Changed — LANDING's drop is a % of ride height, on id 84
 
 The drop moved from metres to a percentage of the RIDE REF. axle's ride height

@@ -61,8 +61,9 @@ The source runs top to bottom in this order:
    with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
 3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
    `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
-4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then `GITHUB_MARK` and
-   `useDeployCheck` under a `── Deploy check ──` banner, then the undo / redo core
+4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then `GITHUB_MARK`, `LIVE_URL`,
+   `DOWNLOAD_URL`, `appSourceOf` and `useDeployCheck` under a `── Deploy check ──`
+   banner, then the undo / redo core
    `makeHistory` under its own `── Undo / redo history ──` banner (pure, no React).
 5. **Shared components** — see the table below.
 6. **Codec** — `CODEC_FIELDS`, `encodeTune`, `decodeTune`, `sanitizeTune`.
@@ -434,7 +435,7 @@ redo, so the row is one button narrower than when 975 was measured. The threshol
 was left at 1000 rather than re-measured — lowering it is safe only after the
 GARAGE edge check above.
 
-The GitHub slot is one glyph wider while it shows the reload state (below). That was
+The GitHub slot is one glyph wider while it shows the reload (↻) or download (↓) state (below). That was
 measured: with it lit, GARAGE's right edge sits at the header's padding at 1000px,
 820px, 480px and 375px, so neither layout overflows.
 
@@ -442,32 +443,50 @@ measured: with it lit, GARAGE's right edge sits at the header's padding at 1000p
 
 ## Deploy check: `useDeployCheck`
 
-The header's GitHub source link turns into a reload button once a newer
-`index.html` is live — for a tab left open across a push to GitHub Pages. Lit, it
-keeps the GitHub mark, adds ↻, turns green (`.tbtn.update`), and clicking it calls
-`location.reload()` instead of opening the repo. Nothing else changes, and it never
-reloads on its own.
+The header's GitHub source link changes once a newer SUSP.OS is live, so an open tab
+learns of a push. It returns `null`, `'reload'` or `'download'`:
+
+- **`'reload'`** — the page is served over http(s), i.e. GitHub Pages. The link
+  becomes a button that keeps the GitHub mark, adds ↻, turns green (`.tbtn.update`),
+  and calls `location.reload()`.
+- **`'download'`** — the page is a downloaded copy opened as `file://`. Reloading
+  would reread the same old file, so the link stays a link, turns green, adds ↓, and
+  points at `DOWNLOAD_URL` (GitHub's view of `index.html`, which has a download
+  button). Its tooltip says to save the new file over the old one, because a file://
+  copy's localStorage belongs to that file's origin, not to the Pages site; SHARE →
+  BACKUP is the safe route.
+
+It never reloads or downloads on its own.
 
 How it decides:
 
-- **Baseline is `document.lastModified`** — the `Last-Modified` header of the copy
-  *this tab* loaded. A HEAD fetched after load was rejected as the baseline: a page
-  served from the browser cache would compare against a newer server copy and
-  never light.
-- **The check is a `HEAD` with `cache: 'no-store'`** on `location.pathname`, lit
-  only when the server's `Last-Modified` is strictly newer. A CDN edge still
-  serving the old copy reads equal or older and is ignored.
-- **When**: every `DEPLOY_CHECK_MS` (5 min) while the tab is visible, and on
-  `visibilitychange` / `focus`, throttled to once a minute. It stops once lit.
-- **It is inert off http(s)** (`file://`) and on any server that sends no
-  `Last-Modified`: `document.lastModified` then reads as "now" and the HEAD's date
-  parses as `NaN`, so the comparison is never true.
+- **It compares the app, not a date.** `#app-source` is a `text/plain` script that
+  Babel compiles a *copy* of, so its `textContent` is still the exact source this tab
+  loaded. `appSourceOf` pulls the same element out of the fetched file with
+  `DOMParser`. Any difference lights it, a comment-only edit included. A push that
+  leaves `#app-source` alone — docs only, or CSS in `<head>` — does not.
+- **The date only gates the download.** A `HEAD` with `cache: 'no-store'` reads
+  `Last-Modified`, and only a date strictly newer than `seen` costs the full `GET`.
+  `seen` starts at `document.lastModified` when served — the copy *this tab* loaded,
+  cache included, which is why a HEAD fetched after load was rejected as the
+  baseline — and at "none" off file://, so a downloaded copy's first check always
+  GETs. A newer date with identical source (a docs-only deploy) moves `seen` to the
+  GET's own date, not the HEAD's, so a GET that hit a stale edge can't skip the new
+  copy. A CDN edge still serving an older copy reads equal or older and is ignored.
+- **Target**: `location.pathname` when served; `LIVE_URL` (the Pages site) off
+  file://. That cross-origin read from origin `null` works because Pages sends
+  `Access-Control-Allow-Origin: *` and `Last-Modified` is a CORS-safelisted header.
+- **When**: every `DEPLOY_CHECK_MS` (5 min) while the tab is visible, on
+  `visibilitychange` / `focus`, and once at open off file://, throttled to once a
+  minute. It stops once lit.
+- **It is inert** on any other protocol, on a server that sends no `Last-Modified`
+  (`document.lastModified` reads "now", the HEAD's date parses as `NaN`), and when
+  offline or blocked (the fetch throws; it tries again next tick).
 - **Reloading loses nothing.** All state lives in `usePersist` keys (see
   [PERSISTENCE.md](PERSISTENCE.md)), which is what lets the button reload without
   asking first.
 
-It fires on any Pages redeploy, not only one that changed `index.html` — see
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for what it misses.
 
 ---
 

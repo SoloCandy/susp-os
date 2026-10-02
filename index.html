@@ -2662,43 +2662,69 @@ const usePersist=(key,initial,repair)=>{
 };
 
 // ── Deploy check ────────────────────────────────────────────────────────────
-// Lights the header's GitHub button once a newer index.html is live on GitHub Pages, so a tab
-// left open across a push is told to reload. document.lastModified is the Last-Modified header of
-// the copy THIS tab loaded (from the browser cache too, which is why it beats a baseline fetched
-// after load); a no-store HEAD reads what the server holds now. Strictly newer only: an edge still
-// serving the old copy reads older or equal and is ignored. No header (file://, a server without
-// Last-Modified) → document.lastModified is "now" and the HEAD's date parses NaN, so nothing fires.
-// Checked every 5 min while visible and whenever the tab comes back, at most once a minute; stops
-// for good once it fires. Any Pages redeploy moves the date, a docs-only push included — see
-// KNOWN_ISSUES. Reloading is safe: everything the user has lives in usePersist's localStorage keys.
+// Lights the header's GitHub button once a newer SUSP.OS is live, so an open tab learns of a push.
+// Two cases. Served over http(s) (GitHub Pages) → the button becomes RELOAD. Opened as a downloaded
+// file (file://) → reloading would only reread the same old file, so it becomes a link to the live
+// copy's download page instead; that copy's localStorage is a different origin, hence the BACKUP hint.
+// "Newer" is decided on the app itself: #app-source is a text/plain script, which nothing rewrites
+// (Babel compiles a copy of its text), so the tab still holds the exact source it loaded and can
+// compare it with the live file's. Any difference lights it, a comment-only edit included; a push
+// that leaves #app-source alone (docs only, CSS in <head>) does not.
+// The full file is fetched only when it may have changed: a no-store HEAD reads its Last-Modified,
+// and only a date strictly newer than `seen` — this tab's own document.lastModified on http(s), the
+// last copy compared otherwise — costs a GET. An edge still serving the old copy reads equal or
+// older and is ignored. A file:// tab has no date of its own, so its first check always GETs.
+// Pages sends Access-Control-Allow-Origin: * and Last-Modified is CORS-safelisted, which is what
+// lets a file:// page (origin "null") read both. Checked every 5 min while visible and whenever the
+// tab comes back, at most once a minute; stops for good once it fires. Reloading is safe:
+// everything the user has lives in usePersist's localStorage keys.
 // GitHub's mark, used by the header's source link and by the reload button that replaces it.
 const GITHUB_MARK='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z';
 
 const DEPLOY_CHECK_MS=5*60*1000;
+const LIVE_URL='https://solocandy.github.io/susp-os/';
+// Where a downloaded copy is sent to update itself: GitHub's file view has a "Download raw file" button.
+const DOWNLOAD_URL='https://github.com/SoloCandy/susp-os/blob/main/index.html';
+const appSourceOf=html=>new DOMParser().parseFromString(html,'text/html').getElementById('app-source')?.textContent??null;
+// null until a newer app is live, then 'reload' (served tab) or 'download' (file:// tab).
 const useDeployCheck=()=>{
-  const[updateReady,setUpdateReady]=useState(false);
+  const[update,setUpdate]=useState(null);
   useEffect(()=>{
-    if(!/^https?:$/.test(location.protocol))return;
-    const loaded=Date.parse(document.lastModified);
-    if(!isFinite(loaded))return;
-    let last=0,done=false;
+    const served=/^https?:$/.test(location.protocol);
+    if(!served&&location.protocol!=='file:')return;
+    const mine=document.getElementById('app-source')?.textContent;
+    if(!mine)return;
+    const url=served?location.pathname:LIVE_URL;
+    let seen=served?Date.parse(document.lastModified):NaN;
+    if(served&&!isFinite(seen))return;
+    let last=0,done=false,compared=served;
     const check=async()=>{
       if(done||document.hidden||Date.now()-last<60000)return;
       last=Date.now();
       try{
-        const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
-        const live=Date.parse(r.headers.get('last-modified')||'');
-        if(r.ok&&live>loaded&&!done){done=true;setUpdateReady(true);}
+        const h=await fetch(url,{method:'HEAD',cache:'no-store'});
+        if(!h.ok||!(Date.parse(h.headers.get('last-modified')||'')>seen||!compared))return;
+        const r=await fetch(url,{cache:'no-store'});
+        if(!r.ok)return;
+        const theirs=appSourceOf(await r.text());
+        if(theirs==null||done)return;
+        compared=true;
+        if(theirs!==mine){done=true;setUpdate(served?'reload':'download');return;}
+        // Same app under a newer date (a docs-only deploy): compare from this copy on. The GET's own
+        // date, not the HEAD's, so a GET that hit a stale edge can't move `seen` past the new copy.
+        const d=Date.parse(r.headers.get('last-modified')||'');
+        if(isFinite(d)&&!(d<=seen))seen=d;
       }catch{} // offline or blocked — try again next tick
     };
     const timer=setInterval(check,DEPLOY_CHECK_MS);
     const onShow=()=>{if(!document.hidden)check();};
     document.addEventListener('visibilitychange',onShow);
     window.addEventListener('focus',onShow);
+    if(!served)check(); // a file:// copy has no date to wait on — compare once at open
     return()=>{done=true;clearInterval(timer);
       document.removeEventListener('visibilitychange',onShow);window.removeEventListener('focus',onShow);};
   },[]);
-  return updateReady;
+  return update;
 };
 
 // ── Undo / redo history ─────────────────────────────────────────────────────
@@ -6651,7 +6677,7 @@ function App(){
   // Initialised once from the launch width so resizes/address-bar jiggle don't reset it.
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
-  const updateReady=useDeployCheck(); // a newer deploy is live — GitHub button turns into RELOAD
+  const update=useDeployCheck(); // a newer app is live — GitHub button turns into RELOAD, or a download link off file://
   // Phone: true while a sidebar text field/select has focus (keyboard up) — hides the pinned
   // VISUALS footer so the scrolling controls keep their height.
   const[sbTyping,setSbTyping]=useState(false);
@@ -7848,10 +7874,11 @@ function App(){
               onClick={e=>glossaryBridge.open(null,{from:e.currentTarget,keyboard:e.detail===0})}>TERMS</button>
             {/* Source link. An <a> rather than a button so it opens in a new tab natively;
                 tbtn styles an inline element, so the flex/decoration bits are set here.
-                Once useDeployCheck sees a newer deploy it becomes a reload button in the same
-                slot — the mark stays so it reads as the same control, ↻ says what it does now,
-                and the width grows by one glyph only (see headerCompact in CODE_MAP). */}
-            {updateReady?(
+                Once useDeployCheck sees a newer app it changes in the same slot — RELOAD (↻) when
+                served, a link to the download page (↓) off file://, where a reload would reread the
+                same old file. The mark stays so it reads as the same control, the glyph says what it
+                does now, and the width grows by one glyph only (see headerCompact in CODE_MAP). */}
+            {update==='reload'?(
             <button className="tbtn update" onClick={()=>window.location.reload()}
               title="A new version of SUSP.OS is live — click to reload. Your tune and garage are saved."
               aria-label="New version available — reload"
@@ -7862,12 +7889,17 @@ function App(){
               <span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↻</span>
             </button>
             ):(
-            <a className="tbtn" href="https://github.com/SoloCandy/susp-os" target="_blank"
-              rel="noopener noreferrer" title="Source on GitHub"
-              style={{display:'inline-flex',alignItems:'center',textDecoration:'none'}}>
+            <a className={update?'tbtn update':'tbtn'} target="_blank" rel="noopener noreferrer"
+              href={update?DOWNLOAD_URL:'https://github.com/SoloCandy/susp-os'}
+              title={update
+                ?'A newer SUSP.OS is live. Download it over this file (same name and folder) to keep your garage — SHARE → BACKUP first to be safe.'
+                :'Source on GitHub'}
+              aria-label={update?'New version available — download it':undefined}
+              style={{display:'inline-flex',alignItems:'center',gap:update?4:undefined,textDecoration:'none'}}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                 <path d={GITHUB_MARK}/>
               </svg>
+              {update&&<span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↓</span>}
             </a>
             )}
             {!isPhone&&<div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>}

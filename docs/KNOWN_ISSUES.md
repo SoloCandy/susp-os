@@ -927,15 +927,22 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
   successful cancel.
 
-## Accepted — the reload notice fires on any redeploy, docs-only pushes included
+## Accepted — the update notice watches `#app-source` only
 
-`useDeployCheck` compares `Last-Modified` dates, and a GitHub Pages deploy stamps
-every file it publishes, so a push that touched only `docs/` still lights the GitHub
-button's reload state. Reloading then fetches an identical app. Comparing contents
-was rejected: the tab has no clean copy of the HTML it loaded to compare against
-(React and Babel rewrite the DOM), and a size check alone misses a same-length edit.
-A spare reload costs nothing, since all state is in localStorage; a missed update
-costs a stale tab. See [CODE_MAP.md](CODE_MAP.md)'s "Deploy check".
+`useDeployCheck` lights the GitHub button only when the live file's `#app-source`
+differs from the tab's. A push that changes only what sits outside it — the CSS in
+`<head>`, the loader script at the end — never reaches an open tab or a downloaded
+copy until it reloads or is downloaded again for another reason. The rest of the file
+can't be compared: React and Babel rewrite the DOM around it, so the tab has no clean
+copy. Those parts change rarely, and nearly every feature lives in `#app-source`.
+
+## Accepted — a downloaded copy that differs from live reads as out of date
+
+Off file://, "different from the Pages site" is taken to mean "older". A copy edited
+by hand, or downloaded from a branch ahead of `main`, shows the ↓ download state too.
+Telling newer from older would need a version stamp that a push without a build step
+would have to keep updated by hand. A local copy also checks only while online; offline it
+stays quiet, which is the intended degradation.
 
 ---
 
