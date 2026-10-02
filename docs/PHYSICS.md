@@ -1358,8 +1358,10 @@ value quietly re-derived from whatever Hz happened to be loaded).
 
 ### LANDING bump mode
 
-BUMP MODE's third option solves bump ζ from a drop height (`fe.landingDrop`,
-metres) instead of taking it as a ratio or a typed number. It is the dynamic
+BUMP MODE's third option solves bump ζ from a drop height instead of taking it
+as a ratio or a typed number. The drop is stored as a percentage of the RIDE
+REF. axle's ride height (`fe.landingPct`, 10–600%), and `feelToPhysics`
+resolves it to metres (`physics.landingDrop`) for everything downstream. It is the dynamic
 twin of BOTTOM G's: that mode asks how much steady load an axle takes before
 it bottoms; this one asks how big a hit it absorbs. Same sag model, same
 ride heights, same RIDE REF. axle.
@@ -1370,6 +1372,20 @@ V         = √(2·9.81·drop)                        // landing speed
 peak      = (V/ωn) · peakCompressionFactor(ζ)     // max compression after the hit
 solve     : peak = travel  →  factor = travel·ωn/V  →  bisect ζ in 10..115
 ```
+
+Why a percentage: with `drop = p·rh` and `bottomG B = rh·ωn²/9.81`, the solve
+condition reduces to
+
+```js
+factor(ζ) ≤ (B − 1) / √(2·p·B)
+```
+
+Ride height cancels. The solved ζ depends only on BOTTOM G's and the %, so
+the same % asks the same severity of a lowered rally car and a long-travel
+truck, and a share code carries a meaning that survives a different chassis.
+The cost is that the absolute drop shrinks when you lower the car. ζ still
+climbs, because B falls at the same Hz, but less than it would against a
+fixed drop. The hint shows the absolute drop so it stays visible.
 
 `peakCompressionFactor` is the closed-form peak of `x'' + 2ζωn·x' + ωn²·x = 0`
 from `x=0, x'=V`: `exp(−ζ/√(1−ζ²)·atan(√(1−ζ²)/ζ))` underdamped, `e⁻¹` at
@@ -1389,8 +1405,9 @@ solve reports instead of pretending:
 - Below the softest ζ the slider allows, it pins at **10%** (the readout
   says FLOOR).
 - When even **115%** bottoms it pins there and returns `reachable:false`.
-  The readout says `⚠ MAX …` and an output warning names the
-  biggest drop that can be caught. When static sag already uses the whole
+  The readout says `⚠ MAX …%`, the biggest % that can be caught
+  (`(B−1)²/(2B·0.33²)`, so about 600% at 3 g), and an output warning repeats it
+  with the length. When static sag already uses the whole
   ride height (bottom g ≤ 1), nothing catches anything, and the readout
   says `⚠ SAG ≥ RIDE HT`.
 
@@ -1400,17 +1417,18 @@ axle. Damping Balance Mode then splits the anchor front/rear like any
 INDEPENDENT bump anchor, so only the reference axle is guaranteed to catch
 the drop. The DAMPERS table adds a **Catch** row while LANDING is active.
 It shows `landingCatchDrop` for each axle's *final* bump ζ (after the split
-and the click snap) on that axle's own Hz and ride height, and turns amber
+and the click snap) on that axle's own Hz and ride height, as a % of the
+reference ride height the target uses (lengths in the tooltip), and turns amber
 when an axle falls short. The row's tooltip gives peak bump force per
 corner at the target drop, `c·V = 2·m·ωn·ζ·V`, in model kN rather than game
 clicks.
 
 Like `rideBottomG`, the drop is a stored target (codec id 84): load a
 LANDING build onto a different chassis and bump ζ re-solves to catch the
-same drop there. The solve reads `ch.rideHeightF/R` regardless of the RIDE
+same % of that chassis's ride height. The solve reads `ch.rideHeightF/R` regardless of the RIDE
 HEIGHT → CG toggle, as BOTTOM G's does. The LANDING button is offered only
 with the toggle on, but a tune already in LANDING keeps the button.
-Switching in seeds the drop that the current bump anchor already catches,
+Switching in seeds the % that the current bump anchor already catches,
 so the tune doesn't move.
 
 The model's limits are the same ones the bottoming badge has, plus one of

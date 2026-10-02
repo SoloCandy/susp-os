@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — LANDING's drop is a % of ride height, on id 84
+
+The drop moved from metres to a percentage of the RIDE REF. axle's ride height
+(`landingPct`, 10–600%, default 75). Ride height then cancels out of the solve, so bump ζ
+depends only on BOTTOM G's and the %. The same % means the same severity on any chassis,
+which is what a share code needs. It reuses codec id 84 rather than retiring it, on purpose:
+the metres build was live for about half an hour. CODEC.md records why and what a stray old
+code does. This also retires the 0.1-step `snapLandingDrop` below, since a % has no unit to
+snap to.
+
 ## Changed — LANDING's Drop slider steps 0.1 in cm and in alike
 
 It shipped stepping 1 cm or 0.5 in, which is too coarse at the small end where 2 cm vs

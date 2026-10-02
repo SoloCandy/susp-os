@@ -1045,7 +1045,7 @@ console.log('\nmirror vs app (reads index.html)');
     'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
-    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,snapLandingDrop,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
+    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,clampLandingPct,LANDING_PCT_MIN,LANDING_PCT_MAX,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1231,10 +1231,16 @@ console.log('\nmirror vs app (reads index.html)');
     for (const z of [10, 30, 59, 100, 115, 180])
       assert(`landing: peakCompressionFactor(${z}) matches simulation`, A.peakCompressionFactor(z), simPeak(z / 100), 1e-3);
     assert('landing: factor is 1 undamped', A.peakCompressionFactor(0), 1, 1e-12);
-    assert('landing: snap keeps 0.1 in exact', A.snapLandingDrop(3.7*0.0254 + 1e-12) / 0.0254, 3.7, 1e-9);
-    assertEq('landing: snap keeps 0.1 cm exact', A.snapLandingDrop(0.123 + 1e-12), 0.123);
-    assertEq('landing: snap clamps low', A.snapLandingDrop(0.001), 0.02);
-    assertEq('landing: snap clamps high', A.snapLandingDrop(9), 1.5);
+    assertEq('landing: % clamps low', A.clampLandingPct(0), A.LANDING_PCT_MIN);
+    assertEq('landing: % clamps high', A.clampLandingPct(9999), A.LANDING_PCT_MAX);
+    assertEq('landing: % rounds to whole', A.clampLandingPct(77.6), 78);
+    // Drop as % of ride height: ride height cancels, so the same bottom g and % give the same ζ
+    // on a 120 mm car and a 400 mm truck (Hz chosen so rh·ωn²/g is the same 3 g on both).
+    {
+      const hzAt = (B, rh) => Math.sqrt(B * 9.81 / rh) / (2 * Math.PI);
+      const zOf = rh => A.landingBumpZeta(1.5 * rh, hzAt(3, rh), rh).zeta;
+      assert('landing: same bottom g and % → same ζ at any ride height', zOf(0.12), zOf(0.40), 1e-6);
+    }
     // Round trip: the solved ζ catches exactly the target drop.
     for (const [drop, hz, rh] of [[0.10, 1.75, 0.13], [0.20, 1.5, 0.25], [0.60, 1.5, 0.25]]) {
       const r = A.landingBumpZeta(drop, hz, rh);
@@ -1252,8 +1258,9 @@ console.log('\nmirror vs app (reads index.html)');
     assertEq('landing: no travel → catches 0', A.landingCatchDrop(50, 0.8, 0.30), 0);
     // End to end: under STANDARD with a FRONT ref, the front axle's bump anchor is the solve.
     const ch = { ...A.DEF_CH, rideHeightF: 0.25, rideHeightR: 0.25 };
-    const fe = { ...A.DEF_FE, rideStiffness: 1.5, rearHzMode: 'multiplier', rearHzMult: 1.0, dampingMode: 'landing', landingDrop: 0.20 };
+    const fe = { ...A.DEF_FE, rideStiffness: 1.5, rearHzMode: 'multiplier', rearHzMult: 1.0, dampingMode: 'landing', landingPct: 80 };
     const s = A.solveTune(ch, A.resolveFeEffective(ch, fe), 'beamng');
+    assert('landing: 80% of 250 mm resolves to 0.20 m', s.physics.landingDrop, 0.20, 1e-12);
     assert('landing: solveTune anchors bump ζ to the drop solve', s.physics.bumpZeta, A.landingBumpZeta(0.20, 1.5, 0.25).zeta, 1e-9);
     assert('landing: final front bump catches the drop (BeamNG snap only)', A.landingCatchDrop(s.tune.bumpZetaF, s.tune.fHz, 0.25), 0.20, 0.01);
   }

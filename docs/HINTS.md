@@ -448,7 +448,7 @@ FRONT:
 
 > INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound.
 
-> LANDING: set a drop height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds.
+> LANDING: set a drop height as a % of ride height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds.
 
 > BUMP RATIO: set bump damping as a percentage of rebound ζ, so the two strokes stay linked.
 
@@ -456,9 +456,9 @@ FRONT:
 
 > Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads; higher = more consistent between strokes. 40–65% is typical.
 
-**Drop** (LANDING) — `{axle}` is front, rear or average by RIDE REF.:
+**Drop** (LANDING) — `{axle}` is front, rear or average by RIDE REF.; `{len}` is that % as a length in the CHASSIS unit:
 
-> Drop height the {axle} axle should absorb without bottoming. The app solves the softest bump ζ that does it from Hz and ride height; Damping Balance Mode splits it front/rear. FLOOR means even 10% catches it.
+> Drop height the {axle} axle should absorb without bottoming, as a % of its ride height (now {len}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.
 
 **Bump ζ:**
 

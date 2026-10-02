@@ -100,12 +100,20 @@ future version might not carry.
 | 81 | dr | brakeCentre | enum (`{rec:0,grip:1,entry:2}`, `BRAKE_CENTRE_DEC`) — PRO's BRAKES Centre |
 | 82 | dr | brakeDecel | raw number — the g GRIP's brake bias is solved at |
 | 83 | dr | brakeEntryTarget | raw number — ENTRY Centre's ENTRY BRK target, grip-margin %, + = looser |
-| 84 | fe | landingDrop | raw number — BUMP MODE → LANDING's drop height, metres; a target that re-solves bump ζ, see note |
+| 84 | fe | landingPct | raw number — BUMP MODE → LANDING's drop height, % of the RIDE REF. axle's ride height; a target that re-solves bump ζ, see note |
 
 **Next available id: 85.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
-caught, and bump ζ re-solves against the reader's Hz and ride heights. Its mode, `landing`,
+caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
+% of ride height, the solved ζ depends only on the reader's BOTTOM G's and that %.
+
+**Id 84 is the one deliberate reuse.** It first shipped as `landingDrop` in metres and was
+live for about half an hour before becoming `landingPct`. The owner chose to reuse the id
+rather than retire it, judging that no codes from that window were in circulation. A stray
+one decodes its metres value (0.02–1.50) as a % and clamps to the 10% floor: a valid, softer
+tune, not an error. The key was renamed too, so a locally saved `landingDrop` is ignored and
+falls back to the default. Do not take this as precedent: every other id stays retired. Its mode, `landing`,
 is index 2 of `DAMPING_MODE_DEC` (id 11), appended the same way `beamng` was appended to id
 10: an older client decodes it to nothing and `sanitizeTune` falls back to `ratio`.
 
@@ -227,7 +235,7 @@ choice, decided after the code is read.
 |---|---|---|
 | `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
-| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, landingDrop, settleTarget, settleBias, settleMode |
+| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
