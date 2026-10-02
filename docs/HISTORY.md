@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — sections can be hidden, and every RESET reads one table
+
+INT and PRO gained a SECTIONS modal (EDIT in the SECTIONS row) that hides sidebar sections and
+the toolbar's DNA and CHECK buttons, per tier, per device (`suspos_hidden_v1`). The trap it had
+to avoid was hiding a setting that is still moving the tune, so a hidden section that differs
+from its defaults leaves a one-line stub rather than vanishing, and guides show everything.
+"Differs from its defaults" needed one definition, and the eight `Sec` RESETs each carried
+their own inline field list; they now all write `sectionDefaults` from `SECTION_VIS`, so what
+RESET undoes and what the stub watches can't drift apart. The lists were extracted unchanged.
+New suite: `tests-sections.js`.
+
 ## Changed — NATURAL, RANGE and GRIP open at zero offset
 
 Picking a Balance Target mode used to carry the live target over: NATURAL, RANGE and GRIP were

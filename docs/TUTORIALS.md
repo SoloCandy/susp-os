@@ -222,6 +222,11 @@ Zone keys valid in `focus` are the `zone-*` ids listed in
 doesn't exist at the current tier (e.g. `balance-target` outside PRO) centres the
 card and dims everything.
 
+**Hidden sections reappear while a tier guide runs.** The SECTIONS modal can hide a section
+or a toolbar button, which would leave a step's `focus` pointing at nothing. `App`'s `secVis`
+returns `show` for every key while `tutMode` is set, and the user's hidden lists come back
+untouched when the guide closes. See [CODE_MAP.md](CODE_MAP.md#hidden-sections-sections-modal).
+
 ---
 
 ## Step catalogue

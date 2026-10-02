@@ -1008,3 +1008,17 @@ The description under the mode picker — SHARE, LOAD, BACKUP, RESTORE:
 > Downloads your garage entries as a JSON file. The unsaved current tune is not included.
 
 > Loads garage entries from a backup file. Ticked kinds replace yours for good, so RESTORE takes two taps. The current tune is not touched.
+
+## SECTIONS modal (INT / PRO)
+
+Opened by EDIT in the sidebar's SECTIONS row. The intro:
+
+> Choose what this tier shows. Hiding never changes the tune: a hidden section whose settings differ from its defaults stays as one line until you reset it or show it again. Guides show everything while they run.
+
+A row whose section is hidden but changed carries:
+
+> CHANGED · STUB
+
+The stub line a hidden, changed section leaves in the sidebar, after its title:
+
+> hidden · changed settings still apply

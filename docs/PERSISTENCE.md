@@ -12,9 +12,11 @@ The merge fills keys the stored object is **missing**; it does not check the one
 that are present, so a persisted value that is invalid rather than absent beats its
 default on every reload. The optional third argument, `repair`, runs once on the
 rehydrated value **before the first render** for callers that need a key validated.
-Only `suspos_fe_v8` passes one (`repairFe`, for `gameMode`), and only because that
+Two keys pass one. `suspos_fe_v8` passes `repairFe`, for `gameMode`, because that
 one key's bad value used to crash the app rather than fall through to a default —
 see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the rest, which still have the hole.
+`suspos_hidden_v1` passes `repairHidden`, which keeps only section keys valid for
+each tier, because its lists are arrays and `mergeDefaults` replaces arrays whole.
 
 A repair must live here rather than in a mount effect: `usePersist`'s setter closes
 over the render-time value, so two effects writing the same key in one tick clobber
@@ -28,6 +30,7 @@ each other, and an effect also runs too late to protect the first render. See
 | `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget` | `DEF_DR` |
 | `suspos_al_v2` | Alignment state (`al`) — mode (build/mech/grip/manual), nudgeStrength, manual camber/toe/caster, and the legacy `alignManual` flag (still read as a fallback for old saves — see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_AL` |
 | `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
+| `suspos_hidden_v1` | Sections hidden by the SECTIONS modal, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys. `repairHidden` drops unknown keys and keys from another tier (BALANCE and ALIGNMENT are PRO-only). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
 | `suspos_units_v1` | Legacy IMP/MET boolean — **read-only**, seeds the `_v2` default once | `false` (imperial) |
 | `suspos_saves_v9` | Legacy preset save slots — **read-only**, first link in the migration chain below | `PRESET_SAVES` |
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |
@@ -212,7 +215,7 @@ on the way in; writing to `suspos_garage_v2` directly bypasses that and can cras
 the garage cards, which is worth knowing before hand-editing the key.
 
 The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
-`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, …) is per-device and
+`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, `suspos_hidden_v1`, …) is per-device and
 deliberately not included.
 
 ## Share links (`#t=`) persist nothing

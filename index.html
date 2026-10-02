@@ -2958,6 +2958,54 @@ const DEF_AL={alignManual:false,
 const ALIGN_MODE_DEC=['build','mech','grip','manual'];
 const BRAKE_BIAS_SCALE=0.20;
 
+// ── Section visibility ──────────────────────────────────────────────────────
+// The sidebar sections the SECTIONS modal can hide, in sidebar order, and the fields each one
+// owns: [state, keys], keys null = the whole DEF_* object. Each section's RESET resets exactly
+// these (sectionDefaults), so "what RESET would undo" and "what a hidden section still holds"
+// cannot drift apart. tiers = where the section renders at all.
+const SECTION_VIS=[
+  {key:'chassis',   label:'CHASSIS',        tiers:['intermediate','pro'], fields:['ch',null]},
+  {key:'build',     label:'BUILD',          tiers:['intermediate','pro'], fields:['dr',['buildType']]},
+  {key:'balance',   label:'BALANCE',        tiers:['pro'],                fields:['fe',['arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs']]},
+  {key:'alignment', label:'ALIGNMENT',      tiers:['pro'],                fields:['al',null]},
+  {key:'arb',       label:'ANTI-ROLL BARS', tiers:['intermediate','pro'], fields:['fe',['arbBias','arbMode','arbBalMode','springShare','arbTargetRollMan','arbShareMan','arbBasicMan','arbSplitOpposite','arbNeutralEqual']]},
+  {key:'ride',      label:'RIDE',           tiers:['intermediate','pro'], fields:['fe',['rideStiffness','targetSpeed','rearHzMode','rearHzMan','rearHzMult','rideRef','rideStiffMode','rideBottomG']]},
+  {key:'dampers',   label:'DAMPERS',        tiers:['intermediate','pro'], fields:['fe',['dampingMode','dampingBias','reboundZeta','bumpRatio','bumpZeta','dampCharMode','dampBalMode','settleTarget']]},
+  {key:'brakes',    label:'BRAKES',         tiers:['intermediate','pro'], fields:['dr',['brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']]},
+  {key:'drivetrain',label:'DRIVETRAIN',     tiers:['intermediate','pro'], fields:['dr',['diffType','diffManual','diffComplement','diffBiasExit','diffBiasEntry','diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel','diffRearAccel','diffRearDecel','diffCenter']]},
+  {key:'visuals',   label:'VISUALS',        tiers:['intermediate','pro'], fields:null},
+  // Toolbar buttons. No tune state of their own: an applied DNA keeps its sidebar link line.
+  {key:'tbDna',     label:'DNA button',     tiers:['intermediate','pro'], fields:null},
+  {key:'tbCheck',   label:'CHECK button',   tiers:['intermediate','pro'], fields:null},
+];
+const SECTION_DEFS={ch:DEF_CH,fe:DEF_FE,dr:DEF_DR,al:DEF_AL};
+const sectionKeysOf=key=>{
+  const f=SECTION_VIS.find(s=>s.key===key)?.fields;
+  return f?(f[1]??Object.keys(SECTION_DEFS[f[0]])):[];
+};
+// The defaults a section's RESET writes, as a patch for its state object.
+const sectionDefaults=key=>{
+  const f=SECTION_VIS.find(s=>s.key===key).fields,D=SECTION_DEFS[f[0]];
+  return Object.fromEntries(sectionKeysOf(key).map(k=>[k,D[k]]));
+};
+// Does a section hold anything that is changing the tune? A hidden section that does is never
+// removed outright — it leaves a stub line, so a value nobody can see still shows it is there.
+// Gated the way the app applies the fields: BALANCE only while something solves toward the
+// target, and below PRO the brakes' Centre is ignored, leaving only the shift.
+const sectionChanged=(key,st,tier)=>{
+  const f=SECTION_VIS.find(s=>s.key===key)?.fields;
+  if(!f)return false;
+  if(key==='balance'&&!hasBalTargetSolve(st.fe))return false;
+  const keys=key==='brakes'&&tier!=='pro'?['brakeBiasShift']:sectionKeysOf(key);
+  const cur=st[f[0]]??{},D=SECTION_DEFS[f[0]];
+  return keys.some(k=>JSON.stringify(cur[k]??null)!==JSON.stringify(D[k]??null));
+};
+// Persisted hidden lists, one per tier that has the modal. Unknown keys are dropped so a
+// section removed later can't linger as a hidden ghost.
+const DEF_HIDDEN={intermediate:[],pro:[]};
+const repairHidden=v=>Object.fromEntries(Object.keys(DEF_HIDDEN).map(t=>[t,
+  Array.isArray(v?.[t])?v[t].filter(k=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))):[]]));
+
 // Every preset authors damping as rebound ζ (CHARACTER), never as a Settle Target. Beginner's
 // loadPreset forces dampCharMode:'zeta', so a SETTLE preset silently fell back to DEF_FE's 70%
 // there while INT/PRO back-solved its target — STREET gave ζ≈30% in INT/PRO and 70% in BEG.
@@ -3608,7 +3656,18 @@ const Toggle=({label,value,onChange,options,hint,hintTerm=null})=>(
   </div>
 );
 
-const Sec=({title,open,onToggle,onReset,children})=>{
+// What a hidden section leaves behind while it still holds a changed setting: one line saying
+// the setting still applies, with SHOW to bring the section back. See sectionChanged.
+const HiddenStub=({title,onShow})=>(
+  <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',marginBottom:8,
+               borderBottom:'1px solid #0f172a',fontSize:10,letterSpacing:0.5}}>
+    <span style={{width:5,height:5,borderRadius:'50%',background:'#f59e0b',flexShrink:0}}/>
+    <span style={{color:'#94a3b8',letterSpacing:1}}>{title}</span>
+    <span style={{color:'#64748b',flex:1,minWidth:0}}>hidden · changed settings still apply</span>
+    <button type="button" className="tbtn" style={{fontSize:9}} onClick={onShow}>SHOW</button>
+  </div>
+);
+const Sec=({title,open,onToggle,onReset,vis='show',onShow,children})=>{
   const[pending,setPending]=useState(false);
   const timer=useRef(null);
   const handleReset=e=>{
@@ -3617,6 +3676,9 @@ const Sec=({title,open,onToggle,onReset,children})=>{
     else{setPending(true);timer.current=setTimeout(()=>setPending(false),2000);}
   };
   useEffect(()=>()=>clearTimeout(timer.current),[]);
+  // Hidden from the SECTIONS modal (after the hooks, so their order never changes).
+  if(vis==='none')return null;
+  if(vis==='stub')return <HiddenStub title={title} onShow={onShow}/>;
   // The header is a div (not a <button>) because RESET needs to be a real,
   // independently focusable <button> nested inside it — buttons can't nest
   // inside buttons in valid HTML. role="button"+tabIndex+onKeyDown restores
@@ -6130,6 +6192,9 @@ function App(){
   const[units,setUnits]=usePersist('suspos_units_v2',legacyUnits());
   const mMass=units.mass==='kg',mSpring=springUnit(units.spring),mLen=units.length==='cm',mSpeed=units.speed==='kmh';
   const[showUnits,setShowUnits]=useState(false);
+  // SECTIONS modal: what the user has chosen to hide, per tier (see SECTION_VIS).
+  const[showSections,setShowSections]=useState(false);
+  const[hiddenSecs,setHiddenSecs]=usePersist('suspos_hidden_v1',DEF_HIDDEN,repairHidden);
   const[saves]=usePersist('suspos_saves_v9',PRESET_SAVES); // read-only: legacy slots, source for one-time MY BUILDS migration
   const[uiMode,setUiMode]=usePersist('suspos_uimode_v1','beginner');
   // Read-only since the header zoom buttons were removed — the persisted value is still
@@ -6314,6 +6379,18 @@ function App(){
       return{opacity:0.12,pointerEvents:'none',transition:'opacity 0.3s ease'};
     return{transition:'opacity 0.3s ease'};
   };
+  // 'show' | 'stub' | 'none' for a SECTION_VIS key. A guide shows everything while it runs,
+  // since its steps spotlight sections by id; BEG has no SECTIONS modal, so nothing is hidden
+  // there. A hidden section still holding a changed setting leaves a stub (sectionChanged).
+  const hiddenHere=uiMode==='beginner'?[]:(hiddenSecs[uiMode]??[]);
+  const secVis=key=>{
+    if(tutMode||!hiddenHere.includes(key))return'show';
+    return sectionChanged(key,{ch,fe,dr,al},uiMode)?'stub':'none';
+  };
+  const setSecHidden=(key,hide)=>setHiddenSecs(p=>{
+    const cur=(p[uiMode]??[]).filter(k=>k!==key);
+    return{...p,[uiMode]:hide?[...cur,key]:cur};
+  });
   useEffect(()=>{
     if(!tutSeen[uiMode]){
       setTutSeen(p=>({...p,[uiMode]:true}));
@@ -7277,6 +7354,47 @@ function App(){
           </div>
         </div>
       )}
+      {/* SECTIONS modal — hide sidebar sections and toolbar buttons, per tier (SECTION_VIS).
+          Opened from the SECTIONS row's EDIT, which BEG doesn't have. */}
+      {showSections&&uiMode!=='beginner'&&(
+        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
+             onClick={()=>setShowSections(false)}>
+          <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,width:360,maxWidth:'calc(100vw - 20px)',
+                       maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:'var(--font-mono)'}}
+               onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                         padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
+              <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>SECTIONS
+                <span style={{fontSize:8,color:'#818cf8',letterSpacing:1,marginLeft:8}}>{TIER_LABEL[uiMode]}</span></span>
+              <button onClick={()=>setShowSections(false)} aria-label="Close" style={{background:'none',border:'none',color:'#94a3b8',
+                cursor:'pointer',fontSize:14}}>✕</button>
+            </div>
+            <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
+              <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginBottom:10}}>
+                Choose what this tier shows. Hiding never changes the tune: a hidden section whose settings differ from its defaults stays as one line until you reset it or show it again. Guides show everything while they run.
+              </div>
+              {SECTION_VIS.filter(sv=>sv.tiers.includes(uiMode)).map(sv=>{
+                const shown=!hiddenHere.includes(sv.key);
+                const changed=sectionChanged(sv.key,{ch,fe,dr,al},uiMode);
+                return(
+                  <div key={sv.key} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #0f172a'}}>
+                    <span style={{fontSize:11,color:shown?'#e2e8f0':'#64748b',letterSpacing:1,flex:1}}>{sv.label}</span>
+                    {!shown&&changed&&<span style={{fontSize:9,color:'#f59e0b'}}>CHANGED · STUB</span>}
+                    <div style={{display:'flex',gap:3}}>
+                      <button className={`tog${shown?' on':''}`} onClick={()=>setSecHidden(sv.key,false)}>SHOW</button>
+                      <button className={`tog${!shown?' on':''}`} onClick={()=>setSecHidden(sv.key,true)}>HIDE</button>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}>
+                <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.length}
+                  onClick={()=>setHiddenSecs(p=>({...p,[uiMode]:[]}))}>SHOW ALL</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showDnaModal&&(
         <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
              onClick={()=>setShowDnaModal(false)}>
@@ -7726,9 +7844,9 @@ function App(){
               onClick={redo} disabled={!canRedo} aria-label="Redo"
               title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>
             <div style={{flex:1}}/>
-            <button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
-              title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button>
-            <button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button>
+            {secVis('tbDna')==='show'&&<button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
+              title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button>}
+            {secVis('tbCheck')==='show'&&<button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button>}
             <button className="tbtn" style={{fontSize:11}} onClick={()=>{
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
               setShareCopied(false);setImportCode('');setImportErr('');setPending(null);
@@ -7866,7 +7984,10 @@ function App(){
           {/* collapse / expand all — hidden in beginner mode */}
           {uiMode!=='beginner'&&<div style={{display:'flex',justifyContent:'flex-end',gap:3,
                        padding:'5px 12px 4px',borderBottom:'1px solid #0f172a'}}>
-            <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS</span>
+            <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS
+              {hiddenHere.length>0&&<span style={{color:'#64748b'}}> · {hiddenHere.length} HIDDEN</span>}</span>
+            <button className="tbtn" style={{fontSize:10}} onClick={()=>setShowSections(true)}
+              title="Choose which sections and toolbar buttons are shown">EDIT</button>
             <button className="tbtn" style={{fontSize:10}}
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,false]))}))}>−</button>
             <button className="tbtn" style={{fontSize:10}}
@@ -7884,8 +8005,8 @@ function App(){
             <button onClick={()=>commit('remove DNA link',dnaUnlink)} title="Remove the DNA link (the tune stays as it is)"
               style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
           </div>}
-          <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')}
-            onReset={()=>setCh({...DEF_CH})}>
+          <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')} vis={secVis('chassis')} onShow={()=>setSecHidden('chassis',false)}
+            onReset={()=>setCh(sectionDefaults('chassis'))}>
             {/* PRO splits CHASSIS by where each number comes from: what Forza shows (or measures)
                 first, then what has to be looked up elsewhere. Below PRO every input is in-game,
                 so there is nothing to separate and no headers. */}
@@ -8060,14 +8181,14 @@ function App(){
             </>}
           </Sec></div>
 
-          <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')}>
+          <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')} vis={secVis('build')} onShow={()=>setSecHidden('build',false)}>
             <Toggle label="Build Type" value={dr.buildType??'track'} onChange={pDr('buildType')}
               options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
               hint={HINT_BUILD_TYPE} hintTerm="build-type"/>
           </Sec></div>
 
-          {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')}
-            onReset={()=>setFe(p=>({...p,arbBalTarget:DEF_FE.arbBalTarget,arbBalTargetMode:DEF_FE.arbBalTargetMode,arbBalDelta:DEF_FE.arbBalDelta,arbBalAbs:DEF_FE.arbBalAbs}))}>
+          {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')} vis={secVis('balance')} onShow={()=>setSecHidden('balance',false)}
+            onReset={()=>setFe(p=>({...p,...sectionDefaults('balance')}))}>
             {(()=>{
               const _hasMechTarget=hasBalTargetSolve(fe);
               if(!_hasMechTarget)return(
@@ -8345,8 +8466,8 @@ function App(){
           </Sec></div>}
 
 
-          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')}
-            onReset={()=>setAl({...DEF_AL})}>
+          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')} vis={secVis('alignment')} onShow={()=>setSecHidden('alignment',false)}
+            onReset={()=>setAl(sectionDefaults('alignment'))}>
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>ALIGNMENT MODE</span>
               <Hint text="AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values." term="align-mode"/>
@@ -8395,17 +8516,8 @@ function App(){
             </>}
           </Sec></div>}
 
-          <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')}
-            onReset={()=>setFe(p=>({...p,
-              arbBias:DEF_FE.arbBias,
-              arbMode:DEF_FE.arbMode,
-              arbBalMode:DEF_FE.arbBalMode,
-              springShare:DEF_FE.springShare,
-              arbTargetRollMan:DEF_FE.arbTargetRollMan,
-              arbShareMan:DEF_FE.arbShareMan,
-              arbBasicMan:DEF_FE.arbBasicMan,
-              arbSplitOpposite:DEF_FE.arbSplitOpposite,
-              arbNeutralEqual:DEF_FE.arbNeutralEqual}))}>
+          <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')} vis={secVis('arb')} onShow={()=>setSecHidden('arb',false)}
+            onReset={()=>setFe(p=>({...p,...sectionDefaults('arb')}))}>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>Stiffness Mode</span>
               <Hint text={`Total ARB stiffness. AUTO: from the car's roll tendency.${physMode?'':' BASIC: a direct level.'} ROLL °: a target roll angle. SHARE %: a fraction of roll stiffness. MAN: ${physMode?'rates in N/m':'clicks'} entered directly, so Balance Mode hides.`} term="stiffness-mode"/>
@@ -8649,16 +8761,8 @@ function App(){
             })()}
           </Sec></div>
 
-          <div id="zone-feel" style={dim('ride','feel')}><Sec title="RIDE" open={open.ride} onToggle={tog('ride')}
-            onReset={()=>setFe(p=>({...p,
-              rideStiffness:DEF_FE.rideStiffness,
-              targetSpeed:DEF_FE.targetSpeed,
-              rearHzMode:DEF_FE.rearHzMode,
-              rearHzMan:DEF_FE.rearHzMan,
-              rearHzMult:DEF_FE.rearHzMult,
-              rideRef:DEF_FE.rideRef,
-              rideStiffMode:DEF_FE.rideStiffMode,
-              rideBottomG:DEF_FE.rideBottomG}))}>
+          <div id="zone-feel" style={dim('ride','feel')}><Sec title="RIDE" open={open.ride} onToggle={tog('ride')} vis={secVis('ride')} onShow={()=>setSecHidden('ride',false)}
+            onReset={()=>setFe(p=>({...p,...sectionDefaults('ride')}))}>
             <div style={dim('feel')}>
             {(()=>{
               const rRef=physics.rideRef??'front'; // 'front', 'rear', or 'shared'
@@ -8915,16 +9019,8 @@ function App(){
             </div>
           </Sec></div>
 
-          <div id="zone-damping" style={dim('damping')}><Sec title="DAMPERS" open={open.dampers} onToggle={tog('dampers')}
-            onReset={()=>setFe(p=>({...p,
-              dampingMode:DEF_FE.dampingMode,
-              dampingBias:DEF_FE.dampingBias,
-              reboundZeta:DEF_FE.reboundZeta,
-              bumpRatio:DEF_FE.bumpRatio,
-              bumpZeta:DEF_FE.bumpZeta,
-              dampCharMode:DEF_FE.dampCharMode,
-              dampBalMode:DEF_FE.dampBalMode,
-              settleTarget:DEF_FE.settleTarget}))}>
+          <div id="zone-damping" style={dim('damping')}><Sec title="DAMPERS" open={open.dampers} onToggle={tog('dampers')} vis={secVis('dampers')} onShow={()=>setSecHidden('dampers',false)}
+            onReset={()=>setFe(p=>({...p,...sectionDefaults('dampers')}))}>
             {/* damping character mode toggle — INT/PRO only */}
             {uiMode!=='beginner'&&<>
               <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
@@ -9184,8 +9280,8 @@ function App(){
           {/* BRAKES (INT+): one shift from the recommended brake bias. Brakes were auto-only for a
               while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
               a typed value, so the bias keeps following the chassis and build. */}
-          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')}
-            onReset={()=>setDr(p=>({...p,brakeBiasShift:DEF_DR.brakeBiasShift,brakeCentre:DEF_DR.brakeCentre,brakeDecel:DEF_DR.brakeDecel,brakeEntryTarget:DEF_DR.brakeEntryTarget}))}>
+          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')} vis={secVis('brakes')} onShow={()=>setSecHidden('brakes',false)}
+            onReset={()=>setDr(p=>({...p,...sectionDefaults('brakes')}))}>
             {/* PRO: what the shift is measured from. REC = the recommendation; GRIP = where both axles
                 reach their braking limit together (gripBrakeBiasOf). Switching moves the bias — it
                 is a different answer, not a different way of writing the same one. */}
@@ -9237,21 +9333,8 @@ function App(){
               readout={`${brakeBias}% F`} hintTerm="brake-balance"/>}
           </Sec></div>}
 
-          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')}
-            onReset={()=>setDr(p=>({...p,
-              diffType:DEF_DR.diffType,
-              diffManual:DEF_DR.diffManual,
-              diffComplement:DEF_DR.diffComplement,
-              diffBiasExit:DEF_DR.diffBiasExit,
-              diffBiasEntry:DEF_DR.diffBiasEntry,
-              diffFrontExitBias:DEF_DR.diffFrontExitBias,
-              diffAccel:DEF_DR.diffAccel,
-              diffDecel:DEF_DR.diffDecel,
-              diffFrontAccel:DEF_DR.diffFrontAccel,
-              diffFrontDecel:DEF_DR.diffFrontDecel,
-              diffRearAccel:DEF_DR.diffRearAccel,
-              diffRearDecel:DEF_DR.diffRearDecel,
-              diffCenter:DEF_DR.diffCenter}))}>
+          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} vis={secVis('drivetrain')} onShow={()=>setSecHidden('drivetrain',false)}
+            onReset={()=>setDr(p=>({...p,...sectionDefaults('drivetrain')}))}>
             {uiMode!=='beginner'&&<div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
               <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
@@ -9464,8 +9547,8 @@ function App(){
             here stay visible regardless of which input section is currently open. BEG mode has
             its own simplified panel with no ARB/RIDE/DAMPERS sections for these readouts to relate
             to, so VISUALS stays hidden there. */}
-        {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
-          <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')}>
+        {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&secVis('visuals')!=='none'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
+          <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} vis={secVis('visuals')} onShow={()=>setSecHidden('visuals',false)}>
             <div style={{maxHeight:(()=>{
               const cap=Math.max(open.visRide?visCaps.ride??0:0,uiMode==='pro'&&open.visLoad?visCaps.load??0:0,uiMode==='pro'&&open.visGrip?visCaps.grip??0:0);
               return cap||(isPhone?'32vh':'50vh');

@@ -54,6 +54,8 @@ SHARE gives you a **code** and a **link** (`…#t=CODE`) for the current tune; o
 
 INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
 
+INT and PRO can also hide what you don't use. **EDIT** in the sidebar's SECTIONS row opens a list of the tier's sections plus the toolbar's DNA and CHECK buttons, each with SHOW / HIDE; INT and PRO keep separate lists, saved on this device only. Hiding never changes the tune: a hidden section whose settings differ from their defaults stays in the sidebar as one line (hidden · changed settings still apply · SHOW) until you reset it or show it again, so nothing that is moving your numbers can vanish. The in-app guides show everything while they run.
+
 | Tier | Surface |
 |---|---|
 | **BEG** | <ul><li>Layout, build type (Street / Track / Drift / Rally / Offroad / Drag), weight, and front bias, plus three feel sliders (Ride Stiffness, Balance, Character)</li><li>Factory presets in the GARAGE drawer give build-appropriate starting points, with ★ marking the one matching your build type</li><li>ARB balance is set automatically for your layout and build type</li><li>Full GARAGE access — saving a chassis means not retyping weight and bias every time you switch cars</li></ul> |
@@ -131,6 +133,7 @@ node tests/tests-history.js  # undo / redo history core tests (reads index.html 
 node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
+node tests/tests-sections.js # SECTIONS modal: section ownership, stub gating, stored lists (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

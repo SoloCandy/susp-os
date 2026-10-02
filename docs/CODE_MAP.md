@@ -207,7 +207,8 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
-| `Sec` | the ten collapsible sidebar sections (`div.stog` header) |
+| `Sec` | the ten collapsible sidebar sections (`div.stog` header). `vis` (`show` / `stub` / `none`, from `App`'s `secVis`) and `onShow` are the SECTIONS modal's: `none` renders nothing, `stub` renders a `HiddenStub`. Hooks run before the early returns, so a section's hook order never changes with its visibility |
+| `HiddenStub` | the one line a hidden section leaves when `sectionChanged` says it still holds non-default settings: amber dot, title, "hidden · changed settings still apply", SHOW |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
 | `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode` |
@@ -369,6 +370,24 @@ and the only symptom was `+` not opening that one section, in PRO only — with 
 tutorial step that writes the key papering over even that. `tests-docs.js` checks
 the initialiser against every `open.*` and `tog('...')` use in the source.
 
+### Hidden sections (SECTIONS modal)
+
+`SECTION_VIS` (module scope, `── Section visibility ──`) lists every section the SECTIONS
+modal can hide, which tiers render it, and the fields it owns. That one table drives three
+things that used to be separate: each `Sec`'s RESET (`sectionDefaults`), whether a hidden
+section still leaves a stub (`sectionChanged`), and which stored keys survive a reload
+(`repairHidden`). A new `Sec` needs a `SECTION_VIS` row as well as a `SECTION_KEYS` entry,
+and `tests-sections.js` fails until it has one.
+
+`sectionChanged` is gated the way the app applies the fields: BALANCE counts only while
+`hasBalTargetSolve`, and below PRO BRAKES counts only `brakeBiasShift` (the Centre is
+ignored there). VISUALS and the toolbar's DNA / CHECK rows own no fields, so hiding them
+removes them outright; an applied DNA keeps its sidebar link line.
+
+`App`'s `secVis(key)` returns `show` while `tutMode` is active — a guide's spotlight has to
+find its zone — and BEG never hides anything (it has no `Sec`s and no modal). The stored
+lists are `suspos_hidden_v1`, per tier; see [PERSISTENCE.md](PERSISTENCE.md).
+
 ---
 
 ## Header layout: `headerCompact`
@@ -516,7 +535,8 @@ Special ones — a three-deep migration chain plus its two sentinels:
 ...parsed}`), so a partial object in storage is valid and missing keys fall
 back to their default. A key that is *present but invalid* is not checked —
 `usePersist`'s optional third argument `repair` is the opt-in for that, run once
-before the first render; only `fe` passes one (`repairFe`, `gameMode` only). See
+before the first render; `fe` passes `repairFe` (`gameMode` only) and the SECTIONS
+modal's hidden lists pass `repairHidden`. See
 [PERSISTENCE.md](PERSISTENCE.md).
 
 ---
@@ -706,6 +726,11 @@ test carries **no** exemption for the lifted region, and must not be given one a
 chip each payload produces, and the BRAKES chips' tier gating. That gating is a
 promise about App's `brakeBias`, which only the browser exercises end to end.
 
+**`tests-sections.js` reads `index.html` the same way** and covers `SECTION_VIS`: every
+`SECTION_KEYS` section has a row, every RESET goes through `sectionDefaults`, no field has
+two owners, `sectionChanged`'s gating, and `repairHidden`. Whether the stub and the modal
+render — and the tutorial override — still needs the browser.
+
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
 checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
@@ -743,3 +768,5 @@ non-trivial edit:
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.
+12. `node tests/tests-sections.js` after adding a `Sec`, changing what a RESET resets, or
+   touching `SECTION_VIS`, `sectionChanged` or `repairHidden`.

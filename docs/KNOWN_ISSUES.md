@@ -345,6 +345,17 @@ optimum sat at about the TIME SYNC value. Not worth a fifth mode.
 Result: FLAT RIDE + TIME SYNC is effectively the lowest-pitch pairing; the
 glossary and [SLIDERS.md](SLIDERS.md) say so.
 
+## Considered and rejected — a META tier for wide-rear-tyre builds
+
+Meta builds (very wide rear tyres for cheap PI, paired with near-floor front / near-ceiling
+rear ARBs to win the rotation back) use a fraction of PRO's surface, so a fourth tier that
+assumed the build and hid the rest was considered. Rejected: tiers are an ordered superset
+(BEG ⊂ INT ⊂ PRO), and roughly a hundred `uiMode` checks, the tier guides, the unlock chain and
+the codec's tier field all assume that order. A side-branch tier would need every one of them
+revisited, for what is really a display preference. What shipped instead is the SECTIONS
+modal: INT and PRO each hide whatever they don't use, without the tune or the physics knowing
+— see [CODE_MAP.md](CODE_MAP.md#hidden-sections-sections-modal).
+
 ## Considered and rejected — putting bump damping into the RESPONSE bar
 
 Left here so the next audit doesn't "fix" the omission again. It was built,
