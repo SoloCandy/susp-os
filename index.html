@@ -2795,9 +2795,31 @@ const autoTagsOf=e=>{
     const[lbl,col]=hzCtx(rsToHz(e.fe.rideStiffness??1.75));
     out.push({label:lbl,color:col});   // reuses the HZ_BANDS single source of truth
   }
-  if(e?.dr)out.push({label:(e.dr.buildType??'track').toUpperCase(),color:'#94a3b8'});
-  // Last so it reads as a provenance note after the tune's own descriptors, and absent
-  // entirely on pre-tier entries rather than guessed.
+  if(e?.dr){
+    out.push({label:(e.dr.buildType??'track').toUpperCase(),color:'#94a3b8'});
+    // "… DIFF", or a RALLY build's RALLY diff would read as the same chip twice. Ungated:
+    // MANUAL below PRO still applies the author's locks (see the DIFFERENTIAL card's note).
+    out.push({label:(e.dr.diffType??DEF_DR.diffType).toUpperCase()+' DIFF',color:'#94a3b8'});
+    if(e.dr.diffManual)out.push({label:'MANUAL DIFF',color:'#f59e0b'});
+    // BRAKES, gated the way App's brakeBias applies them in the tier the entry was saved
+    // in: BEG ignores both the shift and the centre, INT ignores the centre, and PRO's
+    // ENTRY is the whole answer so the shift isn't added to it. A pre-tier entry has no
+    // tier to gate by, so it shows what it stores.
+    const tr=tierOf(e.tier);
+    if(tr!=='beginner'){
+      const centre=!tr||tr==='pro'?e.dr.brakeCentre:'rec';
+      const s=e.dr.brakeBiasShift??0;
+      if(centre==='entry')out.push({label:'ENTRY BRAKES',color:'#94a3b8'});
+      else{
+        if(centre==='grip')out.push({label:'GRIP BRAKES',color:'#94a3b8'});
+        // + = rearward, the slider's ROTATE side; colours match ENTRY BRK's
+        if(s)out.push(s>0?{label:'BRAKES ROTATE',color:'#f97316'}:{label:'BRAKES STABLE',color:'#60a5fa'});
+      }
+    }
+  }
+  // Provenance last, after the tune's own descriptors: the DNA a build was stamped from,
+  // then the tier — absent entirely on pre-tier entries rather than guessed.
+  if(e?.dna&&(e.fe||e.dr))out.push({label:'DNA',color:'#818cf8'});
   if(tierOf(e?.tier))out.push({label:TIER_LABEL[e.tier]+' TIER',color:'#818cf8'});
   return out;
 };
@@ -2862,7 +2884,7 @@ const entrySummary=(e,metric)=>{
       ?`${e.fe.bumpZeta??39}% bump ζ`
       :`${e.fe.bumpRatio??56}% bump`);
   }
-  if(e?.dr)bits.push((e.dr.diffType??'race').toUpperCase());
+  if(e?.dr)bits.push((e.dr.diffType??DEF_DR.diffType).toUpperCase());
   return bits.join(' · ');
 };
 
@@ -5769,7 +5791,7 @@ const GLOSSARY=[
     {id:'dna-priority',term:'DNA Priority & Slack',tier:'pro',short:'DNA priority',def:"How a Vehicle DNA resolves targets that the game's limits will not let it hit together. PRIORITY ranks the five axes that can give way (PLATFORM, BALANCE, ARB SHARE, PITCH, REBOUND ζ; BUMP RATIO rides with REBOUND ζ), most protected first. When an axis misses, APPLY tries moving less-protected axes, nearest clearing value first, and never breaks an axis ranked above the one it moves; if nothing clears the miss, the miss is accepted and reported. The setting axes (DAMP BIAS, DIFF EXIT, DIFF ENTRY) are written verbatim and always land.\n\nACCEPT ± is per-axis slack: how far an outcome axis may land from its target and still count as met, on top of the allowance for game rounding. 0 is a point target.\n\nON THIS CHASSIS previews every axis: ✓ on target (or within ± slack), moved to keep a higher-ranked axis, missed with the cause (such as the rear axle leaving the Hz band or bars at their limit), or not expressible with this diff (a SPORT diff has no ENTRY).",see:['dna','dna-match']},
     {id:'share-code',term:'Share Code',tier:'beginner',def:"SHARE → COPY CODE turns the tune into a compact text code; COPY LINK wraps it in a URL that opens SUSP.OS with it staged. Include any of CHASSIS (weight, bias, tyres, geometry, layout, MEASURE readings), FEEL (ride, damping, ARB, balance) and DRIVETRAIN (build type, diff, brakes). Codes never carry garage entries, and always record the author's tier.\n\nLOAD CODE: paste a code or link, READ CODE to stage it; nothing moves until APPLY SELECTED. Parts are CHASSIS, SPRINGS (which also carries the game mode), DAMPERS, ARB and DRIVETRAIN, each marked same as yours or from the code; only ticked parts are taken, and the ticks persist. TO GARAGE saves the merged result as a new entry and leaves the tune alone. A shared link stages the same way.\n\nThe sender's tier is shown, never applied. Taking ARB without SPRINGS from a code whose bars were set by hand in a game with different ARB units warns you, since the numbers would mean another quantity: tick SPRINGS too. Applying feel or drivetrain parts removes a DNA link; APPLY is one undo step.",see:['backup','garage','game-mode','undo-reset']},
     {id:'backup',term:'Backup & Restore',tier:'beginner',def:"SHARE → BACKUP downloads your garage as suspos-data.json, by kind: CHASSIS, BUILDS, CARS and DNA. It never includes the current unsaved tune. The garage lives only in this browser, so a backup is how you move it to another device or browser, or keep a copy.\n\nRESTORE reads a backup, including files from before the garage was unified, and lists for each kind how many entries the file holds and how many of yours ticking it would replace; a summary gives the net result. Ticked kinds are replaced wholesale by the file's, unticked kinds are kept. A replaced entry cannot be recovered because the garage is outside undo, so RESTORE takes two taps; BACKUP first if you want to keep them. The current tune is not touched.",see:['garage','share-code','undo-reset']},
-    {id:'garage',term:'Garage',tier:'beginner',def:"The GARAGE drawer holds everything you save. Name the setup, then SAVE CHASSIS (weight, bias, geometry, layout), SAVE BUILD (feel settings, diff and any applied DNA) or SAVE CAR (both). A car entry has separate LOAD CHASSIS and LOAD BUILD buttons, so one car's chassis can take another's tune; each load is one undo step. An entry's COPY CODE copies it as a share code.\n\nEntries carry notes (up to 2000 characters), your own tags, and automatic tags worked out when shown: layout, BALANCED, NOSE HEAVY or TAIL HEAVY (BALANCED within 2 points of 50% front), stiffness band, build type and the tier it was saved in. All are searchable. Filter by kind and sort by RECENT, OLDEST, NAME A–Z or KIND. ↺ rewrites an entry from the current setup as CHASSIS, BUILD or BOTH (BOTH turns a chassis entry into a car). Deleting takes two taps and cannot be undone, since the garage is outside undo.",see:['factory-presets','backup','share-code','undo-reset']},
+    {id:'garage',term:'Garage',tier:'beginner',def:"The GARAGE drawer holds everything you save. Name the setup, then SAVE CHASSIS (weight, bias, geometry, layout), SAVE BUILD (feel settings, diff and any applied DNA) or SAVE CAR (both). A car entry has separate LOAD CHASSIS and LOAD BUILD buttons, so one car's chassis can take another's tune; each load is one undo step. An entry's COPY CODE copies it as a share code.\n\nEntries carry notes (up to 2000 characters), your own tags, and automatic tags worked out when shown: layout, BALANCED, NOSE HEAVY or TAIL HEAVY (BALANCED within 2 points of 50% front), stiffness band, build type, diff type (RACE DIFF and so on) and MANUAL DIFF, the brakes (BRAKES ROTATE or BRAKES STABLE for a Brake Bias shift, GRIP BRAKES or ENTRY BRAKES for a PRO Centre, each shown only if the tier it was saved in applies it), DNA if a Vehicle DNA was applied, and that tier. All are searchable. Filter by kind and sort by RECENT, OLDEST, NAME A–Z or KIND. ↺ rewrites an entry from the current setup as CHASSIS, BUILD or BOTH (BOTH turns a chassis entry into a car). Deleting takes two taps and cannot be undone, since the garage is outside undo.",see:['factory-presets','backup','share-code','undo-reset']},
     {id:'factory-presets',term:'Factory Presets',tier:'beginner',def:"Six read-only starting tunes under FACTORY in the garage: STREET (road comfort), TRACK (corner focus), RALLY (high travel), DRIFT (rotation), MOTORSPT (max grip) and X COUNTRY (max travel). ★ FOR YOUR BUILD marks the ones matching your Build Type (a TRACK build gets TRACK and MOTORSPT; DRAG gets TRACK). LOAD replaces the feel settings and drivetrain but never the chassis, so the preset fits your car's weight; it removes any DNA link and is one undo step. Presets are not garage entries, so they never appear in counts, search or backups.\n\nAt BEG a loaded preset is adapted to the Beginner controls (automatic bar stiffness, weight-based bar split, a rear-Hz multiplier and standard damping), so the Balance slider behaves the same whether or not you have touched it.",see:['garage','build-type','balance-slider','undo-reset']},
     {id:'undo-reset',term:'Undo, Redo & Reset',tier:'beginner',def:"↩ and ↪ in the toolbar undo and redo tune changes; Ctrl+Z and Ctrl+Shift+Z (⌘ on Mac) do the same, while text fields keep their own undo. Each load, whether a preset, garage entry, share code, DNA APPLY or RESET, is one step, and the button's tooltip names what it will undo. Undo covers the chassis, feel, drivetrain, alignment and DNA link, but not the garage: deleting or restoring garage entries cannot be undone.\n\n⟲ RESET returns the tune (chassis, feel, drivetrain, alignment; brakes follow) to defaults and removes a DNA link, one ↩ away from being undone. It can also mark every tutorial unseen: each guide then opens again when you enter its tier, and INT and PRO lock until the guide before them is opened. Garage saves are never touched.",see:['garage','backup','factory-presets']},
     {id:'game-mode',term:'Game Mode',tier:'beginner',def:"The header selector for the game the tune is for: HORIZON, MOTORSPORT or BEAMNG. Horizon and Motorsport output Forza click values against each game's ceilings (Horizon: ARB 65, damping 20; Motorsport: 40 and 40), with amber warnings near them. BEAMNG outputs physical units with no ceiling and regroups the results to match BeamNG's menus. The game mode travels in a share code's SPRINGS part.\n\n[INT] Switching between clicks and physical units converts MAN bar values so they keep their meaning, and BASIC stiffness mode, a % of the click ceiling, is unavailable in BeamNG. Moving from Horizon to Motorsport clamps MAN bar values to the lower ceiling.",see:['beamng-output','output-cards','units','share-code']},

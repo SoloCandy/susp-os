@@ -702,6 +702,10 @@ a live bug on its first run — `mechBalanceLLT` reversing direction past inside
 lift, since fixed with a transfer cap; see [HISTORY.md](HISTORY.md). Its monotonicity
 test carries **no** exemption for the lifted region, and must not be given one again.
 
+**`tests-garage.js` reads `index.html` the same way** and covers `autoTagsOf`: which
+chip each payload produces, and the BRAKES chips' tier gating. That gating is a
+promise about App's `brakeBias`, which only the browser exercises end to end.
+
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
 checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
@@ -733,7 +737,9 @@ non-trivial edit:
    anything under the `── Vehicle DNA ──` banner. Reads `index.html` too.
 9. `node tests/tests-share.js` after touching `CODEC_FIELDS`, `SHARE_PARTS`, `mergeTune`,
    or `sanitizeTune`. Reads `index.html`; the picker UI itself still needs the browser.
-10. `node tests/tests-history.js` after touching `makeHistory`. It covers the stacks only;
+10. `node tests/tests-garage.js` after touching `autoTagsOf`, or how `brakeBias` treats
+   `brakeCentre` / `brakeBiasShift` by tier. Keep the two in step.
+11. `node tests/tests-history.js` after touching `makeHistory`. It covers the stacks only;
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.

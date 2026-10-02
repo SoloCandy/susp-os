@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — garage auto-tags cover diff, brakes and DNA
+
+The automatic chips stopped at layout, weight balance, Hz band, build type and tier,
+so nothing said whether an entry carried a BRAKES shift, a PRO Centre, a MANUAL diff,
+a diff type or a stamped DNA. `autoTagsOf` now adds `… DIFF`, MANUAL DIFF, BRAKES
+ROTATE / STABLE, GRIP / ENTRY BRAKES and DNA. The brake chips are gated by the
+entry's saved tier the way `brakeBias` applies them, so a BEG entry with a shift
+carried in from a code doesn't claim a bias it never ran. A handling-verdict chip
+was considered and rejected: it would need App's inline brake-bias and grip-balance
+solve duplicated at module scope. The same change gives `entrySummary`'s diff type the
+`DEF_DR` fallback a garage load uses, replacing a hard-coded `race`. New suite:
+`tests-garage.js`.
+
 ## Fixed — guide, tip and share text that predated BRAKES' Centre
 
 An audit of the tutorials and glossary after the Centre work found four gaps. The PRO guide never

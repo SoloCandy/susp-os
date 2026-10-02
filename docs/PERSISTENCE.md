@@ -101,6 +101,31 @@ entry without it — every entry saved before DNA existed — loads as "no DNA".
 a saved DNA (a `sanitizeDNA` shape), kind `dna`. See
 [DNA.md](DNA.md).
 
+### Auto-tags
+
+`autoTagsOf` derives a card's automatic chips at render time and never stores them,
+so retuning a threshold relabels every old entry. Each chip reads only a payload the
+entry carries:
+
+| Reads | Chips |
+|---|---|
+| `ch` | layout; BALANCED (within 2 points of 50% front), NOSE HEAVY or TAIL HEAVY |
+| `fe` | Hz band (`hzCtx`, after `rsToHz`) |
+| `dr` | build type; `… DIFF` for the diff type; MANUAL DIFF |
+| `dr` + `tier` | BRAKES ROTATE / BRAKES STABLE (non-zero `brakeBiasShift`), GRIP BRAKES / ENTRY BRAKES (`brakeCentre`) |
+| `dna` beside `fe`/`dr` | DNA |
+| `tier` | `… TIER`, always last |
+
+The brake chips follow App's `brakeBias`, applied for the tier the entry was **saved**
+in. A BEG entry shows none, an INT entry shows the shift but never a Centre, and a
+PRO ENTRY Centre replaces the shift, because ENTRY ignores it. An entry with no
+`tier` has nothing to gate by, so it shows what it stores. MANUAL DIFF is not gated:
+a MANUAL diff loaded below PRO still applies its locks. The diff chip carries the
+`DIFF` suffix so a RALLY build with a RALLY diff doesn't show two identical chips.
+Chips that need the full solve, such as a handling verdict, were left out on
+purpose: they depend on values App computes inline (brake bias, grip balance), and
+a second copy of those would drift. `tests-garage.js` covers the gating.
+
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
 see [CODEC.md](CODEC.md)'s excluded-fields section.
 
