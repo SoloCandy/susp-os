@@ -488,7 +488,7 @@ const balanceBandOf=(nat,gn,layout,build)=>{
 };
 // RANGE / GRIP anchor at total roll stiffness K (see gripNeutralOf; no K = probe springs): the grip
 // neutral, or the middle of the RANGE band built from it. Unclamped — Balance Offset is measured
-// from here, and the BALANCE card's mode switch subtracts it to seed that offset.
+// from here.
 const balTargetAnchorOf=(ch,mode,gameMode,build,K)=>{
   const gn=gripNeutralOf(ch,gameMode,K);
   return mode==='range'
@@ -8083,22 +8083,19 @@ function App(){
                 </div>
                 {(()=>{
                   const _m=balTargetModeOf(fe);
-                  // A switch changes what the target is measured FROM, never where it is: each mode's
-                  // stored value is seeded from the live target, so NATURAL at 0.48 → GRIP opens on
-                  // the Balance Offset that puts GRIP at 0.48 too. feEffective.arbBalTarget is that
-                  // target ABSOLUTE (clamped, offset-inclusive, and in RANGE/GRIP taken at the tune's
-                  // own K). NATURAL's field is a delta FROM NAT (resolveArbBalTarget adds natDisplayOf
-                  // back on), so subtract natural — seeding the absolute pins the slider at its
-                  // ceiling. RANGE/GRIP subtract their anchor at this tune's K, the one solveTune
-                  // aims at; the split does not change K, so the seeded target holds. Their offset
-                  // is capped at ±0.20, so a target further than that from the anchor lands at the
-                  // cap. MANUAL's field is absolute and takes it as-is. Re-picking the active mode
-                  // does nothing, so a click can't nudge the target by a rounding step.
+                  // NATURAL, RANGE and GRIP always open at zero offset (NATURAL on natural itself,
+                  // not DEF_FE's null, which resolves to MECH_BALANCE_TARGET; RANGE/GRIP on their
+                  // anchor), so picking one lands on that mode's own
+                  // reference point rather than carrying the previous target over. MANUAL alone is
+                  // seeded from the live target, so switching to it changes how the target is
+                  // entered, not where it is. feEffective.arbBalTarget is that target ABSOLUTE
+                  // (clamped, offset-inclusive, and in RANGE/GRIP taken at the tune's own K), which
+                  // is what MANUAL's absolute field wants. Re-picking the active mode does nothing,
+                  // so a click can't reset an offset the user has dialled in.
                   const _cur=feEffective.arbBalTarget;
                   const _pick=m=>m!==_m&&setFe(p=>({...p,arbBalTargetMode:m,
-                    ...(m==='natural'?{arbBalTarget:roundBalStep(_cur-natMechBalance)}:{}),
-                    ...(m==='range'||m==='grip'?{arbBalDelta:Math.max(-0.20,Math.min(0.20,
-                      roundBalStep(_cur-balTargetAnchorOf(ch,m,fe.gameMode,dr.buildType,rollKOf(tune)))))}:{}),
+                    ...(m==='natural'?{arbBalTarget:0}:{}),
+                    ...(m==='range'||m==='grip'?{arbBalDelta:DEF_FE.arbBalDelta}:{}),
                     ...(m==='abs'?{arbBalAbs:clampBalTarget(roundBalStep(_cur))}:{})}));
                   return(
                     <div style={{display:'flex',gap:3,marginBottom:6}}>

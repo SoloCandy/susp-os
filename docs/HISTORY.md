@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — NATURAL, RANGE and GRIP open at zero offset
+
+Picking a Balance Target mode used to carry the live target over: NATURAL, RANGE and GRIP were
+seeded so the switch moved only what the target was measured from. In practice that meant RANGE or
+GRIP opened on whatever offset reproduced the old target, not on the anchor the mode was picked
+for. Those three now reset to zero offset on a switch — NATURAL to a delta of 0 (natural itself,
+not the untouched `null` that resolves to `MECH_BALANCE_TARGET`), RANGE and GRIP to a Balance
+Offset of 0 — so the target moves to the new mode's reference point. MANUAL still seeds from the
+live target, since its job is to pin a raw value. Re-picking the active mode still does nothing.
+This supersedes "every Balance Target switch keeps the target where it is" below.
+
 ## Changed — garage auto-tags cover diff, brakes and DNA
 
 The automatic chips stopped at layout, weight balance, Hz band, build type and tier,

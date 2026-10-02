@@ -99,7 +99,7 @@ computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),
 `balanceBandOf` (the Balance Guide RANGE band — the RANGE row, GRIP GAP and RANGE mode all
 read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP anchor at a given K — Balance Offset is
-measured from it, and the BALANCE card's mode switch subtracts it to seed that offset),
+measured from it),
 `balTargetAnchoredOf` (RANGE/GRIP target at a given K: anchor + offset, clamped).
 
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
