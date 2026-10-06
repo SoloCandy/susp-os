@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — share codes: unticked parts, cut-short codes, links in an open tab
+
+Found in a review of the share system. Three bugs, plus three smaller fixes.
+
+- **An unticked INCLUDE part reset the reader's values.** COPY CODE filled an unticked
+  group with its defaults, and nothing in the code said so. LOAD CODE opens with every
+  part ticked, so APPLY wrote those defaults over the reader's own chassis, FEEL or
+  drivetrain, and the picker labelled them "from the code". The garage's COPY CODE did the
+  same for a chassis-only or build-only entry. Fixed with codec id 85 (`meta.carries`): a
+  part the code does not carry is disabled on LOAD CODE and counts as unticked. A
+  whole-tune code omits the id and is byte-for-byte what it was. See CODEC.md id 85.
+- **A code cut short loaded without complaint.** No length marker, lenient `atob` and
+  skipped pairs meant a truncated link decoded with its tail at defaults, or a number cut
+  mid-digit and clamped. Every code now carries a `~` checksum as its second pair; a
+  mismatch is refused as damaged. Legacy codes are still accepted. See CODEC.md
+  "Integrity".
+- **A `#t=` link opened in a tab already showing the app did nothing.** That is a
+  same-document navigation, so the mount-only reader never ran, and the hash stayed in the
+  URL until the next reload staged it. The reader now also runs on `hashchange`.
+- LOAD CODE showed the generic "Invalid code" for every failure except a DNA code, which
+  hid "Outdated … ask for a new one". The codec's own errors now carry `codec:true` and
+  are shown as written.
+- `partDiffers` compared with `!==`, so float noise in live state, which never passes
+  through `sanitizeTune`, read as "from the code". It now uses encodeTune's 1e-9 allowance.
+- `rideBottomG` had no upper bound in `sanitizeTune`. It is now clamped to BOTTOM G's at
+  HZ_MIN on the lowest legal ride height through HZ_MAX on the highest. That range is wide
+  enough to keep every real target and narrow enough to stop an absurd one.
+
 ## Changed — a downloaded copy is told about updates; docs-only pushes no longer are
 
 `useDeployCheck` returned early off http(s), so a downloaded `index.html` opened as

@@ -239,6 +239,18 @@ writes `reboundZeta` directly — but it re-slopes what every slider position me
 and what the readout shows for every Beginner user, and the new span (and whether
 bump ratio's `56 + v·0.22` follows it) is a feel decision rather than a bug fix.
 
+## Open — DNA codes have no checksum
+
+Tune codes carry a `~` checksum as their second pair (see [CODEC.md](CODEC.md)
+"Integrity"), so a code cut short in transit is refused. DNA codes do not. They are
+short, but a cut one still decodes with its missing axes at their defaults, or a value cut
+mid-digit and clamped by `sanitizeDNA`. The same second-pair `~sum` would work there
+unchanged: `decodeDNA` already skips a pair without a `:`. It was left out of the tune fix
+because DNA codes have their own version and their own tests (`tests-dna.js`), and the
+change belongs with them.
+
+---
+
 ## Open — alignment state travels in neither the share codec nor the garage
 
 `al` is the fourth state group (`suspos_al_v2`: `mode`, `nudgeStrength`, manual

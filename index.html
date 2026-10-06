@@ -5014,7 +5014,16 @@ const tierOf=v=>TIER_DEC.includes(v)?v:null;
 // fires for a real tier and every new code carries id 77 — including beginner, which would
 // otherwise vanish as the 0 value. Codes written before id 77 existed simply lack it and
 // decode back to null, which reads as "not recorded" rather than a guessed tier.
-const DEF_META={tier:null};
+// carries (id 85) is the same idea for the share-side INCLUDE ticks: a bitmask of the codec
+// groups the sender actually put in. An unticked group still goes on the wire — as defaults,
+// since encodeTune always writes all three — so without this a reader cannot tell "the sender
+// left FEEL out" from "the sender's FEEL is the default one", and APPLY with every tick on
+// reset the reader's own FEEL. null = every group, which is what a code without id 85 (written
+// before it existed, or with everything ticked) has always meant.
+const CARRY_BIT={ch:1,fe:2,dr:4};
+const CARRY_ALL=7;
+const carriesOf=v=>Number.isInteger(v)&&v>=0&&v<=CARRY_ALL?v:CARRY_ALL;
+const DEF_META={tier:null,carries:null};
 const DEF_GROUPS={ch:DEF_CH,fe:DEF_FE,dr:DEF_DR,meta:DEF_META};
 const CODEC_FIELDS=[
   {id:1, group:'ch',key:'weight'},
@@ -5084,8 +5093,8 @@ const CODEC_FIELDS=[
   {id:81,group:'dr',key:'brakeCentre',enc:{rec:0,grip:1,entry:2},dec:BRAKE_CENTRE_DEC},
   {id:82,group:'dr',key:'brakeDecel'},
   {id:83,group:'dr',key:'brakeEntryTarget'},
-  // 84: BUMP MODE → LANDING's drop-height target, metres. A target like rideBottomG (id 64):
-  // bump ζ re-solves from it against whatever chassis it lands on.
+  // 84: BUMP MODE → LANDING's drop-height target, a % of the RIDE REF. axle's ride height. A
+  // target like rideBottomG (id 64): bump ζ re-solves from it against whatever chassis it lands on.
   {id:84,group:'fe',key:'landingPct'}, // was landingDrop (metres) for ~30 min live; reused deliberately, see CODEC.md
   {id:55,group:'fe',key:'springShareAuto',bool:true},
   {id:56,group:'fe',key:'arbSplitOpposite',bool:true},
@@ -5135,6 +5144,9 @@ const CODEC_FIELDS=[
   // 77: the complexity tier the code was written in — metadata about the tune's authoring,
   // not an input to any solve. Decoding surfaces it for display only; nothing applies it.
   {id:77,group:'meta',key:'tier',enc:TIER_ENC,dec:TIER_DEC},
+  // 85: which groups the sender ticked under INCLUDE (CARRY_BIT mask). Omitted when all three
+  // were, so a whole-tune code is unchanged; LOAD CODE disables the parts a code doesn't carry.
+  {id:85,group:'meta',key:'carries'},
   // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
   // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
   // misread a stale scale as half-stiff bars. See docs/CODEC.md.
@@ -5148,17 +5160,36 @@ const codecReadField=(src,f)=>{
   return src[f.group][f.key];
 };
 
-const encodeTune=(ch,fe,dr,tier)=>{
-  const src={ch,fe,dr,meta:{tier:tierOf(tier)}};
+// ── integrity ──
+// A code has no length marker, atob accepts unpadded input and unknown pairs are skipped, so a
+// code cut short in transit used to decode — the cut fields silently back at their defaults, or
+// a number cut mid-digit and clamped. Every code now carries `~sum` as its SECOND pair: FNV-1a of
+// everything after it. Second, not last, so a cut can't take the checksum with it and pass as a
+// legacy code. An older client skips it like any pair without a ':'; a code without it (written
+// before it existed) is accepted unchecked, exactly as before. Not an id: it is about the
+// string, not the tune, and ids are permanent.
+const codecSum=s=>{
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}
+  return(h>>>0).toString(36);
+};
+// Errors the codec raises on purpose carry codec:true, so LOAD CODE can show their own wording
+// rather than the generic one it uses for anything else.
+const codecError=msg=>Object.assign(new Error(msg),{codec:true});
+
+const encodeTune=(ch,fe,dr,tier,carries=CARRY_ALL)=>{
+  const c=carriesOf(carries);
+  const src={ch,fe,dr,meta:{tier:tierOf(tier),carries:c===CARRY_ALL?null:c}};
   const same=(a,b)=>typeof a==='number'&&typeof b==='number'?Math.abs(a-b)<1e-9:a===b;
-  const parts=[CODEC_VERSION];
+  const pairs=[];
   for(const f of CODEC_FIELDS){
     const enc=x=>f.enc?f.enc[x]:(f.bool?(x?1:0):x);
     const raw=enc(codecReadField(src,f)), defRaw=enc(codecFieldDefault(f));
     if(same(raw,defRaw))continue;
-    parts.push(`${f.id}:${raw}`);
+    pairs.push(`${f.id}:${raw}`);
   }
-  return btoa(parts.join('|'));
+  const body=pairs.join('|');
+  return btoa([CODEC_VERSION,'~'+codecSum(body),...pairs].join('|'));
 };
 
 const decodeTune=(code)=>{
@@ -5166,10 +5197,22 @@ const decodeTune=(code)=>{
   // corruption. Naming it here covers all of them at once — TUNE CHECK, LOAD CODE and the tier
   // probe — instead of each guessing at "invalid".
   if(String(code??'').trim().toUpperCase().startsWith(DNA_CODE_PREFIX))
-    throw new Error('That is a DNA code — paste it into the DNA editor (PRO), not here.');
-  const parts=atob(code.trim()).split('|');
+    throw codecError('That is a DNA code — paste it into the DNA editor (PRO), not here.');
+  let text;
+  try{text=atob(String(code??'').trim());}
+  catch{throw codecError('Invalid code — make sure you pasted the full string.');}
+  let parts=text.split('|');
   const version=parseInt(parts[0],10);
-  if(version!==CODEC_VERSION)throw new Error('Outdated or invalid tune code — ask for a new one.');
+  if(version!==CODEC_VERSION)throw codecError('Outdated or invalid tune code — ask for a new one.');
+  if(parts[1]?.startsWith('~')){
+    if(codecSum(parts.slice(2).join('|'))!==parts[1].slice(1))
+      throw codecError('This code is damaged or cut short — copy it again from the sender.');
+    parts=[parts[0],...parts.slice(2)];
+  }else if(!parts.slice(1).some(p=>p.includes(':'))){
+    // No checksum and no pair: a code cut down to its version. The only legacy code that ever
+    // read this way is an all-default tune with no recorded tier, which carried nothing anyway.
+    throw codecError('Invalid code — make sure you pasted the full string.');
+  }
   const ch={},fe={},dr={},meta={};
   const tyreParts={F:{},R:{}};
   const dest=f=>f.group==='ch'?ch:f.group==='fe'?fe:f.group==='meta'?meta:dr;
@@ -5244,8 +5287,22 @@ const SHARE_PARTS=[
          'diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel',
          'diffRearAccel','diffRearDecel','diffCenter','brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']},
   {id:'tier',group:'meta',label:'TIER',sub:'Recorded, never applied',applies:false,keys:['tier']},
+  // Not a choice for the reader either: it decides which of the parts above can be ticked at
+  // all (carriedSel), so it is never merged and never shown as a row of its own.
+  {id:'carries',group:'meta',label:'CARRIES',sub:'Which parts the code was written with',applies:false,keys:['carries']},
 ];
 const SHARE_PART_IDS=SHARE_PARTS.filter(p=>p.applies!==false).map(p=>p.id);
+// Whether a decoded code carries a part, from its meta.carries mask (id 85). A part of a group
+// the sender left out decodes to defaults that look exactly like a real tune, so it is never
+// offered — see CARRY_BIT.
+const partCarried=(carries,partId)=>{
+  const p=SHARE_PARTS.find(x=>x.id===partId);
+  return!!p&&p.applies!==false&&!!(carriesOf(carries)&CARRY_BIT[p.group]);
+};
+// The reader's ticks as they actually apply to one code: a tick on a part the code doesn't
+// carry counts as off. The ticks themselves are never moved — the next code may carry it.
+const carriedSel=(sel,carries)=>
+  Object.fromEntries(SHARE_PART_IDS.map(id=>[id,!!sel?.[id]&&partCarried(carries,id)]));
 // The current tune with only the ticked parts taken from a decoded one. `parts` is a
 // {partId:bool} map; an empty or missing map changes nothing. Pure — `current` is never
 // mutated, and a key the incoming object does not carry is left alone (fields the codec
@@ -5267,7 +5324,10 @@ const partDiffers=(current,incoming,partId)=>{
   if(!p||p.applies===false)return false;
   const a=current?.[p.group],b=incoming?.[p.group];
   if(!a||!b)return false;
-  return p.keys.some(k=>k in b&&a[k]!==b[k]);
+  // Numbers within 1e-9, the same allowance encodeTune's default test uses: live state never
+  // passes through sanitizeTune, so float noise must not read as "from the code".
+  const same=(x,y)=>typeof x==='number'&&typeof y==='number'?Math.abs(x-y)<1e-9:x===y;
+  return p.keys.some(k=>k in b&&!same(a[k],b[k]));
 };
 
 // sanitizeTune's counterpart for PLAIN PERSISTED state, which never passes through it. Only
@@ -5381,7 +5441,11 @@ const sanitizeTune=({ch,fe,dr})=>{
       rearHzMult:       cl(fe?.rearHzMult,         0.5,  3.0, DEF_FE.rearHzMult),
       rideRef:          ['front','rear','shared'].includes(fe?.rideRef)?fe.rideRef:'front',
       rideStiffMode:    ['hz','bottomG'].includes(fe?.rideStiffMode)?fe.rideStiffMode:'hz',
-      rideBottomG:      (typeof fe?.rideBottomG==='number'&&isFinite(fe.rideBottomG)&&fe.rideBottomG>0)?fe.rideBottomG:null,
+      // A target with a per-chassis range (BOTTOM G's at HZ_MIN/HZ_MAX on this ride height), so
+      // the clamp is the envelope over every legal ride height: wide enough to never cut a real
+      // target, narrow enough that no code can carry an absurd one.
+      rideBottomG:      (typeof fe?.rideBottomG==='number'&&isFinite(fe.rideBottomG)&&fe.rideBottomG>0)
+                          ?Math.max(12.7*(2*Math.PI*HZ_MIN)**2/9810,Math.min(1220*(2*Math.PI*HZ_MAX)**2/9810,fe.rideBottomG)):null,
       arbManF:          cl(fe?.arbManF, arbManB.lo, arbManB.hi, arbManB.def),
       arbManR:          cl(fe?.arbManR, arbManB.lo, arbManB.hi, arbManB.def),
       settleTarget:     cl(fe?.settleTarget,      0.10,  1.50,  DEF_FE.settleTarget),
@@ -5569,7 +5633,10 @@ const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onLoadDna,onRewrit
           onClick={()=>onLoadBuild(entry)}>LOAD BUILD</button>}
         <button className={`tbtn${codeCopied?' saved':''}`} style={{flex:1,fontSize:9}}
           onClick={()=>copyToClipboard(
-            encodeTune(entry.ch||DEF_CH,entry.fe||DEF_FE,entry.dr||DEF_DR,entry.tier),
+            // A chassis-only or build-only entry fills the missing groups with defaults, so the
+            // code says which ones are real (id 85) — or LOAD CODE would offer the defaults.
+            encodeTune(entry.ch||DEF_CH,entry.fe||DEF_FE,entry.dr||DEF_DR,entry.tier,
+              (entry.ch?CARRY_BIT.ch:0)|(entry.fe?CARRY_BIT.fe:0)|(entry.dr?CARRY_BIT.dr:0)),
             ()=>{setCodeCopied(true);setTimeout(()=>setCodeCopied(false),1500);}
           )}>{codeCopied?'COPIED':'COPY CODE'}</button>
       </div>}
@@ -6645,13 +6712,13 @@ function App(){
     if(!clean)return false;
     try{
       const dec=decodeTune(clean);
-      setPending({tune:sanitizeTune(dec),tier:tierOf(dec.meta?.tier),from});
+      setPending({tune:sanitizeTune(dec),tier:tierOf(dec.meta?.tier),carries:carriesOf(dec.meta?.carries),from});
       setImportErr('');
       return true;
     }catch(e){
       setPending(null);
-      setImportErr(e.message&&/DNA code/.test(e.message)?e.message
-        :'Invalid code — make sure you pasted the full string.');
+      // The codec's own errors (DNA code, outdated version, damaged) say what is actually wrong.
+      setImportErr(e?.codec?e.message:'Invalid code — make sure you pasted the full string.');
       return false;
     }
   };
@@ -6660,14 +6727,21 @@ function App(){
   // applying: an opened link never moves the tune on its own. See docs/CODEC.md "Parts".
   // The hash is cleared FIRST: a link mangled in transit used to throw out of
   // decodeURIComponent here, before the clear, so RELOAD re-crashed on the same hash forever.
+  // Also on hashchange: a link opened in a tab already showing SUSP.OS (pasted into its address
+  // bar) is a same-document navigation — no reload, no mount — and used to do nothing at all.
   useEffect(()=>{
-    const m=location.hash.match(/^#t=(.+)$/);
-    if(!m)return;
-    history.replaceState(null,'',location.pathname+location.search);
-    const code=safeDecodeURI(m[1]);
-    setShowDataModal(true);setDataMode('load');
-    setImportCode(code);
-    stageCode(code,'link');
+    const readLink=()=>{
+      const m=location.hash.match(/^#t=(.+)$/);
+      if(!m)return;
+      history.replaceState(null,'',location.pathname+location.search);
+      const code=safeDecodeURI(m[1]);
+      setShowDataModal(true);setDataMode('load');
+      setImportCode(code);
+      stageCode(code,'link');
+    };
+    readLink();
+    window.addEventListener('hashchange',readLink);
+    return()=>window.removeEventListener('hashchange',readLink);
   },[]); // eslint-disable-line
 
   const[sidebarOpen,setSidebarOpen]=useState(false);
@@ -10683,11 +10757,16 @@ function App(){
             const close=()=>setShowDataModal(false);
             // Always carries the tier, regardless of which payloads are ticked: it describes
             // the session that authored the code, not any one of its three parts.
+            // An unticked group still goes out as defaults; shareCarries (id 85) tells the reader
+            // those are not the sender's, so LOAD CODE doesn't offer them.
+            const shareCarries=(shareSel.ch?CARRY_BIT.ch:0)|(shareSel.fe?CARRY_BIT.fe:0)|(shareSel.dr?CARRY_BIT.dr:0);
+            const shareNone=shareCarries===0;
             const sharePayload=encodeTune(
               shareSel.ch?ch:DEF_CH,
               shareSel.fe?fe:DEF_FE,
               shareSel.dr?dr:DEF_DR,
-              uiMode
+              uiMode,
+              shareCarries
             );
             const doCopy=()=>copyToClipboard(sharePayload,()=>setShareCopied('code'));
             // A link is the same code, carried in the URL. Opening one STAGES it in LOAD CODE
@@ -10753,7 +10832,9 @@ function App(){
                     {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes'},
                   ].map(({key,label,sub})=>chkRow(key,label,sub,shareSel[key],
                     e=>{setShareSel(s=>({...s,[key]:e.target.checked}));setShareCopied(false);}))}
-                  <textarea readOnly value={sharePayload} rows={3} onFocus={e=>e.target.select()}
+                  {shareNone&&<div style={{fontSize:9,color:'#f87171',margin:'6px 0 0',letterSpacing:0.5}}>
+                    Tick at least one part.</div>}
+                  <textarea readOnly value={shareNone?'':sharePayload} rows={3} onFocus={e=>e.target.select()}
                     style={{width:'100%',background:'#020617',border:'1px solid #1e293b',borderRadius:2,
                             padding:'6px 8px',fontSize:10,color:'#e2e8f0',outline:'none',resize:'none',
                             fontFamily:'var(--font-mono)',letterSpacing:0.5,marginTop:10,marginBottom:6,cursor:'text'}}/>
@@ -10763,9 +10844,9 @@ function App(){
                   <div style={{display:'flex',gap:6}}>
                     <button className="tbtn" style={{flex:1,fontSize:10}} onClick={close}>CLOSE</button>
                     <button className={`tbtn${shareCopied==='code'?' saved':' on'}`} style={{flex:1,fontSize:10}}
-                      onClick={doCopy}>{shareCopied==='code'?'COPIED':'COPY CODE'}</button>
+                      disabled={shareNone} onClick={doCopy}>{shareCopied==='code'?'COPIED':'COPY CODE'}</button>
                     <button className={`tbtn${shareCopied==='link'?' saved':''}`} style={{flex:1,fontSize:10}}
-                      onClick={doCopyLink}>{shareCopied==='link'?'COPIED':'COPY LINK'}</button>
+                      disabled={shareNone} onClick={doCopyLink}>{shareCopied==='link'?'COPIED':'COPY LINK'}</button>
                   </div>
                 </>)}
 
@@ -10786,7 +10867,11 @@ function App(){
                     arb: t=>`${up(t.fe.arbMode)} · bias ${Math.round(t.fe.arbBias)} · spring ${Math.round(t.fe.springShare)}%`,
                     dr:  t=>`${up(t.dr.buildType)} · ${up(t.dr.diffType)} diff`,
                   };
-                  const none=!SHARE_PART_IDS.some(id=>importSel[id]);
+                  // The ticks as they apply to THIS code: a part the code doesn't carry (the
+                  // sender left it out under INCLUDE, id 85) counts as unticked. importSel itself
+                  // never moves, so the next code that does carry it gets the reader's tick back.
+                  const sel=pending?carriedSel(importSel,pending.carries):importSel;
+                  const none=!SHARE_PART_IDS.some(id=>sel[id]);
                   // arbManF/arbManR are the only codec fields whose UNITS depend on another
                   // part's field: clicks under a click-scale gameMode, roll stiffness under a
                   // physical one, and gameMode rides with `ride` (see docs/CODEC.md ids 46/47).
@@ -10804,22 +10889,22 @@ function App(){
                   // would be the first thing here that overrides the reader. Same choice MEASURE
                   // makes with its A/B spread, which suggests rather than accuses.
                   // See docs/KNOWN_ISSUES.md for the options that were weighed.
-                  const arbUnitClash=!!pending&&!!importSel.arb&&!importSel.ride
+                  const arbUnitClash=!!pending&&!!sel.arb&&!sel.ride
                     &&pending.tune.fe.arbMode==='man'
                     &&isPhysical(pending.tune.fe.gameMode)!==isPhysical(cur.fe.gameMode);
                   // Everything below works off one merge, so APPLY and TO GARAGE can never
                   // disagree about what the ticks mean.
-                  const merged=pending?mergeTune(cur,pending.tune,importSel):null;
-                  const feTicked=!!(importSel.ride||importSel.damp||importSel.arb);
+                  const merged=pending?mergeTune(cur,pending.tune,sel):null;
+                  const feTicked=!!(sel.ride||sel.damp||sel.arb);
                   const applyPending=()=>{
                     if(!merged||none)return;
                     commit('load share code',()=>{
                       // merged.* is built from the LIVE tune, so fields the codec doesn't
                       // carry (e.g. useRideHeightCG, local-only per docs/CODEC.md) survive.
-                      if(importSel.ch) setCh(prev=>({...DEF_CH,...prev,...merged.ch}));
+                      if(sel.ch) setCh(prev=>({...DEF_CH,...prev,...merged.ch}));
                       if(feTicked)     setFe(merged.fe);
-                      if(importSel.dr) setDr(merged.dr);
-                      if(feTicked||importSel.dr) dnaUnlink();
+                      if(sel.dr) setDr(merged.dr);
+                      if(feTicked||sel.dr) dnaUnlink();
                     });
                     setPending(null);setImportCode('');
                     close();
@@ -10843,6 +10928,10 @@ function App(){
                   <div style={{fontSize:9,letterSpacing:2,color:'#475569',marginBottom:6}}>
                     {pending?'THIS CODE CARRIES':'PARTS A CODE MAY LOAD'}</div>
                   {SHARE_PARTS.filter(p=>p.applies!==false).map(p=>{
+                    if(pending&&!partCarried(pending.carries,p.id))
+                      return chkRow(p.id,p.label,
+                        <span style={{color:'#334155'}}>Not in this code — the sender left it out</span>,
+                        false,()=>{},true);
                     const same=pending&&!partDiffers(cur,pending.tune,p.id);
                     return chkRow(p.id,p.label,
                       <>{summary[p.id](src)}
@@ -10872,7 +10961,8 @@ function App(){
                       :<>Your tier is <span style={{color:'#818cf8'}}>{TIER_LABEL[uiMode]}</span>. A loaded code never changes it.</>}
                   </div>
                   {none&&<div style={{fontSize:9,color:'#f87171',margin:'6px 0',letterSpacing:0.5}}>
-                    Tick at least one part.</div>}
+                    {pending&&!SHARE_PART_IDS.some(id=>partCarried(pending.carries,id))
+                      ?'This code carries no parts.':'Tick at least one part.'}</div>}
                   <div style={{display:'flex',gap:6,marginTop:14}}>
                     <button className="tbtn" style={{flex:1,fontSize:10}}
                       onClick={pending?()=>{setPending(null);setImportErr('');}:close}>
@@ -10886,7 +10976,7 @@ function App(){
                         // the ticked parts taken from the code. Garage LOADS stay whole-tune.
                         if(!merged)return;
                         garageImport(merged.ch,merged.fe,merged.dr,
-                          {ch:!!importSel.ch,fe:feTicked,dr:!!importSel.dr},pending.tier);
+                          {ch:!!sel.ch,fe:feTicked,dr:!!sel.dr},pending.tier);
                         setPending(null);setImportCode('');
                         close();
                       }}>TO GARAGE</button>
