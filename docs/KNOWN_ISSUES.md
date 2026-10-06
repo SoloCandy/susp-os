@@ -801,6 +801,77 @@ Trade-offs, and why it is not done here:
 - None of the three has telemetry behind it; the margin option is the only one that changes no
   output, only what the readouts measure from.
 
+## Open — the diff-type scale factors have no source
+
+`DIFF_TYPE_SCALE` (Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52, Drift 1.10) says the same
+lock % locks a different amount on each diff type. The code calls the values community-estimated,
+but no source or in-game measurement for them is on record, and a search of published Forza tuning
+guides (October 2026) found none. Those guides describe the five Horizon diffs as differing in
+which sliders they unlock, not in how hard a given % locks. Several give the same tuning advice for
+every adjustable type.
+
+What is confirmed, and matches the app:
+
+- Horizon's adjustable diffs are Sport, Race, Rally, Off-Road and Drift. Rally and Off-Road are
+  offered only on some cars.
+- Sport unlocks acceleration lock only: no deceleration, and no centre balance on AWD, where it
+  unlocks front and rear accel.
+- Race, Rally, Off-Road and Drift unlock every diff slider.
+
+What is not:
+
+- **The scale itself.** It sets real outputs, not just a readout. AUTO divides by it, so on the
+  default chassis a TRACK RWD asks for 35% accel on Race, 46% on Rally and 67% on Offroad, and an
+  AWD rear accel goes from 48% to 92%. If the types in fact lock the same at the same %, a Rally or
+  Offroad AUTO tune locks 1.3× or 1.9× harder than intended. The Offroad saturation entry below
+  exists only because of the 0.52.
+- **Wording that rests on it.** The DIFF TYPE hint ("the same lock % locks harder on RACE or DRIFT
+  than on RALLY or OFFROAD"), the `diff-type` glossary entry, the Diff Type tutorial step, the
+  higher MANUAL typical ranges for Rally and Offroad, and the DIFFERENTIAL card's RECOMMENDED
+  reasons ("sharpest, most predictable lock", "softer lock curve", "most compliant", "most
+  aggressive engagement"). Forza exposes one lock % per slider, and no source found describes an
+  engagement curve that differs by type. [HINTS.md](HINTS.md) quotes the hint as the app shows it.
+
+Measuring it is possible: Forza's Data Out telemetry streams each wheel's rotation speed. The
+same car, at the same lock %, with Race, then Rally, then Off-Road fitted, run through the same
+power-on corner, gives the wheel-speed split each type allows. Until then the safe neutral is every
+scale at 1.00. That would change every non-Race AUTO output, so it waits for a decision.
+
+## Open — the RACE → SPORT switch above +8 works against its own model
+
+`recommendedDiffType` turns a Race recommendation into Sport when `bTotFull` is above +8, to calm a
+strongly oversteery car. In `computeDiff`, rear decel lock is the term that resists oversteer
+(`bDiffDecel` is negative), and Sport forces decel to 0. AUTO keeps the accel term the same across
+types, so the net effect of taking the suggestion is to drop the stabilising term: on the default
+chassis a TRACK RWD's `bDiffDecel` goes from −0.81 to 0, and the car reads more oversteery than
+before. The suggestion's reason, "clean exit traction without decel snap", does not match how the
+app models decel lock either. The rule needs replacing, not retuning, and nothing better has been
+chosen yet.
+
+## Open — DRIFT's typical decel and the DRIFT build's AUTO locks run against drift practice
+
+`DIFF_TYPE_RANGES.drift.decel` is 0–8%, "kept low on purpose for rotation", and a DRIFT build's AUTO
+on RWD gives about 44% accel and 2% decel on a Drift diff. Published Horizon drift guides commonly
+run accel and decel both at or near 100%, so the rear wheels stay locked together through
+transitions. The app's MANUAL typical line, and the AUTO starting point, sit at the opposite end.
+Whether a grip-style lock is a deliberate choice for the DRIFT build or an oversight is not
+recorded; until it is, the range should not be read as community practice.
+
+## Open — a SPORT diff's decel lock is assumed to be 0
+
+Sport has no decel slider in-game, so `computeDiff` writes 0 for every decel lock on a Sport diff
+and the balance counts no decel term. The game must use some fixed decel value it does not show,
+and nothing here says what that value is. It is the same gap as the Sport centre split below.
+
+## Open — DIFF TYPE applies in MOTORSPORT and BEAMNG
+
+`computeDiff` never reads the game mode, so the five Horizon diff types, their scale factors and
+Sport's N/A rows apply in every mode, the BeamNG DIFFERENTIAL output included. Forza Motorsport's
+tuning needs a single adjustable, race-level diff, and no Rally, Off-Road or Drift diff was found
+there. BeamNG's diffs are a different set (open, LSD, locked, viscous) and map onto none of these.
+The `diff-type` glossary entry already says BeamNG has no diff-type recommendation; the picker and
+the scaling still apply there.
+
 ## Open — AUTO diff locks saturate at 100% on an Offroad diff
 
 AUTO solves in effective (Race-equivalent) lock and divides by `DIFF_TYPE_SCALE`, then

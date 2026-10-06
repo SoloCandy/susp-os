@@ -124,7 +124,8 @@ bDiffDecel = bFD + bRD;
   AUTO's diff balance is the same on every type up to % rounding, until `lockPct` hits 100%:
   Offroad's high-lock intents saturate there, and their balance then reads less than Race's
   (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). AUTO used to multiply by the scale, which did the
-  opposite (see [HISTORY.md](HISTORY.md)).
+  opposite (see [HISTORY.md](HISTORY.md)). The scale values themselves are unverified, and
+  everything above follows them; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - **MATCH CHASSIS** adds `clamp(±25, (feEffective.arbBalTarget − natDisplayOf(ch)) × 150)` to the
   EXIT intent and half of it to ENTRY (negated on FWD), in AUTO only, and only while
   `hasBalTargetSolve(fe)`. With nothing solving toward the target it is the hidden
