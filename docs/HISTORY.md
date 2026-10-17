@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — "NaN% ARB" when both bars solve to 0
+
+An ARB row's meta gave each bar's share of both bars together with no zero guard. BeamNG
+floors bars at 0, and when the springs alone beat the roll target (the TRACK preset: ROLL
+1.5°) both bars are 0, so both suspension cards read "NaN% ARB". `arbRowMeta` now builds
+the meta for the Forza ARB card and BeamNG's suspension cards alike, and reads "— ARB"
+with no bars. 0% or 50% would invent a split that doesn't exist. Found in the 2026-09-18
+code review.
+
 ## Fixed — EQUAL ROLL's NET no longer reads as a success
 
 EQUAL ROLL's chip showed NET in the success green CANCEL uses for a cancelled balance bar.

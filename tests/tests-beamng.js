@@ -307,6 +307,20 @@ t('NEUTRAL never reports "ARB maxed" without a ceiling', () => {
       throw new Error('neutralClamped fired in a mode with no maximum');
 });
 
+t('an ARB row with no bars reads "— ARB", not NaN% (TRACK preset in BeamNG)', () => {
+  const arbRowMeta = new Function(slice('const arbRowMeta=', 'const diffCtx=') + '\nreturn arbRowMeta;')();
+  // PRESET_SAVES' TRACK feel: springs alone already beat ROLL 1.5°, so both bars floor at 0.
+  const x = solve({}, { rideStiffness: 2.50, rearHzMode: 'multiplier', rearHzMult: 1.05,
+    arbMode: 'roll', arbTargetRollMan: 1.5 }, 'beamng').tune;
+  if (x.arbF !== 0 || x.arbR !== 0) throw new Error(`fixture no longer zeroes both bars (${x.arbF}/${x.arbR})`);
+  for (const [rsAb, rsSp] of [[x.rsAbF, x.rsSpF], [x.rsAbR, x.rsSpR]]) {
+    const m = arbRowMeta(rsAb, rsSp, x.rsAbF + x.rsAbR);
+    if (m.join(' ') !== '0% roll — ARB') throw new Error(`got "${m.join(' ')}"`);
+  }
+  const live = arbRowMeta(3, 7, 5);
+  if (live.join(' ') !== '30% roll 60% ARB') throw new Error(`with bars: got "${live.join(' ')}"`);
+});
+
 t('roll angle stays physical across chassis', () => {
   for (const [label, over] of CHS) {
     const d = solve(over, {}, 'beamng').tune.rollDeg;

@@ -1000,8 +1000,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
   to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
   arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **"NaN% ARB" when both bars solve to 0** *(reproduced)*. The ARB row's `% ARB` meta has no
-  zero guard; TRACK preset in BeamNG shows it on both suspension cards.
 - **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
   oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
   rear-biased and amber for front-biased.

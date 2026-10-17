@@ -2628,6 +2628,12 @@ const arbCtx=(arb,limit)=>{
   if(p<0.90)return['HIGH','#f97316'];
   return['MAX','#ef4444'];
 };
+// An ARB row's meta: its share of the axle's roll stiffness, and of both bars together. With no
+// bars at all (BeamNG floors at 0) the second is 0/0 — "—" rather than NaN, or an invented split.
+const arbRowMeta=(rsAb,rsSp,rsAbTotal)=>[
+  `${rsSp+rsAb>0?Math.round(rsAb/(rsSp+rsAb)*100):0}% roll`,
+  rsAbTotal>0?`${Math.round(rsAb/rsAbTotal*100)}% ARB`:'— ARB',
+];
 const diffCtx=v=>{
   if(v===0)return['OFF','#94a3b8'];
   if(v<20)return['LOW','#cbd5e1'];
@@ -10334,10 +10340,7 @@ function App(){
                 return <OutRow key={lbl} label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.arb)} unit={o.unit}
                   note={c?c[0]:null} noteColor={c?c[1]:undefined}
-                  meta={[
-                    `${Math.round(rsAb/(rsSp+rsAb)*100)}% roll`,
-                    `${Math.round(rsAb/(tune.rsAbF+tune.rsAbR)*100)}% ARB`,
-                  ]}/>;
+                  meta={arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)}/>;
               })}
             </RowGroup>
             {tune.rollClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
@@ -10617,7 +10620,7 @@ function App(){
               const c=arbCtx(v,lim.arb);
               return {label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
                 note:c?c[0]:null,noteColor:c?c[1]:undefined,
-                meta:[`${Math.round(rsAb/(rsSp+rsAb)*100)}% roll`,`${Math.round(rsAb/(tune.rsAbF+tune.rsAbR)*100)}% ARB`]};
+                meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)};
             };
             const buildSpringRow=(side,spring,mr,hz,pct)=>{
               const o=springOut(spring,fe.gameMode,mSpring,mr);
