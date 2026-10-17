@@ -527,6 +527,59 @@ t('a bar pinned at a click limit holds the roll balance the unclamped split aske
   near(rb(h), rb(b), 0.005, 'roll balance vs unclamped');
 });
 
+// No bar budget: ROLL ° softer than the springs alone give. Both bars used to drop to 1 / 1, which
+// shifts the balance toward the bars' own 1:1 split. The floor pin now holds the springs' balance,
+// the limit every mode's small-budget handling converges on. See docs/PHYSICS.md.
+const NO_BUDGET = { arbMode: 'roll', arbTargetRollMan: 5, rideStiffness: 3.5, rearHzMult: 1.6 };
+const rbOf = x => (x.rsSpR + x.rsAbR) / (x.rsSpF + x.rsSpR + x.rsAbF + x.rsAbR);
+const spOf = x => x.rsSpR / (x.rsSpF + x.rsSpR);
+// Half a 0.1-click step on each bar, in balance units — the rounding the pin cannot beat.
+const stepTol = x => 0.05 * (x.rsAbF / x.arbF + x.rsAbR / x.arbR) / (x.rsSpF + x.rsSpR + x.rsAbF + x.rsAbR);
+t('with no bar budget, every non-target Balance Mode holds the springs\' own balance', () => {
+  for (const [name, over] of [['default', {}], ['FWD 65', { frontBias: 65, layout: 'FWD' }], ['RWD 40', { frontBias: 40 }]])
+    for (const bal of [{ arbBalMode: 'weight' }, { arbBalMode: 'chassis' }, { arbBalMode: 'neutral' },
+                       { arbBalMode: 'neutral', arbNeutralEqual: true }, { arbBalMode: 'neutral', arbNeutralEqual: true, arbBias: -40 },
+                       { arbBalMode: 'weight', arbBias: 40 }])
+      for (const mode of ['horizon', 'motorsport']) {
+        const x = solve(over, { ...NO_BUDGET, ...bal }, mode).tune;
+        const tag = `${name} ${JSON.stringify(bal)} ${mode}`;
+        if (Math.min(x.arbF, x.arbR) !== 1) throw new Error(`${tag}: lighter bar left the floor (${x.arbF}/${x.arbR})`);
+        near(rbOf(x), spOf(x), stepTol(x) + 1e-9, `${tag}: roll balance vs springs`);
+      }
+});
+t('EQUAL ROLL with no bar budget gives equal ARB roll % and no ARB AT LIMIT', () => {
+  const x = solve({ frontBias: 65, layout: 'FWD' }, { ...NO_BUDGET, arbBalMode: 'neutral', arbNeutralEqual: true }, 'horizon').tune;
+  const pF = x.rsAbF / (x.rsSpF + x.rsAbF), pR = x.rsAbR / (x.rsSpR + x.rsAbR);
+  if (x.arbF === x.arbR) throw new Error('bars still 1 / 1 — springs are lopsided enough to need a split');
+  near(pF / pR, 1, 0.06, 'ARB roll % F vs R (0.1-click rounding at ~1 click)');
+  if (x.neutralClamped) throw new Error('neutralClamped fired on a split that was held');
+});
+t('no discontinuity where the bar budget reaches zero', () => {
+  // The ROLL target that springs alone meet (the no-budget roll with the bars taken back out),
+  // then either side of it: a sliver of budget, and none.
+  for (const bal of [{ arbBalMode: 'weight' }, { arbBalMode: 'chassis' }, { arbBalMode: 'neutral', arbNeutralEqual: true }]) {
+    const base = { ...NO_BUDGET, rideStiffness: 2.0, rearHzMult: 1.6, ...bal };
+    const x0 = solve({}, base, 'horizon').tune;
+    const r0 = x0.rollDeg * (x0.rsSpF + x0.rsSpR + x0.rsAbF + x0.rsAbR) / (x0.rsSpF + x0.rsSpR);
+    const lo = solve({}, { ...base, arbTargetRollMan: r0 * 0.9995 }, 'horizon').tune;
+    const hi = solve({}, { ...base, arbTargetRollMan: r0 * 1.01 }, 'horizon').tune;
+    if (Math.abs(lo.arbF - hi.arbF) > 0.2 || Math.abs(lo.arbR - hi.arbR) > 0.2)
+      throw new Error(`${bal.arbBalMode}: ${lo.arbF}/${lo.arbR} just inside the budget, ${hi.arbF}/${hi.arbR} past it`);
+  }
+});
+t('MECH with no bar budget never lands further from its target than 1 / 1 would', () => {
+  for (const tgt of [0.3, 0.5, 0.7])
+    for (const over of [{}, { frontBias: 65, layout: 'FWD' }]) {
+      const ch = { ...M.DEF_CH, ...over };
+      const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, ...NO_BUDGET, arbBalMode: 'mech', arbBalTargetMode: 'abs', arbBalAbs: tgt, gameMode: 'horizon' });
+      const x = M.solveTune(ch, fe, 'horizon').tune;
+      const scF = x.rsAbF / x.arbF, scR = x.rsAbR / x.arbR;
+      const one = (x.rsSpR + scR) / (x.rsSpF + x.rsSpR + scF + scR);
+      if (Math.abs(rbOf(x) - tgt) > Math.abs(one - tgt) + stepTol(x))
+        throw new Error(`target ${tgt}: ${x.arbF}/${x.arbR} lands at ${rbOf(x).toFixed(4)}, 1 / 1 at ${one.toFixed(4)}`);
+    }
+});
+
 // MEAS. NAT BAL replaces the geometry outright (natDisplayOf returns the reading and
 // never looks at the chassis), so a chassis edit after the reading leaves the app reporting a
 // number the car no longer produces. natBalStale is the guard; NAT_BAL_STALE_TOL is the reading's

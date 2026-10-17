@@ -965,6 +965,43 @@ SHARE % report that through `rollClamped`/`shareClamped`. When the re-solved bar
 also hits a limit the balance can't be held, and lands as close as the limits
 allow. MAN is untouched (a typed value), and the physical modes have no ceiling.
 
+The bar to pin is normally the one furthest out of range. In WEIGHT, CHASSIS and
+NEUTRAL, if its partner's re-solve would leave the range but pinning the partner
+instead would hold the balance, the partner is pinned. A bias pushing the split
+against the springs' own proportion causes that at a small budget: the bar the
+split starves is not the one the balance needs on the floor. MECH and CO-SOLVE
+keep the first choice. Their split already leans as far toward the Balance Target
+as the budget allows, so the balance being held is a compromise short of the
+target, and a first choice that can't hold it lands past it, toward the target.
+
+**No bar budget.** ROLL ° with a target softer than the springs alone give, or
+SHARE at 0%, leaves `rsAbBudget` at or below zero. Both bars still have to sit at
+least at 1 click, and two floored bars shift the balance toward the bars' own 1:1
+split. As the budget shrinks, every Balance Mode's floor handling converges on
+holding the springs' own balance (the bars add stiffness in the springs' F/R
+proportion and move nothing). So `computeTune` solves the Forza modes against a
+vanishing budget, `rsSp·1e-6`, rather than none, and the pin above does the rest:
+the lighter bar sits at 1 click and the other carries the springs' proportion.
+The output is continuous across the point where the budget reaches zero.
+- EQUAL ROLL then shows equal ARB roll % F/R, which is its whole purpose.
+- ARB Bias has nothing to act on there; the split it shifts is multiplied by a
+  budget of zero.
+- MECH lands no further from its target than 1 / 1 would, and in the sweep that
+  checked this, never further than before.
+- CO-SOLVE's AUTO Spring Share already reads a zero budget as unbounded ARB
+  strain and hands the springs the whole correction, so the springs carry the
+  target and the bars hold what the springs set.
+
+The physical modes floor at 0, where two zero bars already hold the springs'
+balance, so they are left alone.
+
+`neutralClamped` (ARB AT LIMIT) for EQUAL ROLL judges the outcome rather than the
+bar position. It fires when the held roll balance misses the one the split asked
+for, `(rsSpR + B·rF)/(rsSp + B)`, by more than half a 0.1-click step on each bar.
+A bar at a limit whose partner held the balance no longer counts. CANCEL keeps the
+limit test, since its goal (a fully cancelled balance bar) really is lost once a
+bar is pinned.
+
 ## RESPONSE / transient character (`responseFactors`)
 
 A feel score, not a physical output — nothing downstream consumes it, and it

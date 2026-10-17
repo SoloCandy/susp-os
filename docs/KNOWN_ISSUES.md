@@ -204,7 +204,7 @@ scratch verification described in [HISTORY.md](HISTORY.md)'s entry.
 
 TRACK uses ARB Stiffness Mode ROLL ° with a **1.5°** target at 2.50 Hz (×1.05 rear).
 On the default chassis its springs alone hold the car to **1.32°** — flatter than the
-target — so the solver has no bar budget to give, both bars sit on the 1-click floor,
+target — so the solver has no bar budget to give, both bars sit on the 1-click floor (the floor split holds the springs' proportion, which at ×1.05 rounds to 1.0 / 1.0),
 and `rollClamped` is true the moment the preset loads. The output card's roll-short
 note is telling the truth.
 

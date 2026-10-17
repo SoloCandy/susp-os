@@ -1729,6 +1729,13 @@ const computeTune=(ch,phys,gameMode)=>{
     : arbMode==='basic'
     ? arbScaleOf(ch)*(ch.trackF*ch.trackF+ch.trackR*ch.trackR)*(1+((lim.arb??ARB_UTIL_REF)-1)*arbBasicMan/100) // basic: direct click target, unlinked from spring stiffness (ceiling-defined — BASIC is hidden in physical modes)
     : rsSp*(shareTarget/(1-shareTarget)); // auto + share: target a fraction directly
+  // No bar budget in a Forza mode (ROLL ° once springs alone meet the target, SHARE 0%) still
+  // leaves both bars at the 1-click floor, and two floored bars shift the balance toward their
+  // own 1:1 split. Every Balance Mode's floor handling below converges, as the budget shrinks,
+  // on holding the springs' own balance — so solve against a vanishing budget rather than none,
+  // and the floor pin re-solves the other bar exactly as it does for a small positive budget.
+  // No discontinuity at zero. Physical modes floor at 0, where two zero bars already hold it.
+  if(!physUnits&&arbMode!=='man'&&rsAbBudget<=0&&rsSp>0) rsAbBudget=rsSp*1e-6;
   let rF=arbBalance/100;
   let _rsBalK=null;
   if((arbBalMode==='mech'||arbBalMode==='coSolve')&&rsAbBudget>0){
@@ -1842,15 +1849,20 @@ const computeTune=(ch,phys,gameMode)=>{
         const B=(rsSpR+wantR)/(rsSp+wantF+wantR);
         const pin=u=>Math.max(1,Math.min(lim.arb,u));
         const toClk=rs=>Math.round(Math.max(1,Math.min(lim.arb,rs))*10)/10;
-        if(out(uF)>=out(uR)){
-          const F=pin(uF)*scF;
-          arbF=toClk(F/scF);
-          if(B<1)arbR=toClk(((B*(rsSp+F)-rsSpR)/(1-B))/scR);
-        } else {
-          const R=pin(uR)*scR;
-          arbR=toClk(R/scR);
-          if(B>0)arbF=toClk(((rsSpR+R)/B-rsSp-R)/scF);
-        }
+        // [F, R] in raw clicks: pin one bar, re-solve the other (unchanged when B leaves no room).
+        const viaF=()=>{const F=pin(uF)*scF;return[F/scF,B<1?((B*(rsSp+F)-rsSpR)/(1-B))/scR:arbR];};
+        const viaR=()=>{const R=pin(uR)*scR;return[B>0?((rsSpR+R)/B-rsSp-R)/scF:arbF,R/scR];};
+        const fits=p=>p.every(u=>u>=1-1e-9&&u<=lim.arb+1e-9);
+        // The furthest-out bar is the one to pin, except where its partner's re-solve leaves the
+        // range and pinning the partner instead would hold the balance. A bias pushing the split
+        // against the springs' own proportion does that at a small budget: the bar the split
+        // starves is not the one the balance needs on the floor. Not MECH/CO-SOLVE: their split
+        // leans as far toward the Balance Target as the budget allows, so B is a compromise short
+        // of it, and a first choice that cannot hold B lands past it, toward the target — closer
+        // than holding B would.
+        const first=out(uF)>=out(uR)?viaF():viaR(),second=out(uF)>=out(uR)?viaR():viaF();
+        const p=fits(first)||!fits(second)||_rsBalK!==null?first:second;
+        arbF=toClk(p[0]);arbR=toClk(p[1]);
       }
     }
   }
@@ -1928,7 +1940,13 @@ const computeTune=(ch,phys,gameMode)=>{
   const mechBalClamped=arbMode!=='man'&&(arbBalMode==='mech'||arbBalMode==='coSolve')&&Math.abs(mechBalance-arbBalTarget)>0.01;
   // "ARB maxed, can't fully cancel" only means something against a ceiling. Physical modes
   // can always supply whatever roll stiffness NEUTRAL asks for, so the warning never fires.
-  const neutralClamped=!physUnits&&arbBalMode==='neutral'&&(arbF<=1||arbF>=lim.arb||arbR<=1||arbR>=lim.arb);
+  // EQUAL ROLL asks for a balance, not a bar position: a bar pinned at a click limit whose partner
+  // re-solved to hold the split's balance has done its job (and with no bar budget a floored bar
+  // is the only way to hold it). It fires when the held balance misses the one the split asked
+  // for by more than half a 0.1-click step on each bar. CANCEL keeps the limit test.
+  const neutralClamped=!physUnits&&arbBalMode==='neutral'&&(arbNeutralEqual
+    ?rsTotal>0&&Math.abs(rsBalance-(rsSpR+rsAbBudget*rF)/(rsSp+rsAbBudget))>(halfArbStep(ch.trackF)+halfArbStep(ch.trackR))/rsTotal
+    :(arbF<=1||arbF>=lim.arb||arbR<=1||arbR>=lim.arb));
   const settleF=settleTimeFromZeta(zetaF,fHz);
   const settleR=settleTimeFromZeta(zetaR,effectiveRHz);
   // CO-SOLVE contribution breakdown: how much of balance correction came from springs vs ARBs
@@ -10240,7 +10258,7 @@ function App(){
               Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
               achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
                 ?'Bars are maxed; stiffer springs would reduce roll further.'
-                :'Springs alone already exceed the target; softer springs give the bars room.'} <TermLink id="output-warnings"/>
+                :'Springs alone already exceed the target; softer springs give the bars room. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.'} <TermLink id="output-warnings"/>
             </div>}
             {tune.mechBalClamped&&<div style={{fontSize:11,color:'#f97316',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
@@ -10486,7 +10504,7 @@ function App(){
               Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
               achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
                 ?'Bars are maxed; stiffer springs would reduce roll further.'
-                :'Springs alone already exceed the target; softer springs give the bars room.'} <TermLink id="output-warnings"/>
+                :'Springs alone already exceed the target; softer springs give the bars room. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.'} <TermLink id="output-warnings"/>
             </>));
             if(tune.mechBalClamped)warnings.push(warnBox('mechbal','#f97316',<>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —

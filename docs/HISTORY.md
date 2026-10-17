@@ -11,6 +11,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — with no bar budget, the floored bars hold the springs' balance
+
+In the Forza modes, ROLL ° with a target softer than the springs alone give, or SHARE
+at 0%, leaves no bar budget. The floor pin only ran on a positive budget, so both bars
+dropped to 1 / 1 in every Balance Mode. That shifted the balance toward the bars' own
+1:1 split and broke what EQUAL ROLL promises: a lopsided spring pair showed ARB ROLL %
+F 2.0 / R 1.5 with ⚠ ARB AT LIMIT. It was also a jump in the output: a sliver of budget
+held the springs' balance (the limit every mode's floor handling converges on), and
+none fell back to 1 / 1. `computeTune` now solves against a vanishing budget, so the
+lighter bar sits at 1 click and the other carries the springs' proportion.
+
+Two changes went in alongside it:
+- The pin now falls back to pinning the partner bar when the first choice can't hold
+  the balance and the partner can. A bias against the springs' proportion at a small
+  budget needed that. It applies to WEIGHT, CHASSIS and NEUTRAL only; MECH and CO-SOLVE
+  keep the first choice, which lands closer to their target (see
+  [PHYSICS.md](PHYSICS.md#anti-roll-bars-at-a-click-limit)).
+- EQUAL ROLL's ARB AT LIMIT judges whether the balance was held, not whether a bar
+  touches a limit.
+
+Swept across 72,000 cases (5 chassis × 3 games × 3 ride stiffnesses × 3 rear
+multipliers × every stiffness mode × every Balance Mode, bias and target):
+- MECH's distance to its target got better in 564 cases and worse in none.
+- CO-SOLVE got better in 4,944. 2,226 moved by at most 0.0005, inside `solveTune`'s own
+  convergence tolerance.
+- `mechBalClamped` cleared in 30 cases and newly fired in none.
+- EQUAL ROLL's ARB AT LIMIT dropped from 2,795 cases to 336, all of them a bar at the
+  ceiling under a ±40 bias.
+- `shareClamped` newly fires in 248 SHARE 0% cases. The floored bars now supply slightly
+  more than the half-step tolerance allows, which is true.
+
+Saved data is untouched. Garage entries, share codes and backups store the settings,
+not the bars, so this needed no codec or storage change. Tunes that sat at 1 / 1 now
+load with one bar raised to the springs' proportion. TRACK is unaffected: at its ×1.05
+rear multiplier that proportion rounds back to 1.0 / 1.0.
+
 ## Changed — a downloaded copy is told about updates; docs-only pushes no longer are
 
 `useDeployCheck` returned early off http(s), so a downloaded `index.html` opened as
