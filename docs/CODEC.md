@@ -101,8 +101,9 @@ future version might not carry.
 | 82 | dr | brakeDecel | raw number — the g GRIP's brake bias is solved at |
 | 83 | dr | brakeEntryTarget | raw number — ENTRY Centre's ENTRY BRK target, grip-margin %, + = looser |
 | 84 | fe | landingPct | raw number — BUMP MODE → LANDING's drop height, % of the RIDE REF. axle's ride height; a target that re-solves bump ζ, see note |
+| 85 | meta | carries | raw number — bitmask of the groups the sender ticked under INCLUDE (`CARRY_BIT`: ch 1, fe 2, dr 4); omitted when all three were. See note |
 
-**Next available id: 85.**
+**Next available id: 86.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -127,7 +128,7 @@ never a resolved bias, so a GRIP or ENTRY code lands on the reader's car as that
 solve. INT reads a `grip` or `entry` Centre as REC, as BEG ignores the shift.
 
 Id 77 is the complexity tier (`BEG`/`INT`/`PRO`) the code was written in. It is the
-only field in the `meta` group, and the only field that is not an input to any solve
+first field in the `meta` group, and, like id 85 after it, not an input to any solve
 — nothing reads it back into the tune. It records how much of the tune was hand-set
 versus left to the lower tiers' automatic modes, and it is **shown, never applied**:
 switching tier runs the BEG/INT fallback effects, which rewrite `arbBalMode` and
@@ -141,6 +142,24 @@ real tier, so every new code carries id 77 — including `beginner`, which encod
 `0` and would otherwise be indistinguishable from an omitted field. Codes written
 before id 77 existed simply lack it and decode to `null`, which the UI reads as
 "not recorded" rather than guessing a tier.
+
+Id 85 is the second `meta` field: which groups the sender ticked under INCLUDE on COPY
+CODE, as a `CARRY_BIT` mask (`ch` 1, `fe` 2, `dr` 4). `encodeTune` always writes all
+three groups, filling an unticked one with its defaults, so before id 85 a reader could
+not tell "the sender left FEEL out" from "the sender's FEEL is the default one" — and
+LOAD CODE opens with every part ticked, so APPLY reset the reader's own values to
+defaults and the picker labelled them "from the code". The garage's COPY CODE has the
+same shape: a chassis-only or build-only entry fills the missing groups with defaults,
+so it writes the mask from which payloads the entry has.
+
+`DEF_META.carries` is `null`, meaning every group, and `encodeTune` writes `null` when
+the mask is 7. So a whole-tune code carries no id 85 and reads exactly as every code
+before it did. `carriesOf` reads anything that is not an integer 0–7 as 7. On LOAD
+CODE, `carriedSel(importSel, carries)` is the selection APPLY, TO GARAGE and the ARB
+units warning use: a part the code does not carry is shown disabled ("Not in this
+code") and counts as unticked. `importSel` itself is never moved, so the next code that
+does carry the part gets the reader's tick back. COPY CODE and COPY LINK are disabled
+when nothing is ticked.
 
 `decodeTune` returns `meta` as a fourth key beside `ch`/`fe`/`dr`. `sanitizeTune`
 takes only the three tune groups, so the extra key is inert for callers that do not
@@ -239,6 +258,7 @@ choice, decided after the code is read.
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
+| `carries` (CARRIES) | `meta` | carries — **`applies:false`**: decides which of the parts above can be ticked at all (`partCarried` / `carriedSel`), never merged or shown as a row |
 
 > **Rule: every codec field belongs to exactly one part.** A field added to
 > `CODEC_FIELDS` without a part fails `tests-share.js` (coverage), and a field named in
@@ -275,6 +295,28 @@ effects) and could demand a tier the reader cannot reach — see id 77 above. It
 in the picker as a line of text, which is the same "shown, never applied" contract the
 field has always had.
 
+## Integrity — the `~` checksum
+
+A code has no length marker, `atob` accepts unpadded input, and unknown or broken pairs
+are skipped, so before the checksum a code cut short in transit decoded without complaint:
+the cut fields fell back to their defaults, or a number cut mid-digit (`12:95` → `12:9`)
+was clamped. Every code now carries `~sum` as its **second** pair, right after the
+version: `codecSum` (32-bit FNV-1a, base 36) of everything after it.
+
+- **Second, not last**, so a cut can never remove the checksum and leave something that
+  passes for a legacy code. A cut anywhere fails the comparison.
+- **Not an id.** It describes the string, not the tune, and ids are permanent. An older
+  client skips it as it skips any pair without a `:`.
+- **Legacy codes** (no `~` pair) are accepted unchecked, as before. The one exception is a
+  code with nothing after its version (`1` or `1|`), which is what a new code cut down to
+  its version looks like. The only legacy code that ever read that way was an all-default
+  tune with no recorded tier, which carried nothing.
+- Errors `decodeTune` raises on purpose carry `codec:true` (`codecError`), so `stageCode`
+  shows their own wording: DNA code, outdated version, damaged or cut short. Anything
+  else gets the generic "Invalid code — make sure you pasted the full string."
+
+The DNA codec has no checksum yet; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 ## Links (`#t=`)
 
 COPY LINK is COPY CODE's output wrapped in `location.origin + location.pathname + '#t=' +
@@ -282,7 +324,9 @@ encodeURIComponent(code)`. Opening such a link **stages** the code exactly as pa
 does — the SHARE panel opens on LOAD CODE with the parts picker showing the link's
 values, and nothing moves until APPLY SELECTED. The hash is cleared with
 `history.replaceState` immediately after it is read, so a reload cannot restage an old
-link over edits made since. Nothing about the link is persisted; see
+link over edits made since. The same reader also runs on `hashchange`: a link opened in a
+tab that already shows SUSP.OS (pasted into its address bar) is a same-document
+navigation with no reload, and used to do nothing at all. Nothing about the link is persisted; see
 [PERSISTENCE.md](PERSISTENCE.md).
 
 Pasting a whole link into the LOAD CODE box works too: everything after `#t=` is read as

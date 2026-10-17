@@ -15,6 +15,8 @@
 //      tune.
 //   4. decode(encode(x)) merges identically to x — the part split survives the wire format.
 //   5. meta.tier is listed but never applied (applies:false).
+//   6. carries (id 85): a part the sender left out under INCLUDE is never offered or applied.
+//   7. The `~` checksum: a code cut short or edited is refused; a legacy code still decodes.
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -39,7 +41,7 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
-  'GAME_LIMITS,arbScaleOf};'
+  'GAME_LIMITS,arbScaleOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum};'
 )();
 
 let pass = 0, fail = 0;
@@ -267,6 +269,101 @@ t('an out-of-range drop % clamps to 10-600', () => {
 t('an unknown bump mode (an older client\'s view of a newer one) falls back to RATIO', () => {
   const out = M.sanitizeTune({ ...mine(), fe: { ...M.DEF_FE, dampingMode: 'bogus' } });
   assert(out.fe.dampingMode === 'ratio', `got ${out.fe.dampingMode}`);
+});
+
+section('carries (id 85): parts the sender left out');
+
+const codeOf = (tune, carries) => M.encodeTune(tune.ch, tune.fe, tune.dr, 'pro', carries);
+const carriesIn = code => M.decodeTune(code).meta.carries;
+
+t('a whole-tune code omits id 85, so it reads exactly as it always did', () => {
+  const plain = atob(codeOf(theirs(), M.CARRY_ALL));
+  assert(!/\|85:/.test(plain), `id 85 should be omitted, got ${plain}`);
+  assert(carriesIn(codeOf(theirs())) === null, 'carries should decode to null (= everything)');
+});
+
+t('a DRIVETRAIN-only code carries only dr, and every other part is unofferable', () => {
+  const code = M.encodeTune(M.DEF_CH, M.DEF_FE, theirs().dr, 'pro', M.CARRY_BIT.dr);
+  const c = carriesIn(code);
+  assert(c === M.CARRY_BIT.dr, `carries decoded as ${c}`);
+  for (const id of M.SHARE_PART_IDS)
+    assert(M.partCarried(c, id) === (id === 'dr'), `${id}: partCarried ${M.partCarried(c, id)}`);
+});
+
+t('APPLY with every tick on leaves the parts a code does not carry alone', () => {
+  const tn = theirs();
+  const me = { ...mine(), ch: { ...M.DEF_CH, weight: 4100 }, fe: { ...M.DEF_FE, rideStiffness: 3.2 } };
+  const code = M.encodeTune(M.DEF_CH, M.DEF_FE, tn.dr, 'pro', M.CARRY_BIT.dr);
+  const all = Object.fromEntries(M.SHARE_PART_IDS.map(id => [id, true]));
+  const out = M.mergeTune(me, M.sanitizeTune(M.decodeTune(code)), M.carriedSel(all, carriesIn(code)));
+  assert(out.ch.weight === 4100 && out.fe.rideStiffness === 3.2,
+    `own ch/fe were overwritten: ${out.ch.weight} / ${out.fe.rideStiffness}`);
+  assert(out.dr.diffAccel === tn.dr.diffAccel, `dr not taken: ${out.dr.diffAccel}`);
+});
+
+t('carriedSel never turns a tick ON, and a junk mask reads as everything', () => {
+  const none = Object.fromEntries(M.SHARE_PART_IDS.map(id => [id, false]));
+  assert(M.SHARE_PART_IDS.every(id => !M.carriedSel(none, M.CARRY_ALL)[id]), 'an unticked part came back ticked');
+  for (const junk of [null, undefined, NaN, -1, 8, 2.5, 'x'])
+    assert(M.SHARE_PART_IDS.every(id => M.partCarried(junk, id)), `mask ${String(junk)} should mean every part`);
+});
+
+section('integrity: a damaged code is refused, not half-loaded');
+
+t('every new code carries a checksum as its second pair', () => {
+  const parts = atob(codeOf(theirs())).split('|');
+  assert(parts[1].startsWith('~'), `second pair is ${parts[1]}`);
+  assert(M.codecSum(parts.slice(2).join('|')) === parts[1].slice(1), 'checksum does not match its body');
+});
+
+t('a code cut short at any length is refused with the codec\'s own message', () => {
+  const code = codeOf(theirs());
+  for (let cut = 1; cut < code.length; cut++) {
+    const short = code.slice(0, code.length - cut);
+    // Dropping only base64 '=' padding decodes to the identical text — not damage.
+    let same = false;
+    try { same = atob(short) === atob(code); } catch {}
+    if (same) continue;
+    let threw = null;
+    try { M.decodeTune(short); } catch (e) { threw = e; }
+    assert(threw, `cut ${cut} decoded without an error`);
+    assert(threw.codec === true, `cut ${cut}: a non-codec error leaked out: ${threw.message}`);
+  }
+});
+
+t('an edited value is refused', () => {
+  const plain = atob(codeOf(theirs()));
+  assert(plain.includes('|1:3100'), `fixture changed: ${plain}`);
+  let threw = false;
+  try { M.decodeTune(btoa(plain.replace('|1:3100', '|1:3900'))); } catch (e) { threw = /damaged/.test(e.message); }
+  assert(threw, 'an edited code was accepted');
+});
+
+t('a legacy code (no checksum) still decodes', () => {
+  const out = M.decodeTune(btoa('1|1:3100|7:2.35|77:2'));
+  assert(out.ch.weight === 3100 && out.fe.rideStiffness === 2.35, `got ${out.ch.weight} / ${out.fe.rideStiffness}`);
+});
+
+t('an outdated version keeps its own message', () => {
+  let msg = '';
+  try { M.decodeTune(btoa('9|1:3100')); } catch (e) { msg = e.codec ? e.message : ''; }
+  assert(/Outdated/.test(msg), `got ${JSON.stringify(msg)}`);
+});
+
+section('small guards');
+
+t('partDiffers ignores float noise on the live side', () => {
+  const tn = M.sanitizeTune(theirs());
+  const me = { ...tn, fe: { ...tn.fe, rideStiffness: tn.fe.rideStiffness + 1e-12 } };
+  assert(!M.partDiffers(me, tn, 'ride'), 'a 1e-12 difference read as "from the code"');
+});
+
+t('rideBottomG is clamped to the envelope of every legal ride height and Hz', () => {
+  const g = v => M.sanitizeTune({ ...mine(), fe: { ...M.DEF_FE, rideBottomG: v } }).fe.rideBottomG;
+  const hi = g(1e300), lo = g(1e-9);
+  assert(hi > 100 && hi < 200, `upper clamp ${hi}`);
+  assert(lo > 0.01 && lo < 0.05, `lower clamp ${lo}`);
+  assert(g(1.4) === 1.4, `an ordinary target moved: ${g(1.4)}`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
