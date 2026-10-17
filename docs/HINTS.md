@@ -401,7 +401,7 @@ following RIDE REF.:
 
 > Derives the other axle's Hz. MULTIPLIER: fixed ratio. FLAT RIDE: less pitch bounce at Target Speed. INDEPENDENT: by hand. SHARED: same bottom-out g.
 
-> MECH: from Mech Balance Target. Hidden in CO-SOLVE.
+> MECH: from Mech Balance Target, not under NEUTRAL CANCEL. Hidden in CO-SOLVE.
 
 **Target Speed** (FLAT RIDE) — RIDE REF. SHARED, REAR, then FRONT:
 

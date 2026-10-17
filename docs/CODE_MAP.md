@@ -119,7 +119,7 @@ solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
 conversion, WEIGHT/CHASSIS bar dilution and the bisected spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path, and read the bars through
-`manArbRsOf`), `autoReachBudget` (AUTO's bar budget grown to reach a MECH/CO-SOLVE target; `computeTune` and
+`manArbRsOf`), `neutralCancelOf` (NEUTRAL CANCEL as the bars run it, MAN excluded; App hides Hz MODE MECH under it and its `dropHzMech` carries a stored MECH to MULTIPLIER), `autoReachBudget` (AUTO's bar budget grown to reach a MECH/CO-SOLVE target; `computeTune` and
 `resolveCoSolveSpringShare` both call it, so Auto Spring Share judges the budget the tune gets),
 `manArbIn` / `manArbRsOf` (MAN's typed bars clamped as `computeTune` reads them,
 and as roll stiffness), `crossArbUnits` (carries MAN bars across a click/physical game-mode

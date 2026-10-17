@@ -203,19 +203,6 @@ scratch verification described in [HISTORY.md](HISTORY.md)'s entry.
 
 ---
 
-## Open — Rear Hz Mode MECH cannot steer the balance under NEUTRAL CANCEL
-
-CANCEL splits the bars so they cancel the springs' bias toward the weight split (NET 0), and on
-AUTO it grows the budget to manage it. Rear Hz Mode MECH moves the springs toward the Balance
-Target, and the bars then cancel that move. With both selected the balance sits near the weight
-split whatever the target says. A sweep of 18 cases missed 11 by more than 0.01, 7 of them with
-no warning: `rearHzClamped` is false because the springs did reach their ratio, and
-`mechBalClamped` only covers ARB Balance MECH/CO-SOLVE. EQUAL ROLL is unaffected, because its
-bars follow the springs. The fix is a design choice: gray out one mode when the other is active,
-warn, or give CANCEL's result priority and have Hz MECH say so. It needs a decision first.
-
----
-
 ## Open — the TRACK preset's roll target is out of reach at its own spring rate
 
 TRACK uses ARB Stiffness Mode ROLL ° with a **1.5°** target at 2.50 Hz (×1.05 rear).

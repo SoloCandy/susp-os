@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Hz MODE MECH is hidden under NEUTRAL CANCEL
+
+CANCEL splits the bars so they cancel whatever balance the springs set, and on AUTO grows the
+budget to do it. Rear Hz Mode MECH moves the springs toward the Balance Target, so with both on the
+bars undid every move and the balance sat near the weight split whatever the target said. 11 of 18
+swept cases missed by more than 0.01, 7 of them with no warning: `rearHzClamped` was false because
+the springs reached their ratio, and `mechBalClamped` covers only ARB Balance MECH/CO-SOLVE.
+
+The MECH button is now hidden while CANCEL is active (`neutralCancelOf`; MAN stiffness bypasses
+Balance Mode, so it doesn't count). The CANCEL and NEUTRAL buttons switch a stored MECH to
+MULTIPLIER at the ratio the car was sitting at, as the MULTIPLIER button seeds it, so the springs
+don't move. An App effect does the same for every other way the pair can arrive (LOAD CODE, LOAD
+BUILD, a preset, leaving MAN), at the ratio that render solved. EQUAL ROLL keeps MECH, because its
+bars follow the springs and the sweep found no misses there.
+
 ## Fixed — AUTO ARB stiffness with CO-SOLVE and Rear Hz Mode MECH
 
 Three changes, found by sweeping 20 chassis variations against Balance Targets 0.40–0.60 in every

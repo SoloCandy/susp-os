@@ -499,7 +499,7 @@ TRY IT task (ticks when the check passes):
 
 #### 9. Hz MECH & Balance Target Mode
 
-> Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.
+> Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself, and NEUTRAL CANCEL, whose bars would undo it. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.
 
 #### 10. Brake Bias Centre
 

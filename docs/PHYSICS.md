@@ -826,7 +826,10 @@ frequency (dispatch lives in `feelToPhysics`):
   the springs, so it bisects the Hz ratio on the combined balance through the
   caller's own Hz, band clamp included. Under MECH, CO-SOLVE and EQUAL ROLL
   the bars do not dilute (they split toward the target, or follow the
-  springs), so the springs aim at the target directly. In BeamNG with AUTO or
+  springs), so the springs aim at the target directly. NEUTRAL CANCEL is
+  not offered with it: its bars cancel the springs' balance, so no spring
+  ratio moves the result, and the app switches a stored MECH to MULTIPLIER
+  under CANCEL (`neutralCancelOf`). In BeamNG with AUTO or
   SHARE this first pass now lands within about 0.002 of the target on average,
   against 0.02–0.03 before. MAN
   stiffness is solved separately. MAN is solved in closed form around the typed bars (`mult_man`, a
