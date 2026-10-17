@@ -995,12 +995,18 @@ The output is continuous across the point where the budget reaches zero.
 The physical modes floor at 0, where two zero bars already hold the springs'
 balance, so they are left alone.
 
-`neutralClamped` (ARB AT LIMIT) for EQUAL ROLL judges the outcome rather than the
-bar position. It fires when the held roll balance misses the one the split asked
-for, `(rsSpR + B·rF)/(rsSp + B)`, by more than half a 0.1-click step on each bar.
-A bar at a limit whose partner held the balance no longer counts. CANCEL keeps the
-limit test, since its goal (a fully cancelled balance bar) really is lost once a
-bar is pinned.
+`neutralClamped`, NEUTRAL's chip, judges the outcome rather than the bar position,
+for both methods. A bar at a limit whose partner held the balance doesn't count.
+- **EQUAL ROLL** fires when the held roll balance misses the one the split asked
+  for, `(rsSpR + B·rF)/(rsSp + B)`, by more than half a 0.1-click step on each bar.
+- **CANCEL** fires on that same miss, and also when the budget can't reach the
+  cancelling split at all with ARB Bias centred (the unclamped split leaves 0–1),
+  or when there is no budget and the springs alone don't sit at NET 0. Off centre,
+  an unreachable cancel point isn't a miss: the bias has already steered away from it.
+
+`neutralClampEnd` names the limit for the chip: `'ceiling'` (ARB MAXED) when either
+bar sits at `lim.arb`, otherwise `'floor'` (ARB AT FLOOR). A floored bar is how a
+budget too small to cancel shows, SHARE 0% included.
 
 ## RESPONSE / transient character (`responseFactors`)
 

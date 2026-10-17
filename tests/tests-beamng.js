@@ -554,6 +554,21 @@ t('EQUAL ROLL with no bar budget gives equal ARB roll % and no ARB AT LIMIT', ()
   near(pF / pR, 1, 0.06, 'ARB roll % F vs R (0.1-click rounding at ~1 click)');
   if (x.neutralClamped) throw new Error('neutralClamped fired on a split that was held');
 });
+t('CANCEL\'s chip judges the cancel, and names the limit it hit', () => {
+  // A bar on the floor whose partner re-solved to cancel the springs is a success, not a warning.
+  const held = solve({}, { arbMode: 'share', arbShareMan: 15, arbBalMode: 'neutral' }, 'horizon').tune;
+  if (Math.min(held.arbF, held.arbR) !== 1) throw new Error(`fixture no longer floors a bar (${held.arbF}/${held.arbR})`);
+  near(held.bTot, 0, 0.05, 'NET with a floored bar');
+  if (held.neutralClamped) throw new Error('chip fired on a cancel that was achieved');
+  // SHARE 0%: no budget, bars on the floor, springs uncancelled — the floor, not "maxed".
+  const none = solve({}, { arbMode: 'share', arbShareMan: 0, arbBalMode: 'neutral' }, 'horizon').tune;
+  if (!none.neutralClamped || none.neutralClampEnd !== 'floor')
+    throw new Error(`SHARE 0%: neutralClamped ${none.neutralClamped}, end ${none.neutralClampEnd}`);
+  // A big budget pushed hard by ARB Bias runs a bar into the ceiling.
+  const max = solve({}, { arbMode: 'roll', arbTargetRollMan: 1.0, arbBalMode: 'neutral', arbBias: -40 }, 'horizon').tune;
+  if (!max.neutralClamped || max.neutralClampEnd !== 'ceiling')
+    throw new Error(`ROLL 1.0° bias −40: neutralClamped ${max.neutralClamped}, end ${max.neutralClampEnd}`);
+});
 t('no discontinuity where the bar budget reaches zero', () => {
   // The ROLL target that springs alone meet (the no-budget roll with the bars taken back out),
   // then either side of it: a sliver of budget, and none.

@@ -1737,6 +1737,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // No discontinuity at zero. Physical modes floor at 0, where two zero bars already hold it.
   if(!physUnits&&arbMode!=='man'&&rsAbBudget<=0&&rsSp>0) rsAbBudget=rsSp*1e-6;
   let rF=arbBalance/100;
+  let cancelOutOfReach=false; // NEUTRAL CANCEL: the budget can't reach the cancelling split (see neutralClamped)
   let _rsBalK=null;
   if((arbBalMode==='mech'||arbBalMode==='coSolve')&&rsAbBudget>0){
     const _mechTgt=Math.max(0.001,Math.min(0.999,arbBalTarget-tireCorr-natOffset)); // pre-compensate for tyre-width and NAT-BAL calibration offsets
@@ -1792,7 +1793,10 @@ const computeTune=(ch,phys,gameMode)=>{
     }
     if(rsAbBudget>0){
       const rsAbF_target=nf0*(rsSp+rsAbBudget)-rsSpF;
-      const rF0=Math.max(0,Math.min(1,1-(rsAbF_target/rsAbBudget)));
+      const rF0u=1-(rsAbF_target/rsAbBudget);
+      // Only a failure with ARB Bias centred: off centre the user has steered away from exact cancel.
+      cancelOutOfReach=arbBias===0&&(rF0u<-1e-9||rF0u>1+1e-9);
+      const rF0=Math.max(0,Math.min(1,rF0u));
       rF=Math.max(0,Math.min(1,rF0+arbBias*0.01)); // ARB Bias shifts away from the solved centre — full range at the extremes
     }
   } else if(arbBalMode==='chassis'){
@@ -1938,15 +1942,23 @@ const computeTune=(ch,phys,gameMode)=>{
   // above), so a leftover arbBalMode of mech/coSolve from before switching to MAN must not
   // trigger this "target unreachable" warning — nothing is actually solving toward it.
   const mechBalClamped=arbMode!=='man'&&(arbBalMode==='mech'||arbBalMode==='coSolve')&&Math.abs(mechBalance-arbBalTarget)>0.01;
-  // "ARB maxed, can't fully cancel" only means something against a ceiling. Physical modes
-  // can always supply whatever roll stiffness NEUTRAL asks for, so the warning never fires.
-  // EQUAL ROLL asks for a balance, not a bar position: a bar pinned at a click limit whose partner
-  // re-solved to hold the split's balance has done its job (and with no bar budget a floored bar
-  // is the only way to hold it). It fires when the held balance misses the one the split asked
-  // for by more than half a 0.1-click step on each bar. CANCEL keeps the limit test.
-  const neutralClamped=!physUnits&&arbBalMode==='neutral'&&(arbNeutralEqual
-    ?rsTotal>0&&Math.abs(rsBalance-(rsSpR+rsAbBudget*rF)/(rsSp+rsAbBudget))>(halfArbStep(ch.trackF)+halfArbStep(ch.trackR))/rsTotal
-    :(arbF<=1||arbF>=lim.arb||arbR<=1||arbR>=lim.arb));
+  // NEUTRAL's chip: the bars couldn't do what the method asks. Only against a click limit —
+  // physical modes can always supply whatever roll stiffness NEUTRAL asks for, so it never fires.
+  // Both methods judge the outcome, not the bar position: a bar pinned at a click limit whose
+  // partner re-solved to hold the split's balance has done its job (with no bar budget a floored
+  // bar is the only way to hold it). "Held" means within half a 0.1-click step on each bar.
+  // EQUAL ROLL asks for the split's balance. CANCEL asks for the same, and additionally misses
+  // when the budget can't reach the cancelling split at all with ARB Bias centred (cancelOutOfReach), or when there is
+  // no budget and the springs alone don't already sit at the weight split (NET 0).
+  // neutralClampEnd names the limit for the chip: 'ceiling' when a bar is at lim.arb, else 'floor'.
+  const neutralTol=rsTotal>0?(halfArbStep(ch.trackF)+halfArbStep(ch.trackR))/rsTotal:0;
+  const heldSplit=rsSp+rsAbBudget<=0||Math.abs(rsBalance-(rsSpR+rsAbBudget*rF)/(rsSp+rsAbBudget))<=neutralTol;
+  const neutralClamped=!physUnits&&arbBalMode==='neutral'&&rsTotal>0&&(arbNeutralEqual
+    ?!heldSplit
+    :rsAbBudget>0?(cancelOutOfReach||!heldSplit)
+    :Math.abs(rsBalance-(1-ch.frontBias/100))>neutralTol);
+  const neutralClampEnd=!neutralClamped?null
+    :(arbF>=lim.arb||arbR>=lim.arb)?'ceiling':'floor';
   const settleF=settleTimeFromZeta(zetaF,fHz);
   const settleR=settleTimeFromZeta(zetaR,effectiveRHz);
   // CO-SOLVE contribution breakdown: how much of balance correction came from springs vs ARBs
@@ -1962,7 +1974,7 @@ const computeTune=(ch,phys,gameMode)=>{
          rebF:r1(rebF),rebR:r1(rebR),
          bumpF:r1(bumpF),bumpR:r1(bumpR),
          arbF,arbR,
-         fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,dampingClamped,
+         fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,neutralClampEnd,dampingClamped,
          arbShare:arbShareOut,
          bSp,bAb,bTot,bChassis,mechBalance,gripBalance,
          rsSpF,rsSpR,rsAbF,rsAbR,
@@ -8955,7 +8967,7 @@ function App(){
                     <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{pR.toFixed(1)}</span>
                     <span style={{flex:1}}/>
                     {tune.neutralClamped
-                      ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB AT LIMIT</span>
+                      ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ {tune.neutralClampEnd==='ceiling'?'ARB MAXED':'ARB AT FLOOR'}</span>
                       :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
                   </div>;
                 })()}
@@ -8969,7 +8981,7 @@ function App(){
                   <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{tune.bAb>=0?'+':''}{tune.bAb.toFixed(1)}</span>
                   <span style={{flex:1}}/>
                   {tune.neutralClamped
-                    ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ ARB MAXED — CAN'T FULLY CANCEL</span>
+                    ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ {tune.neutralClampEnd==='ceiling'?'ARB MAXED':'ARB AT FLOOR'} — CAN'T FULLY CANCEL</span>
                     :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
                 </div>}
                 <FeelSlider label="ARB Bias" value={fe.arbBias}

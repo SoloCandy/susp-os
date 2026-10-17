@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — NEUTRAL's chip warned on a cancel that worked, and called the floor "maxed"
+
+CANCEL's chip tested bar position: any bar at 1 click or at the ceiling lit "⚠ ARB
+MAXED — CAN'T FULLY CANCEL". The floor pin re-solves the partner bar to hold the split, so
+a floored bar often still cancels. SHARE 15% on the default car showed the warning with NET
+−0.00, and ROLL 1.0° with NET 0.00 and a bar at 65. At SHARE 0% it said "maxed" about bars
+sitting on their 1-click floor.
+
+CANCEL now judges the outcome as EQUAL ROLL does since the no-budget change below. It
+counts a miss when the split's balance wasn't held, when the budget can't reach the
+cancelling split with ARB Bias centred, or when there is no budget to cancel with. Both
+chips name the end: ARB MAXED at the ceiling, ARB AT FLOOR otherwise. EQUAL ROLL's firing
+is unchanged (identical across a 1,200-case sweep).
+
 ## Changed — with no bar budget, the floored bars hold the springs' balance
 
 In the Forza modes, ROLL ° with a target softer than the springs alone give, or SHARE
