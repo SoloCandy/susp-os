@@ -602,10 +602,12 @@ t('MECH with no bar budget never lands further from its target than 1 / 1 would'
       const ch = { ...M.DEF_CH, ...over };
       const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, ...NO_BUDGET, arbBalMode: 'mech', arbBalTargetMode: 'abs', arbBalAbs: tgt, gameMode: 'horizon' });
       const x = M.solveTune(ch, fe, 'horizon').tune;
+      // In the balance the target is set in: the displayed one, tyres in series. Judged in roll-
+      // stiffness space instead, a bar that moved the display toward the target could read as a miss.
       const scF = x.rsAbF / x.arbF, scR = x.rsAbR / x.arbR;
-      const one = (x.rsSpR + scR) / (x.rsSpF + x.rsSpR + scF + scR);
-      if (Math.abs(rbOf(x) - tgt) > Math.abs(one - tgt) + stepTol(x))
-        throw new Error(`target ${tgt}: ${x.arbF}/${x.arbR} lands at ${rbOf(x).toFixed(4)}, 1 / 1 at ${one.toFixed(4)}`);
+      const one = M.displayRsBalance(ch, x.rsSpF + scF, x.rsSpR + scR) + M.tireCorrOf(ch) + M.displayNatOffsetOf(ch);
+      if (Math.abs(x.mechBalance - tgt) > Math.abs(one - tgt) + stepTol(x))
+        throw new Error(`target ${tgt}: ${x.arbF}/${x.arbR} shows ${x.mechBalance.toFixed(4)}, 1 / 1 would show ${one.toFixed(4)}`);
     }
 });
 
@@ -769,6 +771,57 @@ t('a CO-SOLVE left over from before MAN does not move the springs', () => {
     };
     const a = run('coSolve'), b = run('weight');
     if (a.fHz !== b.fHz || a.rHz !== b.rHz) throw new Error(`${gm} ${rideRef}: ${a.fHz}/${a.rHz} vs ${b.fHz}/${b.rHz}`);
+  }
+});
+
+console.log('\n── AUTO with Balance Target solves ──');
+// Rear Hz Mode MECH springs around bars that split without looking at the target. It assumed they
+// split at the geometric natural (not WEIGHT's weight %, OPPOSITE and ARB Bias included), and that
+// CHASSIS bars and ROLL/BASIC budgets added nothing, leaving solveTune's secant to close up to 0.2.
+t('Rear Hz MECH lands on the target in one pass under WEIGHT/CHASSIS bars in BeamNG', () => {
+  for (const arbBalMode of ['weight', 'chassis']) for (const arbMode of ['auto', 'share'])
+    for (const [arbBias, arbSplitOpposite] of [[0, false], [30, true]]) for (const frontBias of [40, 64]) {
+      const ch = { ...M.DEF_CH, frontBias, trackF: 1.48, trackR: 1.64 };
+      const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'beamng', arbMode, arbBalMode, arbBias, arbSplitOpposite,
+        arbShareMan: 25, rearHzMode: 'mech', rideStiffness: 2.6, arbBalTargetMode: 'abs', arbBalAbs: 0.48 });
+      const ph = M.feelToPhysics(ch, fe);
+      if (ph.rearHzClamped) continue;
+      near(M.computeTune(ch, ph, 'beamng').mechBalance, 0.48, 0.01, `${arbBalMode} ${arbMode} bias ${arbBias} fb ${frontBias}`);
+    }
+});
+t('Rear Hz MECH keeps stiffening the rear as the target rises, with ROLL bars on soft springs', () => {
+  // The bars carry most of the roll stiffness here. A fixed-point estimate of their share diverges
+  // and sends the rear Hz back down past a 0.545 target, so mechSpringSplit bisects instead.
+  const ch = { ...M.DEF_CH, frontBias: 40 };
+  let prev = 0;
+  for (let tgt = 0.50; tgt <= 0.58; tgt += 0.01) {
+    const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'beamng', arbMode: 'roll', arbTargetRollMan: 1.5, arbBalMode: 'weight',
+      arbSplitOpposite: true, rearHzMode: 'mech', rideStiffness: 1.75, arbBalTargetMode: 'abs', arbBalAbs: tgt });
+    const r = M.feelToPhysics(ch, { ...fe, arbBalTarget: tgt }).rearHz;
+    if (r < prev - 1e-9) throw new Error(`rear Hz fell from ${prev.toFixed(3)} to ${r.toFixed(3)} at target ${tgt.toFixed(2)}`);
+    prev = r;
+  }
+});
+t('solveTune steps past a stretch where a clamp holds the result', () => {
+  // The first internal target puts rear Hz on HZ_MIN, so the next one gives the same balance. A
+  // secant that stops on a flat step ends at 0.475, although a slightly stiffer rear reaches 0.48.
+  const ch = { ...M.DEF_CH, frontBias: 64, weight: 2400 };
+  const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'horizon', arbMode: 'basic', arbBalMode: 'weight', arbBias: 30,
+    arbSplitOpposite: true, rearHzMode: 'mech', rideStiffness: 1.75, arbBalTargetMode: 'abs', arbBalAbs: 0.48 });
+  const r = M.solveTune(ch, fe, 'horizon');
+  near(r.tune.mechBalance, 0.48, 0.002, 'balance');
+  if (r.physics.rearHzClamped) throw new Error('reported a Hz clamp it climbed out of');
+});
+t('CO-SOLVE on AUTO reaches the target with the springs taking none of it', () => {
+  // Spring Share 0 leaves the bars the whole correction. AUTO's plain roll-feel budget could not
+  // carry it; it now grows as MECH's does. BeamNG has no click ceiling, so every case lands.
+  for (const frontBias of [40, 52, 64]) for (const tgt of [0.40, 0.50, 0.60]) for (const rearHzMult of [0.9, 1.4]) {
+    const ch = { ...M.DEF_CH, frontBias };
+    const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'beamng', arbBalMode: 'coSolve', springShareAuto: false, springShare: 0,
+      rearHzMult, arbBalTargetMode: 'abs', arbBalAbs: tgt });
+    const { tune } = M.solveTune(ch, fe, 'beamng');
+    if (tune.mechBalClamped) throw new Error(`fb ${frontBias} target ${tgt}: clamped at ${tune.mechBalance.toFixed(3)}`);
+    near(tune.mechBalance, tgt, 0.01, `fb ${frontBias} target ${tgt} ×${rearHzMult}`);
   }
 });
 

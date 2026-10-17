@@ -198,7 +198,7 @@ t('solveTune: Forza RANGE aims at the band middle at the tune stiffness', () => 
   }
 });
 
-t('MECH + AUTO widens the bar budget far enough to reach a target the springs lean away from', () => {
+t('MECH and CO-SOLVE on AUTO widen the bar budget far enough to reach a target the springs lean away from', () => {
   // A ×1.2 rear multiplier puts the springs alone well rearward of 0.45. AUTO's plain budget
   // could only split a narrow band around that; it now grows (capped at the spring roll
   // stiffness) until the target is reachable, as ROLL already could.
@@ -209,8 +209,15 @@ t('MECH + AUTO widens the bar budget far enough to reach a target the springs le
     assert(!tune.mechBalClamped, `${arbMode}: clamped at ${tune.mechBalance}`);
     near(tune.mechBalance, 0.45, 0.01, `${arbMode} landed`);
   }
-  // The expansion is AUTO + MECH only; CO-SOLVE's spring share simulates the plain AUTO budget.
-  assert(/if\(arbMode==='auto'&&arbBalMode==='mech'\)\{\s*const bReq=/.test(src), 'AUTO-only MECH budget expansion is gone or widened');
+  // CO-SOLVE on AUTO grows the same budget. With Spring Share at 0 the bars carry the whole
+  // correction, which the plain budget could not: on a 40% front car this stopped at 0.488.
+  const rearCh = chOf({ frontBias: 40 });
+  const cs = M.resolveFeEffective(rearCh, feOf('horizon', { arbBalMode: 'coSolve', springShareAuto: false, springShare: 0, arbBalTargetMode: 'abs', arbBalAbs: 0.45 }));
+  const { tune: ct } = M.solveTune(rearCh, cs, 'horizon');
+  assert(!ct.mechBalClamped, `CO-SOLVE S0: clamped at ${ct.mechBalance}`);
+  near(ct.mechBalance, 0.45, 0.01, 'CO-SOLVE S0 landed');
+  // Auto Spring Share must judge the budget computeTune will use, so both call the one helper.
+  assert((src.match(/autoReachBudget\(/g) || []).length === 2, 'computeTune and resolveCoSolveSpringShare share autoReachBudget');
 });
 
 t('gripNeutralOf: in BeamNG (physical) it is the grip-neutral split plus the tyre term', () => {
@@ -624,13 +631,14 @@ t('balance (FrontHeavy, Forza): pitch carries the correction only if balance out
 });
 
 t('two axes move together when neither can clear a miss alone', () => {
-  // RearBiased + Horizon + GT3 asking for a little more oversteer (-0.05), with balance ranked
-  // first. Pitch alone reaches balance but breaks share, and share alone cannot reach balance, so a
-  // single-candidate resolver accepted the balance miss. Moving both clears it. See docs/DNA.md's
-  // "Two candidates together".
-  const gt3 = M.DNA_ARCHETYPES.find(a => a.name === 'GT3');
-  const res = M.applyDNA(chOf(FIXTURES.RearBiased), feOf('horizon'), M.DEF_DR,
-    { ...gt3, axes: { ...gt3.axes, balanceOffset: -0.05 }, keep: ['balanceOffset', 'arbShare', 'platformHz', 'pitchRatio', 'reboundZeta'] });
+  // Balanced + Horizon + RALLY / B-ROAD asking for more oversteer (+0.10), with balance ranked
+  // first. Neither pitch nor share alone clears the balance miss, so a single-candidate resolver
+  // accepted it. Moving both clears it. See docs/DNA.md's "Two candidates together". (This was
+  // RearBiased + GT3 at -0.05 until solveTune stopped giving up on a flat secant step: pitch alone
+  // reaches that one now, and the share ranked above it stays put.)
+  const rally = M.DNA_ARCHETYPES.find(a => a.name === 'RALLY / B-ROAD');
+  const res = M.applyDNA(chOf(FIXTURES.Balanced), feOf('horizon'), M.DEF_DR,
+    { ...rally, axes: { ...rally.axes, balanceOffset: 0.10 }, keep: ['balanceOffset', 'arbShare', 'platformHz', 'pitchRatio', 'reboundZeta'] });
   const joint = res.moves.filter(m => m.with);
   assert(joint.length === 2, `expected one joint move, got ${res.moves.map(m => m.axis + (m.with ? '+' + m.with : ''))}`);
   assert(joint[0].with === joint[1].axis && joint[1].with === joint[0].axis, 'the two halves should name each other');

@@ -117,9 +117,11 @@ its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
 REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
 solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
-conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
+conversion, WEIGHT/CHASSIS bar dilution and the bisected spring Hz ratio both Ride Reference paths of
 `feelToPhysics` share; MAN ARB's closed-form solves stay per path, and read the bars through
-`manArbRsOf`), `manArbIn` / `manArbRsOf` (MAN's typed bars clamped as `computeTune` reads them,
+`manArbRsOf`), `autoReachBudget` (AUTO's bar budget grown to reach a MECH/CO-SOLVE target; `computeTune` and
+`resolveCoSolveSpringShare` both call it, so Auto Spring Share judges the budget the tune gets),
+`manArbIn` / `manArbRsOf` (MAN's typed bars clamped as `computeTune` reads them,
 and as roll stiffness), `crossArbUnits` (carries MAN bars across a click/physical game-mode
 change; the game-mode selector and `mergeTune`'s SPRINGS-without-ARB case call it), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
 fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB click scale: MEASURE ARB's value or `ARB_RS_SCALE` — every click↔roll-stiffness

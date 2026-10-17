@@ -98,6 +98,9 @@ MEASURE ARB's solve. The solvers (`mechSpringSplit`, CO-SOLVE, the ARB split)
 still work in suspension space; `solveTune` re-runs them with an adjusted
 internal target until the *displayed* balance meets the target (secant, at most
 8 extra passes), then judges `mechBalClamped` against the target asked for.
+A step that leaves the result unchanged means a clamp held both runs (Hz band,
+bar limits); the loop steps on, doubling, instead of stopping, since the target
+can lie past the clamped stretch, and it keeps the best run either way.
 The physical (BeamNG) modes run the same loop against the suspension balance —
 nothing is displayed there, but spring snapping still moves the result off the
 target the solvers aimed at, and the loop takes that back out. So a
@@ -809,15 +812,24 @@ frequency (dispatch lives in `feelToPhysics`):
   ratio, no chassis math involved.
 - **INDEPENDENT** — `fe.rearHzMan` used directly, fully decoupled.
 - **MECH** (PRO only) — solves the secondary axle's Hz so that, combined
-  with whatever ARB balance mode is active (WEIGHT/ROLL/SHARE/MANUAL each
-  contribute a different ARB roll-stiffness fraction that dilutes the
-  spring-only correction), the resulting roll-stiffness rear fraction hits
-  `resolveArbBalTarget`'s target exactly. This is the most complex branch
+  with the bars, the resulting roll-stiffness rear fraction hits
+  `resolveArbBalTarget`'s target. This is the most complex branch
   in the file — conceptually it's "given the ARB's
-  fixed contribution, what spring Hz ratio makes springs+ARBs sum to the
-  target," solved differently depending on whether the ARB budget is a
-  roll-stiffness fraction (WEIGHT/SHARE) or an absolute value (ROLL, or MAN
-  stiffness). MAN is solved in closed form around the typed bars (`mult_man`, a
+  contribution, what spring Hz ratio makes springs+ARBs sum to the
+  target." Under ARB Balance WEIGHT (and legacy MANUAL) or CHASSIS the bars
+  split without looking at the target, so they dilute the spring correction:
+  `mechSpringSplit` models them as carrying a fraction `p` of the total roll
+  stiffness at their own rear fraction, read exactly as `computeTune` splits
+  them (`arbBalance`, or `natRsOf` under CHASSIS, with OPPOSITE and ARB Bias),
+  and `p` from the Stiffness Mode's budget (AUTO's share, SHARE %, ROLL °'s
+  and BASIC's absolute budgets). AUTO's share and ROLL's budget both move with
+  the springs, so it bisects the Hz ratio on the combined balance through the
+  caller's own Hz, band clamp included. Under MECH, CO-SOLVE and EQUAL ROLL
+  the bars do not dilute (they split toward the target, or follow the
+  springs), so the springs aim at the target directly. In BeamNG with AUTO or
+  SHARE this first pass now lands within about 0.002 of the target on average,
+  against 0.02–0.03 before. MAN
+  stiffness is solved separately. MAN is solved in closed form around the typed bars (`mult_man`, a
   quadratic on the SHARED ride-ref path), reading them through `manArbRsOf`:
   clamped as `computeTune` clamps them, and taken as N·m/rad in BeamNG. It keys
   on `arbMode`; MAN also makes a stored CO-SOLVE inert, so MECH stays available.
@@ -878,12 +890,15 @@ frequency (dispatch lives in `feelToPhysics`):
   floor and the other taking all of `B`. Under AUTO stiffness that budget is sized for roll
   feel, not for balance, so it covered only a narrow band around where the springs alone put
   the balance: a rear multiplier of ×1.2 on the default car could not get below 0.47. With
-  MECH + AUTO, `computeTune` now grows `B` to the smallest value that reaches the target,
-  `max(rsSpR/K − rsSpF, K·rsSpF − rsSpR)` with `K = Kr/Kf` the target's rear/front ratio
-  (plus 1%), capped at the spring roll stiffness. This mirrors NEUTRAL's expansion.
-  ROLL, SHARE and BASIC keep the budget the user set, because there the budget *is* the
-  setting. CO-SOLVE is excluded too: `resolveCoSolveSpringShare` simulates the plain AUTO
-  budget when it picks the spring share, and a larger budget would break that match.
+  MECH or CO-SOLVE on AUTO, `computeTune` grows `B` (`autoReachBudget`) to the smallest value
+  that reaches the target, `max(rsSpR/K − rsSpF, K·rsSpF − rsSpR)` with `K = Kr/Kf` the
+  target's rear/front ratio (plus 1%), capped at the spring roll stiffness. This mirrors
+  NEUTRAL's expansion. ROLL, SHARE and BASIC keep the budget the user set, because there the
+  budget *is* the setting. Under CO-SOLVE the springs take Spring Share's part of the
+  correction and the bars the rest, so a low Spring Share needs the grown budget: at 0%, the
+  plain budget left a third of a sweep of cars and targets more than 0.01 short. Auto Spring
+  Share's search (`resolveCoSolveSpringShare`) simulates the same grown budget through the same
+  helper, so the share it picks is judged against the bars `computeTune` will produce.
   When the target is still out of reach, the `mechBalClamped` warning (`mechReachNote`) names
   the cause: which bar is at its click ceiling, or which bar is at its floor with those springs
   already past the target. It then gives the spring-side fix (RIDE multiplier, Hz MECH, or

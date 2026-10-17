@@ -11,6 +11,40 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — AUTO ARB stiffness with CO-SOLVE and Rear Hz Mode MECH
+
+Three changes, found by sweeping 20 chassis variations against Balance Targets 0.40–0.60 in every
+pairing of AUTO with MECH and CO-SOLVE.
+
+- **CO-SOLVE on AUTO now grows the bar budget the way MECH on AUTO already did.** CO-SOLVE hands
+  Spring Share's part of the correction to the springs and the rest to the bars, but the bars
+  only had AUTO's plain roll-feel budget. With Spring Share at 0%, 306 of 900 Horizon cases and
+  300 of 900 BeamNG cases missed by more than 0.01, up to 0.19. Now 111 and 0, and every
+  remaining Horizon miss has a bar on the 65-click ceiling. The growth was left out of CO-SOLVE
+  on purpose, because Auto Spring Share's search simulated the plain budget. That search now
+  calls the same `autoReachBudget` helper, so it judges the budget the tune will actually get.
+  With Auto Spring Share on, misses went from 6 to 3 of 900, with the same average bar share.
+- **Rear Hz Mode MECH models the bars it springs around.** `mechSpringSplit` assumed WEIGHT's
+  bars split at the geometric natural balance, rather than at the weight % (OPPOSITE and ARB
+  Bias included), treated CHASSIS bars and ROLL °/BASIC budgets as adding nothing, and read a
+  SHARE % default of 20 where everything else reads 15. It now reads the split and the budget as
+  `computeTune` does, and bisects the Hz ratio on the combined balance. Its earlier two-pass
+  estimate diverged when the bars carried most of the roll stiffness: ROLL ° on soft springs
+  sent the rear Hz back down as the target rose. `solveTune`'s secant used to close most of the
+  gap, so final results barely move. The first pass, in BeamNG with AUTO, went from 0.019 to
+  0.002 average error.
+- **`solveTune` no longer stops on a flat step.** When two runs gave the same balance (a clamp
+  holding both, usually rear Hz on `HZ_MIN`), the secant stopped there, although the target
+  could lie past the clamped stretch. It now steps on, doubling, and keeps the best run. This
+  surfaced with the model above, whose better first guess on one BASIC case started inside such
+  a stretch. One Vehicle DNA test fixture changed as a result: pitch alone now reaches the
+  balance there, without moving the ARB share ranked above it, so the joint-move test uses a
+  RALLY / B-ROAD fixture instead (docs/DNA.md).
+
+The BeamNG "no bar budget" test compared roll-stiffness space against the displayed-balance
+target, and failed once the search found a bar that moved the display toward the target. It
+now judges the displayed balance.
+
 ## Fixed — MAN ARB stiffness: cross-game loads, MECH rear Hz, a hidden CO-SOLVE, the BeamNG ceiling
 
 Four bugs in Stiffness Mode MAN, fixed together.

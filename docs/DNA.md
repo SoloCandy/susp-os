@@ -440,11 +440,12 @@ balance for free.
 ### Two candidates together
 
 The single-candidate search rejects a move that breaks an axis ranked above it, and that used to
-end the row. On a rear-biased chassis in Horizon, GT3 asking for a balance offset of −0.05 with
-balance ranked first shows the gap:
-raising pitch reaches the balance offset but drops share below its 1-click floor, and share alone
-cannot reach balance — so both were refused and the balance miss was accepted, although moving
-pitch **and** share together clears it.
+end the row. On a balanced chassis in Horizon, RALLY / B-ROAD asking for a balance offset of
++0.10 with balance ranked first shows the gap: neither pitch nor share alone clears the balance
+miss, so both were refused and the miss was accepted, although moving pitch **and** share together
+clears it. (The example used to be GT3 at −0.05 on a rear-biased chassis. Pitch alone reaches
+that one since `solveTune` stopped ending its search on a flat step, and the share ranked above
+it stays where it was.)
 
 The pair pass is not a 2-D search. The **less protected** member moves first with the other
 **released** from its guard — allowed to break — and then the more protected member moves to
