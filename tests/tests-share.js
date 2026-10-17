@@ -41,7 +41,7 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
-  'GAME_LIMITS,arbScaleOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum};'
+  'GAME_LIMITS,arbScaleOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX};'
 )();
 
 let pass = 0, fail = 0;
@@ -206,7 +206,7 @@ const manTune = (gameMode, arbManF, arbManR) => ({
 const roundTrip = tune => M.sanitizeTune(M.decodeTune(M.encodeTune(tune.ch, tune.fe, tune.dr, 'pro')));
 
 t('a physical-mode MAN tune survives a share code exactly', () => {
-  // What App's physMode conversion effect actually writes: clicks × arbScaleOf(ch)·track².
+  // What the game-mode selector actually writes (crossArbUnits): clicks × arbScaleOf(ch)·track².
   const ch = M.DEF_CH;
   const f = Math.round(20 * M.arbScaleOf(ch) * ch.trackF * ch.trackF);
   const r = Math.round(20 * M.arbScaleOf(ch) * ch.trackR * ch.trackR);
@@ -248,6 +248,73 @@ t('a junk gameMode falls back to the default mode bounds, not a crash', () => {
   assert(out.fe.gameMode === M.DEF_FE.gameMode, `gameMode should fall back, got ${JSON.stringify(out.fe.gameMode)}`);
   const ceiling = M.GAME_LIMITS[M.DEF_FE.gameMode].arb;
   assert(out.fe.arbManF === Math.min(65, ceiling), `bounds should follow the fallback mode, got ${out.fe.arbManF}`);
+});
+
+t('the field\'s N/m ceiling survives a share code at the widest track and ARB motion ratio', () => {
+  // The MAN Field is in N/m, storage in N·m/rad = k·track²·amr²/2. A 0..200000 clamp on the
+  // STORED value cut what the Field let through on any track over 1.41 m.
+  const rs = M.ARB_MAN_LIN_MAX * 2.6 * 2.6 * 1.5 * 1.5 / 2;
+  const out = M.sanitizeTune(manTune('beamng', rs, 240000));
+  assert(out.fe.arbManF === rs && out.fe.arbManR === 240000,
+    `typed ceiling was cut: sent ${rs}/240000, got ${out.fe.arbManF}/${out.fe.arbManR}`);
+});
+
+// The bars' units follow gameMode, and gameMode rides with `ride`. A load that takes `ride` but
+// not `arb` keeps the reader's bars, so they cross the boundary the way the game-mode selector
+// would carry them. Every other combination brings the bars in the units they arrive with: the
+// App effect this replaced converted on EVERY mode change, so a Horizon MAN code's 20 clicks
+// loaded in BeamNG became 20 / 26000 → 0 N·m/rad.
+section('MAN ARB units across a game-mode change');
+const kOf = (ch, track) => M.arbScaleOf(ch) * track * track;
+
+t('crossArbUnits converts clicks ↔ roll stiffness losslessly and clamps to the new ceiling', () => {
+  const ch = M.DEF_CH;
+  const fe = { ...M.DEF_FE, arbMode: 'man', arbManF: 21.4, arbManR: 9.7 };
+  const phys = M.crossArbUnits({ ...fe, gameMode: 'beamng' }, ch, 'horizon');
+  assert(phys.arbManF === Math.round(21.4 * kOf(ch, ch.trackF)), `F to N·m/rad: ${phys.arbManF}`);
+  const back = M.crossArbUnits({ ...phys, gameMode: 'horizon' }, ch, 'beamng');
+  assert(back.arbManF === 21.4 && back.arbManR === 9.7, `round trip moved the bars: ${back.arbManF}/${back.arbManR}`);
+  const big = M.crossArbUnits({ ...fe, gameMode: 'motorsport', arbManF: 60 * kOf(ch, ch.trackF) }, ch, 'beamng');
+  assert(big.arbManF === 40, `a bar past MOTORSPORT's ceiling should land on 40, got ${big.arbManF}`);
+  const same = { ...fe, gameMode: 'motorsport' };
+  assert(M.crossArbUnits(same, ch, 'horizon') === same, 'a click → click switch must be a no-op');
+});
+
+t('crossArbUnits drops BASIC to AUTO in a physical mode and leaves non-MAN bars alone', () => {
+  const fe = { ...M.DEF_FE, arbMode: 'basic', arbManF: 20, arbManR: 20, gameMode: 'beamng' };
+  const out = M.crossArbUnits(fe, M.DEF_CH, 'horizon');
+  assert(out.arbMode === 'auto', `BASIC should become AUTO, got ${out.arbMode}`);
+  assert(out.arbManF === 20 && out.arbManR === 20, 'inert bars were converted');
+});
+
+const horizonMan = () => ({ ch: { ...M.DEF_CH }, fe: { ...M.DEF_FE, gameMode: 'horizon', arbMode: 'man', arbManF: 20, arbManR: 12 }, dr: { ...M.DEF_DR } });
+const beamngMan = () => ({ ch: { ...M.DEF_CH }, fe: { ...M.DEF_FE, gameMode: 'beamng', arbMode: 'man', arbManF: 48000, arbManR: 30000 }, dr: { ...M.DEF_DR } });
+
+t('a whole code from the other game keeps its bars as sent', () => {
+  const all = { ch: true, ride: true, damp: true, arb: true, dr: true };
+  const a = M.mergeTune(beamngMan(), horizonMan(), all);
+  assert(a.fe.gameMode === 'horizon' && a.fe.arbManF === 20 && a.fe.arbManR === 12,
+    `Horizon code into BeamNG: ${a.fe.gameMode} ${a.fe.arbManF}/${a.fe.arbManR}`);
+  const b = M.mergeTune(horizonMan(), beamngMan(), all);
+  assert(b.fe.gameMode === 'beamng' && b.fe.arbManF === 48000 && b.fe.arbManR === 30000,
+    `BeamNG code into Horizon: ${b.fe.gameMode} ${b.fe.arbManF}/${b.fe.arbManR}`);
+  const c = M.mergeTune(beamngMan(), horizonMan(), { ride: true, arb: true });
+  assert(c.fe.arbManF === 20 && c.fe.arbManR === 12, `SPRINGS + ARB: ${c.fe.arbManF}/${c.fe.arbManR}`);
+});
+
+t('SPRINGS without ARB carries the reader\'s own bars into the new mode', () => {
+  const cur = horizonMan();
+  const out = M.mergeTune(cur, beamngMan(), { ride: true });
+  assert(out.fe.gameMode === 'beamng', 'gameMode did not come across');
+  assert(out.fe.arbManF === Math.round(20 * kOf(cur.ch, cur.ch.trackF))
+    && out.fe.arbManR === Math.round(12 * kOf(cur.ch, cur.ch.trackR)),
+    `the reader's 20/12 clicks should become N·m/rad, got ${out.fe.arbManF}/${out.fe.arbManR}`);
+});
+
+t('ARB without SPRINGS is left as sent (the arbUnitClash warning\'s case)', () => {
+  const out = M.mergeTune(horizonMan(), beamngMan(), { arb: true });
+  assert(out.fe.gameMode === 'horizon' && out.fe.arbManF === 48000,
+    `expected the sender's bars unconverted under the reader's mode, got ${out.fe.gameMode} ${out.fe.arbManF}`);
 });
 
 section('BUMP MODE → LANDING');

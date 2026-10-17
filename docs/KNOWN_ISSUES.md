@@ -112,16 +112,19 @@ Each is a decision about what a share part promises, not a bug fix:
   surprising one. It also breaks the property that each part maps onto a sidebar
   section, which is what makes the tick list legible.
 - **Convert in `mergeTune`** when the incoming and current `gameMode` differ in
-  physicality, using the same `arbScaleOf(ch)·track²` the App effect uses. Keeps the
+  physicality, using the same `arbScaleOf(ch)·track²` the game-mode selector uses
+  (`crossArbUnits`). Keeps the
   parts where they are and is invisible when it is not needed. `mergeTune` can do
   this: it holds both chassis objects and `SHARE_PARTS` orders `ch` before `arb`, so
   `out.ch` is already final when the ARB keys are copied. The real objection is
   *which* chassis that is. `arbScaleOf` is a per-car calibration (MEASURE ARB), so
   the conversion is only right when the `ch` part is ticked too — otherwise it
   converts the sender's bars using the reader's click scale and is quietly wrong by
-  whatever those two differ by. It also turns `mergeTune` from a dumb key copy into
-  something semantic, which is what currently makes the disjointness property
-  `tests-share.js` enforces worth anything.
+  whatever those two differ by. `mergeTune` does convert in the *reverse* case,
+  SPRINGS without ARB, because there the bars are the reader's own on the reader's
+  car and the conversion is exactly what the game-mode selector would do; that is
+  the one semantic step in an otherwise plain key copy, and it never touches a key
+  the reader ticked.
 - **Refuse the combination**: disable the ARB tick, with a reason, when the staged
   code's `gameMode` differs in physicality from the current one and `ride` is not
   also ticked. Smallest change, no silent conversion, and it makes the dependency
@@ -136,10 +139,10 @@ refusing is a change of what that detection does, not new work. None of the thre
 is obviously right, and all of them touch the promise the LOAD CODE panel makes,
 which is why the non-structural option went first.
 
-`tests-share.js` cannot catch this class as written: every assertion merges parts
-of a code into a tune of the *same* mode, and the guard that shipped lives in the
-picker's JSX rather than in `mergeTune`, so it is out of reach of a module-level
-suite either way. It is verified in the browser across all four terms of the
+`tests-share.js` pins what `mergeTune` does across modes (**MAN ARB units across a
+game-mode change**: ARB without SPRINGS arrives unconverted), but the guard that
+shipped lives in the picker's JSX rather than in `mergeTune`, so it is out of reach
+of a module-level suite. It is verified in the browser across all four terms of the
 condition — see [HISTORY.md](HISTORY.md).
 
 ---
@@ -986,15 +989,6 @@ the key, not a hole in rehydration.
 Found in a full review of `index.html`. Items marked *reproduced* were run against the
 real solver/codec in Node; the rest are from reading the code. None is fixed yet.
 
-- **Cross-game loads re-convert MAN ARB values** *(reproduced)*. The `physMode` effect in
-  `App` converts `arbManF`/`arbManR` whenever the click/physical flag flips, but LOAD CODE
-  OVERWRITE and LOAD BUILD already bring values in the new mode's units. A Horizon MAN code
-  (20 clicks) loaded in BeamNG becomes 0 → 1 click; a BeamNG build (48000 N·m/rad) loaded in
-  Horizon becomes ≈27.7M. Only undo restores are exempt (`restoringRef`). Fix: convert in the
-  game-mode selector's `onChange`, not in an effect that can't tell a switch from a load.
-- **`sanitizeTune` clamps `arbManF`/`arbManR` to 1–65 in every game mode** *(reproduced)*.
-  In BeamNG these are roll stiffness, so a shared MAN tune at 48000/30000 arrives as 65/65
-  and both ARB outputs read 0 N/m. TO GARAGE stores the same clamped values.
 - **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
   so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
 - **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound

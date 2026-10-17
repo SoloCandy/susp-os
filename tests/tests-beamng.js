@@ -729,5 +729,48 @@ t('unmeasured, a 0-delta target solves to a car that DISPLAYS its own natural', 
     }
 });
 
+console.log('\n── MAN ARB stiffness ──');
+// Rear Hz Mode MECH solves the springs around the user's fixed MAN bars. That solve keyed on
+// arbBalMode 'man', a value sanitizeTune and the mount migration both rewrite to arbMode 'man',
+// so it never ran and the springs ignored the bars (0.416 for a 0.47 target). Where it did run,
+// it read BeamNG's N·m/rad as clicks and railed the rear at 5.5 Hz.
+t('Rear Hz MECH under MAN lands on the target in BeamNG, with the bars as typed', () => {
+  for (const rideRef of ['front', 'rear', 'shared']) {
+    const ch = { ...M.DEF_CH };
+    const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'beamng', arbMode: 'man', arbManF: 40000, arbManR: 15000,
+      rearHzMode: 'mech', rideRef, arbBalTargetMode: 'abs', arbBalAbs: 0.47 });
+    const ph = M.feelToPhysics(ch, fe), tune = M.computeTune(ch, ph, 'beamng');
+    if (tune.arbF !== 40000 || tune.arbR !== 15000) throw new Error(`${rideRef}: bars moved to ${tune.arbF}/${tune.arbR}`);
+    if (ph.rearHzClamped) throw new Error(`${rideRef}: a Hz rail was hit`);
+    near(tune.mechBalance, 0.47, 0.005, `${rideRef}: balance`);
+  }
+});
+t('Rear Hz MECH under MAN moves the springs for the bars in Forza', () => {
+  // Forza's displayed balance adds tyres in series to a suspension-space solve, so the check is
+  // that the bars are accounted for at all: the same target with AUTO bars lands within 0.005.
+  const ch = { ...M.DEF_CH };
+  const run = arbMode => {
+    const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: 'horizon', arbMode, arbManF: 30, arbManR: 10,
+      rearHzMode: 'mech', arbBalTargetMode: 'abs', arbBalAbs: 0.47 });
+    return M.computeTune(ch, M.feelToPhysics(ch, fe), 'horizon');
+  };
+  const man = run('man');
+  if (man.arbF !== 30 || man.arbR !== 10) throw new Error(`bars moved to ${man.arbF}/${man.arbR}`);
+  near(man.mechBalance, run('auto').mechBalance, 0.005, 'MAN vs AUTO achieved balance');
+});
+t('a CO-SOLVE left over from before MAN does not move the springs', () => {
+  // MAN hides Balance Mode, so a stored CO-SOLVE has no visible control and no way out.
+  for (const gm of ['horizon', 'beamng']) for (const rideRef of ['front', 'rear']) {
+    const ch = { ...M.DEF_CH };
+    const run = arbBalMode => {
+      const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: gm, arbMode: 'man', arbBalMode, rideRef,
+        rearHzMode: 'multiplier', rearHzMult: 1.1, arbManF: gm === 'beamng' ? 20000 : 20, arbManR: gm === 'beamng' ? 20000 : 20 });
+      return M.computeTune(ch, M.feelToPhysics(ch, fe), gm);
+    };
+    const a = run('coSolve'), b = run('weight');
+    if (a.fHz !== b.fHz || a.rHz !== b.rHz) throw new Error(`${gm} ${rideRef}: ${a.fHz}/${a.rHz} vs ${b.fHz}/${b.rHz}`);
+  }
+});
+
 console.log(`\n${pass + fail} tests: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

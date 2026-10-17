@@ -534,6 +534,10 @@ const HZ_MIN=0.8,HZ_MAX=5.5;
 // Defined up here rather than beside the output helpers because the solver needs them too.
 // See docs/PHYSICS.md.
 const PHYS_SNAP={spring:500,arb:1000,damp:100};
+// The MAN ARB entry's ceiling in a physical mode, in the N/m BeamNG's slider shows. fe.arbMan{F,R}
+// store roll stiffness (N·m/rad), so what this allows in storage depends on track and ARB motion
+// ratio — sanitizeTune clamps to that envelope, not to this number.
+const ARB_MAN_LIN_MAX=200000;
 const roundTo=(v,step)=>Math.round(v/step)*step;
 // MOTION RATIO divisor. The solver works in wheel rate; BeamNG's sliders act at the
 // spring/damper, so an inboard spring needs rate/mr² to give the same wheel rate.
@@ -1206,13 +1210,55 @@ const mechSpringSplit=(ch,fe,arbBalModeEarly,hzPairFor)=>{
   return{V,W,rsBalTgt,mult:multFor(p)};
 };
 
+// MAN's typed bars as roll stiffness (N·m/rad), read exactly as computeTune's MAN branch reads
+// them: N·m/rad already in a physical mode (floored at 0), clicks in a Forza one (clamped to the
+// mode's 1..lim.arb, then scaled). feelToPhysics needs the same numbers for Rear Hz Mode MECH,
+// which solves the springs around the user's fixed bars.
+const manArbIn=(v,physUnits,arbLim)=>physUnits?Math.max(0,v??0):Math.max(1,Math.min(arbLim,v??20));
+const manArbRsOf=(ch,fe)=>{
+  const phys=isPhysical(fe.gameMode),arbLim=limitsOf(fe.gameMode).arb;
+  const f=manArbIn(fe.arbManF,phys,arbLim),r=manArbIn(fe.arbManR,phys,arbLim);
+  return phys?[f,r]:[f*arbScaleOf(ch)*ch.trackF*ch.trackF,r*arbScaleOf(ch)*ch.trackR*ch.trackR];
+};
+// Carries fe across a click/physical boundary. fe arrives with arbMan{F,R} still in the units of
+// `fromMode` and fe.gameMode already naming the mode it is going to. Called only where the mode
+// changes and the bars stay the user's own: the game-mode selector, and a LOAD CODE merge that
+// takes `ride` (where gameMode lives) without `arb`. Every other load brings bars already in its
+// own mode's units, which is why this is not an effect on gameMode: an effect cannot tell a
+// switch from a load, and converted a loaded Horizon code's 20 clicks into ~0 N·m/rad.
+//  - arbMan{F,R}: clicks and N·m/rad are related by exactly arbScaleOf(ch)·track², the same
+//    relationship clk() uses, so 21.4 clicks is not read as 21.4 N·m/rad. Clicks are read
+//    through manArbIn first, and land clamped to the new mode's ceiling.
+//  - BASIC is a percentage of the click ceiling, so a physical mode hides its button. Left
+//    selected it would have no visible control and no way back, so it becomes AUTO.
+// Only MAN converts: under any other mode the pair is inert, and the MAN button reseeds it.
+const crossArbUnits=(fe,ch,fromMode)=>{
+  const toPhys=isPhysical(fe.gameMode);
+  if(toPhys===isPhysical(fromMode))return fe;
+  const next={...fe};
+  if(toPhys&&(fe.arbMode??'auto')==='basic')next.arbMode='auto';
+  if((fe.arbMode??'auto')==='man'){
+    const kF=arbScaleOf(ch)*ch.trackF*ch.trackF,kR=arbScaleOf(ch)*ch.trackR*ch.trackR;
+    const conv=(v,k)=>toPhys?Math.round(manArbIn(v,false,limitsOf(fromMode).arb)*k)
+      :manArbIn(Math.round(manArbIn(v,true)/k*10)/10,false,limitsOf(fe.gameMode).arb);
+    next.arbManF=conv(fe.arbManF,kF);
+    next.arbManR=conv(fe.arbManR,kR);
+  }
+  return next;
+};
+
 const feelToPhysics=(ch,fe)=>{
   let frontHz=rsToHz(fe.rideStiffness);
   const rearHzMode=fe.rearHzMode??'flatRide';
   // uiRideRef: the reference the user has chosen (front/rear/shared)
   // rideRef:   the internal physics direction (always 'front' in CO-SOLVE since it
   //            works front→rear; we honor uiRideRef by pre-adjusting frontHz instead)
-  const arbBalModeEarly=ARB_BAL_MODE_DEC.includes(fe.arbBalMode)?fe.arbBalMode:'weight';
+  // MAN stiffness hides Balance Mode and bypasses it, so a CO-SOLVE left over from before the
+  // switch must not keep re-solving the springs through a control the user can no longer see or
+  // leave. The stored value is untouched: it comes back with the next non-MAN stiffness mode.
+  const manArb=(fe.arbMode??'auto')==='man';
+  const arbBalModeStored=ARB_BAL_MODE_DEC.includes(fe.arbBalMode)?fe.arbBalMode:'weight';
+  const arbBalModeEarly=manArb&&arbBalModeStored==='coSolve'?'weight':arbBalModeStored;
   const uiRideRef=['front','rear','shared'].includes(fe.rideRef)?fe.rideRef:'front';
   const rideRef=arbBalModeEarly==='coSolve'?'front':uiRideRef;
   // CO-SOLVE: K = effectiveRHz/frontHz is constant for given chassis/target/share.
@@ -1274,9 +1320,8 @@ const feelToPhysics=(ch,fe)=>{
       const mech=mechSpringSplit(ch,fe,arbBalModeEarly,mult=>mult==null?[avgHz,avgHz]
         :[Math.max(HZ_MIN,2*avgHz/(1+mult)),clampHz(2*avgHz*mult/(1+mult))]);
       let _manSolved_sh=false;
-      if(arbBalModeEarly==='man'){
-        const rsAbF_m=(fe.arbManF??20)*arbScaleOf(ch)*ch.trackF*ch.trackF;
-        const rsAbR_m=(fe.arbManR??20)*arbScaleOf(ch)*ch.trackR*ch.trackR;
+      if(manArb){
+        const[rsAbF_m,rsAbR_m]=manArbRsOf(ch,fe);
         const T=mech.rsBalTgt,C0=2*Math.pow(2*Math.PI*avgHz,2);
         const P=(1-T)*rsAbR_m-T*rsAbF_m;
         const alpha=C0*mech.W*(1-T)+P,beta=2*P,gamma=P-T*mech.V*C0;
@@ -1329,10 +1374,9 @@ const feelToPhysics=(ch,fe)=>{
         return rideRef==='rear'?[sec,primaryHz]:[primaryHz,sec];
       });
       let _manSolved_fr=false;
-      if(arbBalModeEarly==='man'){
+      if(manArb){
         const m_m=cornerMasses(ch);
-        const rsAbF_m=(fe.arbManF??20)*arbScaleOf(ch)*ch.trackF*ch.trackF;
-        const rsAbR_m=(fe.arbManR??20)*arbScaleOf(ch)*ch.trackR*ch.trackR;
+        const[rsAbF_m,rsAbR_m]=manArbRsOf(ch,fe);
         const T=mech.rsBalTgt;
         let mult_man=null;
         if(rideRef==='front'){
@@ -1501,7 +1545,7 @@ const feelToPhysics=(ch,fe)=>{
   const arbShareMan=Math.max(0,Math.min(80,fe.arbShareMan??15));
   const arbBasicMan=Math.max(0,Math.min(100,fe.arbBasicMan??50));
   const arbBalTarget=clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET);
-  const arbBalMode=ARB_BAL_MODE_DEC.includes(fe.arbBalMode)?fe.arbBalMode:'weight';
+  const arbBalMode=arbBalModeEarly; // MAN's CO-SOLVE override reaches computeTune too
   const springShare=Math.max(0,Math.min(100,fe.springShare??50));
   // coSolve overrides rearHz in computeTune via effectiveRHz; flat-ride fallthrough can
   // set rearHzClamped spuriously. mechBalClamped covers coSolve limits instead.
@@ -1831,8 +1875,8 @@ const computeTune=(ch,phys,gameMode)=>{
     // Manual mode: use user-input ARB values directly (Stiffness Mode MAN — bypasses the
     // budget/split system entirely, which is why it lives here rather than in Balance Mode).
     // In physical modes the field carries N·m/rad, so there is nothing to clamp against.
-    arbF=physUnits?Math.max(0,arbManF??0):Math.max(1,Math.min(lim.arb,arbManF??20));
-    arbR=physUnits?Math.max(0,arbManR??0):Math.max(1,Math.min(lim.arb,arbManR??20));
+    arbF=manArbIn(arbManF,physUnits,lim.arb);
+    arbR=manArbIn(arbManR,physUnits,lim.arb);
   } else {
     // Auto/WEIGHT/MECH/CO-SOLVE: solve from budget
     arbF=clk(rsAbBudget*(1-rF),ch.trackF);
@@ -5351,6 +5395,11 @@ const mergeTune=(current,incoming,parts)=>{
     if(!src)continue;
     for(const k of p.keys)if(k in src)out[p.group][k]=src[k];
   }
+  // `ride` carries gameMode, `arb` the bars. Taking the first without the second keeps the
+  // reader's own bars, still in the reader's units, so they cross the boundary as the game-mode
+  // selector would carry them. The reverse (bars without their mode) is the arbUnitClash warning
+  // in the LOAD CODE picker: there the bars are the sender's, on a car this tune may not hold.
+  if(parts?.ride&&!parts.arb)out.fe=crossArbUnits(out.fe,out.ch,current.fe?.gameMode);
   return out;
 };
 // True when a part of the incoming code carries anything different from the live tune, so
@@ -5389,9 +5438,12 @@ const sanitizeTune=({ch,fe,dr})=>{
   // constant was also Horizon's ceiling applied to MOTORSPORT, whose limit is 40, leaving a MAN
   // field displaying a value computeTune then clamped back out of the output. Bounds mirror the
   // MAN entry Field's own min/max, so what a code can carry and what the UI can type are one
-  // range. See docs/HISTORY.md and docs/CODEC.md ids 46/47.
+  // range. The physical Field is in N/m and storage in N·m/rad (k·track²·amr²/2), so the stored
+  // ceiling is ARB_MAN_LIN_MAX at the widest track the Field allows (2.6 m) and the largest ARB
+  // motion ratio (1.5): an envelope, like rideBottomG's, that never cuts a value the Field let
+  // through. See docs/HISTORY.md and docs/CODEC.md ids 46/47.
   const arbManB=isPhysical(sgm)
-    ?{lo:0,hi:200000,def:0}                                 // physical: computeTune reads Math.max(0,arbManF??0)
+    ?{lo:0,hi:ARB_MAN_LIN_MAX*2.6*2.6*1.5*1.5/2,def:0}      // physical: computeTune reads Math.max(0,arbManF??0)
     :{lo:1,hi:GAME_LIMITS[sgm].arb,def:DEF_FE.arbManF};     // clicks: THIS mode's ceiling, not Horizon's
   const sch={
       weight:       cl(ch?.weight,        100,  18000, DEF_CH.weight),
@@ -6934,9 +6986,10 @@ function App(){
     try{fn();}finally{inCommitRef.current=false;}
     bumpHist();
   };
-  // restoringRef tells the effects that react to a CHANGE (ARB unit conversion on physMode, BOTTOM G's
-  // RIDE REF mirror) that this change is a restore: the snapshot already holds their output, and
-  // running them again would convert twice. The last effect in App clears it. restoreTick re-runs the
+  // restoringRef tells the effects that react to a CHANGE (BOTTOM G's RIDE REF mirror) that this
+  // change is a restore: the snapshot already holds their output, and running them again would
+  // apply it twice. (The ARB unit conversion was once such an effect; it now lives in the game-mode
+  // selector, which a restore never goes through — see crossArbUnits.) The last effect in App clears it. restoreTick re-runs the
   // tier effects instead, because a snapshot taken in PRO can be restored while in BEG or INT.
   const restoreSnap=s=>{
     restoringRef.current=true;
@@ -7251,45 +7304,20 @@ function App(){
   const physMode=isPhysical(fe.gameMode);
   const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
   const arbBalMode=fe.arbBalMode??'weight'; // ARB Balance Mode, likewise
+  // CO-SOLVE is live only outside MAN stiffness: MAN hides Balance Mode, and feelToPhysics ignores a
+  // CO-SOLVE left over from before the switch, so its readouts and its hiding of Hz MODE go too.
+  const coSolveOn=arbMode!=='man'&&arbBalMode==='coSolve';
   const rearHzMode=fe.rearHzMode??'flatRide';
   const dampingMode=fe.dampingMode??'ratio';
   const dampCharMode=fe.dampCharMode??'zeta';
   const dampBalMode=fe.dampBalMode??'standard';
-  // Crossing between a click-scale mode and a physical-unit one changes what two stored
-  // values MEAN, so they are migrated on the transition itself — not reconciled from the
-  // current solve, which would be circular (tune.arbF is computed FROM arbMan*).
-  //
-  //  - arbMan{F,R} carry ARB clicks in Forza and N·m/rad in physical modes. The two are
-  //    related by exactly arbScaleOf(ch)·track², the same relationship clk() uses, so the
-  //    conversion is lossless in both directions and preserves what the user actually meant.
-  //    Without it, 21.4 clicks would be read as 21.4 N·m/rad — near-zero roll stiffness.
-  //  - BASIC is a percentage of the click ceiling, so it has no meaning without one and its
-  //    button is hidden. Left alone it would stay selected with no visible control and no
-  //    way back, while the solver kept using a ceiling-derived budget.
-  //
-  // Must stay BELOW the physMode declaration: Babel's preset-env rewrites const to var, so
-  // reading it earlier yields undefined instead of a TDZ error — silently breaking the
-  // mount-time baseline this ref depends on.
-  const prevPhysRef=useRef(physMode);
-  useEffect(()=>{
-    const was=prevPhysRef.current;
-    prevPhysRef.current=physMode;
-    // A restore that crosses the click/physical boundary brings its arbManF/arbManR already in
-    // the right units — converting them again is the bug the old undo had.
-    if(was===physMode||restoringRef.current)return;
-    const kF=arbScaleOf(ch)*ch.trackF*ch.trackF,kR=arbScaleOf(ch)*ch.trackR*ch.trackR;
-    setFeRaw(p=>{
-      const next={...p};
-      if(physMode&&(p.arbMode??'auto')==='basic')next.arbMode='auto';
-      if((p.arbMode??'auto')==='man'){
-        next.arbManF=physMode?Math.round((p.arbManF??20)*kF):Math.round((p.arbManF??0)/kF*10)/10;
-        next.arbManR=physMode?Math.round((p.arbManR??20)*kR):Math.round((p.arbManR??0)/kR*10)/10;
-      }
-      return next;
-    });
-  },[physMode]); // eslint-disable-line
+  // Crossing between a click-scale mode and a physical-unit one changes what arbMan{F,R} MEAN, so
+  // the game-mode selector carries them across (crossArbUnits) in the same update that changes
+  // the mode. Not an effect on physMode: LOAD CODE, LOAD BUILD, presets and undo all change the
+  // mode too, with bars already in the new mode's units, and an effect cannot tell them apart.
+  const switchGameMode=gm=>setFe(p=>crossArbUnits({...p,gameMode:gm},ch,p.gameMode));
   // Switching between two click-scale modes with different ARB ceilings (e.g. HORIZON's 65 vs
-  // MOTORSPORT's 40) doesn't change what arbManF/arbManR mean, so the effect above skips it —
+  // MOTORSPORT's 40) doesn't change what arbManF/arbManR mean, so crossArbUnits leaves it alone —
   // but a value valid under the old ceiling can exceed the new one, and nothing else reclamps
   // it (computeTune clamps the OUTPUT, leaving the displayed field stale). See docs/HISTORY.md.
   useEffect(()=>{
@@ -7965,7 +7993,7 @@ function App(){
               <button className="tbtn" onClick={()=>setShowUnits(true)} style={{fontSize:11}}>UNITS</button>
               <div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>
               <select className="gmsel" value={fe.gameMode}
-                onChange={e=>pFe('gameMode')(e.target.value)}>
+                onChange={e=>switchGameMode(e.target.value)}>
                 {GAME_MODE_DEC.map(m=>(
                   <option key={m} value={m}>{GAME_MODE_LABEL[m]}</option>
                 ))}
@@ -8112,7 +8140,7 @@ function App(){
               <button className="tbtn" onClick={()=>setShowUnits(true)} style={{fontSize:11}}>UNITS</button>
               <div style={{width:1,height:14,background:'#1e293b',margin:'0 2px'}}/>
               <select className="gmsel" value={fe.gameMode}
-                onChange={e=>pFe('gameMode')(e.target.value)}>
+                onChange={e=>switchGameMode(e.target.value)}>
                 {GAME_MODE_DEC.map(m=>(
                   <option key={m} value={m}>{GAME_MODE_LABEL[m]}</option>
                 ))}
@@ -8833,7 +8861,7 @@ function App(){
                   return <Field noSlider key={ax} label={`ARB ${ax}`}
                     value={physMode?Math.round(toLin(stored)):stored}
                     onChange={physMode?v=>pFe(key)(toRs(v)):pFe(key)}
-                    min={physMode?0:1} max={physMode?200000:lim.arb} step={physMode?500:0.1}
+                    min={physMode?0:1} max={physMode?ARB_MAN_LIN_MAX:lim.arb} step={physMode?PHYS_SNAP.arb:0.1}
                     unit={physMode?'N/m':undefined}
                     hint={physMode
                       ?`${side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width and ARB Motion Ratio move this number.`
@@ -8887,7 +8915,7 @@ function App(){
                   </div>
                 </div>}
             </div>}
-            {arbBalMode==='mech'&&<>
+            {arbMode!=='man'&&arbBalMode==='mech'&&<>
               <div style={{display:'flex',alignItems:'center',gap:8,
                            padding:'6px 10px',background:'#0a0f1a',borderRadius:2,
                            border:'1px solid #1e293b',marginBottom:10}}>
@@ -8897,7 +8925,7 @@ function App(){
                 </span>
               </div>
             </>}
-            {arbBalMode==='coSolve'&&<>
+            {coSolveOn&&<>
               <div style={{display:'flex',gap:8,marginBottom:6}}>
                 <div style={{flex:1,display:'flex',alignItems:'center',gap:8,
                              padding:'6px 10px',background:'#0a0f1a',borderRadius:2,
@@ -9086,7 +9114,7 @@ function App(){
               </>);
             })()}
             {/* secondary Hz mode toggle — hidden in CO-SOLVE (rear Hz solved automatically) */}
-            {arbBalMode!=='coSolve'&&(()=>{
+            {!coSolveOn&&(()=>{
               const isShared=(physics.rideRef??'front')==='shared';
               // SHARED Hz mode only makes sense with an actual per-axle bottom-out g to equalise —
               // that's only exposed while STIFFNESS is BOTTOM G's (RIDE HEIGHT → CG required for it).
@@ -9112,7 +9140,7 @@ function App(){
                 </div>
               </>;
             })()}
-            {arbBalMode!=='coSolve'&&(()=>{
+            {!coSolveOn&&(()=>{
               const rRef=physics.rideRef??'front';
               const isShared=rRef==='shared';
               const secLabel=rRef==='rear'?'front':'rear';

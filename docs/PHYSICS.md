@@ -390,7 +390,8 @@ torsional roll stiffness (N·m/rad) while BeamNG asks for a linear rate. The
 inversion of `rs = k·track²/2` is the same relationship the spring side already
 uses. `fe.arbMan{F,R}` is always **stored** as roll stiffness; the N/m a user sees
 and types in a physical mode is converted at the field boundary only, so the
-game-mode migration effect and `computeTune` both stay in one unit.
+game-mode selector's conversion (`crossArbUnits`) and `computeTune` both stay in
+one unit.
 
 **The ARB conversion uses the wrong lever arm — known, unfixed.** BeamNG's linear
 anti-roll rate is specified at the *bar's own lever*, not at the wheel, and reaches
@@ -815,8 +816,11 @@ frequency (dispatch lives in `feelToPhysics`):
   in the file — conceptually it's "given the ARB's
   fixed contribution, what spring Hz ratio makes springs+ARBs sum to the
   target," solved differently depending on whether the ARB budget is a
-  roll-stiffness fraction (WEIGHT/SHARE) or an absolute value (ROLL/MANUAL,
-  the latter solved via a quadratic in `mult_man`).
+  roll-stiffness fraction (WEIGHT/SHARE) or an absolute value (ROLL, or MAN
+  stiffness). MAN is solved in closed form around the typed bars (`mult_man`, a
+  quadratic on the SHARED ride-ref path), reading them through `manArbRsOf`:
+  clamped as `computeTune` clamps them, and taken as N·m/rad in BeamNG. It keys
+  on `arbMode`; MAN also makes a stored CO-SOLVE inert, so MECH stays available.
 - **SHARED** — only offered when `rideRef==='shared'` *and* the STIFFNESS
   toggle is BOTTOM G's (see [BOTTOM G's stiffness mode](#bottom-gs-stiffness-mode)
   below); selecting it any other way (a hand-edited share code, say) falls

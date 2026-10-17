@@ -11,6 +11,57 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — MAN ARB stiffness: cross-game loads, MECH rear Hz, a hidden CO-SOLVE, the BeamNG ceiling
+
+Four bugs in Stiffness Mode MAN, fixed together.
+
+**Cross-game loads converted bars that were already in the right units.** An App effect on
+`physMode` converted `arbManF`/`arbManR` between clicks and N·m/rad whenever the
+click/physical flag flipped. LOAD CODE OVERWRITE, LOAD BUILD and presets flip it too, with
+bars already in the new mode's units, so a Horizon MAN code (20 clicks) loaded in BeamNG
+became 20 / 26000 ≈ 0 N·m/rad, and a BeamNG build (48000) loaded in Horizon became ≈27.7M
+clicks. Only undo was exempt, through `restoringRef`. The effect is gone: the game-mode
+selector converts in the same update that changes the mode (`switchGameMode` →
+`crossArbUnits`), and a load never converts, with one exception. Ticking SPRINGS (which
+carries `gameMode`) without ARB keeps the reader's own bars, so `mergeTune` carries those
+across exactly as the selector would. Converted clicks now also land clamped to the new
+mode's ceiling.
+
+**Rear Hz Mode MECH ignored MAN's bars.** `feelToPhysics` has a closed-form solve that sets
+the springs around fixed bars, but it keyed on `arbBalMode === 'man'`, which `sanitizeTune`
+and the mount migration both rewrite to `arbMode: 'man'`. The solve never ran, and the
+springs were solved as if the bars weren't there: 0.416 achieved for a 0.47 target on the
+default car at 30/10 clicks. CODE_MAP had listed the branches as retained legacy, reachable
+only before the migration. Where they did run, they read BeamNG's N·m/rad as clicks and
+railed the rear at 5.5 Hz. They now key on `arbMode` and read the bars through `manArbRsOf`,
+the same clamp `computeTune`'s MAN branch uses (`manArbIn`). BeamNG lands within about
+0.001 of the target. Forza is as close as AUTO bars get with the same target, since Forza's displayed
+balance adds the tyres in series to a solve made in suspension space.
+
+**A CO-SOLVE left over from before MAN kept re-solving the springs.** MAN hides Balance
+Mode, and `hasBalTargetSolve` already said a leftover CO-SOLVE "must not count". Yet
+`feelToPhysics` and `computeTune` still ran CO-SOLVE's rear-Hz solve: on the default car the
+rear went from 1.93 to 2.08 Hz, and with RIDE REF. REAR the front from 1.59 to 1.42 Hz. It
+also hid Hz MODE, so the only way out was to leave MAN. Under MAN, `feelToPhysics` now reads
+a stored CO-SOLVE as WEIGHT (which MAN ignores), and the ARB section's MECH and CO-SOLVE
+readouts hide (`coSolveOn`). The stored value is kept and returns with the next non-MAN
+stiffness mode. This replaces the "left as a follow-up" note in the MAN-vs-MECH entry
+further down: under MAN there is no Balance Mode, so none of its readouts are live.
+
+**BeamNG MAN values above ≈200000 N·m/rad didn't survive a share code.** The field takes
+0–200000 N/m, but storage is N·m/rad (`k·track²·amr²/2`), and `sanitizeTune` applied
+200000 to the stored value. Any track over 1.41 m could type a bar the code then cut. The
+stored ceiling is now the field's at the widest track (2.6 m) and the largest ARB motion
+ratio (1.5), named `ARB_MAN_LIN_MAX`. The field's arrows step by BeamNG's 1000 N/m grid
+rather than 500.
+
+Tests: **MAN ARB units across a game-mode change** in `tests-share.js`, and **MAN ARB
+stiffness** in `tests-beamng.js`. All of them fail against the old code. Checked in the
+browser: HORIZON → BEAMNG → HORIZON → MOTORSPORT kept 20/12 clicks ↔ 25947/14971, and undo
+stepped back through each without converting twice. The first two bugs came from the
+2026-09-18 code review. Its `sanitizeTune` 1–65 finding had already been fixed (the shared
+BeamNG MAN entry below) and is removed from KNOWN_ISSUES.
+
 ## Fixed — "NaN% ARB" when both bars solve to 0
 
 An ARB row's meta gave each bar's share of both bars together with no zero guard. BeamNG

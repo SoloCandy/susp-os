@@ -366,14 +366,18 @@ assumed. The same reasoning applies to any future enum append.
 
 Everything else the codec carries means the same thing in every game mode. These
 two do not: they are **Forza clicks** (1..that mode's ceiling) when `gameMode` is
-a click mode, and **roll stiffness** when it is a physical one. The App effect
-that runs on a mode switch converts between the two by `arbScaleOf(ch)·track²`, so
-20 clicks becomes roughly 26,000 on a default chassis.
+a click mode, and **roll stiffness** when it is a physical one. The game-mode
+selector converts between the two by `arbScaleOf(ch)·track²` (`crossArbUnits`), so
+20 clicks becomes roughly 26,000 on a default chassis. A load never converts: a code
+brings its bars in its own mode's units, except that ticking SPRINGS (which carries
+`gameMode`) without ARB converts the reader's own bars the way the selector would.
 
 `sanitizeTune` therefore resolves `gameMode` **before** clamping them, and picks
-bounds from it: `0..200000` in a physical mode, `1..GAME_LIMITS[mode].arb` in a
-click one. Those mirror the MAN entry field's own `min`/`max`, so a code can carry
-exactly what the UI can type.
+bounds from it: `1..GAME_LIMITS[mode].arb` in a click one, and in a physical mode
+`0..ARB_MAN_LIN_MAX·2.6²·1.5²/2`. The MAN entry field shows BeamNG's N/m (0 to
+`ARB_MAN_LIN_MAX`, 200000) while the code stores N·m/rad (`k·track²·amr²/2`), so the
+stored ceiling is the field's at the widest track it allows and the largest ARB
+motion ratio. A code can therefore carry anything the UI can type.
 
 It did not always. A hardcoded `1..65` clamp — Horizon's ceiling, applied to every
 mode — crushed every shared BeamNG MAN tune to 65 and let a MOTORSPORT code keep a

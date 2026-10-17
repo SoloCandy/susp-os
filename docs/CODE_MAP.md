@@ -118,7 +118,10 @@ REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
 solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
 conversion, ARB-share dilution and spring Hz ratio both Ride Reference paths of
-`feelToPhysics` share; MAN ARB's closed-form solves stay per path), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
+`feelToPhysics` share; MAN ARB's closed-form solves stay per path, and read the bars through
+`manArbRsOf`), `manArbIn` / `manArbRsOf` (MAN's typed bars clamped as `computeTune` reads them,
+and as roll stiffness), `crossArbUnits` (carries MAN bars across a click/physical game-mode
+change; the game-mode selector and `mergeTune`'s SPRINGS-without-ARB case call it), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
 fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB click scale: MEASURE ARB's value or `ARB_RS_SCALE` — every click↔roll-stiffness
 conversion goes through it), `arbScaleStale` (true when a measured scale's recorded MEAS. NAT BAL or Hz no longer matches the chassis — drives the ARB SCALE SETUP card's and sidebar's RE-MEASURE flags), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
 reading), `natGeomOf` (the track-width/corner-mass estimate on its own — the solvers' model
@@ -502,8 +505,10 @@ has focus (the browser's own text undo wins there).
 `setAl` record: every user-facing call site uses them, including `pCh`/`pFe`/…
 and props passed to components. `setChRaw`/`setFeRaw`/`setDrRaw`/`setAlRaw` bypass
 history and are for effects that *derive* state — the mount migrations, RIDE HEIGHT
-→ CG, BEG/INT geometry scaling and mode fallbacks, BOTTOM G, ARB unit conversion on
-`physMode`, the ARB ceiling reclamp — and for the restore itself. An effect that
+→ CG, BEG/INT geometry scaling and mode fallbacks, BOTTOM G, the ARB ceiling reclamp — and
+for the restore itself. The ARB unit conversion across a click/physical game-mode change is
+not an effect: the game-mode selector does it (`switchGameMode` → `crossArbUnits`) in the
+same recorded update, because an effect on `physMode` cannot tell a switch from a load. An effect that
 used a recording setter would open a step of its own whenever it fires, and would
 empty the redo stack right after an undo.
 
@@ -517,9 +522,11 @@ is a mouse-wheel run on a focused control.
 
 **Restores and effects.** A restore writes through the raw setters, then:
 
-- sets `restoringRef`, which the ARB unit-conversion effect and BOTTOM G's RIDE
-  REF. mirror check and skip. The snapshot already holds their output; running
-  them again converts twice. The old undo had exactly that bug (see HISTORY.md).
+- sets `restoringRef`, which BOTTOM G's RIDE REF. mirror checks and skips. The
+  snapshot already holds its output; running it again applies it twice. The ARB
+  unit conversion was once such an effect and had exactly that bug on undo (see
+  HISTORY.md); it now runs only from the game-mode selector, which a restore never
+  goes through.
   The last effect in App clears the flag — **keep it last**.
 - bumps `restoreTick`, a dependency of the BEG/INT geometry scaling and tier
   fallback effects, so a snapshot taken in PRO and restored in BEG or INT
@@ -603,11 +610,6 @@ RANGE and MANUAL existed. `balTargetModeOf` reads it (and anything unknown) as
 NATURAL, and codec id 53 keeps `manual:0` in its encoder, because persisted state
 reaches the solver without passing `sanitizeTune`. Deleting either strands every
 saved NATURAL tune.
-
-**The `arbBalModeEarly === 'man'` branches in `feelToPhysics`** — reachable
-only on the first render after loading pre-migration state, before the
-migration effect fires. Not reproducible in a browser test, and exactly the
-path that would break a real user's saved tune.
 
 **`CODEC_VERSION`** — do not bump casually. `decodeTune` throws on any
 mismatch, which invalidates every share code in existence.
