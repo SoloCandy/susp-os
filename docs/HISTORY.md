@@ -11,6 +11,13 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — EQUAL ROLL's NET no longer reads as a success
+
+EQUAL ROLL's chip showed NET in the success green CANCEL uses for a cancelled balance bar.
+EQUAL ROLL leaves the springs' balance in place on purpose, so its NET is usually non-zero.
+In green, that read as a cancel that worked. It now uses the neutral readout colour; CANCEL
+keeps the green. Found in the 2026-09-18 code review.
+
 ## Fixed — NEUTRAL's chip warned on a cancel that worked, and called the floor "maxed"
 
 CANCEL's chip tested bar position: any bar at 1 click or at the ceiling lit "⚠ ARB

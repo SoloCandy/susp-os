@@ -8966,9 +8966,11 @@ function App(){
                     <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>R</span>
                     <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#818cf8'}}>{pR.toFixed(1)}</span>
                     <span style={{flex:1}}/>
+                    {/* NET in the neutral readout colour, not CANCEL's success green: EQUAL ROLL keeps the
+                        springs' balance on purpose, so a non-zero NET here is information, not a result. */}
                     {tune.neutralClamped
                       ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ {tune.neutralClampEnd==='ceiling'?'ARB MAXED':'ARB AT FLOOR'}</span>
-                      :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
+                      :<span style={{fontSize:10,color:'#cbd5e1',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
                   </div>;
                 })()}
                 {isNeutral&&!fe.arbNeutralEqual&&<div style={{display:'flex',alignItems:'center',gap:6,

@@ -1007,8 +1007,6 @@ real solver/codec in Node; the rest are from reading the code. None is fixed yet
   rear-biased and amber for front-biased.
 - **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
   allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
-- **EQUAL ROLL shows its non-zero NET in success green**, the colour CANCEL uses for a
-  successful cancel.
 
 ## Accepted — the update notice watches `#app-source` only
 
