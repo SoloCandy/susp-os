@@ -1221,10 +1221,11 @@ is measured from. `resolveFeEffective` turns each one into the absolute
 | NATURAL (`'natural'`) | `natDisplayOf(ch, gameMode) + arbBalTarget` |
 | RANGE (`'range'`) | middle of the Balance Guide RANGE below, `(lo + hi) / 2`, `+ arbBalDelta` |
 | GRIP (`'grip'`) | `gripNeutralOf(ch, gameMode, K) + arbBalDelta` |
+| PHASE (`'phase'`) | `phaseNeutralOf(ch, gameMode, K, ph) + arbBalDelta`: the split that centres ENTRY, MID and EXIT ([FORMULAS.md](FORMULAS.md), "PHASE target") |
 | MANUAL (`'abs'`) | `arbBalAbs`, absolute |
 
-All four are clamped to 0.05–0.95 (`clampBalTarget`, `BAL_TARGET_MIN`/`BAL_TARGET_MAX`). RANGE and GRIP depend on grip-neutral, which in a
-Forza mode moves with total roll stiffness K, so `solveTune` re-evaluates both at each
+All five are clamped to 0.05–0.95 (`clampBalTarget`, `BAL_TARGET_MIN`/`BAL_TARGET_MAX`). RANGE, GRIP and PHASE are grip-model splits carried into
+display space (`splitDisplayOf`), which in a Forza mode moves with total roll stiffness K, so `solveTune` re-evaluates them at each
 run's own K (`balTargetAnchoredOf`), not only at the probe springs. RANGE uses the
 clamped band, the same numbers the RANGE row draws, so its target sits in the middle
 of the band on screen.

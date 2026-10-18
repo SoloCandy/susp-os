@@ -288,7 +288,7 @@ the Welcome card and live in the glossary.
 | 3 | Calibrating Natural Balance | `chassis` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
 | 4 | Calibrating ARB Scale | `balance-target` | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. |
 | 5 | Mech Balance Target | `balance-target` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
-| 6 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / MANUAL, Balance Offset. |
+| 6 | Balance Target Mode | `balance-target` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. |
 | 7 | Alignment Mode | `alignment` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
 | 8 | PRO ARB Balance Modes | `arb` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
@@ -487,7 +487,7 @@ TRY IT task (ticks when the check passes):
 
 #### 6. Balance Target Mode
 
-> Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide's RANGE), GRIP (GRIP TARGET, the grip-neutral point) or MANUAL (a raw value, e.g. 0.60). In RANGE and GRIP, Balance Offset shifts it toward oversteer (+) or understeer (−).
+> Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide's RANGE), GRIP (GRIP TARGET, the grip-neutral point), PHASE (PHASE TARGET, neutral across entry, mid-corner and exit) or MANUAL (a raw value, e.g. 0.60). In RANGE, GRIP and PHASE, Balance Offset shifts it toward oversteer (+) or understeer (−).
 
 #### 7. Alignment Mode
 

@@ -280,7 +280,7 @@ is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
 
 **Balance Target** (the target-mode toggle):
 
-> What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, MANUAL = a raw value (e.g. 0.60).
+> What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, PHASE = from PHASE TARGET, MANUAL = a raw value (e.g. 0.60).
 
 **Mech Balance Target** — NATURAL, then MANUAL:
 
@@ -288,14 +288,20 @@ is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
 
 > The raw Mech Balance to solve toward, e.g. 0.60; it stays put when the chassis changes. Above 0.50 = oversteer tendency, below = understeer.
 
-**Balance Offset** — RANGE, then GRIP:
+**Balance Offset** — RANGE, then PHASE, then GRIP:
 
 > Offset from the middle of the RANGE band: 0 = middle, positive = more rear bias (oversteer), negative = more front (understeer).
 
+> Offset from PHASE TARGET: 0 spreads entry, mid-corner and exit evenly about neutral, positive = more rear bias (oversteer), negative = more front (understeer).
+
 > Offset from GRIP TARGET: 0 cancels the chassis's grip tendency, positive = more rear bias (oversteer), negative = more front (understeer).
 
-**BALANCE GUIDE**, and its rows NATURAL, GRIP BIAS, GRIP TARGET, RANGE and the
-target row:
+**EXIT Load** — PHASE only, under Balance Offset:
+
+> How hard you drive out of a corner, in g. PHASE balances EXIT at this load against ENTRY's 0.3 g of braking: more load makes the drivetrain's push or rotation larger, so the target moves further to offset it.
+
+**BALANCE GUIDE**, and its rows NATURAL, GRIP BIAS, GRIP TARGET, PHASE TARGET (PHASE
+mode only), RANGE and the target row:
 
 > Compares your suspension's mech balance to the chassis's natural, uncorrected balance. Tap each row's ⓘ for details.
 
@@ -304,6 +310,8 @@ target row:
 > At-limit grip balance at the natural point. Below 0.5 the front lets go first (understeer-prone); above, the rear does (oversteer-prone).
 
 > The mech balance at which the grip model reads neutral for this chassis: what GRIP mode targets at a 0 offset.
+
+> The mech balance that spreads ENTRY, MID and EXIT evenly about neutral, given your brake bias, drive split and EXIT Load: what PHASE mode targets at a 0 offset.
 
 > Recommended target band for your layout and build, set from NATURAL toward GRIP TARGET. RANGE mode aims at its middle.
 

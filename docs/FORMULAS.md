@@ -234,6 +234,51 @@ NEUTRAL.
 
 ---
 
+## PHASE target (`phaseSplitOf`, PRO Balance Target)
+
+GRIP aims at the split where MID reads 0. PHASE aims at the split where the three phase figures
+above (MID, ENTRY = MID + BRK, EXIT = MID + DRIVE) spread evenly about 0:
+
+```js
+phaseMidOf(brk, drive) = -(min(0, brk, drive) + max(0, brk, drive)) / 2
+rs*  = gripMarginSplitOf(ch, phaseMidOf(BRK(rs*), DRIVE(rs*)))      // fixed point from the grip-neutral split
+PHASE TARGET = splitDisplayOf(ch, gameMode, K, rs*)                  // into display space, as gripNeutralOf
+target       = clampBalTarget(PHASE TARGET + arbBalDelta)
+```
+
+- **Why centring MID is the whole answer.** BRK and DRIVE each compare the actual split with
+  the ideal one *at the same roll-stiffness split*, so they barely move when the split does;
+  moving the split shifts MID, ENTRY and EXIT together. The worst of the three is then smallest
+  when the lowest and highest sit equally far either side of 0. `phaseTermsAt` reads BRK and
+  DRIVE at the split, `gripMarginSplitOf` solves the split for the MID asked for, and the loop
+  repeats until the split moves less than 1e-7 (two or three passes).
+- **Inputs** (`phaseInOf`): the brake bias as applied, or under BRAKES' ENTRY Centre the ENTRY
+  target itself as BRK (the solved bias depends on the tune, so it cannot feed the tune); the
+  drive split `driveFrontOf` gives (`awdCenterOf` for AWD); and **EXIT Load** `fe.phaseExitG`
+  (0.05–0.60 g, default 0.2 = `EXIT_G`) in place of `EXIT_G`. ENTRY stays at `ENTRY_G`. With no
+  inputs (DNA, tests) BRK is 0 and the drive split is the layout's own.
+- **PITCH is out**, as it is in the phase totals: it is the car's own weight transfer, set by the
+  reference loads, and no tuning moves it.
+- **Diff lock and damping are out**: they have a direction in the readout but no size.
+- **What it does in practice.** With the brakes at the ENTRY ideal it is GRIP moved by half of
+  DRIVE: RWD (DRIVE +) sits on the understeer side of GRIP, FWD on the oversteer side, AWD by its
+  centre split. Brake bias away from the ideal adds half of BRK the same way, except where BRK
+  and DRIVE share a sign, when the larger one sets it. A first survey of 135 chassis / drivetrain
+  / brake cases put the target a median 2.4% of grip margin from GRIP (up to 8.4%), which is
+  7 points of rear roll-stiffness share at the median and over 30 on low-CG cars, where the
+  split moves grip balance least. DRIVE grows much faster than the EXIT Load (friction circle),
+  so a higher load, or a front-heavy FWD car at the default, can put PHASE TARGET out of reach;
+  see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+- **Readout.** While PHASE is solving, `phaseMargins` reads EXIT at the EXIT Load (it takes
+  `exitG`), so the panel shows the figures the target balanced.
+- **What `tests-balance.js` asserts:** with BRK = DRIVE = 0 PHASE is GRIP; at the PHASE split
+  MID equals `phaseMidOf(BRK, DRIVE)` and the worst phase is never worse than at GRIP; RWD sits
+  below GRIP and FWD above; more rear drive and more EXIT Load on RWD both move it toward
+  understeer; an ENTRY Centre BRK reads straight through; and a solve reports PHASE TARGET as its
+  target and lands on it.
+
+---
+
 ## Load transfer readout (`loadTransferOf`, PRO only)
 
 The LOAD TRANSFER section reads `latLoadTransfer` at the real car's roll-stiffness split

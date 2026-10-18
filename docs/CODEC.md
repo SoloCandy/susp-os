@@ -71,7 +71,7 @@ future version might not carry.
 | 50 | fe | settleTarget | raw number |
 | 51 | fe | dampCharMode | enum (`{zeta:0,settle:1}`) |
 | 52 | dr | diffType | enum (`DIFF_TYPE_ENC/DEC`) |
-| 53 | fe | arbBalTargetMode | enum (`{natural:0,grip:1,range:2,abs:3}`; a legacy `manual` also encodes as 0) — see note |
+| 53 | fe | arbBalTargetMode | enum (`{natural:0,grip:1,range:2,abs:3,phase:4}`; a legacy `manual` also encodes as 0) — see note |
 | 54 | fe | arbBalDelta | raw number |
 | 55 | fe | springShareAuto | bool |
 | 56 | fe | arbSplitOpposite | bool |
@@ -104,8 +104,9 @@ future version might not carry.
 | 85 | meta | carries | raw number — bitmask of the groups the sender ticked under INCLUDE (`CARRY_BIT`: ch 1, fe 2, dr 4); omitted when all three were. See note |
 | 86 | fe | bumpBalMode | enum (`BUMP_BAL_MODE_ENC/DEC`) — BUMP BALANCE; `same` (0, the default) follows the rebound's `dampBalMode`. See note |
 | 87 | fe | bumpDampingBias | raw number — Bump Bias, −50..+50, stored sign as id 33 (+ = FRONT); read only when id 86 is not `same` |
+| 88 | fe | phaseExitG | raw number — PHASE Balance Target's EXIT Load, g; read only in PHASE (id 53 = 4) |
 
-**Next available id: 88.**
+**Next available id: 89.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -208,7 +209,7 @@ silently re-expands the sender's delta against a different (geometry-only)
 baseline — producing a different absolute Mech Balance Target than the sender
 actually tuned toward. See the semantic-change note below.
 
-Id 53 (`arbBalTargetMode`) grew from two values to four. Index 0 was stored as `'manual'`
+Id 53 (`arbBalTargetMode`) grew from two values to four, then five. Index 0 was stored as `'manual'`
 and always meant an offset from natural, so it is now `'natural'` and keeps index 0; GRIP
 keeps 1; RANGE (2) and MANUAL (3, stored as `'abs'`) are new. The name `manual` could not be
 reused for the new raw-target mode: persisted state skips `sanitizeTune`, so an old
@@ -217,6 +218,12 @@ way. The encoder keeps `manual:0` as an alias for that stored value. Older reade
 or 3 to their own default. MANUAL's target is id 79 (`arbBalAbs`), an absolute mech balance
 rather than a delta, so unlike ids 40 and 54 it does not depend on the reader's natural.
 RANGE reuses id 54 (`arbBalDelta`) as its offset from the middle of the Balance Guide RANGE.
+
+PHASE (4) came later and also reuses id 54, as its offset from PHASE TARGET. Its EXIT Load is
+id 88 (`phaseExitG`, g of drive, 0.05..0.60, default 0.2), omitted at the default like any
+field. A reader older than PHASE has no index 4, so it falls back to NATURAL and takes its target from
+id 40 instead: the same fallback 2 and 3 had. PHASE also reads the brake bias and drive split, which travel
+in the `dr` part; a code without it is solved against the receiver's own brakes and diff.
 
 Id 72 (`measuredNatBalHz`) travels with ids 60/61: the tyre-series balance
 display's equal-Hz natural moves slightly with Hz, so a MEASURE NAT BAL reading
@@ -264,7 +271,7 @@ choice, decided after the code is read.
 | `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
-| `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
+| `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 | `carries` (CARRIES) | `meta` | carries — **`applies:false`**: decides which of the parts above can be ticked at all (`partCarried` / `carriedSel`), never merged or shown as a row |

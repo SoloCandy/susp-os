@@ -26,6 +26,8 @@
 //   8. Chassis term — the Handling Balance bar's mechanical part agrees with the grip model.
 //   9. LOAD TRANSFER readout — reads the grip model's own transfer, so the tune moves it.
 //  10. GRIP USE — the limiting axle is at exactly 100%, and it agrees with the grip margin.
+//  11. PHASE target — never worse than GRIP across the three phases, and it leans the way the
+//      drivetrain says.
 //
 // Properties 5 and 6 are the ones with history: the drift-band sign inversion and the
 // balanceBandRange V-shape miss were both failures of exactly these (docs/HISTORY.md).
@@ -54,7 +56,8 @@ const M = new Function(
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
   'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
-  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf,entryBrakeBiasFor,BRAKE_BIAS_MIN,BRAKE_BIAS_MAX};'
+  'axleGrip,gripUseOf,driveFrontOf,gripBrakeBiasOf,entryBrakeBiasFor,BRAKE_BIAS_MIN,BRAKE_BIAS_MAX,' +
+  'phaseTermsAt,phaseMidOf,phaseSplitOf,phaseInOf,phaseNeutralOf,gripMarginSplitOf,PHASE_EXIT_G_MIN,PHASE_EXIT_G_MAX};'
 )();
 
 let pass = 0, fail = 0;
@@ -992,6 +995,101 @@ t('the springs barely move the ENTRY solve (it targets BRK, not the ENTRY total)
       const a = M.entryBrakeBiasFor(ch, rsTune(0.4), target), b = M.entryBrakeBiasFor(ch, rsTune(0.6), target);
       if (a.clamped || b.clamped) continue;
       ok(Math.abs(a.bias - b.bias) < 1, `${name} ${target}: ${a.bias.toFixed(2)} vs ${b.bias.toFixed(2)}`);
+    }
+});
+
+// -- 11. PHASE target --------------------------------------------------------
+console.log('\nPHASE target');
+
+// Every drivetrain the drive split can take, AWD at both ends of its centre range.
+const DRIVES = [['RWD', 0], ['FWD', 1], ['AWD c50', 0.5], ['AWD c80', 0.2]];
+const phIn = (ch, driveF, extra = {}) => M.phaseInOf(ch, { phaseExitG: extra.exitG }, { driveF, ...extra });
+const worstAt = (ch, rs, ph) => {
+  const t = M.phaseTermsAt(ch, rs, ph.brakeBias, ph.driveF, ph.exitG), brk = ph.brk ?? t.brk, mid = M.gripMargin(ch, rs);
+  return Math.max(Math.abs(mid), Math.abs(mid + brk), Math.abs(mid + t.drive));
+};
+
+t('gripMarginSplitOf reads its own margin back, and at 0 is the grip-neutral split', () => {
+  for (const { name, ch } of CHASSIS) {
+    near(M.gripMarginSplitOf(ch, 0), M.gripNeutralSplitOf(ch), 1e-6, `${name}: margin 0`);
+    // Only margins some split can reach: past them the root saturates at an end, as the grip-neutral one does.
+    const lo = M.gripMargin(ch, 1e-4), hi = M.gripMargin(ch, 1 - 1e-4);
+    for (const m of [-6, -2, 2, 6]) {
+      const r = M.gripMarginSplitOf(ch, m);
+      if (m > lo && m < hi) near(M.gripMargin(ch, r), m, 1e-6, `${name}: margin ${m}`);
+      else ok(r === 1e-4 || r === 1 - 1e-4, `${name}: unreachable margin ${m} should saturate, got ${r}`);
+    }
+  }
+});
+
+t('with nothing to balance, PHASE is GRIP', () => {
+  // Brakes at the ENTRY ideal (BRK 0) and the drive split at the EXIT ideal (DRIVE 0): there is
+  // nothing for PHASE to centre, so it must land on grip-neutral.
+  for (const { name, ch } of CHASSIS) {
+    const ideal = M.phaseTermsAt(ch, 0.5, null, 0, M.EXIT_G).idealDriveF;
+    near(M.phaseSplitOf(ch, phIn(ch, ideal)), M.gripNeutralSplitOf(ch), 1e-6, name);
+  }
+});
+
+t('at the PHASE split MID centres the spread, and the worst phase is never worse than at GRIP', () => {
+  for (const { name, ch } of CHASSIS)
+    for (const [dn, driveF] of DRIVES)
+      for (const brakeBias of [null, M.BRAKE_BIAS_MIN, 55, M.BRAKE_BIAS_MAX]) {
+        const ph = phIn(ch, driveF, { brakeBias }), rs = M.phaseSplitOf(ch, ph);
+        if (rs <= 1e-3 || rs >= 1 - 1e-3) continue;   // saturated: no split reaches the MID asked for
+        const t = M.phaseTermsAt(ch, rs, ph.brakeBias, ph.driveF, ph.exitG);
+        near(M.gripMargin(ch, rs), M.phaseMidOf(t.brk, t.drive), 1e-5, `${name} ${dn} ${brakeBias}: MID`);
+        const g = M.gripNeutralSplitOf(ch);
+        ok(worstAt(ch, rs, ph) <= worstAt(ch, g, ph) + 1e-6,
+          `${name} ${dn} ${brakeBias}: worst ${worstAt(ch, rs, ph).toFixed(3)} at PHASE vs ${worstAt(ch, g, ph).toFixed(3)} at GRIP`);
+      }
+});
+
+t('RWD sits on the understeer side of GRIP, FWD on the oversteer side', () => {
+  // Brakes at the ideal, so only the drive split speaks: power through the rear loosens EXIT and
+  // PHASE answers with less rear roll stiffness; power through the front, the reverse.
+  for (const { name, ch } of CHASSIS) {
+    const g = M.gripNeutralSplitOf(ch);
+    ok(M.phaseSplitOf(ch, phIn(ch, 0)) < g, `${name}: RWD`);
+    ok(M.phaseSplitOf(ch, phIn(ch, 1)) > g, `${name}: FWD`);
+  }
+});
+
+t('more rear drive, and more EXIT Load on RWD, both move PHASE toward understeer', () => {
+  for (const { name, ch } of CHASSIS) {
+    let prev = Infinity;
+    for (const driveF of [1, 0.5, 0.35, 0.2, 0]) {
+      const rs = M.phaseSplitOf(ch, phIn(ch, driveF));
+      ok(rs <= prev + 1e-9, `${name}: drive front ${driveF} moved the split rearward`);
+      prev = rs;
+    }
+    prev = Infinity;
+    for (const exitG of [M.PHASE_EXIT_G_MIN, 0.2, 0.4, M.PHASE_EXIT_G_MAX]) {
+      const rs = M.phaseSplitOf(ch, phIn(ch, 0, { exitG }));
+      ok(rs <= prev + 1e-9, `${name}: EXIT Load ${exitG} moved the split rearward`);
+      prev = rs;
+    }
+  }
+});
+
+t('ENTRY Centre: a BRK target reads straight through, with no brake bias', () => {
+  for (const { name, ch } of CHASSIS) {
+    const rs = M.phaseSplitOf(ch, phIn(ch, 0, { brk: 3 })), t = M.phaseTermsAt(ch, rs, null, 0, M.EXIT_G);
+    near(M.gripMargin(ch, rs), M.phaseMidOf(3, t.drive), 1e-5, name);
+  }
+});
+
+t('a PHASE solve lands on its target, and reports PHASE TARGET as that target', () => {
+  for (const gm of ['horizon', 'beamng'])
+    for (const { name, ch } of CHASSIS.slice(0, 6)) {
+      const ph = { brakeBias: 58, driveF: 0 };
+      const fe = M.resolveFeEffective(ch, { ...M.DEF_FE, gameMode: gm, arbBalMode: 'mech', arbBalTargetMode: 'phase' }, 'track', ph);
+      const r = M.solveTune(ch, fe, gm, 'track', ph);
+      const K = r.tune.rsSpF + r.tune.rsSpR + r.tune.rsAbF + r.tune.rsAbR;
+      // BeamNG keeps the target resolved up front; Forza re-reads it at the tune's own stiffness.
+      const want = M.clampBalTarget(M.phaseNeutralOf(ch, gm, gm === 'beamng' ? undefined : K, M.phaseInOf(ch, fe, ph)));
+      near(r.target, want, 1e-9, `${name} ${gm}: reported target`);
+      if (!r.tune.mechBalClamped) near(r.tune.mechBalance, r.target, 0.01, `${name} ${gm}: balance vs target`);
     }
 });
 

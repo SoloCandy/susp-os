@@ -228,7 +228,7 @@ t('gripNeutralOf: in BeamNG (physical) it is the grip-neutral split plus the tyr
 });
 
 t('App routes feEffective through resolveFeEffective (no second inline copy)', () => {
-  assert(src.includes('const feResolved=useMemo(()=>resolveFeEffective(ch,fe,dr.buildType),'), 'App no longer calls resolveFeEffective');
+  assert(src.includes('const feResolved=useMemo(()=>resolveFeEffective(ch,fe,dr.buildType,phaseInLive),'), 'App no longer calls resolveFeEffective');
   assert(!/arbBalTarget:gripBalTarget/.test(src), 'an inline GRIP resolution has reappeared');
 });
 

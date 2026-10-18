@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PHASE Balance Target; EXIT read at its load; mode-switch glossary corrected
+
+PRO's Balance Target gained PHASE (id 53 index 4, EXIT Load id 88): GRIP's anchor moved to
+centre ENTRY, MID and EXIT, see FORMULAS.md "PHASE target". Two behaviours changed with it.
+While PHASE is solving, the Handling Balance EXIT row is read at PHASE's EXIT Load rather than
+always at `EXIT_G`, so the panel shows the figures the target balanced; outside PHASE nothing
+moves. And the glossary's Balance Offset and Mech Balance Target entries said a mode switch
+keeps the target where it is. Only MANUAL does that: NATURAL, RANGE and GRIP have opened at a 0
+offset since the change below, and PHASE does too. Both entries now say so.
+
+To build PHASE's inputs ahead of the solve, App's brake-bias recommendation moved above
+`resolveFeEffective` (nothing in it reads the tune), and `computeDiff`'s AWD centre clamp became
+`awdCenterOf` so the same split is read before and after the diff exists.
+
 ## Changed — the 10% damping floor keeps the front/rear split
 
 `splitDampZetas` used to clamp each axle to 10% on its own. With a soft anchor and a big

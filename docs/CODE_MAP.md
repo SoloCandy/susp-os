@@ -81,27 +81,36 @@ The source runs top to bottom in this order:
 These are pure functions of their arguments, in dependency order:
 
 ```
-resolveFeEffective(ch, fe, build)      → resolves the stored Balance Target (NATURAL /
-                                         RANGE / GRIP / MANUAL) into the absolute
+resolveFeEffective(ch, fe, build, ph)  → resolves the stored Balance Target (NATURAL /
+                                         RANGE / GRIP / PHASE / MANUAL) into the absolute
                                          target (App's feEffective)
 feelToPhysics(ch, fe)                  → resolves feel settings into physics
                                          (front/rear Hz, ζ per axle, ARB mode…)
 computeTune(ch, physics, gameMode)     → springs, dampers, ARBs, balance
-solveTune(ch, feEffective, gameMode, build)
+solveTune(ch, feEffective, gameMode, build, ph)
                                        → feelToPhysics + computeTune, repeated in the
                                          target modes until the DISPLAYED balance
                                          meets the target; every caller goes through it.
                                          Returns the target it aimed at as `target`
-                                         (RANGE's and GRIP's move with stiffness in Forza)
+                                         (RANGE's, GRIP's and PHASE's move with stiffness in Forza)
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
 
 Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),
 `balanceBandOf` (the Balance Guide RANGE band — the RANGE row, GRIP GAP and RANGE mode all
-read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP anchor at a given K — Balance Offset is
+read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP/PHASE anchor at a given K — Balance Offset is
 measured from it),
-`balTargetAnchoredOf` (RANGE/GRIP target at a given K: anchor + offset, clamped).
+`balTargetAnchoredOf` (RANGE/GRIP/PHASE target at a given K: anchor + offset, clamped).
+PHASE: `phaseInOf` (normalises the brake bias or ENTRY BRK target, drive split and EXIT Load
+App hands in as `ph`; without `ph`, BRK 0 and the layout's own drive split), `phaseTermsAt` (BRK and
+DRIVE at a split — `phaseMargins` reads it too, so the target balances the figures the panel
+shows), `phaseMidOf`, `gripMarginSplitOf` (the split at a given grip margin), `phaseSplitOf`
+(PHASE's split, a short fixed point with a one-entry memo) and `phaseNeutralOf`, which carries it
+into display space through `splitDisplayOf` exactly as `gripNeutralOf` does. `awdCenterOf` is
+the AWD centre split `computeDiff` applies, shared so App's PHASE inputs can read it before the
+diff exists. App builds `phaseIn` ahead of the solve from nothing the tune decides, and passes it
+to `resolveFeEffective`/`solveTune` only while PHASE is the mode (`phaseInLive`).
 
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 `solveSpring`, `solveDampRaw`, `settleZetas`/`forceZetas`/`balModeZetas`
@@ -608,8 +617,8 @@ state once, and are live now (PRO Alignment Mode MANUAL). See
 [ALIGNMENT.md](ALIGNMENT.md).
 
 **`arbBalTargetMode` / `arbBalDelta` / `arbBalAbs`** — fully live; they drive the
-PRO Balance Target modes (RANGE and GRIP share `arbBalDelta`; MANUAL reads
-`arbBalAbs`). Easy to mistake for orphans because the names suggest a superseded
+PRO Balance Target modes (RANGE, GRIP and PHASE share `arbBalDelta`; MANUAL reads
+`arbBalAbs`; PHASE also reads `phaseExitG`). Easy to mistake for orphans because the names suggest a superseded
 target system.
 
 **The `'manual'` value of `arbBalTargetMode`** — no button writes it any more, and

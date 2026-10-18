@@ -484,8 +484,11 @@ const resolveArbBalTarget=(ch,fe)=>fe.arbBalTarget==null
 // aims there. That is not circular: the total comes from springs and the bar budget, and the F/R
 // split does not change it. Without K it falls back to the MEASURE NAT BAL probe springs — the
 // convention natDisplayModelOf uses — which is only the first guess resolveFeEffective hands in.
-const gripNeutralOf=(ch,gameMode,K)=>{
-  const s=gripNeutralSplitOf(ch);
+const gripNeutralOf=(ch,gameMode,K)=>splitDisplayOf(ch,gameMode,K,gripNeutralSplitOf(ch));
+// PHASE's anchor: phaseSplitOf's real split, carried into display space exactly as GRIP's is.
+const phaseNeutralOf=(ch,gameMode,K,ph)=>splitDisplayOf(ch,gameMode,K,phaseSplitOf(ch,ph));
+// A REAL rear roll-stiffness fraction s, as the game displays it at total roll stiffness K.
+const splitDisplayOf=(ch,gameMode,K,s)=>{
   if(isPhysical(gameMode))return s+tireCorrOf(ch);
   const sm=s-natOffsetOf(ch);
   if(!(K>0)){const mc=cornerMasses(ch),h=NAT_BAL_PROBE_HZ;
@@ -494,15 +497,15 @@ const gripNeutralOf=(ch,gameMode,K)=>{
 };
 // A solved tune's total roll stiffness, springs and bars, both axles — gripNeutralOf's K.
 const rollKOf=tune=>tune.rsSpF+tune.rsSpR+tune.rsAbF+tune.rsAbR;
-// Balance Target mode, normalised. NATURAL reads fe.arbBalTarget as a delta from natural; RANGE and
-// GRIP read fe.arbBalDelta (Balance Offset) from their anchor; MANUAL (value 'abs') reads
+// Balance Target mode, normalised. NATURAL reads fe.arbBalTarget as a delta from natural; RANGE,
+// GRIP and PHASE read fe.arbBalDelta (Balance Offset) from their anchor; MANUAL (value 'abs') reads
 // fe.arbBalAbs as the raw mech balance. Anything else is NATURAL: before RANGE and MANUAL existed
 // NATURAL was stored as 'manual', and persisted state reaches here without passing sanitizeTune, so
 // a 'manual' left in localStorage must still mean NATURAL — not the new MANUAL.
-const balTargetModeOf=fe=>{const m=fe?.arbBalTargetMode;return m==='range'||m==='grip'||m==='abs'?m:'natural';};
-// RANGE and GRIP are anchored on the grip neutral, which in a Forza mode moves with total roll
-// stiffness — solveTune re-evaluates these at each run's K, as it does for GRIP.
-const balTargetAnchoredMode=fe=>{const m=balTargetModeOf(fe);return m==='range'||m==='grip';};
+const balTargetModeOf=fe=>{const m=fe?.arbBalTargetMode;return m==='range'||m==='grip'||m==='phase'||m==='abs'?m:'natural';};
+// RANGE, GRIP and PHASE are anchored on a grip-model split, which in a Forza mode displays
+// differently at different total roll stiffness — solveTune re-evaluates them at each run's K.
+const balTargetAnchoredMode=fe=>{const m=balTargetModeOf(fe);return m==='range'||m==='grip'||m==='phase';};
 // The Balance Guide RANGE band in display space, from natural and grip-neutral. The RANGE row, the
 // GRIP GAP widget and RANGE mode's target all read this, so none of them can disagree on where the
 // band sits. dlo/dhi are the band edges as deltas from natural before the clampBalTarget clamp.
@@ -513,30 +516,32 @@ const balanceBandOf=(nat,gn,layout,build)=>{
   const hi=Math.max(lo+0.03,Math.min(BAL_TARGET_MAX,nat+dhi));
   return{lo,hi,dlo,dhi};
 };
-// RANGE / GRIP anchor at total roll stiffness K (see gripNeutralOf; no K = probe springs): the grip
-// neutral, or the middle of the RANGE band built from it. Unclamped — Balance Offset is measured
-// from here.
-const balTargetAnchorOf=(ch,mode,gameMode,build,K)=>{
+// RANGE / GRIP / PHASE anchor at total roll stiffness K (see gripNeutralOf; no K = probe springs):
+// the grip neutral, the middle of the RANGE band built from it, or PHASE's split (ph: phaseInOf's
+// normalised inputs). Unclamped — Balance Offset is measured from here.
+const balTargetAnchorOf=(ch,mode,gameMode,build,K,ph)=>{
+  if(mode==='phase')return phaseNeutralOf(ch,gameMode,K,ph);
   const gn=gripNeutralOf(ch,gameMode,K);
   return mode==='range'
     ?(b=>(b.lo+b.hi)/2)(balanceBandOf(natDisplayOf(ch,gameMode),gn,ch.layout,build))
     :gn;
 };
-// RANGE / GRIP target: the anchor plus Balance Offset.
-const balTargetAnchoredOf=(ch,fe,gameMode,build,K)=>
-  clampBalTarget(balTargetAnchorOf(ch,balTargetModeOf(fe),gameMode,build,K)+(fe.arbBalDelta??0));
+// RANGE / GRIP / PHASE target: the anchor plus Balance Offset. ph is App's phase inputs (brake bias
+// or BRK, drive split); only PHASE reads them.
+const balTargetAnchoredOf=(ch,fe,gameMode,build,K,ph)=>
+  clampBalTarget(balTargetAnchorOf(ch,balTargetModeOf(fe),gameMode,build,K,phaseInOf(ch,fe,ph))+(fe.arbBalDelta??0));
 // fe.arbBalTarget is stored as a delta from natDisplayOf(ch,gameMode) (null = untouched, falls back
 // to MECH_BALANCE_TARGET) so a saved/shared build re-targets against whatever chassis it's applied
 // to. This is the single funnel that resolves every Balance Target mode to the absolute value the
 // physics engine and every downstream display read. It was inline in App until Vehicle DNA's
 // compiler needed the identical resolution — keep one copy, not two (docs/DNA.md). RANGE needs the
-// build type (dr.buildType) for its band; it defaults to TRACK. RANGE and GRIP in a Forza mode
-// resolve at the probe springs here; solveTune moves them to the tune's own stiffness and returns
-// the value it used as `target`, which App reads back into feEffective.
-const resolveFeEffective=(ch,fe,build)=>{
-  const m=balTargetModeOf(fe);
-  return{...fe,arbBalTarget:m==='range'||m==='grip'?balTargetAnchoredOf(ch,fe,fe.gameMode,build)
-    :m==='abs'?clampBalTarget(fe.arbBalAbs??MECH_BALANCE_TARGET)
+// build type (dr.buildType) for its band; it defaults to TRACK. PHASE needs the brakes and drive
+// split (ph, see phaseInOf). RANGE, GRIP and PHASE in a Forza mode resolve at the probe springs
+// here; solveTune moves them to the tune's own stiffness and returns the value it used as `target`,
+// which App reads back into feEffective.
+const resolveFeEffective=(ch,fe,build,ph)=>{
+  return{...fe,arbBalTarget:balTargetAnchoredMode(fe)?balTargetAnchoredOf(ch,fe,fe.gameMode,build,undefined,ph)
+    :balTargetModeOf(fe)==='abs'?clampBalTarget(fe.arbBalAbs??MECH_BALANCE_TARGET)
     :resolveArbBalTarget(ch,fe)};
 };
 // Is anything actually solving toward the Balance Target? MECH/CO-SOLVE ARB balance modes do,
@@ -994,23 +999,32 @@ const ENTRY_G=0.3,EXIT_G=0.2;
 // reads that from the BEG/INT bar terms.
 // The front axle's share of drive torque: all of it on FWD, none on RWD, 1 − centre split on AWD.
 const driveFrontOf=diff=>diff?.layout==='FWD'?1:diff?.layout==='AWD'?1-Math.max(0,Math.min(1,(diff.center??65)/100)):0;
-const phaseMargins=(ch,tune,brakeBias,diff)=>{
-  const nf=ch.frontBias/100,off=natOffsetOf(ch),hL=ch.cgHeight/ch.wheelbase;
+// BRK and DRIVE at a REAL rear roll-stiffness fraction rs, each against its ideal split at that
+// phase's load. The Handling Balance readout and the PHASE Balance Target both read this, so the
+// target balances exactly the figures the panel shows. exitG is EXIT's drive load: EXIT_G, or
+// PHASE's EXIT Load (fe.phaseExitG) while PHASE is the Balance Target. A null brakeBias reads
+// BRK 0 (the brakes at the ENTRY-load ideal).
+const phaseTermsAt=(ch,rs,brakeBias,driveF,exitG=EXIT_G)=>{
+  const nf=ch.frontBias/100,hL=ch.cgHeight/ch.wheelbase;
+  const idealBrakeF=Math.max(0,Math.min(1,gripBrakeBiasOf(ch,ENTRY_G)/100));
+  const idealDriveF=Math.max(0,Math.min(1,nf-exitG*hL));
+  const eRef=gripMargin(ch,rs,-ENTRY_G,idealBrakeF),xRef=gripMargin(ch,rs,exitG,idealDriveF);
+  return{brk:brakeBias==null?0:gripMargin(ch,rs,-ENTRY_G,brakeBias/100)-eRef,
+         drive:gripMargin(ch,rs,exitG,driveF)-xRef,eRef,xRef,idealBrakeF,idealDriveF};
+};
+const phaseMargins=(ch,tune,brakeBias,diff,exitG=EXIT_G)=>{
+  const nf=ch.frontBias/100,off=natOffsetOf(ch);
   const Kf=tune.rsSpF+tune.rsAbF,Kr=tune.rsSpR+tune.rsAbR;
   const rs=(Kf+Kr>0?Kr/(Kf+Kr):1-nf)+off;
   const mid=gripMargin(ch,rs),chas=gripMargin(ch,1-nf+off);
   const bs=tune.bSp??0,ba=tune.bAb??0,moved=mid-chas;
   const sp=Math.abs(bs+ba)>1e-9?moved*bs/(bs+ba):0,ab=moved-sp;
-  const idealBrakeF=Math.max(0,Math.min(1,gripBrakeBiasOf(ch,ENTRY_G)/100));
-  const idealDriveF=Math.max(0,Math.min(1,nf-EXIT_G*hL));
   const driveF=driveFrontOf(diff);
-  const eRef=gripMargin(ch,rs,-ENTRY_G,idealBrakeF),xRef=gripMargin(ch,rs,EXIT_G,idealDriveF);
-  const brk=gripMargin(ch,rs,-ENTRY_G,brakeBias/100)-eRef;
-  const drive=gripMargin(ch,rs,EXIT_G,driveF)-xRef;
+  const{brk,drive,eRef,xRef,idealBrakeF,idealDriveF}=phaseTermsAt(ch,rs,brakeBias,driveF,exitG);
   return{
     mid:{total:mid,chas,sp,ab},
-    entry:{total:mid+brk,brk,pitch:eRef-mid,idealBias:idealBrakeF*100},
-    exit:{total:mid+drive,drive,pitch:xRef-mid,driveF,idealDriveF},
+    entry:{total:mid+brk,brk,pitch:eRef-mid,idealBias:idealBrakeF*100,g:ENTRY_G},
+    exit:{total:mid+drive,drive,pitch:xRef-mid,driveF,idealDriveF,g:exitG},
   };
 };
 // The brake bias span, % front: every bias the app shows or solves stays inside it. 40 was 45
@@ -1134,6 +1148,60 @@ const gripNeutralSplitOf=ch=>{
     else{hi=m;fHi=fm;if(side===1)fLo/=2;side=1;}
   }
   return (lo+hi)/2;
+};
+// The real rear roll-stiffness fraction at which gripMargin reads m: gripNeutralSplitOf's root at
+// a margin other than zero. Saturates at an end the same way.
+const gripMarginSplitOf=(ch,m)=>{
+  const f=r=>gripMargin(ch,r)-m;
+  let lo=1e-4,hi=1-1e-4,fLo=f(lo),fHi=f(hi);
+  if(fLo>=0)return lo;
+  if(fHi<=0)return hi;
+  let side=0;
+  for(let i=0;i<100&&hi-lo>1e-12;i++){
+    const x=(lo*fHi-hi*fLo)/(fHi-fLo),fx=f(x);
+    if(fx===0)return x;
+    if(fx<0){lo=x;fLo=fx;if(side===-1)fHi/=2;side=-1;}
+    else{hi=x;fHi=fx;if(side===1)fLo/=2;side=1;}
+  }
+  return (lo+hi)/2;
+};
+// ── PHASE Balance Target ──
+// GRIP is neutral mid-corner only. PHASE picks the MID margin that centres MID, ENTRY (MID + BRK)
+// and EXIT (MID + DRIVE) on zero, so the worst of the three is as small as a roll-stiffness split
+// can make it. BRK and DRIVE hardly move with the split (each is measured against its own ideal at
+// the same split), so centring MID is the whole minimax. PITCH stays out, as it does in the
+// readout: it is not tunable, and its size is set by the reference loads rather than the car.
+// See docs/FORMULAS.md "PHASE target".
+const PHASE_EXIT_G_MIN=0.05,PHASE_EXIT_G_MAX=0.60,PHASE_EXIT_G_STEP=0.01;
+const phaseMidOf=(brk,drive)=>-(Math.min(0,brk,drive)+Math.max(0,brk,drive))/2;
+// The phase inputs, normalised. ph comes from App: {brakeBias} (% front, as applied) or {brk}
+// (BRAKES' ENTRY Centre: its target IS the BRK, and reading the solved bias instead would make the
+// tune depend on a bias that depends on the tune), and driveF. Without ph — DNA, tests, anything
+// with no brakes or diff to hand — the brakes sit at the ENTRY ideal (BRK 0) and the drive split is
+// the layout's own (AWD at the default centre).
+const phaseInOf=(ch,fe,ph)=>({
+  brakeBias:ph?.brakeBias??null,brk:ph?.brk??null,
+  driveF:ph?.driveF??driveFrontOf({layout:ch.layout}),
+  exitG:Math.max(PHASE_EXIT_G_MIN,Math.min(PHASE_EXIT_G_MAX,fe?.phaseExitG??EXIT_G)),
+});
+// The split PHASE aims at. A short fixed point: BRK and DRIVE are read at the split, the split is
+// re-solved for the MID they ask for, until it stops moving (two or three passes; the coupling is
+// weak). Total roll stiffness is not an input, so every run of one solveTune lands on the same
+// answer — the one-entry memo keeps them from re-solving it.
+let _phaseSplitMemo=null;
+const phaseSplitOf=(ch,ph)=>{
+  const k=`${ph.brakeBias}|${ph.brk}|${ph.driveF}|${ph.exitG}`;
+  if(_phaseSplitMemo&&_phaseSplitMemo.ch===ch&&_phaseSplitMemo.k===k)return _phaseSplitMemo.rs;
+  let rs=gripNeutralSplitOf(ch);
+  for(let i=0;i<8;i++){
+    const t=phaseTermsAt(ch,rs,ph.brakeBias,ph.driveF,ph.exitG);
+    const nx=gripMarginSplitOf(ch,phaseMidOf(ph.brk??t.brk,t.drive));
+    const done=Math.abs(nx-rs)<1e-7;
+    rs=nx;
+    if(done)break;
+  }
+  _phaseSplitMemo={ch,k,rs};
+  return rs;
 };
 // ── Calibration envelope ─────────────────────────────────────────────────────
 // Every constant in the mech-balance chain was fitted on a bounded set of cars and states:
@@ -2118,17 +2186,18 @@ const computeTune=(ch,phys,gameMode)=>{
 // loop: there is no display offset there, but the 500 N/m spring snap and the front-Hz snap after
 // CO-SOLVE's rear solve still move the final balance off the target the solvers aimed at. fe must be feEffective (absolute
 // arbBalTarget). Every caller goes through here so Vehicle DNA and the live tune agree.
-// RANGE and GRIP modes in a Forza mode aim at the grip neutral (or the RANGE band built from it) at
+// RANGE, GRIP and PHASE in a Forza mode aim at their grip-model anchor (see balTargetAnchorOf) at
 // each run's own roll stiffness (see gripNeutralOf) rather than at fe.arbBalTarget, which was
 // resolved at the probe springs; the value it ended up aiming at comes back as `target`. Physical
-// modes' neutral has no stiffness term. `build` is dr.buildType, which RANGE's band needs.
-const solveTune=(ch,fe,gameMode,build)=>{
+// modes' neutral has no stiffness term. `build` is dr.buildType, which RANGE's band needs; `ph` is
+// PHASE's brake and drive inputs (see phaseInOf).
+const solveTune=(ch,fe,gameMode,build,ph)=>{
   const run=tgt=>{const f=tgt==null?fe:{...fe,arbBalTarget:tgt};const physics=feelToPhysics(ch,f);
     return{physics,tune:computeTune(ch,physics,gameMode)};};
   const first=run(null);
   if(fe.arbBalTarget==null||!hasBalTargetSolve(fe))return first;
   const anchored=balTargetAnchoredMode(fe)&&!isPhysical(gameMode);
-  const wantOf=anchored?t=>balTargetAnchoredOf(ch,fe,gameMode,build,rollKOf(t))
+  const wantOf=anchored?t=>balTargetAnchoredOf(ch,fe,gameMode,build,rollKOf(t),ph)
     :(w=>()=>w)(clampBalTarget(fe.arbBalTarget));
   const errOf=r=>r.tune.mechBalance-wantOf(r.tune);
   let best=first,bestErr=Math.abs(errOf(first));
@@ -2217,6 +2286,10 @@ const DIFF_TYPE_SCALE={race:1.00,sport:0.88,rally:0.76,offroad:0.52,drift:1.10};
 // AUTO AWD center split (rear %) — computeDiff clamps to this, and the recommended split
 // on the output card is clamped to the same range so its → USE never offers a value that won't apply.
 const AWD_CENTER_MIN=45, AWD_CENTER_MAX=90;
+// The AWD centre split (% rear) computeDiff applies: typed as-is under MANUAL, clamped and rounded
+// otherwise. App's PHASE inputs read it before the diff is computed, so it lives here, once.
+const awdCenterOf=dr=>dr.diffManual?(dr.diffCenter??65)
+  :Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,Math.round(dr.diffCenter??65)));
 const DIFF_TYPE_RANGES={
   race:   {accel:[25,60],frontAccel:[18,32],rearAccel:[25,60],decel:[8,25]},
   sport:  {accel:[28,68],frontAccel:[20,36],rearAccel:[28,68],decel:null},
@@ -2271,11 +2344,11 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
       ?{layout:'AWD',
         frontAccel:dr.diffFrontAccel??25, frontDecel:dr.diffFrontDecel??0,
         rearAccel: dr.diffRearAccel??50,  rearDecel: dr.diffRearDecel??10,
-        center:    dr.diffCenter??65}
+        center:    awdCenterOf(dr)}
       :{layout:ch.layout,
         accel:dr.diffAccel??35, decel:dr.diffDecel??10};
   } else if(ch.layout==='AWD'){
-    const center=cl(dr.diffCenter??65,AWD_CENTER_MIN,AWD_CENTER_MAX); // slider-driven; default 65 is sensible across builds
+    const center=awdCenterOf(dr); // slider-driven; default 65 is sensible across builds
     vals={layout:'AWD',
       frontAccel:lockPct(clE(28-effBiasExit*0.10+frontExitBias*0.12,10,40)),
       frontDecel:0,
@@ -3198,6 +3271,9 @@ const DEF_FE={rideStiffness:1.75,arbBias:0,dampingBias:0,dampBalMode:'standard',
               // target when MANUAL is picked, so this default is only what a code without it reads. A
               // literal, not MECH_BALANCE_TARGET: the test harnesses evaluate DEF_FE ahead of that const.
               arbBalAbs:0.60,arbSplitOpposite:false,arbNeutralEqual:false,
+              // PHASE Balance Target's EXIT Load, g of drive (PHASE_EXIT_G_MIN..MAX). A literal for the
+              // same reason as arbBalAbs; 0.2 is EXIT_G, the readout's own EXIT load.
+              phaseExitG:0.2,
               // MULTIPLIER is the fresh-install default, not FLAT RIDE — flat ride is a
               // comfort/road philosophy (many racecars don't use it) and its ratio only
               // stays inside the practitioner 10–20% band at moderate stiffness; it remains
@@ -3238,7 +3314,7 @@ const BRAKE_BIAS_SCALE=0.20;
 const SECTION_VIS=[
   {key:'chassis',   label:'CHASSIS',        tiers:['intermediate','pro'], fields:['ch',null]},
   {key:'build',     label:'BUILD',          tiers:['intermediate','pro'], fields:['dr',['buildType']]},
-  {key:'balance',   label:'BALANCE',        tiers:['pro'],                fields:['fe',['arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs']]},
+  {key:'balance',   label:'BALANCE',        tiers:['pro'],                fields:['fe',['arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs','phaseExitG']]},
   {key:'alignment', label:'ALIGNMENT',      tiers:['pro'],                fields:['al',null]},
   {key:'arb',       label:'ANTI-ROLL BARS', tiers:['intermediate','pro'], fields:['fe',['arbBias','arbMode','arbBalMode','springShare','arbTargetRollMan','arbShareMan','arbBasicMan','arbSplitOpposite','arbNeutralEqual']]},
   {key:'ride',      label:'RIDE',           tiers:['intermediate','pro'], fields:['fe',['rideStiffness','targetSpeed','rearHzMode','rearHzMan','rearHzMult','rideRef','rideStiffMode','rideBottomG']]},
@@ -4334,8 +4410,8 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
     ab:'How far the anti-roll bars move the MID margin from where the car starts, by shifting the roll-stiffness split.',
     brk:`Brake bias vs the entry-load ideal at ${ENTRY_G} g braking (${Math.round(entry.idealBias)}% front on this car). + = the rear brakes more than its share (toward oversteer).`,
     ePitch:`Load moving forward at ${ENTRY_G} g braking adds front grip and takes rear grip. Not tunable, so it is left out of the ENTRY figure.`,
-    drive:`The drive split vs the load-proportional one at ${EXIT_G} g of drive (${Math.round((1-exit.idealDriveF)*100)}% rear on this car). + = the rear carries more than its share (toward oversteer).`,
-    xPitch:`Load moving rearward at ${EXIT_G} g of drive. Not tunable, so it is left out of the EXIT figure.`,
+    drive:`The drive split vs the load-proportional one at ${exit.g} g of drive (${Math.round((1-exit.idealDriveF)*100)}% rear on this car). + = the rear carries more than its share (toward oversteer).`,
+    xPitch:`Load moving rearward at ${exit.g} g of drive. Not tunable, so it is left out of the EXIT figure.`,
     dEntry:'Off-throttle lock resists the car rotating on entry. Direction only: nothing has calibrated how much.',
     dExit:'On-throttle lock: whether it pushes the car wide or rotates it depends on the layout. Direction only.',
     damp:'Front vs rear damping. It acts only while load is moving, so it shows a direction only.',
@@ -4369,7 +4445,7 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
         <Seg label="ARB" val={mid.ab} hint={hints.ab} hintTerm={hintTerms.ab}/>
       </div>
       <div style={{marginBottom:6}}>
-        <Head title="EXIT" sub={`· ${EXIT_G} g drive`} val={exit.total}/>
+        <Head title="EXIT" sub={`· ${exit.g} g drive`} val={exit.total}/>
         <Seg label={isAWD?'CENTRE':'DRIVE'} val={exit.drive} hint={hints.drive} hintTerm={hintTerms.drive}/>
         <DirSeg label="DIFF EXIT" dir={signOf(bDiffAccel)} hint={hints.dExit} hintTerm={hintTerms.dExit}/>
         <Seg label="PITCH" val={exit.pitch} hint={hints.xPitch} muted hintTerm={hintTerms.xPitch}/>
@@ -5258,8 +5334,8 @@ const CODEC_FIELDS=[
   {id:51,group:'fe',key:'dampCharMode',enc:{zeta:0,settle:1},dec:['zeta','settle']},
   {id:52,group:'dr',key:'diffType',enc:DIFF_TYPE_ENC,dec:DIFF_TYPE_DEC},
   // 53: 0 was stored as 'manual' before RANGE and MANUAL existed; it always meant NATURAL (offset
-  // from natural). The alias keeps a persisted 'manual' encoding as 0. MANUAL is 'abs' (3).
-  {id:53,group:'fe',key:'arbBalTargetMode',enc:{natural:0,manual:0,grip:1,range:2,abs:3},dec:['natural','grip','range','abs']},
+  // from natural). The alias keeps a persisted 'manual' encoding as 0. MANUAL is 'abs' (3), PHASE 4.
+  {id:53,group:'fe',key:'arbBalTargetMode',enc:{natural:0,manual:0,grip:1,range:2,abs:3,phase:4},dec:['natural','grip','range','abs','phase']},
   {id:54,group:'fe',key:'arbBalDelta'},
   {id:79,group:'fe',key:'arbBalAbs'},
   // 80: BRAKES' Brake Bias shift. Not a revival of the brake ids pruned in the v1 redesign —
@@ -5326,6 +5402,8 @@ const CODEC_FIELDS=[
   // pre-86 behaviour, so an old code decodes unchanged) and its own bias, stored sign as id 33.
   {id:86,group:'fe',key:'bumpBalMode',enc:BUMP_BAL_MODE_ENC,dec:BUMP_BAL_MODE_DEC},
   {id:87,group:'fe',key:'bumpDampingBias'},
+  // 88: PHASE Balance Target's EXIT Load (g). Only PHASE reads it.
+  {id:88,group:'fe',key:'phaseExitG'},
   // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
   // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
   // misread a stale scale as half-stiff bars. See docs/CODEC.md.
@@ -5459,7 +5537,7 @@ const SHARE_PARTS=[
          'reboundZeta','bumpRatio','bumpZeta','landingPct','settleTarget','settleBias','settleMode']},
   {id:'arb',group:'fe',label:'ARB',sub:'Bar stiffness · balance · spring/bar share',
    keys:['arbBias','arbMode','arbTargetRollMan','arbShareMan','arbBasicMan',
-         'arbBalMode','arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs',
+         'arbBalMode','arbBalTarget','arbBalTargetMode','arbBalDelta','arbBalAbs','phaseExitG',
          'arbManF','arbManR','arbSplitOpposite','arbNeutralEqual','springShare','springShareAuto']},
   {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes',
    keys:['buildType','diffType','diffManual','diffComplement','diffBiasEntry','diffBiasExit',
@@ -5642,6 +5720,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       arbBalTargetMode: balTargetModeOf(fe??{}),
       arbBalAbs:        cl(fe?.arbBalAbs, BAL_TARGET_MIN, BAL_TARGET_MAX, DEF_FE.arbBalAbs),
       arbBalDelta:      cl(fe?.arbBalDelta,       -0.20, 0.20, DEF_FE.arbBalDelta),
+      phaseExitG:       cl(fe?.phaseExitG, PHASE_EXIT_G_MIN, PHASE_EXIT_G_MAX, DEF_FE.phaseExitG),
     },
     dr:{
       buildType:      BUILD_DEC.includes(dr?.buildType)?dr.buildType:DEF_DR.buildType,
@@ -6011,8 +6090,8 @@ const TUTORIALS={
      glossary:['mech-balance-target','balance-guide']},
     {title:'Balance Target Mode',
      focus:['balance-target'],
-     body:'Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide\'s RANGE), GRIP (GRIP TARGET, the grip-neutral point) or MANUAL (a raw value, e.g. 0.60). In RANGE and GRIP, Balance Offset shifts it toward oversteer (+) or understeer (−).',
-     glossary:['target-range','target-grip','balance-offset']},
+     body:'Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide\'s RANGE), GRIP (GRIP TARGET, the grip-neutral point), PHASE (PHASE TARGET, neutral across entry, mid-corner and exit) or MANUAL (a raw value, e.g. 0.60). In RANGE, GRIP and PHASE, Balance Offset shifts it toward oversteer (+) or understeer (−).',
+     glossary:['target-range','target-grip','target-phase','balance-offset']},
     {title:'Alignment Mode',
      focus:['alignment'],
      body:'AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target\'s intent and GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.',
@@ -6100,11 +6179,12 @@ const GLOSSARY=[
     {id:'arb-motion-ratio',term:'ARB Motion Ratio',tier:'pro',def:"The anti-roll bar's arm as a fraction of track: where the drop link attaches, not where the spring does. It is BeamNG only and separate from Motion Ratio. The range is 0.2–1.5 and the default is 1.0. At 1.0 the app assumes the bar acts at the wheels, so the printed N/m reads low, roughly 4–6× soft on a sampled vehicle. A typical inboard link is about 0.4–0.5 (arm ÷ track), which raises the printed rate by (1/ratio)².\n\nIt affects only ARB display and MAN entry. The roll stiffness the app solves, the balance bar and Hz are unchanged.",see:['motion-ratio','arb']},
   ]},
   {group:'Balance Target',terms:[
-    {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE and GRIP add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. Switching modes keeps the target where it is. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip']},
+    {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE, GRIP and PHASE add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. Switching to NATURAL, RANGE, GRIP or PHASE starts at a 0 offset, on that mode's own anchor; switching to MANUAL keeps the target where it is. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip','target-phase']},
     {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build. It is set as a fraction of the gap from NATURAL toward GRIP TARGET, not as a flat offset. So the further a chassis sits from grip-neutral, the further its band sits from natural. TRACK, for example, uses 0.55–0.95 of that gap on FWD and RWD, and 0.45–0.80 on AWD.\n\nDRIFT (0.90–1.55, AWD 0.75–1.30) and RWD DRAG (0.60–1.05) deliberately go past grip-neutral toward oversteer. The band is at least 0.03 wide and stays inside 0.05–0.95. On most mid- and rear-engined cars, grip-neutral sits below natural. The RANGE row shows the band, with its edges as deltas from NAT.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
     {id:'target-grip',term:'GRIP (Balance Target Mode)',tier:'pro',short:'GRIP target',def:"A Balance Target mode that aims at GRIP TARGET plus Balance Offset. GRIP TARGET is the mech balance at which the grip model reads exactly neutral for this chassis. At 0 offset the suspension cancels the chassis's own understeer or oversteer tendency instead of reinforcing it. GRIP TARGET is not GRIP BIAS mirrored about 0.50. The two use different units, and the model isn't symmetric enough for a mirror to land on neutral.\n\nIn Forza modes each tyre flexes in series with its axle, so GRIP TARGET shifts slightly with total roll stiffness. The solver uses the value at the tune's own stiffness. When GRIP TARGET falls outside the RANGE band, GRIP GAP appears.",see:['grip-neutral','grip-bias','balance-offset','grip-gap']},
-    {id:'balance-offset',term:'Balance Offset',tier:'pro',def:"In RANGE and GRIP target modes, how far the Mech Balance Target sits from that mode's anchor: −0.20 to +0.20 in 0.005 steps, default 0. Positive means more rear roll stiffness (oversteer tendency), and negative more front (understeer tendency). At 0 it is the middle of the recommended band in RANGE, or grip-neutral in GRIP.\n\nThe two modes share one value. Switching modes re-seeds it so the target doesn't move, but a target more than 0.20 from the new anchor lands at the cap. The Balance Guide shows the resulting target.",see:['target-range','target-grip','mech-balance-target']},
-    {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip spans 0.05–0.95. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
+    {id:'balance-offset',term:'Balance Offset',tier:'pro',def:"In RANGE, GRIP and PHASE target modes, how far the Mech Balance Target sits from that mode's anchor: −0.20 to +0.20 in 0.005 steps, default 0. Positive means more rear roll stiffness (oversteer tendency), and negative more front (understeer tendency). At 0 it is the middle of the recommended band in RANGE, grip-neutral in GRIP, or PHASE TARGET in PHASE.\n\nThe three modes share one value. Switching to one of them resets it to 0, so the target starts on the new mode's own anchor. The Balance Guide shows the resulting target.",see:['target-range','target-grip','target-phase','mech-balance-target']},
+    {id:'target-phase',term:'PHASE (Balance Target Mode)',tier:'pro',short:'PHASE target',def:"A Balance Target mode that aims at PHASE TARGET plus Balance Offset. GRIP is neutral mid-corner only. PHASE picks the mid-corner balance that spreads the three Handling Balance phases evenly about neutral: ENTRY (mid-corner plus the brake bias at 0.3 g braking), MID, and EXIT (mid-corner plus the drive split at the EXIT Load), so the worst of the three is as small as a roll-stiffness split can make it.\n\nIn practice it is GRIP moved by half the brakes' and drivetrain's own lean. RWD puts the power through the rear, so EXIT leans loose and PHASE sets mid-corner a little tight; FWD the reverse; AWD by its centre split. It counts the brake bias and power split as you set them, so moving either moves the bars. Diff lock and damping are not counted: they have no calibrated size.\n\nEXIT Load (0.05–0.60 g, default 0.2) is how hard you drive out of a corner. More load makes the drive term larger and moves PHASE TARGET further from GRIP TARGET. While PHASE is solving, the Handling Balance EXIT row is read at this load too. Weight transfer from braking and accelerating (PITCH) is left out, as it is in the readout. Under BRAKES' ENTRY Centre, PHASE takes the ENTRY target as BRK.",see:['target-grip','phase-verdict','balance-offset','grip-neutral']},
+    {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip spans 0.05–0.95. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET, a violet diamond PHASE TARGET (PHASE mode only) and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
     {id:'grip-gap',term:'GRIP GAP / GEOMETRY GAP',tier:'pro',short:'Geometry gap',def:"A panel under the Balance Guide that suggests chassis changes toward the target. In GRIP target mode it is GRIP GAP. It appears when GRIP TARGET sits more than 0.005 outside the RANGE band. It gives the extra front or rear tyre width that brings it inside, in 5 mm steps up to 80 mm. A wider front lowers GRIP TARGET, and a wider rear raises it. Beyond that reach, use Balance Offset.\n\nIn the other modes it is GEOMETRY GAP. It appears when the target is more than 0.015 from natural balance; when nothing solves toward a target, 0.50 stands in. It suggests track changes within ±65 mm, in 5 mm steps. A wider rear track or narrower front raises rear roll stiffness, and the reverse raises the front's. Beyond that, use ARBs or tyre widths.",see:['target-grip','track-width','tyre-size','balance-offset']},
   ]},
   {group:'Alignment',terms:[
@@ -7152,11 +7232,49 @@ function App(){
   const cm=useMemo(()=>cornerMasses(ch),[ch]);
   const dispMass=kg=>mMass?`${Math.round(kg)} kg`:`${Math.round(kg/KG_TO_LB)} lb`;
   const natGripBalance=balanceFromRsBal(ch,natRsOf(ch)); // grip model: roll-stiffness space
-  // The single Balance Target resolution funnel — see resolveFeEffective. In RANGE and GRIP modes
+  const _brakeWtMod=ch.wheelbase>0?Math.round((ch.cgHeight/ch.wheelbase)*50):8;
+  const _brakeBuildMod={street:0,track:3,drift:-5,rally:0,offroad:-3,drag:-8}[dr.buildType??'track']??3;
+  const _brakeGripAdj=uiMode==='pro'?Math.round((natGripBalance-0.5)*15):0;
+  // Floor is BRAKE_BIAS_MIN (40; 45 before the ±10 shift), not 50. The weight-transfer term above is what front-biases the typical
+  // recommendation, and it does that on its own — the floor exists only to stop absurd outputs.
+  // At 50 it was doing far more: it silently truncated every rear-biased result the formula
+  // produced, which also left three downstream behaviours unreachable. Build-type mods are
+  // deliberately left as-is — they were authored while the floor masked them, and re-tuning them
+  // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
+  // See docs/HISTORY.md for the worked cases and docs/FORMULAS.md for the resulting span.
+  const recBrakeBias=Math.round(Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
+  // PRO can centre the bias on GRIP instead: the straight-line ideal at brakeDecel g from the grip
+  // model (gripBrakeBiasOf), which leaves out the build mods and the grip-balance term — the shift
+  // is where intent goes. INT keeps the recommendation whatever brakeCentre says, as BEG keeps it
+  // whatever the shift says.
+  const gripBrakeBias=Math.round(gripBrakeBiasOf(ch,dr.brakeDecel??DEF_DR.brakeDecel));
+  const brakeGrip=uiMode==='pro'&&dr.brakeCentre==='grip';
+  // ENTRY (PRO) solves the bias for an ENTRY BRK target instead (entryBrakeBiasFor). It is the
+  // whole answer, not a centre: the target is the intent, so the shift is not added on top.
+  const brakeEntry=uiMode==='pro'&&dr.brakeCentre==='entry';
+  const brakeCentre=brakeGrip?gripBrakeBias:recBrakeBias;
+  // BRAKES' Brake Bias shift (INT+) moves it from that centre, + = rearward (ROTATE), inside the
+  // same BRAKE_BIAS_MIN..MAX span. BEG has no BRAKES section, so a shift carried in from INT or a share code
+  // is ignored there rather than reset: switching back up restores it. This is the bias outside
+  // BRAKES' ENTRY Centre; ENTRY's is solved from the tune further down (brakeBias).
+  const brakeBiasSet=uiMode==='beginner'?recBrakeBias
+    :Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,brakeCentre-(dr.brakeBiasShift??0)));
+  // PHASE Balance Target's inputs (phaseInOf). Built ahead of the solve, from nothing the tune
+  // decides: the brake bias above, or under ENTRY Centre its BRK target itself (the solved bias
+  // depends on the tune, so reading it here would loop), and the drive split computeDiff will use.
+  // Handed to the solve only while PHASE is the mode, so brake and diff edits in any other mode
+  // never re-run it.
+  const phaseOn=balTargetModeOf(fe)==='phase';
+  const _phaseBrk=brakeEntry?(dr.brakeEntryTarget??0):null;
+  const _phaseDriveF=driveFrontOf({layout:ch.layout,center:awdCenterOf(dr)});
+  const phaseIn=useMemo(()=>_phaseBrk!=null?{brk:_phaseBrk,driveF:_phaseDriveF}:{brakeBias:brakeBiasSet,driveF:_phaseDriveF},
+    [_phaseBrk,brakeBiasSet,_phaseDriveF]);
+  const phaseInLive=phaseOn?phaseIn:null;
+  // The single Balance Target resolution funnel — see resolveFeEffective. In RANGE, GRIP and PHASE
   // in a Forza mode solveTune refines the target to the tune's own stiffness; feEffective carries
   // that value so every marker and message shows the target the tune actually aimed at.
-  const feResolved=useMemo(()=>resolveFeEffective(ch,fe,dr.buildType),[ch,fe,dr.buildType]);
-  const solved=useMemo(()=>solveTune(ch,feResolved,fe.gameMode,dr.buildType),[ch,feResolved,fe.gameMode,dr.buildType]);
+  const feResolved=useMemo(()=>resolveFeEffective(ch,fe,dr.buildType,phaseInLive),[ch,fe,dr.buildType,phaseInLive]);
+  const solved=useMemo(()=>solveTune(ch,feResolved,fe.gameMode,dr.buildType,phaseInLive),[ch,feResolved,fe.gameMode,dr.buildType,phaseInLive]);
   const feEffective=useMemo(()=>solved.target==null?feResolved:{...feResolved,arbBalTarget:solved.target},
     [feResolved,solved]);
   const physics=solved.physics,tune=solved.tune;
@@ -7180,6 +7298,8 @@ function App(){
   // tune's roll stiffness. Not 1 − natGripBalance — that mirrors a grip reading into a mech
   // balance; see gripNeutralOf.
   const gripNeutral=gripNeutralOf(ch,fe.gameMode,rollKOf(tune));
+  // PHASE TARGET, at the same stiffness: the Balance Guide's PHASE row and marker, PHASE mode only.
+  const phaseNeutral=phaseOn?phaseNeutralOf(ch,fe.gameMode,rollKOf(tune),phaseInOf(ch,fe,phaseIn)):null;
   hzRatioRef.current=physics.frontHz>0?physics.rearHz/physics.frontHz:1.20;
   const dnaDraft=useMemo(()=>sanitizeDNA(dnaStore.draft),[dnaStore.draft]);
   // sanitizeDNA drops `base`, so read it off the stored draft. An edited archetype applies under
@@ -7253,7 +7373,7 @@ function App(){
   // draft loses its `ref`, so the editor shows a fresh DNA, not "edited from" whatever was loaded.
   const dnaFromDecoded=mkFe=>{
     const nfe=mkFe(fe);
-    const t=solveTune(ch,resolveFeEffective(ch,nfe,dr.buildType),nfe.gameMode??DEF_FE.gameMode,dr.buildType).tune;
+    const t=solveTune(ch,resolveFeEffective(ch,nfe,dr.buildType,phaseIn),nfe.gameMode??DEF_FE.gameMode,dr.buildType,phaseIn).tune;
     // A share code carries no drivetrain: decodedFe patches fe only, so the live `dr` here is
     // whatever car happens to be loaded, not anything the decoded tune said. Reading the diff
     // axes off it would overwrite the draft with the current car's diff — against dnaReadBack's
@@ -7347,35 +7467,10 @@ function App(){
   // measured or not. It used to be handed the reading only when measured and fall back to its own
   // inline GEOMETRY otherwise — a second copy of the unqualified natural, in the wrong space.
   const diff=useMemo(()=>computeDiff(ch,feEffective,dr),[ch,feEffective,dr]);
-  const _brakeWtMod=ch.wheelbase>0?Math.round((ch.cgHeight/ch.wheelbase)*50):8;
-  const _brakeBuildMod={street:0,track:3,drift:-5,rally:0,offroad:-3,drag:-8}[dr.buildType??'track']??3;
-  const _brakeGripAdj=uiMode==='pro'?Math.round((natGripBalance-0.5)*15):0;
-  // Floor is BRAKE_BIAS_MIN (40; 45 before the ±10 shift), not 50. The weight-transfer term above is what front-biases the typical
-  // recommendation, and it does that on its own — the floor exists only to stop absurd outputs.
-  // At 50 it was doing far more: it silently truncated every rear-biased result the formula
-  // produced, which also left three downstream behaviours unreachable. Build-type mods are
-  // deliberately left as-is — they were authored while the floor masked them, and re-tuning them
-  // is a calibration question with no telemetry behind it (same trap as DIFF_BIAS_SCALE).
-  // See docs/HISTORY.md for the worked cases and docs/FORMULAS.md for the resulting span.
-  const recBrakeBias=Math.round(Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,ch.frontBias+_brakeWtMod+_brakeBuildMod+_brakeGripAdj)));
-  // PRO can centre the bias on GRIP instead: the straight-line ideal at brakeDecel g from the grip
-  // model (gripBrakeBiasOf), which leaves out the build mods and the grip-balance term — the shift
-  // is where intent goes. INT keeps the recommendation whatever brakeCentre says, as BEG keeps it
-  // whatever the shift says.
-  const gripBrakeBias=Math.round(gripBrakeBiasOf(ch,dr.brakeDecel??DEF_DR.brakeDecel));
-  const brakeGrip=uiMode==='pro'&&dr.brakeCentre==='grip';
-  // ENTRY (PRO) solves the bias for an ENTRY BRK target instead (entryBrakeBiasFor). It is the
-  // whole answer, not a centre: the target is the intent, so the shift is not added on top.
-  const brakeEntry=uiMode==='pro'&&dr.brakeCentre==='entry';
   const entrySolve=useMemo(()=>brakeEntry?entryBrakeBiasFor(ch,tune,dr.brakeEntryTarget??0):null,
     [brakeEntry,ch,tune,dr.brakeEntryTarget]);
-  const brakeCentre=brakeGrip?gripBrakeBias:recBrakeBias;
-  // BRAKES' Brake Bias shift (INT+) moves it from that centre, + = rearward (ROTATE), inside the
-  // same BRAKE_BIAS_MIN..MAX span. BEG has no BRAKES section, so a shift carried in from INT or a share code
-  // is ignored there rather than reset: switching back up restores it.
-  const brakeBias=uiMode==='beginner'?recBrakeBias
-    :entrySolve?Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,Math.round(entrySolve.bias)))
-    :Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,brakeCentre-(dr.brakeBiasShift??0)));
+  const brakeBias=uiMode!=='beginner'&&entrySolve?Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,Math.round(entrySolve.bias)))
+    :brakeBiasSet;
   // positive = oversteer, negative = understeer
   const bBrakeEntry=-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
   const effectiveAvgZeta=(tune.zetaF+tune.zetaR)/2||70;
@@ -7389,7 +7484,10 @@ function App(){
   // input in every tier.
   const bNet=tune.bTot+(tune.bChassis??0);
   // PRO reads Handling Balance by phase in grip-margin percent instead (phaseMargins).
-  const phase=useMemo(()=>uiMode==='pro'?phaseMargins(ch,tune,brakeBias,diff):null,[uiMode,ch,tune,brakeBias,diff]);
+  // While PHASE is solving, EXIT is read at PHASE's own EXIT Load, so the panel shows the figures
+  // the target balanced; otherwise at EXIT_G.
+  const exitG=phaseOn&&hasBalTargetSolve(fe)?phaseInOf(ch,fe).exitG:EXIT_G;
+  const phase=useMemo(()=>uiMode==='pro'?phaseMargins(ch,tune,brakeBias,diff,exitG):null,[uiMode,ch,tune,brakeBias,diff,exitG]);
   // The headline: MID % in PRO, NET points elsewhere, each against its own NEUTRAL band.
   const hbVal=phase?phase.mid.total:bNet,hbBand=phase?PHASE_NEUTRAL:3;
   const recommendedDiffType=(()=>{
@@ -8590,7 +8688,7 @@ function App(){
               return(<>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6,marginTop:2}}>
                   <span style={{fontSize:13,color:'#94a3b8'}}>Balance Target</span>
-                  <Hint text="What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, MANUAL = a raw value (e.g. 0.60)." term="mech-balance-target"/>
+                  <Hint text="What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, PHASE = from PHASE TARGET, MANUAL = a raw value (e.g. 0.60)." term="mech-balance-target"/>
                 </div>
                 {(()=>{
                   const _m=balTargetModeOf(fe);
@@ -8606,11 +8704,11 @@ function App(){
                   const _cur=feEffective.arbBalTarget;
                   const _pick=m=>m!==_m&&setFe(p=>({...p,arbBalTargetMode:m,
                     ...(m==='natural'?{arbBalTarget:0}:{}),
-                    ...(m==='range'||m==='grip'?{arbBalDelta:DEF_FE.arbBalDelta}:{}),
+                    ...(m==='range'||m==='grip'||m==='phase'?{arbBalDelta:DEF_FE.arbBalDelta}:{}),
                     ...(m==='abs'?{arbBalAbs:clampBalTarget(roundBalStep(_cur))}:{})}));
                   return(
                     <div style={{display:'flex',gap:3,marginBottom:6}}>
-                      {[['natural','NATURAL'],['range','RANGE'],['grip','GRIP'],['abs','MANUAL']].map(([v,l])=>(
+                      {[['natural','NATURAL'],['range','RANGE'],['grip','GRIP'],['phase','PHASE'],['abs','MANUAL']].map(([v,l])=>(
                         <button key={v} className={`tog${_m===v?' on':''}`} style={{flex:1}} onClick={()=>_pick(v)}>{l}</button>
                       ))}
                     </div>
@@ -8628,12 +8726,18 @@ function App(){
                       onChange={v=>pFe('arbBalAbs')(clampBalTarget(roundBalStep(v)))}
                       min={BAL_TARGET_MIN} max={BAL_TARGET_MAX} step={BAL_TARGET_STEP}
                       hint="The raw Mech Balance to solve toward, e.g. 0.60; it stays put when the chassis changes. Above 0.50 = oversteer tendency, below = understeer." hintTerm="mech-balance-target"/>);
-                  return(
+                  return(<>
                     <Field label={<>{dnaDot('balanceOffset')}Balance Offset</>} value={fe.arbBalDelta??0} onChange={v=>pFe('arbBalDelta')(roundBalStep(v))}
                       min={-0.20} max={0.20} step={BAL_TARGET_STEP}
                       hint={_m==='range'
                         ?"Offset from the middle of the RANGE band: 0 = middle, positive = more rear bias (oversteer), negative = more front (understeer)."
-                        :"Offset from GRIP TARGET: 0 cancels the chassis's grip tendency, positive = more rear bias (oversteer), negative = more front (understeer)."} hintTerm="balance-offset"/>);
+                        :_m==='phase'
+                        ?"Offset from PHASE TARGET: 0 spreads entry, mid-corner and exit evenly about neutral, positive = more rear bias (oversteer), negative = more front (understeer)."
+                        :"Offset from GRIP TARGET: 0 cancels the chassis's grip tendency, positive = more rear bias (oversteer), negative = more front (understeer)."} hintTerm="balance-offset"/>
+                    {_m==='phase'&&<Field label="EXIT Load" value={phaseInOf(ch,fe).exitG} onChange={v=>pFe('phaseExitG')(Math.max(PHASE_EXIT_G_MIN,Math.min(PHASE_EXIT_G_MAX,+(+v).toFixed(2))))}
+                      min={PHASE_EXIT_G_MIN} max={PHASE_EXIT_G_MAX} step={PHASE_EXIT_G_STEP} unit="g"
+                      hint="How hard you drive out of a corner, in g. PHASE balances EXIT at this load against ENTRY's 0.3 g of braking: more load makes the drivetrain's push or rotation larger, so the target moves further to offset it." hintTerm="target-phase"/>}
+                  </>);
                 })()}
               </>);
             })()}
@@ -8693,6 +8797,8 @@ function App(){
                                    width:0,height:0,borderLeft:'6px solid transparent',borderRight:'6px solid transparent',borderBottom:'9px solid #3b82f6'}}/>
                       <div style={{position:'absolute',top:6,left:`${_pct(gripNeutral)}%`,transform:'translateX(-50%)',
                                    width:10,height:10,borderRadius:'50%',background:'#2dd4bf',border:'2px solid #0f172a'}}/>
+                      {phaseNeutral!=null&&<div style={{position:'absolute',top:7,left:`${_pct(phaseNeutral)}%`,transform:'translateX(-50%) rotate(45deg)',
+                                   width:8,height:8,background:'#a78bfa',border:'2px solid #0f172a'}}/>}
                       <div style={{position:'absolute',top:1,left:`${_pct(_cur)}%`,transform:'translateX(-50%)',
                                    width:0,height:0,borderLeft:'7px solid transparent',borderRight:'7px solid transparent',borderTop:`10px solid ${_tc}`}}/>
                     </div>);
@@ -8723,6 +8829,20 @@ function App(){
                       <Hint text="The mech balance at which the grip model reads neutral for this chassis: what GRIP mode targets at a 0 offset." term="grip-neutral"/>
                     </span>
                     <span style={{textAlign:'right',fontFamily:'var(--font-mono)',fontSize:11,color:'#2dd4bf'}}>{gripNeutral.toFixed(2)}</span>
+                    {phaseNeutral!=null&&<>
+                      <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
+                        <span style={{display:'inline-block',width:7,height:7,background:'#a78bfa',transform:'rotate(45deg)',margin:'0 1.5px',flexShrink:0}}/> PHASE TARGET
+                        <Hint text="The mech balance that spreads ENTRY, MID and EXIT evenly about neutral, given your brake bias, drive split and EXIT Load: what PHASE mode targets at a 0 offset." term="target-phase"/>
+                      </span>
+                      <span style={{textAlign:'right',display:'flex',flexDirection:'column',alignItems:'flex-end',gap:1}}>
+                        <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#a78bfa'}}>{phaseNeutral.toFixed(2)}</span>
+                        {/* Past the target band no split balances the phases (the drive term outgrows what roll
+                            stiffness can move), so say so rather than leave a bare 0.00 or 1.00 to be read as a goal. */}
+                        {phaseNeutral<BAL_TARGET_MIN||phaseNeutral>BAL_TARGET_MAX
+                          ?<span style={{fontFamily:'var(--font-mono)',fontSize:10,color:'#f59e0b',letterSpacing:0.3}}>out of reach · stops at {clampBalTarget(phaseNeutral).toFixed(2)}</span>
+                          :<span style={{fontFamily:'var(--font-mono)',fontSize:10,color:'#475569',letterSpacing:0.3}}>Δ{(phaseNeutral-gripNeutral>=0?'+':'')+(phaseNeutral-gripNeutral).toFixed(3)} from GRIP</span>}
+                      </span>
+                    </>}
                     <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
                       <span style={{display:'inline-block',width:12,height:4,background:'#14532d',borderRadius:1,flexShrink:0}}/> RANGE
                       <Hint text="Recommended target band for your layout and build, set from NATURAL toward GRIP TARGET. RANGE mode aims at its middle." term="target-range"/>
@@ -11686,7 +11806,7 @@ function App(){
                     <Ph label="ENTRY" v={phase.entry.total} dv={diff.bDiffDecel}/>
                     <Ph label="MID" v={phase.mid.total}/>
                     <Ph label="EXIT" v={phase.exit.total} dv={diff.bDiffAccel}/>
-                    <Hint text={`ENTRY is MID plus brake bias at ${ENTRY_G} g braking; EXIT is MID plus the drive split at ${EXIT_G} g of drive. An arrow shows which way diff lock pushes, not how far.`} term="phase-verdict"/>
+                    <Hint text={`ENTRY is MID plus brake bias at ${ENTRY_G} g braking; EXIT is MID plus the drive split at ${phase.exit.g} g of drive. An arrow shows which way diff lock pushes, not how far.`} term="phase-verdict"/>
                   </div>);
               })()}
               {/* mech balance reference strip: NAT · CURRENT · TARGET on 0–1 scale */}

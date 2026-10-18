@@ -719,6 +719,28 @@ The bar's TOTAL line in PRO adds BRK and DRIVE to MID, so it sums terms read at 
 chosen loads, and leaves diff and damping out for want of a size. It says where the sized terms
 land together, not what the car does at any one moment.
 
+## Open — PHASE inherits the chosen loads, and balances a model, not a lap
+
+PHASE (Balance Target) centres MID, ENTRY and EXIT, so it inherits everything in the entry above:
+its distance from GRIP is roughly proportional to the EXIT Load and to how far the brake bias
+sits from the ENTRY ideal, and both reference loads are the driver's, not the tune's. The EXIT
+Load is a setting for that reason; ENTRY stays at `ENTRY_G`. Diff lock and damping are not
+counted, so a locked diff that tames a loose exit does not pull the target back toward GRIP.
+
+Under BRAKES' ENTRY Centre PHASE reads the ENTRY target as BRK. When `entryBrakeBiasFor` clamps at
+`BRAKE_BIAS_MIN`/`MAX`, the BRK the car actually gets differs from the target, and PHASE balances
+the target. The bias cannot be read instead: it is solved from the tune, which would loop.
+
+**DRIVE outgrows the bars quickly.** The driven axle's lateral capacity is what is left after
+the drive force (`Fy = √(Fy² − Fx²)`), so DRIVE grows much faster than the EXIT Load. On the
+default RWD chassis it is about 2% at 0.1 g, 9% at 0.2 g, 22% at 0.3 g and 45% at 0.4 g, and
+PHASE's split falls from 49% rear roll stiffness to 37%, 17% and 0. A 63% front-weight FWD car
+already saturates at the default 0.2 g. Low-CG cars get there sooner, because their split moves
+grip balance least. Past that point no split balances the phases: PHASE TARGET falls outside
+0.05–0.95, the Balance Guide marks it out of reach, the target stops at the band edge and the
+bars run to their limit. The EXIT Load range (0.05–0.60) allows this deliberately rather than
+hiding it. PHASE has no in-game data behind it yet, so treat it as a hypothesis to drive.
+
 ## Open — GRIP USE predicts shares, not the limit itself
 
 GRIP USE says which axle runs out of grip first and how much the other has spare, but not at
