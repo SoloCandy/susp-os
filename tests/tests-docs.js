@@ -43,15 +43,19 @@ function check(name, fn) {
 const section = t => console.log(`\n── ${t} ──`);
 
 // ── source extraction ───────────────────────────────────────────────────────
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+// Every file read goes through here. With core.autocrlf=true a Windows checkout is CRLF,
+// and line-anchored slices (TUTORIALS headings cut at '\n') kept a trailing '\r' that made
+// identical text compare unequal. Normalising once keeps every check line-ending agnostic.
+const read = file => fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n');
+const html = read(path.join(ROOT, 'index.html'));
 const srcStart = html.indexOf('>', html.indexOf('<script id="app-source"')) + 1;
 const SRC = html.slice(srcStart, html.indexOf('</script>', srcStart));
 
 const docFiles = fs.readdirSync(DOCS).filter(f => f.endsWith('.md'));
 const doc = {};
-for (const f of docFiles) doc[f] = fs.readFileSync(path.join(DOCS, f), 'utf8');
+for (const f of docFiles) doc[f] = read(path.join(DOCS, f));
 const ALL_DOCS = Object.values(doc).join('\n');
-const README = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+const README = read(path.join(ROOT, 'README.md'));
 
 // Brace-matched object literal following `const NAME={`, so multi-line defaults
 // parse without a JS engine. Returns the raw body text.
@@ -554,7 +558,7 @@ check('no doc states a hardcoded line count for index.html', () => {
   // one. CODE_MAP.md already bans line numbers for the same reason; this extends
   // it to counts, which look harmless and rot just as fast.
   const problems = [];
-  const sources = { 'CLAUDE.md': fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8'), 'README.md': README, ...doc };
+  const sources = { 'CLAUDE.md': read(path.join(ROOT, 'CLAUDE.md')), 'README.md': README, ...doc };
   for (const [file, text] of Object.entries(sources))
     for (const m of text.matchAll(/([\d][\d,]{2,})[- ]line\b/g)) {
       // Allow it only when THIS CLAUSE is explicitly about the past. A ±120-char

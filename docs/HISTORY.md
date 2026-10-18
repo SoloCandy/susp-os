@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — tests-docs.js failed TUTORIALS step text on a CRLF checkout
+
+With `core.autocrlf=true` (the Windows default) `index.html` and `docs/` check out CRLF. The
+TUTORIALS step-text check cuts each `####` heading at `'\n'`, so every heading kept a trailing
+`'\r'` and failed against the code's titles even though both printed the same. An LF worktree
+of the same commit passed, which is how it surfaced. `tests-docs.js` now reads every file
+through one `read` helper that normalises `\r\n` to `\n`, so no check depends on line endings.
+
 ## Changed — PHASE Balance Target; EXIT read at its load; mode-switch glossary corrected
 
 PRO's Balance Target gained PHASE (id 53 index 4, EXIT Load id 88): GRIP's anchor moved to
