@@ -1045,7 +1045,8 @@ console.log('\nmirror vs app (reads index.html)');
     'resolveArbBalTarget,computeDiff,computeAlignment,rsToHz,hzToRs,flatRideRearHz,solveSpring,' +
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
-    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,clampLandingPct,LANDING_PCT_MIN,LANDING_PCT_MAX,LANDING_ZETA_MIN,LANDING_ZETA_MAX};'
+    'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,clampLandingPct,LANDING_PCT_MIN,LANDING_PCT_MAX,LANDING_ZETA_MIN,LANDING_ZETA_MAX,' +
+    'BUMP_STOP_ZONE,floorDampPair,splitDampZetas,catchZetas};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1242,7 +1243,7 @@ console.log('\nmirror vs app (reads index.html)');
       assert('landing: same bottom g and % → same ζ at any ride height', zOf(0.12), zOf(0.40), 1e-6);
     }
     // Round trip: the solved ζ catches exactly the target drop.
-    for (const [drop, hz, rh] of [[0.10, 1.75, 0.13], [0.20, 1.5, 0.25], [0.60, 1.5, 0.25]]) {
+    for (const [drop, hz, rh] of [[0.05, 1.75, 0.13], [0.20, 1.5, 0.25], [0.45, 1.5, 0.25]]) {
       const r = A.landingBumpZeta(drop, hz, rh);
       assertEq(`landing: ${drop} m at ${hz} Hz / ${rh} m is reachable`, r.reachable, true);
       assert(`landing: solved ζ catches ${drop} m`, A.landingCatchDrop(r.zeta, hz, rh), drop, 1e-6);
@@ -1263,6 +1264,34 @@ console.log('\nmirror vs app (reads index.html)');
     assert('landing: 80% of 250 mm resolves to 0.20 m', s.physics.landingDrop, 0.20, 1e-12);
     assert('landing: solveTune anchors bump ζ to the drop solve', s.physics.bumpZeta, A.landingBumpZeta(0.20, 1.5, 0.25).zeta, 1e-9);
     assert('landing: final front bump catches the drop (BeamNG snap only)', A.landingCatchDrop(s.tune.bumpZetaF, s.tune.fHz, 0.25), 0.20, 0.01);
+    // Travel stops at the SAG chart's bump-stop zone, not at full ride height.
+    assert('landing: travel ends at the bump-stop zone', A.landingTravel(1.5, 0.25),
+      0.25 * (1 - A.BUMP_STOP_ZONE) - 9.81 / Math.pow(2 * Math.PI * 1.5, 2), 1e-12);
+    // The 10% floor keeps the front/rear ratio instead of flattening it.
+    {
+      const p = A.floorDampPair({ zF: 20, zR: 5 });
+      assert('floor: softer axle lifts to 10%', p.zR, 10, 1e-12);
+      assert('floor: ratio kept', p.zF / p.zR, 4, 1e-12);
+      const c = A.floorDampPair({ zF: 300, zR: 5 });
+      assertEq('floor: 200% ceiling still clamps per axle', c.zF, 200);
+      const u = A.floorDampPair({ zF: 40, zR: 25 });
+      assertEq('floor: a pair above the floor is untouched', u.zF === 40 && u.zR === 25, true);
+      // STANDARD, FRONT ref, anchor 12, stored +50 (rear at half the front): would put rear at 6.
+      const sd = A.splitDampZetas('standard', 'front', 400, 1.5, 400, 1.6, 12, 50);
+      assert('floor: STANDARD split keeps its 2:1 at the floor', sd.zF / sd.zR, 2, 1e-12);
+      assert('floor: STANDARD split floors the rear at 10%', sd.zR, 10, 1e-12);
+    }
+    // EQUAL CATCH: an axle that floors catches more than asked; both drops scale so the Catch
+    // ratio still follows Bump Bias.
+    {
+      const chc = { rideHeightF: 0.25, rideHeightR: 0.25 }, k = Math.pow(2, 25 / 50);
+      const z = A.catchZetas('front', 1.5, 1.5, chc, 0.01, -25);
+      assert('catch floor: front sits on 10%', z.zF, A.LANDING_ZETA_MIN, 1e-9);
+      assert('catch floor: Catch keeps the bias ratio',
+        A.landingCatchDrop(z.zR, 1.5, 0.25) / A.landingCatchDrop(z.zF, 1.5, 0.25), k, 1e-6);
+      const n = A.catchZetas('front', 1.5, 1.5, chc, 0.20, -25);
+      assert('catch: no floor, front solves the target as before', n.zF, A.landingBumpZeta(0.20, 1.5, 0.25).zeta, 1e-12);
+    }
   }
 
   // ── tripwire: every top-level mirror in this file is compared or exempted with a reason

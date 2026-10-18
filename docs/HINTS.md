@@ -458,7 +458,7 @@ FRONT:
 
 **Drop** (LANDING) — `{axle}` is front, rear or average by RIDE REF.; `{len}` is that % as a length in the CHASSIS unit:
 
-> Drop height the {axle} axle should absorb without bottoming, as a % of its ride height (now {len}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.
+> Drop height the {axle} axle should absorb before the bump stops (the top {zone}% of travel), as a % of its ride height (now {len}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.
 
 **Bump ζ:**
 

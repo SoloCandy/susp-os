@@ -11,6 +11,32 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the 10% damping floor keeps the front/rear split
+
+`splitDampZetas` used to clamp each axle to 10% on its own. With a soft anchor and a big
+bias, the axle the bias pushed under 10% stopped there while the other stayed put, so the
+split collapsed toward 1:1 exactly when it mattered — a LANDING anchor on FLOOR made Bump
+Bias do nothing at all. `floorDampPair` now lifts both axles by the same factor until the
+softer sits on 10%, for rebound and bump alike (RATIO bump on SAME too). EQUAL CATCH does
+the same in drops: when an axle's solve floors, both target drops scale up so the Catch row
+keeps Bump Bias's ratio. The price, recorded in PHYSICS.md, is that the anchor axle can sit
+above its anchor, so SETTLE TIME's reference axle settles slightly faster than asked in
+that corner. Tunes that never touched the floor are unchanged.
+
+## Changed — LANDING keeps clear of the bump-stop zone
+
+LANDING counted the whole ride height (less sag) as travel, while the SAG chart shades the
+top 12% as the bump-stop zone. The two now agree through `BUMP_STOP_ZONE`: a drop is caught
+when it stops short of that zone. Every LANDING tune re-solves to firmer bump, and the
+biggest catchable drop at 3 g falls from about 600% to about 410% of ride height. The no-travel
+readout is now `⚠ SAG IN BUMP STOPS`.
+
+## Changed — the Catch row shows under every BUMP MODE
+
+The DAMPERS table's Catch row (the drop each axle's final bump ζ absorbs) appeared only under
+LANDING. It now shows whenever RIDE HEIGHT → CG is on, as a plain reading under BUMP RATIO and
+INDEPENDENT, so a rally build can see what its bump already catches before switching modes.
+
 ## Fixed — applyDNA went past its 50 ms budget
 
 `tests-dna.js`'s "applyDNA stays interactive" check started failing at about 60 ms after the

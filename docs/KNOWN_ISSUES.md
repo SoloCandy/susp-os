@@ -373,9 +373,9 @@ modal: INT and PRO each hide whatever they don't use, without the tune or the ph
 BUMP MODE → LANDING (see [PHYSICS.md](PHYSICS.md#landing-bump-mode)) is a guide figure,
 like BOTTOM G's, and shares its assumptions:
 
-- **Ride height is the whole travel**, and the floor is rigid. There is no tyre flex, no
-  progressive bump stop and no packer, and the "bump stop zone" on the SAG chart is not
-  modelled. Real cars catch somewhat more than the figure says.
+- **Travel ends at a hard line**: ride height less the SAG chart's top 12% "bump stop
+  zone", against a rigid floor. There is no tyre flex, no progressive bump-stop rate and no
+  packer; the zone is simply kept clear. Real cars catch somewhat more than the figure says.
 - **The hit starts at static ride height.** A car landing from a jump arrives with the
   suspension at droop, so it has more travel than the model gives it but also more
   energy. The model treats the drop as a hit at the landing speed `√(2g·drop)` from rest
@@ -386,7 +386,9 @@ like BOTTOM G's, and shares its assumptions:
   which limits the cost but can't remove it. The same limit is why bump stays out of
   RESPONSE (below).
 - **Only the RIDE REF. axle is guaranteed** to catch the drop. Damping Balance Mode
-  splits the anchor, so the other axle catches whatever its share gives it. The Catch row
+  splits the anchor, so the other axle catches whatever its share gives it. (When the split
+  would put an axle under the 10% floor, both rise to keep the ratio, so the reference
+  axle then catches more than the target.) The Catch row
   shows that honestly instead of forcing it, the same way the DAMPERS table treats the
   non-reference axle's settle time under SETTLE TIME.
 - **The game's click range can undo the solve.** When `dampScale` scales dampers down to
@@ -574,8 +576,9 @@ plausibility checks, not measured physics:
   LOW/MED/HIGH/BOTTOMED thresholds (0.5/0.8/1.0 sag-to-ride-height ratio)
   are round numbers chosen for intuitive spacing, not derived from any real
   bottoming-incident data. The chart's "bump stop zone" shading (top 12% of
-  each axle's travel) is a visual reminder that real springs go progressive
-  before contact — it is not a modeled progressive-rate curve.
+  each axle's travel) is a reminder that real springs go progressive
+  before contact — it is not a modeled progressive-rate curve. LANDING keeps
+  drops out of that zone but does not model its rate either.
 
 Both toggle state and its ride-height inputs (`useRideHeightCG`,
 `rideHeightF`, `rideHeightR`) are excluded from `CODEC_FIELDS` — only the

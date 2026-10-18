@@ -233,7 +233,7 @@ bottom-out line. It appears only when ride height drives the CG estimate
 | Mark | Meaning |
 |---|---|
 | dashed horizontal line | the axle's ride height: compression past it is bottoming |
-| lightly shaded strip under it | the top 12% of travel, a bump-stop reminder: real springs go progressive here, and the lines are linear |
+| lightly shaded strip under it | the top 12% of travel (`BUMP_STOP_ZONE`), a bump-stop reminder: real springs go progressive here, and the lines are linear. BUMP MODE → LANDING catches drops below it |
 | solid diagonal from the origin | compression under uniform vertical load, `n × sag_1g` |
 | hollow ring on it at 1 g | the static operating point |
 | filled dot on the ride-height line | vertical bottom-out, `rideHeight / sag_1g` |

@@ -602,6 +602,22 @@ axle's own rebound ζ: crossing above rebound is a warned-but-allowed state
 everywhere else (the slider reaches 115% and the readout says `⚠ CROSSED`),
 so clipping it here would contradict the rest of the app.
 
+#### The 10% floor keeps the split
+
+The floor does not clamp axles one at a time. `floorDampPair` checks the
+pair: when the softer axle would land under 10%, **both** axles are scaled by
+`10/softer`, so the softer sits on 10% and the front/rear ratio the mode and
+bias asked for survives. The 200% ceiling still clamps per axle. Clamping
+only the soft axle, as the splitter used to, flattened the split toward 1:1
+exactly when the bias was doing the most (a soft anchor with a big bias). It
+covers both strokes: every `splitDampZetas` result, and RATIO bump on SAME,
+which scales the rebound pair.
+
+The cost is that the anchor axle sits above its anchor. Under SETTLE TIME
+that axle then settles a little faster than the target; under LANDING it
+catches a little more than the drop. Both are shown honestly in the DAMPERS
+table rather than forced.
+
 ### BUMP BALANCE: a mode of bump's own
 
 BUMP BALANCE (`fe.bumpBalMode`) set to STANDARD, TIME SYNC, HYBRID or EQUAL FORCE
@@ -619,6 +635,9 @@ at all. `catchZetas` runs `landingBumpZeta` once per axle, on that axle's own Hz
 height, for the target drop: the per-axle version of what LANDING does for the ride-reference
 axle alone. Bump Bias multiplies the drop on the non-reference axle by `2^(displayed/50)`
 (SHARED: by its square root each way), so a positive bias asks the rear to catch more. The
+floor keeps that balance in drops: an axle whose solve floors at 10% catches more than asked,
+so both drops scale up until that axle's catch at 10% is its target and the other re-solves.
+The Catch row then keeps Bump Bias's ratio. The
 mode needs LANDING's drop height, so `ownBumpBalMode` resolves a stored `catch` to null
 (SAME) under any other BUMP MODE.
 
@@ -1375,11 +1394,12 @@ bottoms from roll transfer alone — independent of, and typically reached at
 a lower g than, the vertical-g bottom-out on the main diagonal, since it's
 added on top of static sag rather than starting from zero.
 
-The top 12% of each axle's dashed ride-height line is shaded as a "bump
-stop zone" reminder — a real spring goes progressive well before metal-to-
-metal contact, softer than either line's linear-rate assumption shows near
-the top. This is a visual cue only; no progressive-rate curve is modeled or
-plotted.
+The top 12% of each axle's dashed ride-height line (`BUMP_STOP_ZONE`) is
+shaded as a "bump stop zone" reminder — a real spring goes progressive well
+before metal-to-metal contact, softer than either line's linear-rate
+assumption shows near the top. No progressive-rate curve is modeled or
+plotted, but BUMP MODE → LANDING treats the zone as off limits and catches
+drops within the travel below it.
 
 Braking-induced (longitudinal) load transfer and dynamic bump loads are
 still not modeled by either line — treat HIGH/BOTTOMED, and any bottom-out
@@ -1458,7 +1478,7 @@ it bottoms; this one asks how big a hit it absorbs. Same sag model, same
 ride heights, same RIDE REF. axle.
 
 ```js
-travel    = rideHeight - 9.81/ωn²                 // rh·(1 − 1/bottomG): what's left at rest
+travel    = rideHeight·(1 − 0.12) - 9.81/ωn²       // clear of the bump-stop zone, less 1g sag
 V         = √(2·9.81·drop)                        // landing speed
 peak      = (V/ωn) · peakCompressionFactor(ζ)     // max compression after the hit
 solve     : peak = travel  →  factor = travel·ωn/V  →  bisect ζ in 10..115
@@ -1468,8 +1488,13 @@ Why a percentage: with `drop = p·rh` and `bottomG B = rh·ωn²/9.81`, the solv
 condition reduces to
 
 ```js
-factor(ζ) ≤ (B − 1) / √(2·p·B)
+factor(ζ) ≤ (0.88·B − 1) / √(2·p·B)
 ```
+
+The 0.12 is `BUMP_STOP_ZONE`, the band the SAG chart shades: a drop is
+caught when it stops short of the bump stops, not when it stops short of
+metal. Treating the whole ride height as travel disagreed with the chart and
+let the solve call a hit caught that ran into the progressive zone.
 
 Ride height cancels. The solved ζ depends only on BOTTOM G's and the %, so
 the same % asks the same severity of a lowered rally car and a long-travel
@@ -1497,20 +1522,21 @@ solve reports instead of pretending:
   says FLOOR).
 - When even **115%** bottoms it pins there and returns `reachable:false`.
   The readout says `⚠ MAX …%`, the biggest % that can be caught
-  (`(B−1)²/(2B·0.33²)`, so about 600% at 3 g), and an output warning repeats it
-  with the length. When static sag already uses the whole
-  ride height (bottom g ≤ 1), nothing catches anything, and the readout
-  says `⚠ SAG ≥ RIDE HT`.
+  (`(0.88B−1)²/(2B·0.33²)`, so about 410% at 3 g), and an output warning repeats it
+  with the length. When static sag already reaches the bump-stop zone
+  (bottom g ≤ 1/0.88 ≈ 1.14), nothing catches anything, and the readout
+  says `⚠ SAG IN BUMP STOPS`.
 
 The solve runs on the RIDE REF. axle's Hz and ride height (`landingRef`; for
 SHARED, the average of both), exactly as SETTLE TIME back-solves on that
 axle. Damping Balance Mode then splits the anchor front/rear like any
 INDEPENDENT bump anchor, so only the reference axle is guaranteed to catch
-the drop. The DAMPERS table adds a **Catch** row while LANDING is active.
-It shows `landingCatchDrop` for each axle's *final* bump ζ (after the split
+the drop. The DAMPERS table's **Catch** row (shown under every BUMP MODE
+whenever RIDE HEIGHT → CG is on, since it needs real ride heights; under
+BUMP RATIO and INDEPENDENT it is a reading with no target) shows `landingCatchDrop` for each axle's *final* bump ζ (after the split
 and the click snap) on that axle's own Hz and ride height, as a % of the
-reference ride height the target uses (lengths in the tooltip), and turns amber
-when an axle falls short. The row's tooltip gives peak bump force per
+reference ride height the target uses (lengths in the tooltip), and under LANDING
+turns amber when an axle falls short. The row's tooltip gives peak bump force per
 corner at the target drop, `c·V = 2·m·ωn·ζ·V`, in model kN rather than game
 clicks.
 
