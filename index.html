@@ -305,7 +305,23 @@ const cornerMasses=ch=>{
 const tyreWidths=ch=>({twF:parseTyre(ch.tyreF)?.width??265,twR:parseTyre(ch.tyreR)?.width??265});
 // Forza's mech-balance display includes a small tyre-width term; solvers subtract it from the target.
 const tireCorrOf=ch=>{const{twF,twR}=tyreWidths(ch);return TIRE_MECH_SCALE*Math.log(twR/twF);};
+// Memoised by the raw string: axleGrip reaches it through tyreWidths on every grip evaluation, so
+// one applyDNA parses the same two sizes tens of thousands of times, and the regex was most of
+// the resolver's cost. A pure function of its string, so the cache cannot change a result; each
+// call gets its own copy so no caller can mutate the cached object. Cleared rather than evicted
+// when it grows — typing in a tyre field is the only source of new keys.
+const PARSE_TYRE_MEMO=new Map();
 const parseTyre=str=>{
+  const key=String(str??'');
+  let hit=PARSE_TYRE_MEMO.get(key);
+  if(hit===undefined){
+    if(PARSE_TYRE_MEMO.size>=64)PARSE_TYRE_MEMO.clear();
+    hit=parseTyreRaw(key);
+    PARSE_TYRE_MEMO.set(key,hit);
+  }
+  return hit&&{...hit};
+};
+const parseTyreRaw=str=>{
   const s=String(str??'').trim();
   if(!s)return null;
   // Tolerant of whatever sits between the numbers — "265/35R18", "265x35r18",

@@ -472,8 +472,12 @@ The result carries `moves` (`{axis, from, to, protects, cause, with?}`), `misses
 (`{axis, target, achieved, cause}`) and `inexpressible`, for the match readout — e.g.
 *ARB share 30 → 13%, anti-roll bars at their limit* — so the app never presents a
 compromise as the target. This is the same principle as `impliedZeta` and the ARB
-stiffness being recomputed from clamped clicks. A typical apply takes well under a
-millisecond; `tests-dna.js` fails if the worst case in its sample reaches 50 ms.
+stiffness being recomputed from clamped clicks. Over the suite's archetype and fuzz runs a
+typical apply takes a millisecond or two and the slowest about 20 ms; `tests-dna.js` fails if
+the worst case in its sample reaches 50 ms. Nearly all of that is `solveTune`, which one apply
+calls hundreds of times through the `tryMove` scans, and each solve runs the grip model several
+times. `parseTyre` is memoised for exactly this reason: unmemoised, re-parsing the two tyre
+strings inside `axleGrip` was about two thirds of an apply's time.
 
 **Limits worth knowing:**
 

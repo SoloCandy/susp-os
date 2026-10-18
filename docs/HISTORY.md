@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — applyDNA went past its 50 ms budget
+
+`tests-dna.js`'s "applyDNA stays interactive" check started failing at about 60 ms after the
+AUTO ARB / CO-SOLVE work. That work made `solveTune` keep stepping across flat segments instead
+of giving up, so on the worst DNA case each solve ran `feelToPhysics`/`computeTune` about twice
+as often; the number of solves per apply did not change. Profiling showed the real cost was
+underneath: `parseTyre`'s regex, reached via `tyreWidths` from `axleGrip` on every grip
+evaluation, was about two thirds of an apply's time, parsing the same two tyre strings tens of
+thousands of times. `parseTyre` is now memoised by its string and hands each caller its own
+copy. Results are unchanged — every resolution in the suite hashes identically before and
+after — and across the suite's 240 runs the median apply fell from 5.4 to 1.4 ms and the worst
+from 68 to 22 ms. The 50 ms budget stays as it was.
+
 ## Changed — bump can run its own damping balance (BUMP BALANCE)
 
 One Damping Balance Mode and one Damping Bias used to split both strokes, so a tune

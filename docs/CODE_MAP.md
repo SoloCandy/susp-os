@@ -142,7 +142,8 @@ at the moment a reading was taken, and whether it has since moved by at least `N
 tyre-series balance Forza displays — `computeTune`'s `mechBalance` and MEASURE ARB), `displayNatOffsetOf`
 (MEASURE NAT BAL's offset for that display, anchored at the stored `measuredNatBalHz`), `autoArbShare` (ARB Stiffness Mode AUTO's bar share of
 total roll stiffness — one definition shared by `feelToPhysics`,
-`resolveCoSolveSpringShare` and `computeTune`), `parseTyre`, `axleLatG` (each axle's lateral
+`resolveCoSolveSpringShare` and `computeTune`), `parseTyre` (memoised by string over
+`parseTyreRaw` — it sits on the grip model's hot path; see [DNA.md](DNA.md)), `axleLatG` (each axle's lateral
 capacity per unit of its own weight, optionally under braking or drive — the grip model's core),
 `mechBalanceLLT`, `balanceFromRsBal`, `gripMargin` / `phaseMargins` / `ENTRY_G` / `EXIT_G` (PRO's
 Handling Balance in grip-margin percent, by phase; see [FORMULAS.md](FORMULAS.md) "Phase margins"),
