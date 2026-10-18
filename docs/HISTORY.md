@@ -62,6 +62,11 @@ strokes, and now imports both splits through BUMP BALANCE STANDARD. The rebound/
 split code that `feelToPhysics` and `computeTune` each carried a copy of is now one
 helper, `splitDampZetas`.
 
+The DAMPERS section now runs rebound first, then bump: REBOUND MODE and its slider, Damping
+Balance Mode and Damping Bias, then BUMP MODE and its slider (Bump Ratio, Bump ζ or Drop),
+then BUMP BALANCE and Bump Bias. BUMP MODE used to sit between the rebound slider and
+Damping Balance Mode.
+
 Under BUMP MODE → LANDING, BUMP BALANCE adds EQUAL CATCH. LANDING solved bump ζ for the drop
 on the ride-reference axle only, and the other axle got whatever the balance split gave it,
 so the Catch row often showed it falling short. EQUAL CATCH solves each axle for the drop on

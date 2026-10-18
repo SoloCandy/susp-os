@@ -9479,8 +9479,38 @@ function App(){
                     if(z>=68) return'BUTTERWORTH';
                     return null;
                   })()} hintTerm="zeta"/> }
-            {/* bump ratio / independent toggle */}
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:8}}>
+              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE{bumpBalMode?' · REBOUND':''}</span>
+              <Hint text={`How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.${bumpBalMode?' BUMP BALANCE is set below, so this splits rebound only.':' Bump follows it unless BUMP BALANCE below says otherwise.'}`} term="damping-balance-mode"/>
+            </div>
+            {/* One row of four — was STANDARD/SYNC plus a SYNC METHOD sub-row. Ids unchanged
+                (codec indices are permanent). */}
+            <div style={{display:'flex',gap:3,marginBottom:8,flexWrap:'wrap'}}>
+              {[['standard','STANDARD'],['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE']].map(([k,l])=>
+                <button key={k} className={`tog${dampBalMode===k?' on':''}`}
+                  onClick={()=>setFe(p=>({...p,dampBalMode:k}))}>{l}</button>)}
+            </div>
+            {(()=>{
+              const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
+              const hint=dampBalMode==='sync'
+                ?`TIME SYNC: skews settle time front/rear; centre = equal settle time (anchored to ${anchor}). Left (FRONT) makes the front settle faster, right (REAR) the rear.`
+                :dampBalMode==='hybrid'
+                ?`HYBRID: centre sits halfway between TIME SYNC and EQUAL FORCE (anchored to ${anchor}). Left (FRONT) firms the front, right (REAR) the rear.`
+                :dampBalMode==='neutral'
+                ?`EQUAL FORCE: skews actual damping force front/rear; centre = equal force (anchored to ${anchor}). Left (FRONT) shifts force to the front, right (REAR) to the rear.`
+                :`Your Ride Reference axle holds the base ζ (anchored to ${anchor}); the other swings up to 50% at ±50 (SHARED: both share it). Firmer front leans understeer, firmer rear oversteer.`;
+              // No readout: the table below shows settle and force per axle for every mode.
+              return(
+                <FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
+                  onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
+                  leftLabel="FRONT" rightLabel="REAR"
+                  markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
+                  hint={hint} hintTerm="damping-bias"/>
+              );
+            })()}
+            {/* BUMP MODE: how the bump anchor is set. Below Damping Balance Mode so the rebound
+                controls come first, then the bump ones with BUMP BALANCE. */}
+            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP MODE</span>
               <Hint text={dampingMode==='independent'
                 ?"INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound."
@@ -9601,35 +9631,6 @@ function App(){
                     return txt||null;
                   })()}
                   box={{unit:'%'}} hintTerm="bump"/>}
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE{bumpBalMode?' · REBOUND':''}</span>
-              <Hint text={`How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.${bumpBalMode?' BUMP BALANCE is set below, so this splits rebound only.':' Bump follows it unless BUMP BALANCE below says otherwise.'}`} term="damping-balance-mode"/>
-            </div>
-            {/* One row of four — was STANDARD/SYNC plus a SYNC METHOD sub-row. Ids unchanged
-                (codec indices are permanent). */}
-            <div style={{display:'flex',gap:3,marginBottom:8,flexWrap:'wrap'}}>
-              {[['standard','STANDARD'],['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE']].map(([k,l])=>
-                <button key={k} className={`tog${dampBalMode===k?' on':''}`}
-                  onClick={()=>setFe(p=>({...p,dampBalMode:k}))}>{l}</button>)}
-            </div>
-            {(()=>{
-              const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
-              const hint=dampBalMode==='sync'
-                ?`TIME SYNC: skews settle time front/rear; centre = equal settle time (anchored to ${anchor}). Left (FRONT) makes the front settle faster, right (REAR) the rear.`
-                :dampBalMode==='hybrid'
-                ?`HYBRID: centre sits halfway between TIME SYNC and EQUAL FORCE (anchored to ${anchor}). Left (FRONT) firms the front, right (REAR) the rear.`
-                :dampBalMode==='neutral'
-                ?`EQUAL FORCE: skews actual damping force front/rear; centre = equal force (anchored to ${anchor}). Left (FRONT) shifts force to the front, right (REAR) to the rear.`
-                :`Your Ride Reference axle holds the base ζ (anchored to ${anchor}); the other swings up to 50% at ±50 (SHARED: both share it). Firmer front leans understeer, firmer rear oversteer.`;
-              // No readout: the table below shows settle and force per axle for every mode.
-              return(
-                <FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
-                  onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
-                  leftLabel="FRONT" rightLabel="REAR"
-                  markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
-                  hint={hint} hintTerm="damping-bias"/>
-              );
-            })()}
             {/* BUMP BALANCE: bump's own Damping Balance Mode and bias. SAME keeps the one-mode behaviour
                 (bump split with rebound's mode and Damping Bias). Leaving SAME seeds Bump Bias from
                 Damping Bias, so the first click changes only the mode. */}

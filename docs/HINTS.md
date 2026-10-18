@@ -444,26 +444,6 @@ FRONT:
 
 > Damping ratio for the rebound (extension) stroke. 55–70% is typical; 70% (default) is Butterworth. Above 70% feels planted but stiff; above 100% (overdamped) sluggish.
 
-**BUMP MODE** — INDEPENDENT, LANDING, then BUMP RATIO:
-
-> INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound.
-
-> LANDING: set a drop height as a % of ride height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds.
-
-> BUMP RATIO: set bump damping as a percentage of rebound ζ, so the two strokes stay linked.
-
-**Bump Ratio:**
-
-> Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads; higher = more consistent between strokes. 40–65% is typical.
-
-**Drop** (LANDING) — `{axle}` is front, rear or average by RIDE REF.; `{len}` is that % as a length in the CHASSIS unit:
-
-> Drop height the {axle} axle should absorb before the bump stops (the top {zone}% of travel), as a % of its ride height (now {len}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.
-
-**Bump ζ:**
-
-> Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear.
-
 **DAMPING BALANCE MODE:**
 
 > How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.{tail}
@@ -486,6 +466,26 @@ Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
 > EQUAL FORCE: skews actual damping force front/rear; centre = equal force (anchored to {anchor}). Left (FRONT) shifts force to the front, right (REAR) to the rear.
 
 > Your Ride Reference axle holds the base ζ (anchored to {anchor}); the other swings up to 50% at ±50 (SHARED: both share it). Firmer front leans understeer, firmer rear oversteer.
+
+**BUMP MODE** — INDEPENDENT, LANDING, then BUMP RATIO:
+
+> INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound.
+
+> LANDING: set a drop height as a % of ride height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds.
+
+> BUMP RATIO: set bump damping as a percentage of rebound ζ, so the two strokes stay linked.
+
+**Bump Ratio:**
+
+> Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads; higher = more consistent between strokes. 40–65% is typical.
+
+**Drop** (LANDING) — `{axle}` is front, rear or average by RIDE REF.; `{len}` is that % as a length in the CHASSIS unit:
+
+> Drop height the {axle} axle should absorb before the bump stops (the top {zone}% of travel), as a % of its ride height (now {len}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.
+
+**Bump ζ:**
+
+> Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear.
 
 **BUMP BALANCE:**
 
