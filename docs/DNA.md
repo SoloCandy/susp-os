@@ -318,7 +318,7 @@ manual ARB fields — survives.
 | `balanceOffset` | `arbBalDelta` | `arbBalMode:'mech'` — solves the front/rear bar split; `arbBalTargetMode:'grip'` |
 | `reboundZeta` | `reboundZeta` | `dampCharMode:'zeta'` |
 | `bumpRatio` | `bumpRatio` | `dampingMode:'ratio'` |
-| `dampBias` | `dampingBias` | `dampBalMode:'sync'` |
+| `dampBias` | `dampingBias` | `dampBalMode:'sync'`, `bumpBalMode:'same'` — bump follows the rebound split, so Bump Ratio means what the axis says |
 | `diffExit`, `diffEntry` | `dr.diffBiasExit`, `dr.diffBiasEntry` | `dr.diffManual:false` |
 
 **Never written:** `ch` (including layout), `dr.buildType`, `dr.diffType`, the AWD

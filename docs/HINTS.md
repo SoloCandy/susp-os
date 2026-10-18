@@ -462,11 +462,19 @@ FRONT:
 
 **Bump ζ:**
 
-> Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; Damping Balance Mode splits it front/rear like rebound.
+> Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear.
 
 **DAMPING BALANCE MODE:**
 
-> How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.
+> How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.{tail}
+
+`{tail}` depends on BUMP BALANCE. On SAME:
+
+> Bump follows it unless BUMP BALANCE below says otherwise.
+
+On any other choice (the heading then reads DAMPING BALANCE MODE · REBOUND):
+
+> BUMP BALANCE is set below, so this splits rebound only.
 
 **Damping Bias** — TIME SYNC, HYBRID, EQUAL FORCE, then STANDARD. `{anchor}` is "the
 Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
@@ -478,6 +486,23 @@ Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
 > EQUAL FORCE: skews actual damping force front/rear; centre = equal force (anchored to {anchor}). Left (FRONT) shifts force to the front, right (REAR) to the rear.
 
 > Your Ride Reference axle holds the base ζ (anchored to {anchor}); the other swings up to 50% at ±50 (SHARED: both share it). Firmer front leans understeer, firmer rear oversteer.
+
+**BUMP BALANCE:**
+
+> How the bump anchor becomes a front/rear split. SAME: as rebound, with the same Damping Bias. Any other choice gives bump its own mode and Bump Bias. EQUAL CATCH (LANDING only): each axle absorbs the same drop.
+
+**Bump Bias** (BUMP BALANCE not SAME) — EQUAL CATCH, TIME SYNC, HYBRID, EQUAL FORCE, then STANDARD.
+`{anchor}` is "Bump Ratio", "Bump ζ" or "the LANDING drop" by BUMP MODE:
+
+> EQUAL CATCH: each axle solves its own bump ζ to absorb the drop; centre = equal drop. Left (FRONT) makes the front catch a bigger drop (firmer), right (REAR) the rear.
+
+> TIME SYNC: skews bump settle time front/rear; centre = equal (anchored to {anchor}). Left (FRONT) firms the front bump, right (REAR) the rear.
+
+> HYBRID: centre sits halfway between TIME SYNC and EQUAL FORCE for bump (anchored to {anchor}). Left (FRONT) firms the front bump, right (REAR) the rear.
+
+> EQUAL FORCE: skews bump damping force front/rear; centre = equal force (anchored to {anchor}). Left (FRONT) shifts it to the front, right (REAR) to the rear.
+
+> Your Ride Reference axle holds the bump anchor ({anchor}); the other swings up to 50% at ±50 (SHARED: both share it).
 
 ---
 
@@ -995,7 +1020,7 @@ available (PRO), then without it:
 
 **STEP 2 · DECODED TUNE:**
 
-> The tune read back as Hz and damping ratios. One front/rear split drives both rebound and bump, so some damper splits land close rather than exact.
+> The tune read back as Hz and damping ratios. Rebound and bump each get their own front/rear split; a split wider than ±50 bias lands close rather than exact.
 
 **MEASURE → Measure Hz:**
 

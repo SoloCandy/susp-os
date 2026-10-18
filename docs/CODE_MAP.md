@@ -106,8 +106,11 @@ measured from it),
 Supporting: `rsToHz`/`hzToRs`, `flatRideRearHz`, `flatRideSharedHz`,
 `solveSpring`, `solveDampRaw`, `settleZetas`/`forceZetas`/`balModeZetas`
 (Damping Balance Mode's front/rear split — `balModeZetas` is the by-mode
-dispatcher, called twice per solve: once for the rebound anchor and once for
-the INDEPENDENT or LANDING bump anchor), `peakCompressionFactor`/`landingTravel`/
+dispatcher; `splitDampZetas` wraps it with STANDARD's percentage swing and the clamp,
+and is called once per stroke: the rebound anchor, then the bump anchor unless RATIO
+bump on SAME just scales the rebound pair. `ownBumpBalMode` resolves BUMP BALANCE,
+null for SAME and for EQUAL CATCH outside LANDING; `catchZetas` is EQUAL CATCH's per-axle
+landing solve, used in place of `splitDampZetas` for bump), `peakCompressionFactor`/`landingTravel`/
 `landingCatchDrop`/`landingBumpZeta`/`landingRef`/`clampLandingPct` (BUMP MODE → LANDING: the drop-height
 solve and the per-axle Catch figure, see PHYSICS.md "LANDING bump mode"), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from

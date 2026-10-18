@@ -578,9 +578,9 @@ a claim of equality).
 
 ### The bump stroke gets the same split
 
-Everything above describes the *rebound* anchor. The bump stroke is split
-front/rear by the same Damping Balance Mode, and how it gets there depends
-on BUMP MODE:
+Everything above describes the *rebound* anchor. With BUMP BALANCE on SAME (the
+default) the bump stroke is split front/rear by the same Damping Balance Mode,
+and how it gets there depends on BUMP MODE:
 
 - **BUMP RATIO** needs no extra work. Bump ζ is one percentage of rebound
   ζ, so scaling both `zetaF` and `zetaR` by `bumpRatioVal/100` carries
@@ -601,6 +601,32 @@ Both splits clamp to 10–200%. Bump is deliberately **not** clamped to the
 axle's own rebound ζ: crossing above rebound is a warned-but-allowed state
 everywhere else (the slider reaches 115% and the readout says `⚠ CROSSED`),
 so clipping it here would contradict the rest of the app.
+
+### BUMP BALANCE: a mode of bump's own
+
+BUMP BALANCE (`fe.bumpBalMode`) set to STANDARD, TIME SYNC, HYBRID or EQUAL FORCE
+detaches the bump split from rebound. The bump anchor then goes through
+`splitDampZetas` with that mode and `fe.bumpDampingBias` instead of `dampBalMode`
+and `dampingBias`, under every BUMP MODE. Under BUMP RATIO the anchor is
+`baseZeta·bumpRatio` (clamped 10%..`baseZeta`, the same `physics.bumpZeta` the
+slider readout shows), so RATIO's shortcut of scaling the rebound pair applies only
+on SAME. Rebound is untouched: it is split by `dampBalMode` and `dampingBias` alone.
+
+`splitDampZetas` holds both cases, STANDARD's percentage swing included, so
+`feelToPhysics` and `computeTune` run one splitter for both strokes.
+**EQUAL CATCH** (`bumpBalMode:'catch'`, BUMP MODE → LANDING only) does not split an anchor
+at all. `catchZetas` runs `landingBumpZeta` once per axle, on that axle's own Hz and ride
+height, for the target drop: the per-axle version of what LANDING does for the ride-reference
+axle alone. Bump Bias multiplies the drop on the non-reference axle by `2^(displayed/50)`
+(SHARED: by its square root each way), so a positive bias asks the rear to catch more. The
+mode needs LANDING's drop height, so `ownBumpBalMode` resolves a stored `catch` to null
+(SAME) under any other BUMP MODE.
+
+`computeTune` re-solves each stroke on the post-CO-SOLVE rear Hz when that stroke's
+own mode is not STANDARD, so rebound on STANDARD with bump on TIME SYNC re-solves
+bump only. An own mode equal to the rebound's with an equal bias reproduces SAME
+exactly under INDEPENDENT and LANDING. Under RATIO it lands within rounding, since
+TIME SYNC is not linear in ζ.
 
 Before this, INDEPENDENT under TIME SYNC/EQUAL FORCE did the opposite of both rules —
 it fed the same typed ζ to *both* axles and then clipped each to that axle's

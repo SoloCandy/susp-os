@@ -53,6 +53,8 @@ const bDampBias = -(tune.zetaF - tune.zetaR) * 16 / effectiveAvgZeta;
 - `zetaR > zetaF` (rear damped harder than front) → **positive** → oversteer.
 - This is the formula that governs the Damping Bias slider: right
   (REAR bias: rear damped firmer relative to front) = oversteer; left (FRONT bias) = understeer.
+- Rebound only: bump ζ never enters it, so BUMP BALANCE and Bump Bias do not
+  move the DAMP row.
 - `tune.zetaF`/`tune.zetaR` themselves come from whichever Damping Balance
   Mode is active (STANDARD / TIME SYNC / HYBRID / EQUAL FORCE — see [SLIDERS.md](SLIDERS.md)), but
   this formula doesn't care how they were derived, only their final values —

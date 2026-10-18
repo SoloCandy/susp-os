@@ -102,8 +102,10 @@ future version might not carry.
 | 83 | dr | brakeEntryTarget | raw number — ENTRY Centre's ENTRY BRK target, grip-margin %, + = looser |
 | 84 | fe | landingPct | raw number — BUMP MODE → LANDING's drop height, % of the RIDE REF. axle's ride height; a target that re-solves bump ζ, see note |
 | 85 | meta | carries | raw number — bitmask of the groups the sender ticked under INCLUDE (`CARRY_BIT`: ch 1, fe 2, dr 4); omitted when all three were. See note |
+| 86 | fe | bumpBalMode | enum (`BUMP_BAL_MODE_ENC/DEC`) — BUMP BALANCE; `same` (0, the default) follows the rebound's `dampBalMode`. See note |
+| 87 | fe | bumpDampingBias | raw number — Bump Bias, −50..+50, stored sign as id 33 (+ = FRONT); read only when id 86 is not `same` |
 
-**Next available id: 86.**
+**Next available id: 88.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -142,6 +144,13 @@ real tier, so every new code carries id 77 — including `beginner`, which encod
 `0` and would otherwise be indistinguishable from an omitted field. Codes written
 before id 77 existed simply lack it and decode to `null`, which the UI reads as
 "not recorded" rather than guessing a tier.
+
+Ids 86/87 give the bump stroke its own Damping Balance Mode and bias (BUMP BALANCE).
+`bumpBalMode`'s default, `same`, is the behaviour every code before id 86 had: bump
+split with `dampBalMode` (62) and `dampingBias` (33). So an old code carries neither id
+and decodes unchanged, and a new code whose bump follows rebound omits both. Id 87 is
+kept even while 86 is `same`, so switching back to a mode restores the bias the sender
+had set. Both live in the `damp` part.
 
 Id 85 is the second `meta` field: which groups the sender ticked under INCLUDE on COPY
 CODE, as a `CARRY_BIT` mask (`ch` 1, `fe` 2, `dr` 4). `encodeTune` always writes all
@@ -254,7 +263,7 @@ choice, decided after the code is read.
 |---|---|---|
 | `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
-| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
+| `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
@@ -416,6 +425,7 @@ undocumented.
 | `LAYOUT_DEC` | 0 `FWD` · 1 `RWD` · 2 `AWD` |
 | `BUILD_DEC` | 0 `street` · 1 `track` · 2 `drift` · 3 `rally` · 4 `offroad` · 5 `drag` |
 | `TIER_DEC` | 0 `beginner` · 1 `intermediate` · 2 `pro` (UI labels: BEG / INT / PRO) |
+| `BUMP_BAL_MODE_DEC` | 0 `same` · 1 `standard` · 2 `sync` · 3 `neutral` · 4 `hybrid` · 5 `catch` (UI: SAME, STANDARD, TIME SYNC, HYBRID, EQUAL FORCE, EQUAL CATCH — the last offered only under BUMP MODE LANDING, and read as `same` under any other) |
 | `BRAKE_CENTRE_DEC` | 0 `rec` · 1 `grip` · 2 `entry` (UI labels: REC / GRIP / ENTRY) |
 
 `ARB_MODE_DEC` carries `auto` twice on purpose — index 3 is a retired `balance`

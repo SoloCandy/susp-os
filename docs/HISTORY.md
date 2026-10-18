@@ -11,6 +11,22 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — bump can run its own damping balance (BUMP BALANCE)
+
+One Damping Balance Mode and one Damping Bias used to split both strokes, so a tune
+could not, say, settle rebound in equal time while sharing bump force equally. BUMP
+BALANCE adds a second mode row and a Bump Bias for the bump stroke. Its default, SAME,
+is the old behaviour, so existing tunes, presets and codes are unchanged (codec ids
+86/87 are omitted at default). TUNE CHECK's IMPORT TUNE uses it: a decoded tune whose
+bump splits differently from its rebound used to land with the rebound's split on both
+strokes, and now imports both splits through BUMP BALANCE STANDARD. The rebound/bump
+split code that `feelToPhysics` and `computeTune` each carried a copy of is now one
+helper, `splitDampZetas`.
+
+Under BUMP MODE → LANDING, BUMP BALANCE adds EQUAL CATCH. LANDING solved bump ζ for the drop
+on the ride-reference axle only, and the other axle got whatever the balance split gave it,
+so the Catch row often showed it falling short. EQUAL CATCH solves each axle for the drop on
+its own Hz and ride height.
 ## Changed — Hz MODE MECH is hidden under NEUTRAL CANCEL
 
 CANCEL splits the bars so they cancel whatever balance the springs set, and on AUTO grows the
