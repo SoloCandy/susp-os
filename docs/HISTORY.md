@@ -11,6 +11,30 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the SECTIONS modal became a layout edit view, down to single controls
+
+The modal could hide whole sections and the DNA / CHECK buttons. EDIT now switches the page
+into an edit view where any control, output card or row, or balance-bar part is clicked grey
+(a whole section through a small HIDE button in its header, which still collapses as usual),
+and DONE leaves it hidden. What carried over, and why:
+
+- **The stored list kept its key and shape** (`suspos_hidden_v1`, per tier). New ids sit in
+  the same arrays beside the old section keys, so nothing needed migrating. That is also why
+  `tbDna` / `tbCheck` keep their pre-dotted spelling.
+- **The trap is the same one, one level down.** A hidden control can still be moving the
+  tune. Per-control stubs would have put the clutter back, so each section carries one line
+  counting its changed hidden controls. Counting by field alone over-reported: a value left
+  behind by another mode (Rebound ζ under SETTLE TIME, CG Height while it is computed from
+  ride height) read as "still applies" when it did not. Items carry a `live` mode for that.
+- **Hiding a card must not hide its warnings.** Wrapping a whole card took its clamp warnings
+  with it, so the warnings moved into a `<Keep>` that outlives the card, and the BeamNG
+  summary strip hides only its figures, never its warnings list.
+- **A `Hide` inside a `Hide` is inert**, because the outer wrapper's body is `inert` in the
+  edit view. A whole card would have locked its own rows, so `Card` and `Sec` carry their own
+  header toggles instead of being wrapped.
+
+`tests-sections.js` now also checks the render against `HIDE_ITEMS` both ways.
+
 ## Fixed — tests-docs.js failed TUTORIALS step text on a CRLF checkout
 
 With `core.autocrlf=true` (the Windows default) `index.html` and `docs/` check out CRLF. The

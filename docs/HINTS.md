@@ -1048,16 +1048,27 @@ The description under the mode picker — SHARE, LOAD, BACKUP, RESTORE:
 
 > Loads garage entries from a backup file. Ticked kinds replace yours for good, so RESTORE takes two taps. The current tune is not touched.
 
-## SECTIONS modal (INT / PRO)
+## Layout edit view (INT / PRO)
 
-Opened by EDIT in the sidebar's SECTIONS row. The intro:
+EDIT in the sidebar's SECTIONS row turns it into a banner. Its explanation:
 
-> Choose what this tier shows. Hiding never changes the tune: a hidden section whose settings differ from its defaults stays as one line until you reset it or show it again. Guides show everything while they run.
+> Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
 
-A row whose section is hidden but changed carries:
+The strip at the top of the output panel, which carries a second DONE (on a phone the sidebar's
+banner is off screen):
 
-> CHANGED · STUB
+> EDITING LAYOUT · click a card header, a row or a balance bar part to hide it
 
-The stub line a hidden, changed section leaves in the sidebar, after its title:
+The line a whole hidden section leaves in the sidebar while it differs from its defaults, after
+its title:
 
 > hidden · changed settings still apply
+
+The line under a shown section's header when controls hidden inside it still differ from their
+defaults. SHOW brings back those controls only:
+
+> {n} hidden setting{s} changed · still {apply / applies}
+
+The note at the foot of the output panel while any card, row or balance-bar part is hidden:
+
+> {n} output part{s} hidden in this tier

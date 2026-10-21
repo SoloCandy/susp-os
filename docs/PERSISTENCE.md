@@ -15,8 +15,9 @@ rehydrated value **before the first render** for callers that need a key validat
 Two keys pass one. `suspos_fe_v8` passes `repairFe`, for `gameMode`, because that
 one key's bad value used to crash the app rather than fall through to a default —
 see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the rest, which still have the hole.
-`suspos_hidden_v1` passes `repairHidden`, which keeps only section keys valid for
-each tier, because its lists are arrays and `mergeDefaults` replaces arrays whole.
+`suspos_hidden_v1` passes `repairHidden`, which keeps only ids valid for each tier
+(`SECTION_VIS` keys and `HIDE_ITEMS` ids), because its lists are arrays and
+`mergeDefaults` replaces arrays whole.
 
 A repair must live here rather than in a mount effect: `usePersist`'s setter closes
 over the render-time value, so two effects writing the same key in one tick clobber
@@ -30,7 +31,7 @@ each other, and an effect also runs too late to protect the first render. See
 | `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget` | `DEF_DR` |
 | `suspos_al_v2` | Alignment state (`al`) — mode (build/mech/grip/manual), nudgeStrength, manual camber/toe/caster, and the legacy `alignManual` flag (still read as a fallback for old saves — see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_AL` |
 | `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
-| `suspos_hidden_v1` | Sections hidden by the SECTIONS modal, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys. `repairHidden` drops unknown keys and keys from another tier (BALANCE and ALIGNMENT are PRO-only). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
+| `suspos_hidden_v1` | What the layout edit view hides, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys (whole sections) and `HIDE_ITEMS` ids (single controls, toolbar buttons, output cards and rows, balance-bar parts). The shape and key are unchanged from when only sections could be hidden, so lists stored then still load; the ids are permanent for the same reason. `repairHidden` drops unknown ids, duplicates and ids from another tier (BALANCE, ALIGNMENT and the PRO-only controls). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
 | `suspos_units_v1` | Legacy IMP/MET boolean — **read-only**, seeds the `_v2` default once | `false` (imperial) |
 | `suspos_saves_v9` | Legacy preset save slots — **read-only**, first link in the migration chain below | `PRESET_SAVES` |
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |

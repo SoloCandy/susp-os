@@ -54,7 +54,7 @@ SHARE gives you a **code** and a **link** (`…#t=CODE`) for the current tune; o
 
 INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
 
-INT and PRO can also hide what you don't use. **EDIT** in the sidebar's SECTIONS row opens a list of the tier's sections plus the toolbar's DNA and CHECK buttons, each with SHOW / HIDE; INT and PRO keep separate lists, saved on this device only. Hiding never changes the tune: a hidden section whose settings differ from their defaults stays in the sidebar as one line (hidden · changed settings still apply · SHOW) until you reset it or show it again, so nothing that is moving your numbers can vanish. The in-app guides show everything while they run.
+INT and PRO can also hide what you don't use. **EDIT** in the sidebar's SECTIONS row switches the page into an edit view: use a section's small **HIDE** button, or click any single control, toolbar button (DNA, CHECK), output card or row, or part of the balance bar to grey it out, click again to bring it back, and **DONE** to return to the regular view without the greyed-out parts. INT and PRO keep separate lists, saved on this device only. Hiding never changes the tune: a hidden section or control whose settings differ from their defaults leaves one line on its section (*N hidden settings changed · still apply · SHOW*), warnings are never hidden, and the output panel notes how many of its parts are hidden, so nothing that is moving your numbers can vanish silently. The in-app guides show everything while they run.
 
 | Tier | Surface |
 |---|---|
@@ -133,7 +133,7 @@ node tests/tests-history.js  # undo / redo history core tests (reads index.html 
 node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
-node tests/tests-sections.js # SECTIONS modal: section ownership, stub gating, stored lists (reads index.html directly)
+node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

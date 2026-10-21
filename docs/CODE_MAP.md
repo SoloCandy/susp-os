@@ -230,8 +230,11 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite, e.g. MEASURE ARB before a reading) shows `placeholder`; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `FeelSlider`, and by Tune Check's MEAS. NAT BAL |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
 | `Toggle` | mode switches |
-| `Sec` | the ten collapsible sidebar sections (`div.stog` header). `vis` (`show` / `stub` / `none`, from `App`'s `secVis`) and `onShow` are the SECTIONS modal's: `none` renders nothing, `stub` renders a `HiddenStub`. Hooks run before the early returns, so a section's hook order never changes with its visibility |
-| `HiddenStub` | the one line a hidden section leaves when `sectionChanged` says it still holds non-default settings: amber dot, title, "hidden · changed settings still apply", SHOW |
+| `Sec` | the ten collapsible sidebar sections (`div.stog` header). Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a small HIDE / SHOW button for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
+| `HiddenStub` | the one-line notice for hidden settings that still apply: amber dot, optional title, `text`, SHOW. Used for a whole hidden section that `sectionChanged` says differs from its defaults ("hidden · changed settings still apply"), and for changed controls hidden inside a shown one (`hiddenChangedIn`) |
+| `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` is the app's only React context: `{edit, isHidden(id), toggle(id)}`, provided by `App` (an empty hidden list while a guide runs). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, faded and dashed when hidden. `inline`, `style` and `bodyStyle` only shape the edit-view wrapper. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
+| `hid` on `OutRow` / `Card` | the output panel's hideable parts. `OutRow hid` goes through `Hide`; `RowGroup` drops hidden `OutRow` children (by their `hid` prop) in the regular view and renders nothing once none are left. `Card hid` puts the toggle on the header only, so the rows stay clickable, and a `<Keep>` child (the card's warnings) still renders on its own when the card is hidden. `SuspensionCard` / `AlignCard` / `DiffCard` take `hid` and give their rows theirs |
+| `SrcHead` | `group` (`HIDE_ITEMS` ids) drops the header in the regular view once everything under it is hidden |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
 | `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode` |
@@ -393,23 +396,54 @@ and the only symptom was `+` not opening that one section, in PRO only — with 
 tutorial step that writes the key papering over even that. `tests-docs.js` checks
 the initialiser against every `open.*` and `tog('...')` use in the source.
 
-### Hidden sections (SECTIONS modal)
+### Layout edit view (hiding sections, controls and output parts)
 
-`SECTION_VIS` (module scope, `── Section visibility ──`) lists every section the SECTIONS
-modal can hide, which tiers render it, and the fields it owns. That one table drives three
-things that used to be separate: each `Sec`'s RESET (`sectionDefaults`), whether a hidden
-section still leaves a stub (`sectionChanged`), and which stored keys survive a reload
-(`repairHidden`). A new `Sec` needs a `SECTION_VIS` row as well as a `SECTION_KEYS` entry,
-and `tests-sections.js` fails until it has one.
+EDIT in the SECTIONS row sets `layoutEdit` (plain state, never stored) and the row becomes a
+banner with SHOW ALL and DONE; a strip with a second DONE sits at the top of `zone-output`.
+In the edit view every hideable part is drawn, and a click toggles it in this tier's hidden
+list. Sections stay collapsible there (VISUALS included); a whole section hides through the
+small HIDE button in its header. The view exits on DONE, Escape, a tier change, or a guide starting, and BEG never has
+it. It replaced the SECTIONS modal, which could hide whole sections only.
 
-`sectionChanged` is gated the way the app applies the fields: BALANCE counts only while
-`hasBalTargetSolve`, and below PRO BRAKES counts only `brakeBiasShift` (the Centre is
-ignored there). VISUALS and the toolbar's DNA / CHECK rows own no fields, so hiding them
-removes them outright; an applied DNA keeps its sidebar link line.
+Two tables under `── Section visibility ──` say what can be hidden:
 
-`App`'s `secVis(key)` returns `show` while `tutMode` is active — a guide's spotlight has to
-find its zone — and BEG never hides anything (it has no `Sec`s and no modal). The stored
-lists are `suspos_hidden_v1`, per tier; see [PERSISTENCE.md](PERSISTENCE.md).
+- **`SECTION_VIS`**: every sidebar section, which tiers render it, and the fields it owns.
+  It drives each `Sec`'s RESET (`sectionDefaults`), whether a whole hidden section leaves a
+  stub (`sectionChanged`), and which stored keys survive a reload (`repairHidden`). A new
+  `Sec` needs a row here as well as in `SECTION_KEYS`.
+- **`HIDE_ITEMS`**: every single part, one row per `<Hide id>` / `hid=` in the render. `sec`
+  is its `SECTION_VIS` key, or `toolbar` / `output` / `bar`. `fields` (`[state, keys]`) are
+  the settings the control writes. They belong to its own section or to no section's RESET
+  (`arbManF`/`R` and `springShareAuto` are in none). `live(st, tier)`, where given, says the
+  fields apply right now: CG Height is computed while its source is RIDE HEIGHT, and Rebound ζ
+  does nothing under SETTLE TIME. `tiers` defaults to the section's. **Ids are stored, so they
+  are permanent: retire one, never reuse it.** `tbDna` and `tbCheck` were `SECTION_VIS` rows
+  before this table existed and keep their spelling. A control that renders in two branches
+  (INT and PRO variants, or Forza and BeamNG output rows for the same quantity) shares one id.
+  Its two targets in different Balance Target modes are separate ids, because each applies
+  only in its own mode.
+
+A new control needs a `<Hide id>` and a `HIDE_ITEMS` row; `tests-sections.js` fails on an
+id in either place without the other.
+
+`sectionChanged` and `hiddenChangedIn` share their gates (`liveKeys`): BALANCE counts only
+while `hasBalTargetSolve`, and below PRO BRAKES counts only `brakeBiasShift`.
+`hiddenChangedIn` is what a shown section's "N hidden settings changed" line counts, and its
+SHOW brings back exactly those ids. A hidden setting that still changes the tune is never
+silent.
+
+**Never hideable, on purpose:** the warnings and clamp notes (amber or orange text in the
+sidebar and the output cards, inside `<Keep>` in a card, and the BeamNG summary strip's
+warnings list, which stays when the strip's figures are hidden), the balance bar's headline
+(it opens the breakdown) and its FIT? badge (a validity flag), and the DNA link line.
+Read-outs that are only information (`balance.guide`, `ride.hzStrip`, `dampers.table`) are
+hideable. The ones that carry their own clamp or ⚠ state (RIDE's MECH and SHARED solved
+read-outs, the ARB NEUTRAL read-outs) are not.
+
+`App`'s `secVis(key)` and `LayoutCtx` both treat everything as shown while `tutMode` is
+active, so a guide's spotlight always finds its zone. EDIT is disabled during a guide, and
+BEG never hides anything. The stored lists are `suspos_hidden_v1`, per tier; see
+[PERSISTENCE.md](PERSISTENCE.md).
 
 ---
 
@@ -580,8 +614,8 @@ Special ones — a three-deep migration chain plus its two sentinels:
 ...parsed}`), so a partial object in storage is valid and missing keys fall
 back to their default. A key that is *present but invalid* is not checked —
 `usePersist`'s optional third argument `repair` is the opt-in for that, run once
-before the first render; `fe` passes `repairFe` (`gameMode` only) and the SECTIONS
-modal's hidden lists pass `repairHidden`. See
+before the first render; `fe` passes `repairFe` (`gameMode` only) and the layout
+edit view's hidden lists pass `repairHidden`. See
 [PERSISTENCE.md](PERSISTENCE.md).
 
 ---
@@ -766,10 +800,12 @@ test carries **no** exemption for the lifted region, and must not be given one a
 chip each payload produces, and the BRAKES chips' tier gating. That gating is a
 promise about App's `brakeBias`, which only the browser exercises end to end.
 
-**`tests-sections.js` reads `index.html` the same way** and covers `SECTION_VIS`: every
-`SECTION_KEYS` section has a row, every RESET goes through `sectionDefaults`, no field has
-two owners, `sectionChanged`'s gating, and `repairHidden`. Whether the stub and the modal
-render — and the tutorial override — still needs the browser.
+**`tests-sections.js` reads `index.html` the same way** and covers `SECTION_VIS` and
+`HIDE_ITEMS`: every `SECTION_KEYS` section has a row, every RESET goes through
+`sectionDefaults`, no field has two owners, `sectionChanged`'s gating, every `<Hide id>` /
+`hid=` in the render is listed and every listed id is used, `hiddenChangedIn`'s gates and
+`live` modes, and `repairHidden` (old stored lists included). Whether the edit view, the
+lines and the footer render, and the tutorial override, still needs the browser.
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
@@ -808,5 +844,6 @@ non-trivial edit:
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.
-12. `node tests/tests-sections.js` after adding a `Sec`, changing what a RESET resets, or
-   touching `SECTION_VIS`, `sectionChanged` or `repairHidden`.
+12. `node tests/tests-sections.js` after adding a `Sec` or a control, changing what a RESET
+   resets, or touching `SECTION_VIS`, `HIDE_ITEMS`, `sectionChanged`, `hiddenChangedIn` or
+   `repairHidden`.

@@ -116,6 +116,17 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
       -webkit-tap-highlight-color:transparent}
 .stog:hover{color:#9ca3af;background:#0a0f1a88}
 .stog-open{color:#9ca3af}
+/* Layout edit view (Hide): the part sits under a full-cover button, inert, so a click toggles
+   it instead of moving a slider. A hidden part is faded and dashed. */
+.hz{position:relative;border-radius:2px;outline:1px dashed transparent;outline-offset:1px}
+.hz-inline{display:inline-block}
+.hz-body{transition:opacity .12s}
+.hz-off .hz-body{opacity:.28}
+.hz-off{outline-color:#475569}
+.hz-btn{position:absolute;inset:0;width:100%;height:100%;padding:0;margin:0;border:none;
+        background:transparent;cursor:pointer;z-index:2;border-radius:2px}
+.hz-btn:hover{background:#818cf814;outline:1px solid #818cf866}
+.hz-btn:focus-visible{outline:1px solid #818cf8}
 .card{background:#020617;border:1px solid #1e293b;border-radius:2px;overflow:hidden;margin-bottom:10px}
 .ch{padding:3px 8px;background:#0a0f1a;border-bottom:1px solid #1e293b;
     display:flex;align-items:center;gap:6px;column-gap:6px}
@@ -3307,7 +3318,7 @@ const ALIGN_MODE_DEC=['build','mech','grip','manual'];
 const BRAKE_BIAS_SCALE=0.20;
 
 // ── Section visibility ──────────────────────────────────────────────────────
-// The sidebar sections the SECTIONS modal can hide, in sidebar order, and the fields each one
+// The sidebar sections the layout edit view can hide, in sidebar order, and the fields each one
 // owns: [state, keys], keys null = the whole DEF_* object. Each section's RESET resets exactly
 // these (sectionDefaults), so "what RESET would undo" and "what a hidden section still holds"
 // cannot drift apart. tiers = where the section renders at all.
@@ -3322,14 +3333,182 @@ const SECTION_VIS=[
   {key:'brakes',    label:'BRAKES',         tiers:['intermediate','pro'], fields:['dr',['brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']]},
   {key:'drivetrain',label:'DRIVETRAIN',     tiers:['intermediate','pro'], fields:['dr',['diffType','diffManual','diffComplement','diffBiasExit','diffBiasEntry','diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel','diffRearAccel','diffRearDecel','diffCenter']]},
   {key:'visuals',   label:'VISUALS',        tiers:['intermediate','pro'], fields:null},
-  // Toolbar buttons. No tune state of their own: an applied DNA keeps its sidebar link line.
-  {key:'tbDna',     label:'DNA button',     tiers:['intermediate','pro'], fields:null},
-  {key:'tbCheck',   label:'CHECK button',   tiers:['intermediate','pro'], fields:null},
 ];
 const SECTION_DEFS={ch:DEF_CH,fe:DEF_FE,dr:DEF_DR,al:DEF_AL};
 const sectionKeysOf=key=>{
   const f=SECTION_VIS.find(s=>s.key===key)?.fields;
   return f?(f[1]??Object.keys(SECTION_DEFS[f[0]])):[];
+};
+// Every single part the edit view can hide, one row per <Hide id> / hid= in the render. sec is
+// the SECTION_VIS key it sits in, or toolbar / output / bar. fields ([state, keys]) are the
+// settings the control writes, a subset of its section's; a hidden item whose fields differ
+// from the defaults is counted on its section's "hidden settings changed" line. tiers defaults
+// to the section's. live(st,tier), where given, says whether the fields apply right now (CG
+// Height is computed, not entered, while its source is RIDE HEIGHT); without it a difference
+// from the default always counts. Ids are stored: retire one, never reuse it. The toolbar ids
+// predate the table (they were SECTION_VIS rows) and keep their old spelling.
+const HIDE_ITEMS=[
+  {id:'tbDna',   sec:'toolbar'},
+  {id:'tbCheck', sec:'toolbar'},
+  // CHASSIS
+  {id:'chassis.layout',          sec:'chassis', fields:['ch',['layout']]},
+  {id:'chassis.weight',          sec:'chassis', fields:['ch',['weight']]},
+  {id:'chassis.frontBias',       sec:'chassis', fields:['ch',['frontBias']]},
+  {id:'chassis.tyres',           sec:'chassis', fields:['ch',['tyreF','tyreR']]},
+  {id:'chassis.cgSource',        sec:'chassis', fields:['ch',['useRideHeightCG']]},
+  {id:'chassis.rideHeightF',     sec:'chassis', fields:['ch',['rideHeightF']], live:st=>st.ch.useRideHeightCG!==false},
+  {id:'chassis.rideHeightR',     sec:'chassis', fields:['ch',['rideHeightR']], live:st=>st.ch.useRideHeightCG!==false},
+  {id:'chassis.cgEst',           sec:'chassis'},
+  {id:'chassis.cgHeight',        sec:'chassis', fields:['ch',['cgHeight']], live:st=>st.ch.useRideHeightCG===false},
+  {id:'chassis.measureNatBal',   sec:'chassis', tiers:['pro'], fields:['ch',['useMeasuredNatBal','measuredNatBal','measuredNatBalHz','measuredNatBalRef']]},
+  {id:'chassis.wheelbase',       sec:'chassis', tiers:['pro'], fields:['ch',['wheelbase']]},
+  {id:'chassis.trackF',          sec:'chassis', tiers:['pro'], fields:['ch',['trackF']]},
+  {id:'chassis.trackR',          sec:'chassis', tiers:['pro'], fields:['ch',['trackR']]},
+  {id:'chassis.motionRatioF',    sec:'chassis', tiers:['pro'], fields:['ch',['motionRatioF']]},
+  {id:'chassis.motionRatioR',    sec:'chassis', tiers:['pro'], fields:['ch',['motionRatioR']]},
+  {id:'chassis.arbMotionRatioF', sec:'chassis', tiers:['pro'], fields:['ch',['arbMotionRatioF']]},
+  {id:'chassis.arbMotionRatioR', sec:'chassis', tiers:['pro'], fields:['ch',['arbMotionRatioR']]},
+  // BUILD
+  {id:'build.type',              sec:'build',   fields:['dr',['buildType']]},
+  // BALANCE (PRO only, like the section). Each target control applies only in its own mode.
+  {id:'balance.targetMode',      sec:'balance', fields:['fe',['arbBalTargetMode']]},
+  {id:'balance.targetNat',       sec:'balance', fields:['fe',['arbBalTarget']], live:st=>balTargetModeOf(st.fe)==='natural'},
+  {id:'balance.targetAbs',       sec:'balance', fields:['fe',['arbBalAbs']],    live:st=>balTargetModeOf(st.fe)==='abs'},
+  {id:'balance.offset',          sec:'balance', fields:['fe',['arbBalDelta']],  live:st=>['range','grip','phase'].includes(balTargetModeOf(st.fe))},
+  {id:'balance.exitLoad',        sec:'balance', fields:['fe',['phaseExitG']],   live:st=>balTargetModeOf(st.fe)==='phase'},
+  {id:'balance.guide',           sec:'balance'},
+  {id:'balance.gap',             sec:'balance'},
+  // ALIGNMENT (PRO). mode is shared: AUTO/MANUAL counts it in MANUAL, Nudge in AUTO.
+  {id:'align.mode',              sec:'alignment', fields:['al',['mode']], live:st=>st.al.mode==='manual'},
+  {id:'align.nudge',             sec:'alignment', fields:['al',['mode']], live:st=>st.al.mode!=='manual'},
+  {id:'align.nudgeStrength',     sec:'alignment', fields:['al',['nudgeStrength']], live:st=>st.al.mode==='mech'||st.al.mode==='grip'},
+  {id:'align.camberF',           sec:'alignment', fields:['al',['camberF']], live:st=>st.al.mode==='manual'},
+  {id:'align.camberR',           sec:'alignment', fields:['al',['camberR']], live:st=>st.al.mode==='manual'},
+  {id:'align.toeF',              sec:'alignment', fields:['al',['toeF']],    live:st=>st.al.mode==='manual'},
+  {id:'align.toeR',              sec:'alignment', fields:['al',['toeR']],    live:st=>st.al.mode==='manual'},
+  {id:'align.caster',            sec:'alignment', fields:['al',['caster']],  live:st=>st.al.mode==='manual'},
+  // ANTI-ROLL BARS. arbManF/R and springShareAuto are in no section's RESET, but they are
+  // still this section's controls.
+  {id:'arb.mode',                sec:'arb', fields:['fe',['arbMode']]},
+  {id:'arb.basic',               sec:'arb', fields:['fe',['arbBasicMan']],      live:st=>st.fe.arbMode==='basic'},
+  {id:'arb.roll',                sec:'arb', fields:['fe',['arbTargetRollMan']], live:st=>st.fe.arbMode==='roll'},
+  {id:'arb.share',               sec:'arb', fields:['fe',['arbShareMan']],      live:st=>st.fe.arbMode==='share'},
+  {id:'arb.manF',                sec:'arb', fields:['fe',['arbManF']],          live:st=>st.fe.arbMode==='man'},
+  {id:'arb.manR',                sec:'arb', fields:['fe',['arbManR']],          live:st=>st.fe.arbMode==='man'},
+  {id:'arb.balMode',             sec:'arb', fields:['fe',['arbBalMode']],       live:st=>st.fe.arbMode!=='man'},
+  {id:'arb.splitDir',            sec:'arb', fields:['fe',['arbSplitOpposite']], live:st=>st.fe.arbMode!=='man'&&['weight','chassis'].includes(st.fe.arbBalMode??'weight')},
+  {id:'arb.neutralMethod',       sec:'arb', fields:['fe',['arbNeutralEqual']],  live:st=>st.fe.arbMode!=='man'&&st.fe.arbBalMode==='neutral'},
+  {id:'arb.mechSplit',           sec:'arb', tiers:['pro']},
+  {id:'arb.coSolveSplit',        sec:'arb', tiers:['pro']},
+  {id:'arb.coSolveCorr',         sec:'arb', tiers:['pro']},
+  {id:'arb.springShare',         sec:'arb', tiers:['pro'], fields:['fe',['springShare','springShareAuto']], live:st=>st.fe.arbMode!=='man'&&st.fe.arbBalMode==='coSolve'},
+  {id:'arb.bias',                sec:'arb', fields:['fe',['arbBias']], live:st=>st.fe.arbMode!=='man'&&['weight','neutral','chassis'].includes(st.fe.arbBalMode??'weight')},
+  // RIDE. Under CO-SOLVE the rear Hz is solved, so the Hz MODE controls do not apply.
+  {id:'ride.ref',                sec:'ride', fields:['fe',['rideRef']]},
+  {id:'ride.stiffMode',          sec:'ride', fields:['fe',['rideStiffMode']], live:st=>st.ch.useRideHeightCG!==false},
+  {id:'ride.stiffness',          sec:'ride', fields:['fe',['rideStiffness','rideBottomG']]},
+  {id:'ride.hzMode',             sec:'ride', fields:['fe',['rearHzMode']], live:st=>!(st.fe.arbMode!=='man'&&st.fe.arbBalMode==='coSolve')},
+  {id:'ride.targetSpeed',        sec:'ride', fields:['fe',['targetSpeed']], live:st=>(st.fe.rearHzMode??'flatRide')==='flatRide'&&!(st.fe.arbMode!=='man'&&st.fe.arbBalMode==='coSolve')},
+  {id:'ride.hzMult',             sec:'ride', fields:['fe',['rearHzMult']],  live:st=>st.fe.rearHzMode==='multiplier'&&!(st.fe.arbMode!=='man'&&st.fe.arbBalMode==='coSolve')},
+  {id:'ride.hzMan',              sec:'ride', fields:['fe',['rearHzMan']],   live:st=>st.fe.rearHzMode==='independent'&&!(st.fe.arbMode!=='man'&&st.fe.arbBalMode==='coSolve')},
+  {id:'ride.hzStrip',            sec:'ride'},
+  {id:'ride.springStrip',        sec:'ride'},
+  // DAMPERS
+  {id:'dampers.reboundMode',     sec:'dampers', fields:['fe',['dampCharMode']]},
+  {id:'dampers.settle',          sec:'dampers', fields:['fe',['settleTarget']], live:st=>st.fe.dampCharMode==='settle'},
+  {id:'dampers.reboundZeta',     sec:'dampers', fields:['fe',['reboundZeta']],  live:st=>st.fe.dampCharMode!=='settle'},
+  {id:'dampers.balMode',         sec:'dampers', fields:['fe',['dampBalMode']]},
+  {id:'dampers.bias',            sec:'dampers', fields:['fe',['dampingBias']]},
+  {id:'dampers.bumpMode',        sec:'dampers', fields:['fe',['dampingMode']]},
+  {id:'dampers.landing',         sec:'dampers', fields:['fe',['landingPct']], live:st=>st.fe.dampingMode==='landing'},
+  {id:'dampers.bumpRatio',       sec:'dampers', fields:['fe',['bumpRatio']],  live:st=>(st.fe.dampingMode??'ratio')==='ratio'},
+  {id:'dampers.bumpZeta',        sec:'dampers', fields:['fe',['bumpZeta']],   live:st=>st.fe.dampingMode==='independent'},
+  {id:'dampers.bumpBalMode',     sec:'dampers', fields:['fe',['bumpBalMode']]},
+  {id:'dampers.bumpBias',        sec:'dampers', fields:['fe',['bumpDampingBias']], live:st=>ownBumpBalMode(st.fe.bumpBalMode,st.fe.dampingMode)!=null},
+  {id:'dampers.table',           sec:'dampers'},
+  // BRAKES. Below PRO only the shift counts (liveKeys), so the PRO-only rows never do there.
+  {id:'brakes.centre',           sec:'brakes', tiers:['pro'], fields:['dr',['brakeCentre']]},
+  {id:'brakes.entryTarget',      sec:'brakes', tiers:['pro'], fields:['dr',['brakeEntryTarget']], live:st=>st.dr.brakeCentre==='entry'},
+  {id:'brakes.decel',            sec:'brakes', tiers:['pro'], fields:['dr',['brakeDecel']], live:st=>st.dr.brakeCentre==='grip'},
+  {id:'brakes.refLine',          sec:'brakes', tiers:['pro']},
+  {id:'brakes.entryBrk',         sec:'brakes', tiers:['pro']},
+  {id:'brakes.bias',             sec:'brakes', fields:['dr',['brakeBiasShift']], live:(st,tier)=>tier!=='pro'||st.dr.brakeCentre!=='entry'},
+  // DRIVETRAIN. The AUTO sliders apply only off MANUAL, the typed locks only on it.
+  {id:'drive.diffType',          sec:'drivetrain', fields:['dr',['diffType']]},
+  {id:'drive.diffMode',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffManual']]},
+  {id:'drive.frontExit',         sec:'drivetrain', fields:['dr',['diffFrontExitBias']], live:st=>!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.matchChassis',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffComplement']], live:st=>!st.dr.diffManual},
+  {id:'drive.exit',              sec:'drivetrain', fields:['dr',['diffBiasExit']],  live:st=>!st.dr.diffManual},
+  {id:'drive.entry',             sec:'drivetrain', fields:['dr',['diffBiasEntry']], live:st=>!st.dr.diffManual&&st.dr.diffType!=='sport'},
+  {id:'drive.powerSplit',        sec:'drivetrain', fields:['dr',['diffCenter']],    live:st=>!st.dr.diffManual&&st.ch.layout==='AWD'&&st.dr.diffType!=='sport'},
+  {id:'drive.manFrontAccel',     sec:'drivetrain', tiers:['pro'], fields:['dr',['diffFrontAccel']], live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manFrontDecel',     sec:'drivetrain', tiers:['pro'], fields:['dr',['diffFrontDecel']], live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manRearAccel',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffRearAccel']],  live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manRearDecel',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffRearDecel']],  live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manCenter',         sec:'drivetrain', tiers:['pro'], fields:['dr',['diffCenter']],     live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manAccel',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffAccel']],      live:st=>!!st.dr.diffManual&&st.ch.layout!=='AWD'},
+  {id:'drive.manDecel',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffDecel']],      live:st=>!!st.dr.diffManual&&st.ch.layout!=='AWD'},
+  // VISUALS: display only.
+  {id:'visuals.dna',             sec:'visuals'},
+  {id:'visuals.ride',            sec:'visuals'},
+  {id:'visuals.dynamics',        sec:'visuals'},
+  {id:'visuals.sag',             sec:'visuals'},
+  {id:'visuals.load',            sec:'visuals', tiers:['pro']},
+  {id:'visuals.grip',            sec:'visuals', tiers:['pro']},
+  // OUTPUT. Cards are per layout (Forza by subsystem, BeamNG by axle); a row both games show
+  // shares one id, so hiding it hides it in either. Warnings are never hideable.
+  {id:'out.card.align',          sec:'output'},
+  {id:'out.card.arb',            sec:'output'},
+  {id:'out.card.springs',        sec:'output'},
+  {id:'out.card.dampers',        sec:'output'},
+  {id:'out.card.brakes',         sec:'output'},
+  {id:'out.card.diff',           sec:'output'},
+  {id:'out.card.suspF',          sec:'output'},
+  {id:'out.card.suspR',          sec:'output'},
+  {id:'out.card.alignF',         sec:'output'},
+  {id:'out.card.alignR',         sec:'output'},
+  {id:'out.card.diffF',          sec:'output'},
+  {id:'out.card.diffR',          sec:'output'},
+  {id:'out.card.center',         sec:'output'},
+  {id:'out.summary',             sec:'output'},
+  {id:'out.camberF',             sec:'output'},
+  {id:'out.camberR',             sec:'output'},
+  {id:'out.toeF',                sec:'output'},
+  {id:'out.toeR',                sec:'output'},
+  {id:'out.caster',              sec:'output'},
+  {id:'out.arbF',                sec:'output'},
+  {id:'out.arbR',                sec:'output'},
+  {id:'out.springF',             sec:'output'},
+  {id:'out.springR',             sec:'output'},
+  {id:'out.rebF',                sec:'output'},
+  {id:'out.rebR',                sec:'output'},
+  {id:'out.bumpF',               sec:'output'},
+  {id:'out.bumpR',               sec:'output'},
+  {id:'out.brakeBias',           sec:'output'},
+  {id:'out.diff.frontAccel',     sec:'output'},
+  {id:'out.diff.frontDecel',     sec:'output'},
+  {id:'out.diff.rearAccel',      sec:'output'},
+  {id:'out.diff.rearDecel',      sec:'output'},
+  {id:'out.diff.center',         sec:'output'},
+  {id:'out.diff.accel',          sec:'output'},
+  {id:'out.diff.decel',          sec:'output'},
+  {id:'out.diff.rec',            sec:'output'},
+  {id:'out.diff.recCenter',      sec:'output'},
+  // HANDLING BALANCE bar. The headline (the control that opens the breakdown) and the FIT?
+  // badge (a validity warning) stay.
+  {id:'bar.mechHead',            sec:'bar', tiers:['pro']},
+  {id:'bar.stack',               sec:'bar'},
+  {id:'bar.legend',              sec:'bar'},
+  {id:'bar.phase',               sec:'bar', tiers:['pro']},
+  {id:'bar.mechStrip',           sec:'bar', tiers:['pro']},
+  {id:'bar.response',            sec:'bar'},
+];
+const HIDE_TIERS=['intermediate','pro'];
+const hideItemTiers=it=>it.tiers??SECTION_VIS.find(s=>s.key===it.sec)?.tiers??HIDE_TIERS;
+const HIDE_BY_ID=Object.fromEntries(HIDE_ITEMS.map(it=>[it.id,it]));
+const fieldsDiffer=(state,keys,st)=>{
+  const cur=st[state]??{},D=SECTION_DEFS[state];
+  return keys.some(k=>JSON.stringify(cur[k]??null)!==JSON.stringify(D[k]??null));
 };
 // The defaults a section's RESET writes, as a patch for its state object.
 const sectionDefaults=key=>{
@@ -3340,19 +3519,31 @@ const sectionDefaults=key=>{
 // removed outright — it leaves a stub line, so a value nobody can see still shows it is there.
 // Gated the way the app applies the fields: BALANCE only while something solves toward the
 // target, and below PRO the brakes' Centre is ignored, leaving only the shift.
+// The keys of `keys` this tier actually applies, under the gates sectionChanged describes.
+const liveKeys=(sec,keys,st,tier)=>{
+  if(sec==='balance'&&!hasBalTargetSolve(st.fe))return[];
+  return sec==='brakes'&&tier!=='pro'?keys.filter(k=>k==='brakeBiasShift'):keys;
+};
 const sectionChanged=(key,st,tier)=>{
   const f=SECTION_VIS.find(s=>s.key===key)?.fields;
   if(!f)return false;
-  if(key==='balance'&&!hasBalTargetSolve(st.fe))return false;
-  const keys=key==='brakes'&&tier!=='pro'?['brakeBiasShift']:sectionKeysOf(key);
-  const cur=st[f[0]]??{},D=SECTION_DEFS[f[0]];
-  return keys.some(k=>JSON.stringify(cur[k]??null)!==JSON.stringify(D[k]??null));
+  return fieldsDiffer(f[0],liveKeys(key,sectionKeysOf(key),st,tier),st);
 };
-// Persisted hidden lists, one per tier that has the modal. Unknown keys are dropped so a
-// section removed later can't linger as a hidden ghost.
+// The hidden items of one section whose settings differ from the defaults: the ones its
+// "hidden settings changed" line counts and its SHOW brings back. Same gates as sectionChanged.
+const hiddenChangedIn=(sec,hidden,st,tier)=>hidden.filter(id=>{
+  const it=HIDE_BY_ID[id];
+  if(!it||it.sec!==sec||!it.fields||!hideItemTiers(it).includes(tier))return false;
+  if(it.live&&!it.live(st,tier))return false;
+  return fieldsDiffer(it.fields[0],liveKeys(sec,it.fields[1],st,tier),st);
+});
+// Persisted hidden lists, one per tier that has the edit view: SECTION_VIS keys and HIDE_ITEMS
+// ids. Unknown ids are dropped so a part removed later can't linger as a hidden ghost.
 const DEF_HIDDEN={intermediate:[],pro:[]};
+const hideIdValid=(k,t)=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))
+  ||(HIDE_BY_ID[k]!=null&&hideItemTiers(HIDE_BY_ID[k]).includes(t));
 const repairHidden=v=>Object.fromEntries(Object.keys(DEF_HIDDEN).map(t=>[t,
-  Array.isArray(v?.[t])?v[t].filter(k=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))):[]]));
+  Array.isArray(v?.[t])?[...new Set(v[t].filter(k=>typeof k==='string'&&hideIdValid(k,t)))]:[]]));
 
 // Every preset authors damping as rebound ζ (CHARACTER), never as a Settle Target. Beginner's
 // loadPreset forces dampCharMode:'zeta', so a SETTLE preset silently fell back to DEF_FE's 70%
@@ -4004,27 +4195,86 @@ const Toggle=({label,value,onChange,options,hint,hintTerm=null})=>(
   </div>
 );
 
-// What a hidden section leaves behind while it still holds a changed setting: one line saying
-// the setting still applies, with SHOW to bring the section back. See sectionChanged.
-const HiddenStub=({title,onShow})=>(
+// ── Layout edit view ────────────────────────────────────────────────────────
+// What the user has hidden in this tier, and whether the edit view is on. App provides it; the
+// default (no provider: the modals' own Cards) hides nothing. While a guide runs App passes an
+// empty list, so its spotlights always find their controls.
+const LayoutCtx=React.createContext({edit:false,isHidden:()=>false,toggle:()=>{}});
+// One hideable part (a HIDE_ITEMS id). Regular view: nothing when hidden, otherwise the
+// children unwrapped, so the layout is untouched. Edit view: the part sits inert under a
+// full-cover button that hides or shows it, faded when hidden. Never nest one Hide inside
+// another: the inner one would be inert. Sec and Card carry their own header toggles for that.
+// style / bodyStyle apply to the edit view's wrapper and inner box only, for a part that is a
+// flex item or lays out its own children.
+const Hide=({id,inline=false,style=null,bodyStyle=null,children})=>{
+  const L=React.useContext(LayoutCtx);
+  const off=L.isHidden(id);
+  if(!L.edit)return off?null:(children??null);
+  const Tag=inline?'span':'div';
+  return(
+    <Tag className={`hz${inline?' hz-inline':''}${off?' hz-off':''}`} data-hid={id} style={style??undefined}>
+      <Tag className="hz-body" inert="" style={bodyStyle??undefined}>{children}</Tag>
+      <button type="button" className="hz-btn" aria-pressed={off}
+        aria-label={off?'Hidden: click to show':'Click to hide'} title={off?'Hidden: click to show':'Click to hide'}
+        onClick={e=>{e.stopPropagation();L.toggle(id);}}/>
+    </Tag>
+  );
+};
+// The one line a section shows for hidden settings that still apply: the whole section hidden
+// while it differs from its defaults (sectionChanged), or hidden controls inside a shown one
+// that do (hiddenChangedIn). SHOW brings back whatever the line is about.
+const HiddenStub=({title,text='hidden · changed settings still apply',onShow})=>(
   <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',marginBottom:8,
                borderBottom:'1px solid #0f172a',fontSize:10,letterSpacing:0.5}}>
     <span style={{width:5,height:5,borderRadius:'50%',background:'#f59e0b',flexShrink:0}}/>
-    <span style={{color:'#94a3b8',letterSpacing:1}}>{title}</span>
-    <span style={{color:'#64748b',flex:1,minWidth:0}}>hidden · changed settings still apply</span>
+    {title&&<span style={{color:'#94a3b8',letterSpacing:1}}>{title}</span>}
+    <span style={{color:'#64748b',flex:1,minWidth:0}}>{text}</span>
     <button type="button" className="tbtn" style={{fontSize:9}} onClick={onShow}>SHOW</button>
   </div>
 );
-const Sec=({title,open,onToggle,onReset,vis='show',onShow,children})=>{
+const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged=0,onShowHidden,children})=>{
   const[pending,setPending]=useState(false);
   const timer=useRef(null);
+  const L=React.useContext(LayoutCtx);
   const handleReset=e=>{
     e.stopPropagation();
     if(pending){clearTimeout(timer.current);setPending(false);onReset();}
     else{setPending(true);timer.current=setTimeout(()=>setPending(false),2000);}
   };
   useEffect(()=>()=>clearTimeout(timer.current),[]);
-  // Hidden from the SECTIONS modal (after the hooks, so their order never changes).
+  // Edit view (after the hooks, so their order never changes): the header still collapses and
+  // expands the section, RESET's place holds a small HIDE / SHOW for the whole section, and a
+  // hidden section stays shut, faded, until it is shown again.
+  if(L.edit&&hid){
+    const off=L.isHidden(hid),isOpen=open&&!off;
+    const toggleOpen=()=>{if(!off)onToggle();};
+    return(
+      <div style={{borderBottom:'1px solid #0f172a',marginBottom:8}} data-hid={hid}>
+        <div className={`stog${isOpen?' stog-open':''}`} role="button" tabIndex={0} aria-expanded={isOpen}
+             onClick={toggleOpen}
+             onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleOpen();}}}
+             style={off?{cursor:'default',outline:'1px dashed #475569',outlineOffset:-1}:{}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,opacity:off?0.35:1}}>
+            <div style={{width:2,height:10,borderRadius:1,flexShrink:0,
+                         background:isOpen?'#e2e8f0':'#1e293b',transition:'background .12s'}}/>
+            <span>{title}</span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <button type="button" className="sec-hide" aria-pressed={off}
+              title={off?'Hidden: show this section again':'Hide this whole section'}
+              onClick={e=>{e.stopPropagation();L.toggle(hid);}} onKeyDown={e=>e.stopPropagation()}
+              style={{fontSize:10,padding:'1px 5px',borderRadius:2,background:'none',fontFamily:'inherit',lineHeight:1.4,
+                      cursor:'pointer',userSelect:'none',color:off?'#e2e8f0':'#818cf8',
+                      border:`1px solid ${off?'#475569':'#818cf855'}`}}>{off?'SHOW':'HIDE'}</button>
+            <span style={{fontSize:11,color:isOpen?'#e2e8f0':'#94a3b8',opacity:off?0.35:1}}>
+              {isOpen?'▲':'▼'}
+            </span>
+          </div>
+        </div>
+        {isOpen&&<div style={{padding:'8px 12px 10px'}}>{children}</div>}
+      </div>
+    );
+  }
   if(vis==='none')return null;
   if(vis==='stub')return <HiddenStub title={title} onShow={onShow}/>;
   // The header is a div (not a <button>) because RESET needs to be a real,
@@ -4056,20 +4306,27 @@ const Sec=({title,open,onToggle,onReset,vis='show',onShow,children})=>{
           </span>
         </div>
       </div>
+      {hiddenChanged>0&&<HiddenStub onShow={onShowHidden}
+        text={`${hiddenChanged} hidden setting${hiddenChanged>1?'s':''} changed · still ${hiddenChanged>1?'apply':'applies'}`}/>}
       {open&&<div style={{padding:'8px 12px 10px'}}>{children}</div>}
     </div>
   );
 };
 
 // A group header inside a Sec, naming where the inputs under it come from. CHASSIS uses it to
-// keep what the game shows apart from what has to be looked up elsewhere.
-const SrcHead=({label,note,first=false})=>(
-  <div style={{display:'flex',alignItems:'baseline',gap:8,margin:first?'0 0 8px':'14px 0 8px',
-               paddingBottom:3,borderBottom:'1px solid #1e293b'}}>
-    <span style={{fontSize:10,color:'#cbd5e1',letterSpacing:2,fontWeight:600,flexShrink:0}}>{label}</span>
-    <span style={{fontSize:9,color:'#64748b'}}>{note}</span>
-  </div>
-);
+// keep what the game shows apart from what has to be looked up elsewhere. group (HIDE_ITEMS
+// ids) drops the header in the regular view once everything under it is hidden.
+const SrcHead=({label,note,first=false,group=null})=>{
+  const L=React.useContext(LayoutCtx);
+  if(group&&!L.edit&&group.every(L.isHidden))return null;
+  return(
+    <div style={{display:'flex',alignItems:'baseline',gap:8,margin:first?'0 0 8px':'14px 0 8px',
+                 paddingBottom:3,borderBottom:'1px solid #1e293b'}}>
+      <span style={{fontSize:10,color:'#cbd5e1',letterSpacing:2,fontWeight:600,flexShrink:0}}>{label}</span>
+      <span style={{fontSize:9,color:'#64748b'}}>{note}</span>
+    </div>
+  );
+};
 
 const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,sub=null})=>(
   <div className="ro" style={primary?{borderColor:'#e2e8f022'}:{}}>
@@ -4101,7 +4358,9 @@ const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,su
 // hard right — which is where the eye lands when transcribing into a tuning menu.
 // Deliberately no per-value hint icon and no boxed context badge: section-level
 // hints live on Card, and ctx reads as inline text here instead.
-const OutRow=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor='#f59e0b'})=>(
+// hid (a HIDE_ITEMS id) makes the row hideable from the edit view; RowGroup reads the same prop.
+const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<OutRowBody {...p}/>;
+const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor='#f59e0b'})=>(
   <div style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 10px'}}>
     <span style={{fontSize:11,color:'#cbd5e1',letterSpacing:0.5,flexShrink:0}}>{label}</span>
     {(Array.isArray(meta)?meta:[meta]).filter(Boolean).map((m,i)=>(
@@ -4121,10 +4380,17 @@ const OutRow=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColo
 // nested boxes in the wireframe. No internal dividers — the grouping is the signal.
 // Background matches the DIFFERENTIAL card's RECOMMENDED / CENTER SPLIT call-outs so
 // every boxed element in the output panel sits on one surface colour.
-const RowGroup=({children,style})=>(
-  <div style={{border:'1px solid #1e293b',borderRadius:2,marginBottom:5,
-               background:'#0f172a',...style}}>{children}</div>
-);
+// In the regular view rows hidden by their hid are dropped, and a group left with none
+// renders nothing rather than an empty box.
+const RowGroup=({children,style})=>{
+  const L=React.useContext(LayoutCtx);
+  const kids=React.Children.toArray(children).filter(c=>L.edit||!(c?.props?.hid&&L.isHidden(c.props.hid)));
+  if(!kids.length)return null;
+  return(
+    <div style={{border:'1px solid #1e293b',borderRadius:2,marginBottom:5,
+                 background:'#0f172a',...style}}>{kids}</div>
+  );
+};
 
 const Stat=({label,value,unit,decimals=2})=>(
   <div className="sr">
@@ -4134,19 +4400,39 @@ const Stat=({label,value,unit,decimals=2})=>(
   </div>
 );
 
-const Card=({title,accent=false,hint=null,headerRight=null,children,hintTerm=null})=>(
-  <div className="card" style={accent?{borderColor:'#e2e8f011'}:{}}>
-    <div className="ch" style={accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}}>
-      <span style={accent?{color:'#9ca3af'}:{}}>{title}</span>
-      {hint&&<Hint text={hint} term={hintTerm}/>}
-      {headerRight&&<span style={{marginLeft:'auto',fontSize:10,color:'#64748b',
-                                   letterSpacing:0,textTransform:'none',fontFamily:'var(--font-mono)'}}>
-        {headerRight}
-      </span>}
+// hid makes the whole card hideable. Not through Hide: that would make the card's own rows
+// inert, so in the edit view only the header carries the toggle and the rows stay clickable.
+// A <Keep> child is what must outlive a hidden card (its warnings): drawn in place normally,
+// and on its own when the card is hidden.
+const Keep=({children})=>children??null;
+const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null})=>{
+  const L=React.useContext(LayoutCtx);
+  const off=hid!=null&&L.isHidden(hid);
+  if(off&&!L.edit){
+    const kept=React.Children.toArray(children).filter(c=>c?.type===Keep)
+      .flatMap(c=>React.Children.toArray(c.props.children));
+    return kept.length?<div style={{marginBottom:10}}>{kept}</div>:null;
+  }
+  const editing=L.edit&&hid!=null;
+  return(
+    <div className="card" data-hid={editing?hid:undefined}
+         style={{...(accent?{borderColor:'#e2e8f011'}:{}),...(editing&&off?{outline:'1px dashed #475569',outlineOffset:1}:{})}}>
+      <div className="ch" style={{...(accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}),
+                                  ...(editing?{position:'relative'}:{}),...(editing&&off?{opacity:0.35}:{})}}>
+        <span style={accent?{color:'#9ca3af'}:{}}>{title}</span>
+        {hint&&<Hint text={hint} term={hintTerm}/>}
+        {headerRight&&<span style={{marginLeft:'auto',fontSize:10,color:'#64748b',
+                                     letterSpacing:0,textTransform:'none',fontFamily:'var(--font-mono)'}}>
+          {headerRight}
+        </span>}
+        {editing&&<button type="button" className="hz-btn" aria-pressed={off}
+          aria-label={off?'Hidden card: click to show':'Click to hide this whole card'}
+          title={off?'Hidden card: click to show':'Click to hide this whole card'} onClick={e=>{e.stopPropagation();L.toggle(hid);}}/>}
+      </div>
+      {!(editing&&off)&&<div className="cb">{children}</div>}
     </div>
-    <div className="cb">{children}</div>
-  </div>
-);
+  );
+};
 
 // ── BeamNG output cards ─────────────────────────────────────────────────────
 // physMode-only presentational shells for the two-column output layout (see
@@ -4156,8 +4442,8 @@ const Card=({title,accent=false,hint=null,headerRight=null,children,hintTerm=nul
 // axle instead of one card per subsystem (ARB+Spring+Damper merge into
 // SuspensionCard; Caster is front-only on AlignCard, matching BeamNG's actual
 // menu — there is no rear caster slider).
-const SuspensionCard=({side,arbRow,springRow,dampRebRow,dampBumpRow,arbCaveat,hint,hintTerm=null})=>(
-  <Card title={`${side} SUSPENSION`} accent hint={hint} hintTerm={hintTerm}>
+const SuspensionCard=({hid=null,side,arbRow,springRow,dampRebRow,dampBumpRow,arbCaveat,hint,hintTerm=null})=>(
+  <Card hid={hid} title={`${side} SUSPENSION`} accent hint={hint} hintTerm={hintTerm}>
     <RowGroup><OutRow {...arbRow}/></RowGroup>
     {arbCaveat&&<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,margin:'-2px 0 6px'}}>{arbCaveat}</div>}
     <RowGroup><OutRow {...springRow}/></RowGroup>
@@ -4167,15 +4453,15 @@ const SuspensionCard=({side,arbRow,springRow,dampRebRow,dampBumpRow,arbCaveat,hi
     </RowGroup>
   </Card>
 );
-const AlignCard=({side,camber,toe,caster,hint,hintTerm=null})=>(
-  <Card title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm}>
-    <RowGroup><OutRow label="Camber" value={camber} unit="°"/></RowGroup>
-    <RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow label="Toe" value={toe} unit="°"/></RowGroup>
-    {caster!=null&&<RowGroup style={{marginBottom:0}}><OutRow label="Caster" value={caster} unit="°"/></RowGroup>}
+const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null})=>(
+  <Card hid={hid} title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm}>
+    <RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°"/></RowGroup>
+    <RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°"/></RowGroup>
+    {caster!=null&&<RowGroup style={{marginBottom:0}}><OutRow hid="out.caster" label="Caster" value={caster} unit="°"/></RowGroup>}
   </Card>
 );
-const DiffCard=({title,rows})=>(
-  <Card title={title}><RowGroup style={{marginBottom:0}}>{rows}</RowGroup></Card>
+const DiffCard=({hid=null,title,rows})=>(
+  <Card hid={hid} title={title}><RowGroup style={{marginBottom:0}}>{rows}</RowGroup></Card>
 );
 
 // scale: the value at which the bar fills its half. dead: below this it reads as nothing. The
@@ -6641,8 +6927,9 @@ function App(){
   const[units,setUnits]=usePersist('suspos_units_v2',legacyUnits());
   const mMass=units.mass==='kg',mSpring=springUnit(units.spring),mLen=units.length==='cm',mSpeed=units.speed==='kmh';
   const[showUnits,setShowUnits]=useState(false);
-  // SECTIONS modal: what the user has chosen to hide, per tier (see SECTION_VIS).
-  const[showSections,setShowSections]=useState(false);
+  // Layout edit view: what the user has chosen to hide, per tier (SECTION_VIS keys and
+  // HIDE_ITEMS ids), and whether the edit view is on. layoutEdit is never stored.
+  const[layoutEdit,setLayoutEdit]=useState(false);
   const[hiddenSecs,setHiddenSecs]=usePersist('suspos_hidden_v1',DEF_HIDDEN,repairHidden);
   const[saves]=usePersist('suspos_saves_v9',PRESET_SAVES); // read-only: legacy slots, source for one-time MY BUILDS migration
   const[uiMode,setUiMode]=usePersist('suspos_uimode_v1','beginner');
@@ -6829,17 +7116,44 @@ function App(){
     return{transition:'opacity 0.3s ease'};
   };
   // 'show' | 'stub' | 'none' for a SECTION_VIS key. A guide shows everything while it runs,
-  // since its steps spotlight sections by id; BEG has no SECTIONS modal, so nothing is hidden
+  // since its steps spotlight sections by id; BEG has no edit view, so nothing is hidden
   // there. A hidden section still holding a changed setting leaves a stub (sectionChanged).
+  // The edit view renders every section, greying the hidden ones itself (Sec reads LayoutCtx).
   const hiddenHere=uiMode==='beginner'?[]:(hiddenSecs[uiMode]??[]);
+  const editing=layoutEdit&&!tutMode&&uiMode!=='beginner';
   const secVis=key=>{
-    if(tutMode||!hiddenHere.includes(key))return'show';
+    if(tutMode||editing||!hiddenHere.includes(key))return'show';
     return sectionChanged(key,{ch,fe,dr,al},uiMode)?'stub':'none';
   };
   const setSecHidden=(key,hide)=>setHiddenSecs(p=>{
     const cur=(p[uiMode]??[]).filter(k=>k!==key);
     return{...p,[uiMode]:hide?[...cur,key]:cur};
   });
+  const setManyHidden=(ids,hide)=>setHiddenSecs(p=>{
+    const cur=(p[uiMode]??[]).filter(k=>!ids.includes(k));
+    return{...p,[uiMode]:hide?[...cur,...ids]:cur};
+  });
+  const layoutCtx=useMemo(()=>{
+    const list=tutMode?[]:hiddenHere;
+    return{edit:editing,isHidden:id=>list.includes(id),toggle:id=>setSecHidden(id,!hiddenHere.includes(id))};
+  },[editing,tutMode,hiddenHere,uiMode]); // eslint-disable-line
+  // Every Sec's visibility props in one spread: its own hide, plus the line for hidden
+  // controls inside it that still change the tune (hiddenChangedIn).
+  const secProps=key=>{
+    const chg=tutMode||editing?[]:hiddenChangedIn(key,hiddenHere,{ch,fe,dr,al},uiMode);
+    return{hid:key,vis:secVis(key),onShow:()=>setSecHidden(key,false),
+           hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false)};
+  };
+  // Hidden output parts, for the panel's footer: a hidden row may be a value still to type in.
+  const hiddenOut=tutMode?0:hiddenHere.filter(id=>HIDE_BY_ID[id]&&['output','bar'].includes(HIDE_BY_ID[id].sec)).length;
+  useEffect(()=>{if(tutMode)setLayoutEdit(false);},[tutMode]);
+  useEffect(()=>{setLayoutEdit(false);},[uiMode]);
+  useEffect(()=>{
+    if(!editing)return;
+    const onKey=e=>{if(e.key==='Escape')setLayoutEdit(false);};
+    document.addEventListener('keydown',onKey);
+    return()=>document.removeEventListener('keydown',onKey);
+  },[editing]);
   useEffect(()=>{
     if(!tutSeen[uiMode]){
       setTutSeen(p=>({...p,[uiMode]:true}));
@@ -7810,6 +8124,7 @@ function App(){
   // Phones render at natural 1.0× (zoom controls are hidden there); desktop keeps the saved preference.
   const effZoom=isPhone?1:uiZoom;
   return(
+    <LayoutCtx.Provider value={layoutCtx}>
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
       {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} units={units} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
@@ -7832,47 +8147,6 @@ function App(){
             </div>
             <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
               <UnitsPicker units={units} setUnits={setUnits}/>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* SECTIONS modal — hide sidebar sections and toolbar buttons, per tier (SECTION_VIS).
-          Opened from the SECTIONS row's EDIT, which BEG doesn't have. */}
-      {showSections&&uiMode!=='beginner'&&(
-        <div style={{position:'fixed',inset:0,background:'#000000cc',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}
-             onClick={()=>setShowSections(false)}>
-          <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,width:360,maxWidth:'calc(100vw - 20px)',
-                       maxHeight:'88vh',display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:'var(--font-mono)'}}
-               onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                         padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
-              <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>SECTIONS
-                <span style={{fontSize:8,color:'#818cf8',letterSpacing:1,marginLeft:8}}>{TIER_LABEL[uiMode]}</span></span>
-              <button onClick={()=>setShowSections(false)} aria-label="Close" style={{background:'none',border:'none',color:'#94a3b8',
-                cursor:'pointer',fontSize:14}}>✕</button>
-            </div>
-            <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
-              <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginBottom:10}}>
-                Choose what this tier shows. Hiding never changes the tune: a hidden section whose settings differ from its defaults stays as one line until you reset it or show it again. Guides show everything while they run.
-              </div>
-              {SECTION_VIS.filter(sv=>sv.tiers.includes(uiMode)).map(sv=>{
-                const shown=!hiddenHere.includes(sv.key);
-                const changed=sectionChanged(sv.key,{ch,fe,dr,al},uiMode);
-                return(
-                  <div key={sv.key} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #0f172a'}}>
-                    <span style={{fontSize:11,color:shown?'#e2e8f0':'#64748b',letterSpacing:1,flex:1}}>{sv.label}</span>
-                    {!shown&&changed&&<span style={{fontSize:9,color:'#f59e0b'}}>CHANGED · STUB</span>}
-                    <div style={{display:'flex',gap:3}}>
-                      <button className={`tog${shown?' on':''}`} onClick={()=>setSecHidden(sv.key,false)}>SHOW</button>
-                      <button className={`tog${!shown?' on':''}`} onClick={()=>setSecHidden(sv.key,true)}>HIDE</button>
-                    </div>
-                  </div>
-                );
-              })}
-              <div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}>
-                <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.length}
-                  onClick={()=>setHiddenSecs(p=>({...p,[uiMode]:[]}))}>SHOW ALL</button>
-              </div>
             </div>
           </div>
         </div>
@@ -8332,9 +8606,9 @@ function App(){
               onClick={redo} disabled={!canRedo} aria-label="Redo"
               title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>
             <div style={{flex:1}}/>
-            {secVis('tbDna')==='show'&&<button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
-              title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button>}
-            {secVis('tbCheck')==='show'&&<button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button>}
+            <Hide id="tbDna" inline><button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
+              title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button></Hide>
+            <Hide id="tbCheck" inline><button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button></Hide>
             <button className="tbtn" style={{fontSize:11}} onClick={()=>{
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
               setShareCopied(false);setImportCode('');setImportErr('');setPending(null);
@@ -8469,17 +8743,30 @@ function App(){
             );
           })()}
 
-          {/* collapse / expand all — hidden in beginner mode */}
-          {uiMode!=='beginner'&&<div style={{display:'flex',justifyContent:'flex-end',gap:3,
+          {/* collapse / expand all, and EDIT for the layout edit view — hidden in beginner mode.
+              While editing, the row is the edit view's banner. */}
+          {uiMode!=='beginner'&&!editing&&<div style={{display:'flex',justifyContent:'flex-end',gap:3,
                        padding:'5px 12px 4px',borderBottom:'1px solid #0f172a'}}>
             <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS
               {hiddenHere.length>0&&<span style={{color:'#64748b'}}> · {hiddenHere.length} HIDDEN</span>}</span>
-            <button className="tbtn" style={{fontSize:10}} onClick={()=>setShowSections(true)}
-              title="Choose which sections and toolbar buttons are shown">EDIT</button>
+            <button className="tbtn" style={{fontSize:10}} onClick={()=>setLayoutEdit(true)} disabled={!!tutMode}
+              title="Choose which sections, controls and output parts are shown">EDIT</button>
             <button className="tbtn" style={{fontSize:10}}
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,false]))}))}>−</button>
             <button className="tbtn" style={{fontSize:10}}
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,true]))}))}>+</button>
+          </div>}
+          {editing&&<div data-layout-banner style={{padding:'6px 12px 7px',borderBottom:'1px solid #312e81',background:'#0f0e2a'}}>
+            <div style={{display:'flex',alignItems:'center',gap:3}}>
+              <span style={{fontSize:10,color:'#818cf8',letterSpacing:1,flex:1}}>EDITING LAYOUT
+                <span style={{color:'#64748b'}}> · {TIER_LABEL[uiMode]}{hiddenHere.length>0?` · ${hiddenHere.length} HIDDEN`:''}</span></span>
+              <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.length}
+                onClick={()=>setHiddenSecs(p=>({...p,[uiMode]:[]}))}>SHOW ALL</button>
+              <button className="tbtn" style={{fontSize:10,color:'#818cf8'}} onClick={()=>setLayoutEdit(false)}>DONE</button>
+            </div>
+            <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginTop:4}}>
+              Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
+            </div>
           </div>}
 
           {uiMode!=='beginner'&&<>
@@ -8493,24 +8780,25 @@ function App(){
             <button onClick={()=>commit('remove DNA link',dnaUnlink)} title="Remove the DNA link (the tune stays as it is)"
               style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
           </div>}
-          <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')} vis={secVis('chassis')} onShow={()=>setSecHidden('chassis',false)}
+          <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')} {...secProps('chassis')}
             onReset={()=>setCh(sectionDefaults('chassis'))}>
             {/* PRO splits CHASSIS by where each number comes from: what Forza shows (or measures)
                 first, then what has to be looked up elsewhere. Below PRO every input is in-game,
                 so there is nothing to separate and no headers. */}
-            {uiMode==='pro'&&<SrcHead first label="FROM THE GAME" note="stat, selection & upgrade screens"/>}
-            <Toggle label="Layout" value={ch.layout} onChange={pCh('layout')}
+            {uiMode==='pro'&&<SrcHead first label="FROM THE GAME" note="stat, selection & upgrade screens"
+              group={['chassis.layout','chassis.weight','chassis.frontBias','chassis.tyres','chassis.cgSource','chassis.rideHeightF','chassis.rideHeightR','chassis.cgEst','chassis.measureNatBal']}/>}
+            <Hide id="chassis.layout"><Toggle label="Layout" value={ch.layout} onChange={pCh('layout')}
               options={[{value:'FWD',label:'FWD'},{value:'RWD',label:'RWD'},{value:'AWD',label:'AWD'}]}
-              hint={HINT_LAYOUT} hintTerm="layout"/>
-            <Field noSlider label="Weight"
+              hint={HINT_LAYOUT} hintTerm="layout"/></Hide>
+            <Hide id="chassis.weight"><Field noSlider label="Weight"
               value={mMass?ch.weight/KG_TO_LB:ch.weight}
               onChange={mMass?v=>pCh('weight')(v*KG_TO_LB):pCh('weight')}
               min={mMass?45:100} max={mMass?8165:18000} step={1}
               unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
-              hint="Total vehicle weight, from the car's stat page. Scales the spring, damper and ARB outputs." hintTerm="weight"/>
-            <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
-              hint="Share of weight on the front axle, from the car selection screen. 50% = an even split; most front-engined cars are 52–58%." hintTerm="front-weight-bias"/>
-            {(()=>{
+              hint="Total vehicle weight, from the car's stat page. Scales the spring, damper and ARB outputs." hintTerm="weight"/></Hide>
+            <Hide id="chassis.frontBias"><Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
+              hint="Share of weight on the front axle, from the car selection screen. 50% = an even split; most front-engined cars are 52–58%." hintTerm="front-weight-bias"/></Hide>
+            <Hide id="chassis.tyres">{(()=>{
               const tyreInput=(key,label,onCopyFront)=>{
                 const val=ch[key]??DEF_CH[key];
                 const isBlank=val.trim()==='';
@@ -8572,8 +8860,8 @@ function App(){
                   );
                 })()}
               </>);
-            })()}
-            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:8,flexWrap:'wrap'}}>
+            })()}</Hide>
+            <Hide id="chassis.cgSource"><div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:8,flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>CG Height Source</span>
               <Hint text="RIDE HEIGHT estimates CG height from Forza's ride heights plus tyre radius. MANUAL lets you type CG height if you have a better source." term="cg-source"/>
               <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
@@ -8582,7 +8870,7 @@ function App(){
                 <button className={`tog${!ch.useRideHeightCG?' on':''}`}
                   onClick={()=>setCh(p=>({...p,useRideHeightCG:false}))}>MANUAL</button>
               </div>
-            </div>
+            </div></Hide>
             {ch.useRideHeightCG?(()=>{
               const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
               const tyresOk=pF?.radius!=null&&pR?.radius!=null;
@@ -8590,30 +8878,30 @@ function App(){
               const unitLbl=mLen?'cm':'in';
               return(<>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                  <Field noSlider stacked label="Ride Height F" value={Math.round((ch.rideHeightF*1000/inMm)*10)/10}
+                  <Hide id="chassis.rideHeightF"><Field noSlider stacked label="Ride Height F" value={Math.round((ch.rideHeightF*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightF')((v*inMm)/1000)}
                     min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
-                    hint={`Front ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}). Feeds the CG estimate and bottoming risk.`} hintTerm="ride-height"/>
-                  <Field noSlider stacked label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
+                    hint={`Front ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}). Feeds the CG estimate and bottoming risk.`} hintTerm="ride-height"/></Hide>
+                  <Hide id="chassis.rideHeightR"><Field noSlider stacked label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightR')((v*inMm)/1000)}
                     min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
-                    hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`} hintTerm="ride-height"/>
+                    hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`} hintTerm="ride-height"/></Hide>
                 </div>
-                <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                <Hide id="chassis.cgEst"><div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>CG HEIGHT (EST.)</span>
                   <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:13,color:'#60a5fa'}}>{Math.round(ch.cgHeight*1000)} mm</span>
-                </div>
+                </div></Hide>
                 {!tyresOk&&<div style={{fontSize:9,color:'#f59e0b',padding:'2px 0 8px'}}>Enter valid tyre sizes above to compute CG height from ride height.</div>}
                 <div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>SAG vs LOAD is in the pinned VISUALS card below ↓</div>
               </>);
             })():uiMode==='pro'
               // PRO enters a MANUAL CG height under ESTIMATES below: the game doesn't show it.
               ?<div style={{fontSize:9,color:'#475569',padding:'0 0 4px'}}>CG Height is entered under ESTIMATES below ↓</div>
-              :<Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
-                hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/>
+              :<Hide id="chassis.cgHeight"><Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
+                hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/></Hide>
             }
             {uiMode==='pro'&&<>
-            <div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,padding:'5px 10px',marginTop:6,display:'flex',alignItems:'center',gap:6}}>
+            <Hide id="chassis.measureNatBal"><div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,padding:'5px 10px',marginTop:6,display:'flex',alignItems:'center',gap:6}}>
               {/* Unset, this used to sit at #475569 on a #060c17 panel and read as disabled
                   rather than as the entry point it is — it is the only way in to the
                   measured-balance workflow. Idle now carries .tbtn's normal weight; set
@@ -8629,53 +8917,54 @@ function App(){
                 <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
                   onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>✕</button>
               </>}
-            </div>
+            </div></Hide>
             {natBalStale(ch)&&<button className="tbtn" style={{width:'100%',marginTop:4,fontSize:10,color:'#f59e0b',letterSpacing:1}}
               title="The chassis changed since this reading, which is still used as-is. Tap to re-measure, or clear it with ✕."
               onClick={()=>{setCheckerInitMode('probe');setShowChecker(true);}}>NAT BAL: RE-MEASURE</button>}
-            <SrcHead label="LOOK UP ONLINE" note="not shown in game · car's spec sheet"/>
-            <Field noSlider label="Wheelbase" value={Math.round(ch.wheelbase*1000)} onChange={v=>pCh('wheelbase')(v/1000)} min={400} max={4000} step={5} unit="mm"
-              hint="Axle-to-axle distance. Forza doesn't show it: look it up in the car's spec sheet online. Typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths." hintTerm="wheelbase"/>
+            <SrcHead label="LOOK UP ONLINE" note="not shown in game · car's spec sheet" group={['chassis.wheelbase','chassis.trackF','chassis.trackR']}/>
+            <Hide id="chassis.wheelbase"><Field noSlider label="Wheelbase" value={Math.round(ch.wheelbase*1000)} onChange={v=>pCh('wheelbase')(v/1000)} min={400} max={4000} step={5} unit="mm"
+              hint="Axle-to-axle distance. Forza doesn't show it: look it up in the car's spec sheet online. Typical cars run 2400–2900 mm. Still used when a MEASURE NAT BAL reading replaces the track widths." hintTerm="wheelbase"/></Hide>
             {!ch.useMeasuredNatBal
               ?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                <Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
-                  hint="Distance between left and right wheels at the front. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm. Wider = more roll resistance." hintTerm="track-width"/>
-                <Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
-                  hint="Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"/>
+                <Hide id="chassis.trackF"><Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+                  hint="Distance between left and right wheels at the front. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm. Wider = more roll resistance." hintTerm="track-width"/></Hide>
+                <Hide id="chassis.trackR"><Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
+                  hint="Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"/></Hide>
               </div>
               :<div style={{fontSize:9,color:'#64748b',padding:'0 0 8px'}}>Track widths not needed: the MEASURE NAT BAL reading above replaces them.</div>}
-            {(physMode||!ch.useRideHeightCG)&&<SrcHead label="ESTIMATES" note="not shown anywhere · typical values"/>}
-            {!ch.useRideHeightCG&&<Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
-                hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/>}
+            {(physMode||!ch.useRideHeightCG)&&<SrcHead label="ESTIMATES" note="not shown anywhere · typical values"
+              group={[...(!ch.useRideHeightCG?['chassis.cgHeight']:[]),...(physMode?['chassis.motionRatioF','chassis.motionRatioR','chassis.arbMotionRatioF','chassis.arbMotionRatioR']:[])]}/>}
+            {!ch.useRideHeightCG&&<Hide id="chassis.cgHeight"><Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
+                hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/></Hide>}
             {/* Physical-unit modes only. Forza's tuning screen shows wheel rate, which is what
                 the solver already produces, so a motion ratio would be meaningless there — the
                 fields are hidden rather than shown inert. */}
             {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              {[['F','motionRatioF','Front'],['R','motionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider stacked key={ax} label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
+              {[['F','motionRatioF','Front','chassis.motionRatioF'],['R','motionRatioR','Rear','chassis.motionRatioR']].map(([ax,key,side,hid])=>(
+                <Hide key={ax} id={hid}><Field noSlider stacked label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"/>
+                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"/></Hide>
               ))}
             </div>}
             {/* ARB drop link, not the spring mount — separate geometry, separate field. Only the
                 ARB N/m output and MAN-mode entry read it; nothing in the solve does. */}
             {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-              {[['F','arbMotionRatioF','Front'],['R','arbMotionRatioR','Rear']].map(([ax,key,side])=>(
-                <Field noSlider stacked key={ax} label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
+              {[['F','arbMotionRatioF','Front','chassis.arbMotionRatioF'],['R','arbMotionRatioR','Rear','chassis.arbMotionRatioR']].map(([ax,key,side,hid])=>(
+                <Hide key={ax} id={hid}><Field noSlider stacked label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"/>
+                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"/></Hide>
               ))}
             </div>}
             </>}
           </Sec></div>
 
-          <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')} vis={secVis('build')} onShow={()=>setSecHidden('build',false)}>
-            <Toggle label="Build Type" value={dr.buildType??'track'} onChange={pDr('buildType')}
+          <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')} {...secProps('build')}>
+            <Hide id="build.type"><Toggle label="Build Type" value={dr.buildType??'track'} onChange={pDr('buildType')}
               options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
-              hint={HINT_BUILD_TYPE} hintTerm="build-type"/>
+              hint={HINT_BUILD_TYPE} hintTerm="build-type"/></Hide>
           </Sec></div>
 
-          {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')} vis={secVis('balance')} onShow={()=>setSecHidden('balance',false)}
+          {uiMode==='pro'&&<div id="zone-balance-target" style={dim('balance-target')}><Sec title="BALANCE" open={open.balance} onToggle={tog('balance')} {...secProps('balance')}
             onReset={()=>setFe(p=>({...p,...sectionDefaults('balance')}))}>
             {(()=>{
               const _hasMechTarget=hasBalTargetSolve(fe);
@@ -8690,7 +8979,7 @@ function App(){
                   <span style={{fontSize:13,color:'#94a3b8'}}>Balance Target</span>
                   <Hint text="What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, PHASE = from PHASE TARGET, MANUAL = a raw value (e.g. 0.60)." term="mech-balance-target"/>
                 </div>
-                {(()=>{
+                <Hide id="balance.targetMode">{(()=>{
                   const _m=balTargetModeOf(fe);
                   // NATURAL, RANGE and GRIP always open at zero offset (NATURAL on natural itself,
                   // not DEF_FE's null, which resolves to MECH_BALANCE_TARGET; RANGE/GRIP on their
@@ -8713,30 +9002,30 @@ function App(){
                       ))}
                     </div>
                   );
-                })()}
+                })()}</Hide>
                 {(()=>{
                   const _m=balTargetModeOf(fe);
-                  if(_m==='natural')return(
+                  if(_m==='natural')return(<Hide id="balance.targetNat">
                     <Field label="Mech Balance Target" value={fe.arbBalTarget??roundBalStep(MECH_BALANCE_TARGET-natMechBalance)}
                       onChange={v=>pFe('arbBalTarget')(roundBalStep(v))}
                       min={roundBalStep(BAL_TARGET_MIN-natMechBalance)} max={roundBalStep(BAL_TARGET_MAX-natMechBalance)} step={BAL_TARGET_STEP} unit="from NAT"
-                      hint="Offset from natural balance: 0 = natural, positive = more rear bias (oversteer), negative = more front (understeer). The BALANCE GUIDE's RANGE is the recommended band." hintTerm="mech-balance-target"/>);
-                  if(_m==='abs')return(
+                      hint="Offset from natural balance: 0 = natural, positive = more rear bias (oversteer), negative = more front (understeer). The BALANCE GUIDE's RANGE is the recommended band." hintTerm="mech-balance-target"/></Hide>);
+                  if(_m==='abs')return(<Hide id="balance.targetAbs">
                     <Field label="Mech Balance Target" value={fe.arbBalAbs??MECH_BALANCE_TARGET}
                       onChange={v=>pFe('arbBalAbs')(clampBalTarget(roundBalStep(v)))}
                       min={BAL_TARGET_MIN} max={BAL_TARGET_MAX} step={BAL_TARGET_STEP}
-                      hint="The raw Mech Balance to solve toward, e.g. 0.60; it stays put when the chassis changes. Above 0.50 = oversteer tendency, below = understeer." hintTerm="mech-balance-target"/>);
+                      hint="The raw Mech Balance to solve toward, e.g. 0.60; it stays put when the chassis changes. Above 0.50 = oversteer tendency, below = understeer." hintTerm="mech-balance-target"/></Hide>);
                   return(<>
-                    <Field label={<>{dnaDot('balanceOffset')}Balance Offset</>} value={fe.arbBalDelta??0} onChange={v=>pFe('arbBalDelta')(roundBalStep(v))}
+                    <Hide id="balance.offset"><Field label={<>{dnaDot('balanceOffset')}Balance Offset</>} value={fe.arbBalDelta??0} onChange={v=>pFe('arbBalDelta')(roundBalStep(v))}
                       min={-0.20} max={0.20} step={BAL_TARGET_STEP}
                       hint={_m==='range'
                         ?"Offset from the middle of the RANGE band: 0 = middle, positive = more rear bias (oversteer), negative = more front (understeer)."
                         :_m==='phase'
                         ?"Offset from PHASE TARGET: 0 spreads entry, mid-corner and exit evenly about neutral, positive = more rear bias (oversteer), negative = more front (understeer)."
-                        :"Offset from GRIP TARGET: 0 cancels the chassis's grip tendency, positive = more rear bias (oversteer), negative = more front (understeer)."} hintTerm="balance-offset"/>
-                    {_m==='phase'&&<Field label="EXIT Load" value={phaseInOf(ch,fe).exitG} onChange={v=>pFe('phaseExitG')(Math.max(PHASE_EXIT_G_MIN,Math.min(PHASE_EXIT_G_MAX,+(+v).toFixed(2))))}
+                        :"Offset from GRIP TARGET: 0 cancels the chassis's grip tendency, positive = more rear bias (oversteer), negative = more front (understeer)."} hintTerm="balance-offset"/></Hide>
+                    {_m==='phase'&&<Hide id="balance.exitLoad"><Field label="EXIT Load" value={phaseInOf(ch,fe).exitG} onChange={v=>pFe('phaseExitG')(Math.max(PHASE_EXIT_G_MIN,Math.min(PHASE_EXIT_G_MAX,+(+v).toFixed(2))))}
                       min={PHASE_EXIT_G_MIN} max={PHASE_EXIT_G_MAX} step={PHASE_EXIT_G_STEP} unit="g"
-                      hint="How hard you drive out of a corner, in g. PHASE balances EXIT at this load against ENTRY's 0.3 g of braking: more load makes the drivetrain's push or rotation larger, so the target moves further to offset it." hintTerm="target-phase"/>}
+                      hint="How hard you drive out of a corner, in g. PHASE balances EXIT at this load against ENTRY's 0.3 g of braking: more load makes the drivetrain's push or rotation larger, so the target moves further to offset it." hintTerm="target-phase"/></Hide>}
                   </>);
                 })()}
               </>);
@@ -8772,7 +9061,7 @@ function App(){
                 :stabIdx<1.10?['STABLE','#60a5fa']
                 :['PLANTED','#3b82f6'];
               return(
-                <div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,
+                <Hide id="balance.guide"><div style={{background:'#060c17',border:'1px solid #1e293b',borderRadius:2,
                              padding:'8px 10px',marginBottom:0,marginTop:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                     <span style={{display:'flex',alignItems:'center',gap:4}}>
@@ -8875,7 +9164,7 @@ function App(){
                       );
                     })()}
                   </div>
-                </div>
+                </div></Hide>
               );
             })()}
             {/* MEASURE NAT BAL lives in CHASSIS under FROM THE GAME, beside the track widths its
@@ -8927,7 +9216,7 @@ function App(){
               // In GRIP mode show the grip-based gap; in every other mode show the geometry-based gap.
               if(_isGripMode){
                 if(!showGripGap)return null;
-                return(
+                return(<Hide id="balance.gap">
                   <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'7px 8px',marginTop:8}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:(_ggTyreF||_ggTyreR)?5:4}}>
                       <span style={{fontSize:11,color:'#94a3b8',letterSpacing:2}}>GRIP GAP</span>
@@ -8947,11 +9236,11 @@ function App(){
                           :'Wider rear tyre shifts grip-neutral target into recommended range.')
                         :'Grip-neutral gap exceeds tyre range — use Balance Offset to adjust.'}
                     </div>
-                  </div>
+                  </div></Hide>
                 );
               }
               if(!showGeoGap)return null;
-              return(
+              return(<Hide id="balance.gap">
                 <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'7px 8px',marginTop:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:(trackFfeas||trackRfeas)?5:4}}>
                     <span style={{fontSize:11,color:'#94a3b8',letterSpacing:2}}>GEOMETRY GAP</span>
@@ -8970,15 +9259,15 @@ function App(){
                       :'Wider front track or narrower rear increases front roll stiffness toward target.'}
                     {!(trackFfeas||trackRfeas)&&' Gap exceeds track range — use ARBs or tyre widths to reach the target.'}
                   </div>
-                </div>
+                </div></Hide>
               );
             })()}
           </Sec></div>}
 
 
-          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')} vis={secVis('alignment')} onShow={()=>setSecHidden('alignment',false)}
+          {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')} {...secProps('alignment')}
             onReset={()=>setAl(sectionDefaults('alignment'))}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
+            <Hide id="align.mode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>ALIGNMENT MODE</span>
               <Hint text="AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values." term="align-mode"/>
             </div>
@@ -8987,9 +9276,9 @@ function App(){
                 onClick={()=>setAl(p=>({...p,mode:'build'}))}>AUTO</button>
               <button className={`tog${alignMode==='manual'?' on':''}`}
                 onClick={()=>setAl(p=>({...p,mode:'manual'}))}>MANUAL</button>
-            </div>
+            </div></Hide>
             {alignMode!=='manual'&&<div style={{marginBottom:10}}>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+              <Hide id="align.nudge"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                 <span style={{fontSize:12,color:'#94a3b8'}}>Nudge</span>
                 <Hint text="OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged." term="nudge"/>
               </div>
@@ -9000,35 +9289,35 @@ function App(){
                     style={m==='mech'&&!hasBalTargetSolve(feEffective)?{opacity:0.45}:undefined}
                     onClick={()=>setAl(p=>({...p,mode:m}))}>{m==='build'?'OFF':m.toUpperCase()}</button>
                 ))}
-              </div>
+              </div></Hide>
               {(alignMode==='mech'||alignMode==='grip')&&
                 <div style={{marginTop:8}}>
-                <FeelSlider label="Nudge Strength" value={al.nudgeStrength??50}
+                <Hide id="align.nudgeStrength"><FeelSlider label="Nudge Strength" value={al.nudgeStrength??50}
                   onChange={pAl('nudgeStrength')} min={0} max={100} step={1}
                   leftLabel="SUBTLE" rightLabel="STRONG"
                   box={{unit:'%'}}
-                  hint="How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted." hintTerm="nudge"/>
+                  hint="How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted." hintTerm="nudge"/></Hide>
                 </div>}
             </div>}
             {alignMode==='manual'&&<>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                <Field noSlider label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
-                  hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
-                <Field noSlider label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
-                  hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/>
-                <Field noSlider label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
-                  hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/>
-                <Field noSlider label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
-                  hint="Rear toe. Positive = toe-in." hintTerm="toe"/>
+                <Hide id="align.camberF"><Field noSlider label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
+                  hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
+                <Hide id="align.camberR"><Field noSlider label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
+                  hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
+                <Hide id="align.toeF"><Field noSlider label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
+                  hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/></Hide>
+                <Hide id="align.toeR"><Field noSlider label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
+                  hint="Rear toe. Positive = toe-in." hintTerm="toe"/></Hide>
               </div>
-              <Field noSlider label="Caster" value={al.caster} onChange={pAl('caster')} min={4.0} max={7.5} step={0.1} unit="°"
-                hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/>
+              <Hide id="align.caster"><Field noSlider label="Caster" value={al.caster} onChange={pAl('caster')} min={4.0} max={7.5} step={0.1} unit="°"
+                hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/></Hide>
             </>}
           </Sec></div>}
 
-          <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')} vis={secVis('arb')} onShow={()=>setSecHidden('arb',false)}
+          <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')} {...secProps('arb')}
             onReset={()=>setFe(p=>({...p,...sectionDefaults('arb')}))}>
-            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+            <Hide id="arb.mode"><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>Stiffness Mode</span>
               <Hint text={`Total ARB stiffness. AUTO: from the car's roll tendency.${physMode?'':' BASIC: a direct level.'} ROLL °: a target roll angle. SHARE %: a fraction of roll stiffness. MAN: ${physMode?'rates in N/m':'clicks'} entered directly, so Balance Mode hides.`} term="stiffness-mode"/>
               <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
@@ -9066,19 +9355,19 @@ function App(){
                     setFe(p=>({...p,arbMode:'man',arbManF:arbF,arbManR:arbR}));
                   }}>MAN</button>
               </div>
-            </div>
+            </div></Hide>
             {arbMode==='basic'&&!physMode&&
-              <Field label="ARB Stiffness" value={fe.arbBasicMan??50} onChange={pFe('arbBasicMan')}
+              <Hide id="arb.basic"><Field label="ARB Stiffness" value={fe.arbBasicMan??50} onChange={pFe('arbBasicMan')}
                 min={0} max={100} step={1} unit="%"
-                hint={`Overall ARB level: roughly 1 click at 0% to ${lim.arb} clicks (this game mode's limit) at 100%, per axle at an even split. Unlike SHARE %, it doesn't follow spring rate.`} hintTerm="arb-basic"/>}
+                hint={`Overall ARB level: roughly 1 click at 0% to ${lim.arb} clicks (this game mode's limit) at 100%, per axle at an even split. Unlike SHARE %, it doesn't follow spring rate.`} hintTerm="arb-basic"/></Hide>}
             {arbMode==='roll'&&
-              <Field noSlider label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
+              <Hide id="arb.roll"><Field noSlider label="Target Roll Angle" value={fe.arbTargetRollMan} onChange={pFe('arbTargetRollMan')}
                 min={0.3} max={5.0} step={0.01} unit="° @ 1g"
-                hint="Body roll the bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars, so the suspension articulates over terrain." hintTerm="target-roll"/>}
+                hint="Body roll the bars are solved to allow. Low (≈0.5–1°) = stiff bars, flat cornering. High (≈3–5°) = soft bars, so the suspension articulates over terrain." hintTerm="target-roll"/></Hide>}
             {arbMode==='share'&&
-              <Field label={<>{dnaDot('arbShare')}ARB Share</>} value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
+              <Hide id="arb.share"><Field label={<>{dnaDot('arbShare')}ARB Share</>} value={fe.arbShareMan??15} onChange={pFe('arbShareMan')}
                 min={0} max={80} step={0.5} unit="%"
-                hint="ARBs' share of total roll stiffness. 0% = springs only; 20–30% is typical sport. Higher = stiffer bars relative to springs, more abrupt load transfer." hintTerm="arb-share"/>}
+                hint="ARBs' share of total roll stiffness. 0% = springs only; 20–30% is typical sport. Higher = stiffer bars relative to springs, more abrupt load transfer." hintTerm="arb-share"/></Hide>}
             {arbMode==='man'&&
               <div style={{display:'flex',gap:6,marginBottom:10}}>
                 {/* max tracks lim.arb, not a hardcoded 65 — MOTORSPORT caps ARBs at 40 and
@@ -9096,18 +9385,18 @@ function App(){
                   const amr=mrDiv(ax==='F'?ch.arbMotionRatioF:ch.arbMotionRatioR);
                   const toLin=rs=>2*rs/(track*track*amr), toRs=k=>k*track*track*amr/2;
                   const stored=fe[key]??(physMode?12000:20);
-                  return <Field noSlider key={ax} label={`ARB ${ax}`}
+                  return <Hide key={ax} id={ax==='F'?'arb.manF':'arb.manR'}><Field noSlider label={`ARB ${ax}`}
                     value={physMode?Math.round(toLin(stored)):stored}
                     onChange={physMode?v=>pFe(key)(toRs(v)):pFe(key)}
                     min={physMode?0:1} max={physMode?ARB_MAN_LIN_MAX:lim.arb} step={physMode?PHYS_SNAP.arb:0.1}
                     unit={physMode?'N/m':undefined}
                     hint={physMode
                       ?`${side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width and ARB Motion Ratio move this number.`
-                      :`${side} ARB clicks, entered directly. This game mode's limit is ${lim.arb} clicks per axle.`} hintTerm="stiffness-mode"/>;
+                      :`${side} ARB clicks, entered directly. This game mode's limit is ${lim.arb} clicks per axle.`} hintTerm="stiffness-mode"/></Hide>;
                 })}
               </div>}
             {uiMode!=='beginner'&&arbMode!=='man'&&<div style={{marginBottom:10,marginTop:4}}>
-              <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+              <Hide id="arb.balMode"><span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                 Balance Mode
                 <Hint text={`Splits the bars front/rear. WEIGHT: by weight. NEUTRAL: from the springs (CANCEL offsets them, EQUAL ROLL matches them).${uiMode==='pro'?' CHASSIS: by natural balance. MECH, CO-SOLVE: solve to the Mech Balance Target.':''}`} term="balance-mode"/>
               </span>
@@ -9125,9 +9414,9 @@ function App(){
                 <button className={`tog${arbBalMode==='coSolve'?' on':''}`}
                   onClick={()=>pFe('arbBalMode')('coSolve')}>CO-SOLVE</button>
                 </>}
-              </div>
+              </div></Hide>
               {(arbBalMode==='weight'||arbBalMode==='chassis')&&
-                <div style={{marginTop:8}}>
+                <Hide id="arb.splitDir"><div style={{marginTop:8}}>
                   <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                     Split Direction
                     <Hint text="SAME (default) follows the reference balance: a front-heavy car gets a front-heavy ARB split. OPPOSITE mirrors it around 50/50 so the bars counteract that tendency." term="split-direction"/>
@@ -9138,9 +9427,9 @@ function App(){
                     <button className={`tog${fe.arbSplitOpposite?' on':''}`}
                       onClick={()=>pFe('arbSplitOpposite')(true)}>OPPOSITE</button>
                   </div>
-                </div>}
+                </div></Hide>}
               {arbBalMode==='neutral'&&
-                <div style={{marginTop:8}}>
+                <Hide id="arb.neutralMethod"><div style={{marginTop:8}}>
                   <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                     Neutral Method
                     <Hint text="CANCEL (default) splits the bars against the springs so the balance bar returns to neutral. EQUAL ROLL splits them in the springs' own proportion, adding stiffness without moving the springs' balance." term="bal-neutral"/>
@@ -9151,20 +9440,20 @@ function App(){
                     <button className={`tog${fe.arbNeutralEqual?' on':''}`}
                       onClick={()=>pFe('arbNeutralEqual')(true)}>EQUAL ROLL</button>
                   </div>
-                </div>}
+                </div></Hide>}
             </div>}
             {arbMode!=='man'&&arbBalMode==='mech'&&<>
-              <div style={{display:'flex',alignItems:'center',gap:8,
+              <Hide id="arb.mechSplit"><div style={{display:'flex',alignItems:'center',gap:8,
                            padding:'6px 10px',background:'#0a0f1a',borderRadius:2,
                            border:'1px solid #1e293b',marginBottom:10}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>ARB SPLIT</span>
                 <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:'#e2e8f0'}}>
                   F {tune.balArbSplit!=null?100-tune.balArbSplit:'—'}% / R {tune.balArbSplit??'—'}%
                 </span>
-              </div>
+              </div></Hide>
             </>}
             {coSolveOn&&<>
-              <div style={{display:'flex',gap:8,marginBottom:6}}>
+              <Hide id="arb.coSolveSplit"><div style={{display:'flex',gap:8,marginBottom:6}}>
                 <div style={{flex:1,display:'flex',alignItems:'center',gap:8,
                              padding:'6px 10px',background:'#0a0f1a',borderRadius:2,
                              border:'1px solid #1e293b'}}>
@@ -9181,8 +9470,8 @@ function App(){
                     {tune.rHz!=null?tune.rHz.toFixed(2):'—'} Hz
                   </span>
                 </div>
-              </div>
-              {tune.coSolveSpCorr!=null&&<div style={{display:'flex',gap:8,marginBottom:6}}>
+              </div></Hide>
+              {tune.coSolveSpCorr!=null&&<Hide id="arb.coSolveCorr"><div style={{display:'flex',gap:8,marginBottom:6}}>
                 <div style={{flex:1,display:'flex',alignItems:'center',gap:8,
                              padding:'6px 10px',background:'#0a0f1a',borderRadius:2,
                              border:'1px solid #1e293b'}}>
@@ -9199,8 +9488,8 @@ function App(){
                     {(tune.coSolveAbCorr>=0?'+':'')+tune.coSolveAbCorr.toFixed(3)}
                   </span>
                 </div>
-              </div>}
-              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+              </div></Hide>}
+              <Hide id="arb.springShare"><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPRING SHARE</span>
                 <button className={`tog${(fe.springShareAuto!==false)?' on':''}`}
                   onClick={()=>setFe(p=>{const auto=p.springShareAuto!==false;
@@ -9220,7 +9509,7 @@ function App(){
                   box={{unit:'% SPR'}}
                   readout={`ARB ${100-((fe.springShareAuto!==false)?(tune.coSolveAutoS??50):(fe.springShare??50))}%`}
                   hint="How much of the balance correction comes from rear springs vs the ARB split. AUTO (default) is right for most builds; turn it off to set by hand." hintTerm="spring-share"/>
-              </div>
+              </div></Hide>
             </>}
             {arbMode!=='man'&&(arbBalMode==='weight'||arbBalMode==='neutral'||arbBalMode==='chassis')&&(()=>{
               const isNeutral=arbBalMode==='neutral';
@@ -9258,7 +9547,7 @@ function App(){
                     ?<span style={{fontSize:10,color:'#f59e0b',letterSpacing:0.5}}>⚠ {tune.neutralClampEnd==='ceiling'?'ARB MAXED':'ARB AT FLOOR'} — CAN'T FULLY CANCEL</span>
                     :<span style={{fontSize:10,color:'#4ade80',letterSpacing:0.5}}>NET {tune.bTot>=0?'+':''}{tune.bTot.toFixed(1)}</span>}
                 </div>}
-                <FeelSlider label="ARB Bias" value={fe.arbBias}
+                <Hide id="arb.bias"><FeelSlider label="ARB Bias" value={fe.arbBias}
                   onChange={pFe('arbBias')} min={-50} max={50} leftLabel="FRONT HEAVY" rightLabel="REAR HEAVY"
                   markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
                   hint={isNeutral&&fe.arbNeutralEqual
@@ -9268,12 +9557,12 @@ function App(){
                     :isChassis
                     ?"Moves the ARB split off the car's calibrated natural balance, which centre matches. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."
                     :"Moves the ARB split off the car's weight balance, which centre matches. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."}
-                  readout={`F ${100-splitPct}% / R ${splitPct}%`} hintTerm="arb-bias"/>
+                  readout={`F ${100-splitPct}% / R ${splitPct}%`} hintTerm="arb-bias"/></Hide>
               </>);
             })()}
           </Sec></div>
 
-          <div id="zone-feel" style={dim('ride','feel')}><Sec title="RIDE" open={open.ride} onToggle={tog('ride')} vis={secVis('ride')} onShow={()=>setSecHidden('ride',false)}
+          <div id="zone-feel" style={dim('ride','feel')}><Sec title="RIDE" open={open.ride} onToggle={tog('ride')} {...secProps('ride')}
             onReset={()=>setFe(p=>({...p,...sectionDefaults('ride')}))}>
             <div style={dim('feel')}>
             {(()=>{
@@ -9298,7 +9587,7 @@ function App(){
                 rearHzMult:Math.round(Math.max(0.5,Math.min(3,physics.frontHz>0?physics.rearHz/physics.frontHz:1.2))*100)/100};
               return(<>
                 {/* Ride reference toggle — always visible, works in CO-SOLVE via Hz inversion */}
-                <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+                <Hide id="ride.ref"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                   <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>RIDE REF.<Hint text="Which axle the stiffness slider sets. FRONT or REAR: that axle, the other is derived. SHARED: the average, with the mode below setting the ratio. Switching never changes the actual Hz." term="ride-ref"/></span>
                   <button className={`tog${rRef==='front'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,
@@ -9317,17 +9606,17 @@ function App(){
                       rideStiffness:hzToRs(tune.rHz),
                       ...(p.rearHzMode==='independent'?{rearHzMan:Math.round(tune.fHz*100)/100}:{}),
                       ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>REAR</button>
-                </div>
+                </div></Hide>
                 {(()=>{
                   const effStiffMode=(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?'bottomG':'hz';
-                  return ch.useRideHeightCG&&<div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+                  return ch.useRideHeightCG&&<Hide id="ride.stiffMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                   <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>STIFFNESS<Hint text="What the stiffness slider below sets. HZ: spring frequency. BOTTOM G's: the vertical load at which the RIDE REF. axle bottoms out. Shown only with RIDE HEIGHT → CG on (CHASSIS section)." term="bottom-g"/></span>
                   <button className={`tog${effStiffMode==='hz'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'hz',
                     ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>HZ</button>
                   <button className={`tog${effStiffMode==='bottomG'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'bottomG',rideBottomG:primaryBottomG}))}>BOTTOM G's</button>
-                </div>;
+                </div></Hide>;
                 })()}
-                {(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?
+                <Hide id="ride.stiffness">{(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?
                 <FeelSlider
                   label={rRef==='rear'?'Rear Bottom-Out':rRef==='shared'?'Avg Bottom-Out':'Front Bottom-Out'}
                   value={primaryBottomG}
@@ -9348,7 +9637,7 @@ function App(){
                     ?'Rear spring frequency, the reference; the mode below derives the front. Typical: 1.0–1.8 Hz street, 1.8–2.6 Hz track.'
                     :rRef==='shared'
                     ?'Average of front and rear spring frequency; both axles move together while the mode below holds the ratio.'
-                    :'Front spring frequency, the reference; the mode below derives the rear. Typical: 1.0–1.8 Hz street, 1.8–2.6 Hz track.'} hintTerm="ride-stiffness"/>}
+                    :'Front spring frequency, the reference; the mode below derives the rear. Typical: 1.0–1.8 Hz street, 1.8–2.6 Hz track.'} hintTerm="ride-stiffness"/>}</Hide>
               </>);
             })()}
             {/* secondary Hz mode toggle — hidden in CO-SOLVE (rear Hz solved automatically) */}
@@ -9360,7 +9649,7 @@ function App(){
               const showHzMech=uiMode==='pro'&&!cancelOn; // see neutralCancelOf
               const btnCount=2+(showHzMech?1:0)+(!isShared?1:0)+(showSharedG?1:0);
               return<>
-                <div style={{display:'flex',alignItems:'center',marginBottom:3,marginTop:-2}}>
+                <Hide id="ride.hzMode"><div style={{display:'flex',alignItems:'center',marginBottom:3,marginTop:-2}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>Hz MODE<Hint text={`Derives the other axle's Hz. MULTIPLIER: fixed ratio. FLAT RIDE: less pitch bounce at Target Speed. INDEPENDENT: by hand. SHARED: same bottom-out g.${uiMode==='pro'?' MECH: from Mech Balance Target, not under NEUTRAL CANCEL. Hidden in CO-SOLVE.':''}`} term="hz-mode"/></span>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:`repeat(${btnCount},1fr)`,gap:3,marginBottom:10}}>
@@ -9376,7 +9665,7 @@ function App(){
                       rearHzMan:Math.round((physics.rideRef==='rear'?physics.frontHz:physics.rearHz)*100)/100}))}>INDEPENDENT</button>}
                   {showSharedG&&<button className={`tog${rearHzMode==='shared'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'shared'}))}>SHARED</button>}
-                </div>
+                </div></Hide>
               </>;
             })()}
             {!coSolveOn&&(()=>{
@@ -9393,7 +9682,7 @@ function App(){
               const flatRideRatioHigh=flatRideRatio>1.25;
               return rearHzMode==='flatRide'
               ? <>
-                <FeelSlider label="Target Speed" value={240-fe.targetSpeed}
+                <Hide id="ride.targetSpeed"><FeelSlider label="Target Speed" value={240-fe.targetSpeed}
                   onChange={v=>pFe('targetSpeed')(240-v)} min={40} max={180} step={5}
                   leftLabel="OFF" rightLabel="CITY"
                   // The slider runs inverted (240 − speed); the box shows and takes the speed itself,
@@ -9410,7 +9699,7 @@ function App(){
                     ?"Sets how the Avg Stiffness is split front/rear using flat-ride timing; the average stays put."
                     :rRef==='rear'
                     ?"Speed at which front and rear hit bumps in phase. Right (CITY) = lower speed, softer front. Left (OFF) = disabled, equal front and rear Hz."
-                    :"Speed at which front and rear hit bumps in phase. Right (CITY) = lower speed, stiffer rear. Left (OFF) = disabled, equal front and rear Hz."} hintTerm="target-speed"/>
+                    :"Speed at which front and rear hit bumps in phase. Right (CITY) = lower speed, stiffer rear. Left (OFF) = disabled, equal front and rear Hz."} hintTerm="target-speed"/></Hide>
                 {flatRideRatioHigh&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                      marginTop:6,padding:'6px 8px',background:'#020617',borderRadius:2,
                      border:'1px solid #f5a62333'}}>
@@ -9420,7 +9709,7 @@ function App(){
                 </div>}
                 </>
             : rearHzMode==='multiplier'
-              ? <FeelSlider
+              ? <Hide id="ride.hzMult"><FeelSlider
                   label={<>{dnaDot('pitchRatio',rRef!=='front')}{isShared?'F/R Ratio':rRef==='rear'?'Front Multiplier':'Rear Multiplier'}</>}
                   value={fe.rearHzMult??1.20}
                   onChange={pFe('rearHzMult')} min={0.50} max={3.00} step={0.01}
@@ -9432,7 +9721,7 @@ function App(){
                     ?"Rear-to-front Hz ratio; shifts stiffness between axles while Avg Stiffness holds the average."
                     :rRef==='rear'
                     ?"Front Hz as a fraction of rear Hz. ÷1.20 = front is 83% of rear Hz."
-                    :"Rear Hz as a multiple of front Hz. ×1.00 = matched; ×1.20 is a typical start. Higher leans toward oversteer."} hintTerm="hz-multiplier"/>
+                    :"Rear Hz as a multiple of front Hz. ×1.00 = matched; ×1.20 is a typical start. Higher leans toward oversteer."} hintTerm="hz-multiplier"/></Hide>
             : rearHzMode==='mech'
               ? <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,
                              padding:'6px 10px',marginBottom:6}}>
@@ -9483,7 +9772,7 @@ function App(){
                     </div>
                   </div>;
                 })()
-              : <FeelSlider
+              : <Hide id="ride.hzMan"><FeelSlider
                   label={rRef==='rear'?'Front Hz':'Rear Hz'}
                   value={fe.rearHzMan??secHz}
                   onChange={pFe('rearHzMan')} min={HZ_MIN} max={HZ_MAX} step={0.01}
@@ -9491,9 +9780,9 @@ function App(){
                   box={{value:secHz,unit:'Hz'}}
                   hint={rRef==='rear'
                     ?"Front spring frequency, set by hand; the stiffness slider above still sets the rear."
-                    :"Rear spring frequency, set by hand; the stiffness slider above still sets the front."} hintTerm="hz-mode"/>;
+                    :"Rear spring frequency, set by hand; the stiffness slider above still sets the front."} hintTerm="hz-mode"/></Hide>;
             })()}
-            <div style={{display:'flex',alignItems:'center',gap:6,
+            <Hide id="ride.hzStrip"><div style={{display:'flex',alignItems:'center',gap:6,
                          padding:'5px 8px',background:'#0a0f1a',borderRadius:2,
                          border:'1px solid #1e293b',marginBottom:10,marginTop:-6}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>FRONT</span>
@@ -9509,9 +9798,9 @@ function App(){
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REAR</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,color:physics.rearHzClamped&&(physics.rideRef??'front')!=='rear'?'#f59e0b':'#e2e8f0'}}>{tune.rHz.toFixed(2)}</span>
               <span style={{fontSize:10,color:'#94a3b8'}}>Hz</span>
-            </div>
+            </div></Hide>
             {/* spring rate strip */}
-            <div style={{display:'flex',alignItems:'center',gap:6,
+            <Hide id="ride.springStrip"><div style={{display:'flex',alignItems:'center',gap:6,
                          padding:'4px 8px',background:'#0a0f1a',borderRadius:2,
                          border:'1px solid #1e293b',marginBottom:8,marginTop:-4}}>
               {/* Same springOut the SPRINGS card uses, so this strip can't drift from it —
@@ -9528,15 +9817,15 @@ function App(){
                 {(()=>{const o=springOut(tune.springR,fe.gameMode,mSpring,ch.motionRatioR);
                   return `${o.value.toFixed(o.decimals)} ${o.unit}`;})()}
               </span>
-            </div>
+            </div></Hide>
             </div>
           </Sec></div>
 
-          <div id="zone-damping" style={dim('damping')}><Sec title="DAMPERS" open={open.dampers} onToggle={tog('dampers')} vis={secVis('dampers')} onShow={()=>setSecHidden('dampers',false)}
+          <div id="zone-damping" style={dim('damping')}><Sec title="DAMPERS" open={open.dampers} onToggle={tog('dampers')} {...secProps('dampers')}
             onReset={()=>setFe(p=>({...p,...sectionDefaults('dampers')}))}>
             {/* damping character mode toggle — INT/PRO only */}
             {uiMode!=='beginner'&&<>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+              <Hide id="dampers.reboundMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REBOUND MODE</span>
                 <Hint text={dampCharMode==='settle'
                   ?"SETTLE TIME: set a target settle time and the app back-solves the rebound ζ that hits it on the ride-reference axle. DAMPING BALANCE MODE below sets how the other axle follows."
@@ -9565,10 +9854,10 @@ function App(){
                 <button className={`tog${dampCharMode==='settle'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampCharMode:'settle',settleTarget:Math.round(carriedSettle*100)/100}))}>SETTLE TIME</button>
               </div>;
-              })()}
+              })()}</Hide>
             </>}
             {dampCharMode==='settle'
-              ? <FeelSlider label="Settle Target" value={fe.settleTarget??0.80}
+              ? <Hide id="dampers.settle"><FeelSlider label="Settle Target" value={fe.settleTarget??0.80}
                   onChange={pFe('settleTarget')} min={0.10} max={1.50} step={0.01}
                   leftLabel="0.10s" rightLabel="1.50s"
                   hint="Target settle time after a bump; the app back-solves the rebound ζ that hits it. Lower = tighter, more controlled. Higher = softer, more comfortable. Damping Bias skews the F/R timing."
@@ -9579,8 +9868,8 @@ function App(){
                     {value:1.30,color:'#60a5fa',label:'ROAD'},
                   ]}
                   box={{unit:'s'}}
-                  readout={`→ F ${Math.round(tune.zetaF??physics.zetaF)}% R ${Math.round(tune.zetaR??physics.zetaR)}%`} hintTerm="settle-time"/>
-              : <FeelSlider label={<>{dnaDot('reboundZeta')}Rebound ζ</>} value={fe.reboundZeta??70}
+                  readout={`→ F ${Math.round(tune.zetaF??physics.zetaF)}% R ${Math.round(tune.zetaR??physics.zetaR)}%`} hintTerm="settle-time"/></Hide>
+              : <Hide id="dampers.reboundZeta"><FeelSlider label={<>{dnaDot('reboundZeta')}Rebound ζ</>} value={fe.reboundZeta??70}
                   onChange={pFe('reboundZeta')} min={10} max={200} step={1}
                   leftLabel="10%" rightLabel="200%"
                   hint="Damping ratio for the rebound (extension) stroke. 55–70% is typical; 70% (default) is Butterworth. Above 70% feels planted but stiff; above 100% (overdamped) sluggish."
@@ -9598,8 +9887,8 @@ function App(){
                     if(z>72) return'FIRM';
                     if(z>=68) return'BUTTERWORTH';
                     return null;
-                  })()} hintTerm="zeta"/> }
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:8}}>
+                  })()} hintTerm="zeta"/></Hide> }
+            <Hide id="dampers.balMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:8}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE{bumpBalMode?' · REBOUND':''}</span>
               <Hint text={`How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.${bumpBalMode?' BUMP BALANCE is set below, so this splits rebound only.':' Bump follows it unless BUMP BALANCE below says otherwise.'}`} term="damping-balance-mode"/>
             </div>
@@ -9609,7 +9898,7 @@ function App(){
               {[['standard','STANDARD'],['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE']].map(([k,l])=>
                 <button key={k} className={`tog${dampBalMode===k?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampBalMode:k}))}>{l}</button>)}
-            </div>
+            </div></Hide>
             {(()=>{
               const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
               const hint=dampBalMode==='sync'
@@ -9621,16 +9910,16 @@ function App(){
                 :`Your Ride Reference axle holds the base ζ (anchored to ${anchor}); the other swings up to 50% at ±50 (SHARED: both share it). Firmer front leans understeer, firmer rear oversteer.`;
               // No readout: the table below shows settle and force per axle for every mode.
               return(
-                <FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
+                <Hide id="dampers.bias"><FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
                   onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
                   markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
-                  hint={hint} hintTerm="damping-bias"/>
+                  hint={hint} hintTerm="damping-bias"/></Hide>
               );
             })()}
             {/* BUMP MODE: how the bump anchor is set. Below Damping Balance Mode so the rebound
                 controls come first, then the bump ones with BUMP BALANCE. */}
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
+            <Hide id="dampers.bumpMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP MODE</span>
               <Hint text={dampingMode==='independent'
                 ?"INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound."
@@ -9680,7 +9969,7 @@ function App(){
                   return{...p,dampingMode:'landing',
                     landingPct:clampLandingPct(r.rh>0?landingCatchDrop(z,r.hz,r.rh)/r.rh*100:0)};
                 })}>LANDING</button>}
-            </div>
+            </div></Hide>
             {dampingMode==='landing'
               ? (()=>{
                   // Stored as % of the ride-reference axle's ride height; the readout adds the
@@ -9695,15 +9984,15 @@ function App(){
                     :!landingSol.reachable?`⚠ MAX ${landingSol.maxPct}%`
                     :landingSol.zeta<=LANDING_ZETA_MIN+0.01?`${zTxt} · FLOOR${cross}`
                     :`${zTxt}${cross}`;
-                  return <FeelSlider label="Drop" value={physics.landingPct}
+                  return <Hide id="dampers.landing"><FeelSlider label="Drop" value={physics.landingPct}
                     onChange={v=>setFe(p=>({...p,landingPct:clampLandingPct(v)}))}
                     min={LANDING_PCT_MIN} max={LANDING_PCT_MAX} step={1}
                     leftLabel={`${LANDING_PCT_MIN}%`} rightLabel={`${LANDING_PCT_MAX}%`}
                     hint={`Drop height the ${ref} axle should absorb before the bump stops (the top ${Math.round(BUMP_STOP_ZONE*100)}% of travel), as a % of its ride height (now ${fmtLen(physics.landingDrop)}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.`}
-                    markers={null} box={{unit:'%'}} readout={readout} hintTerm="landing"/>;
+                    markers={null} box={{unit:'%'}} readout={readout} hintTerm="landing"/></Hide>;
                 })()
               : dampingMode==='ratio'
-              ? <FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
+              ? <Hide id="dampers.bumpRatio"><FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
                   onChange={pFe('bumpRatio')} min={10} max={100} step={1}
                   leftLabel="10%" rightLabel="100%"
                   hint="Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads; higher = more consistent between strokes. 40–65% is typical."
@@ -9719,8 +10008,8 @@ function App(){
                                  bz>=68?`${bzR}% · BUTTERWORTH`:
                                          `${bzR}%`;
                     return`ζ ${zLabel}`;
-                  })()} hintTerm="bump-ratio"/>
-              : <FeelSlider label="Bump ζ" value={fe.bumpZeta??39}
+                  })()} hintTerm="bump-ratio"/></Hide>
+              : <Hide id="dampers.bumpZeta"><FeelSlider label="Bump ζ" value={fe.bumpZeta??39}
                   onChange={pFe('bumpZeta')} min={10} max={115} step={1}
                   leftLabel="10%" rightLabel="115%"
                   hint="Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear."
@@ -9750,11 +10039,11 @@ function App(){
                       :`${tag(bF)}${cross}`.replace(/^ · /,'').trim();
                     return txt||null;
                   })()}
-                  box={{unit:'%'}} hintTerm="bump"/>}
+                  box={{unit:'%'}} hintTerm="bump"/></Hide>}
             {/* BUMP BALANCE: bump's own Damping Balance Mode and bias. SAME keeps the one-mode behaviour
                 (bump split with rebound's mode and Damping Bias). Leaving SAME seeds Bump Bias from
                 Damping Bias, so the first click changes only the mode. */}
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
+            <Hide id="dampers.bumpBalMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP BALANCE</span>
               <Hint text="How the bump anchor becomes a front/rear split. SAME: as rebound, with the same Damping Bias. Any other choice gives bump its own mode and Bump Bias. EQUAL CATCH (LANDING only): each axle absorbs the same drop." term="bump-balance"/>
             </div>
@@ -9765,7 +10054,7 @@ function App(){
                 <button key={k} className={`tog${(bumpBalMode??'same')===k?' on':''}`}
                   onClick={()=>setFe(p=>({...p,bumpBalMode:k,
                     ...(k!=='same'&&!ownBumpBalMode(p.bumpBalMode,p.dampingMode)?{bumpDampingBias:p.dampingBias??0}:{})}))}>{l}</button>)}
-            </div>
+            </div></Hide>
             {bumpBalMode&&(()=>{
               const anchor=dampingMode==='ratio'?'Bump Ratio':dampingMode==='landing'?'the LANDING drop':'Bump ζ';
               const hint=bumpBalMode==='catch'
@@ -9778,11 +10067,11 @@ function App(){
                 ?`EQUAL FORCE: skews bump damping force front/rear; centre = equal force (anchored to ${anchor}). Left (FRONT) shifts it to the front, right (REAR) to the rear.`
                 :`Your Ride Reference axle holds the bump anchor (${anchor}); the other swings up to 50% at ±50 (SHARED: both share it).`;
               return(
-                <FeelSlider label="Bump Bias" value={-(fe.bumpDampingBias??0)}
+                <Hide id="dampers.bumpBias"><FeelSlider label="Bump Bias" value={-(fe.bumpDampingBias??0)}
                   onChange={v=>pFe('bumpDampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
                   markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
-                  hint={hint} hintTerm="bump-balance"/>
+                  hint={hint} hintTerm="bump-balance"/></Hide>
               );
             })()}
             {(()=>{
@@ -9869,7 +10158,7 @@ function App(){
               if(bumpBalMode&&!target.includes('bmp'))target.push('bmp');
               if(bumpBalMode==='catch')target.push('catch');
               const hd={fontSize:9,color:'#64748b',letterSpacing:1,textAlign:'right'};
-              return(
+              return(<Hide id="dampers.table">
                 <div style={{padding:'4px 8px',background:'#0a0f1a',borderRadius:2,border:'1px solid #1e293b',
                              marginBottom:4,marginTop:-6,display:'grid',gridTemplateColumns:'1fr 64px 64px',
                              columnGap:4,rowGap:1,alignItems:'center'}}>
@@ -9888,7 +10177,7 @@ function App(){
                         {cell(r.f,'F')}{cell(r.r,'R')}
                       </div>);
                   })}
-                </div>
+                </div></Hide>
               );
             })()}
           </Sec></div>
@@ -9896,42 +10185,42 @@ function App(){
           {/* BRAKES (INT+): one shift from the recommended brake bias. Brakes were auto-only for a
               while (CODE_MAP's "Intentionally absent" told the story); they came back as a shift, not
               a typed value, so the bias keeps following the chassis and build. */}
-          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')} vis={secVis('brakes')} onShow={()=>setSecHidden('brakes',false)}
+          {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')} {...secProps('brakes')}
             onReset={()=>setDr(p=>({...p,...sectionDefaults('brakes')}))}>
             {/* PRO: what the shift is measured from. REC = the recommendation; GRIP = where both axles
                 reach their braking limit together (gripBrakeBiasOf). Switching moves the bias — it
                 is a different answer, not a different way of writing the same one. */}
             {uiMode==='pro'&&<>
-              <Toggle label="Centre" value={brakeEntry?'entry':brakeGrip?'grip':'rec'} onChange={pDr('brakeCentre')}
+              <Hide id="brakes.centre"><Toggle label="Centre" value={brakeEntry?'entry':brakeGrip?'grip':'rec'} onChange={pDr('brakeCentre')}
                 options={[{value:'rec',label:'REC'},{value:'grip',label:'GRIP'},{value:'entry',label:'ENTRY'}]}
-                hint="REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved for trail braking: how turn-in on the brakes sits against mid-corner." hintTerm="brake-balance"/>
-              {brakeEntry&&<Field label="Entry vs MID" value={dr.brakeEntryTarget??0} onChange={pDr('brakeEntryTarget')}
+                hint="REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved for trail braking: how turn-in on the brakes sits against mid-corner." hintTerm="brake-balance"/></Hide>
+              {brakeEntry&&<Hide id="brakes.entryTarget"><Field label="Entry vs MID" value={dr.brakeEntryTarget??0} onChange={pDr('brakeEntryTarget')}
                 min={-5} max={5} step={0.25} unit="%"
-                hint="How much looser (+) or tighter (−) the car should be trail braking into the corner than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included." hintTerm="brake-balance"/>}
+                hint="How much looser (+) or tighter (−) the car should be trail braking into the corner than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included." hintTerm="brake-balance"/></Hide>}
               {entrySolve?.clamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.5,marginBottom:6}}>
                 {`Out of reach: brake bias stops at ${entrySolve.clamped==='rear'?BRAKE_BIAS_MIN:BRAKE_BIAS_MAX}%. Move Entry vs MID toward ${entrySolve.clamped==='rear'?'0 or below':'0 or above'}, or use the off-throttle diff for the rest.`}
               </div>}
-              {brakeGrip&&<Field label="Decel" value={dr.brakeDecel??DEF_DR.brakeDecel} onChange={pDr('brakeDecel')}
+              {brakeGrip&&<Hide id="brakes.decel"><Field label="Decel" value={dr.brakeDecel??DEF_DR.brakeDecel} onChange={pDr('brakeDecel')}
                 min={0.3} max={1.5} step={0.05} unit="g"
-                hint="How hard GRIP assumes you brake. More decel moves more load forward, so GRIP moves forward: about 1.0 g for threshold braking, less for a lighter trail-brake." hintTerm="brake-balance"/>}
-              <div style={{fontSize:11,color:'#64748b',marginBottom:6}}>
+                hint="How hard GRIP assumes you brake. More decel moves more load forward, so GRIP moves forward: about 1.0 g for threshold braking, less for a lighter trail-brake." hintTerm="brake-balance"/></Hide>}
+              <Hide id="brakes.refLine"><div style={{fontSize:11,color:'#64748b',marginBottom:6}}>
                 REC {recBrakeBias}% · GRIP {gripBrakeBias}% at {(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g
-              </div>
+              </div></Hide>
               {/* What this bias does to PRO's ENTRY phase: the BRK term, in the expanded panel's own
                   grip-margin percent. 0 at GRIP with a 0.3 g Decel (phaseMargins' reference); each
                   point of bias moves it by roughly half a percent, so the shift slider doubles as
                   a hand-run entry target without a solver bending the bias around the springs. */}
               {phase&&(()=>{
                 const v=phase.entry.brk,n=Math.abs(v)<PHASE_NEUTRAL;
-                return(
+                return(<Hide id="brakes.entryBrk">
                   <div style={{fontSize:11,color:'#64748b',marginBottom:6,display:'flex',alignItems:'center',gap:4}}>
                     ENTRY BRK <span style={{fontFamily:'var(--font-mono)',color:n?'#cbd5e1':v>0?'#f97316':'#60a5fa'}}>
                       {(v>=0?'+':'')+v.toFixed(2)}%</span> {n?'neutral':v>0?'toward oversteer':'toward understeer'}
                     <Hint text={`What this brake bias adds to the ENTRY (trail-braking) phase, as in the expanded Handling Balance panel. 0 at GRIP with a ${ENTRY_G} g Decel (${Math.round(phase.entry.idealBias)}% front on this car); each point of bias moves it about half a percent.`} term="phase-verdict"/>
-                  </div>);
+                  </div></Hide>);
               })()}
             </>}
-            {brakeEntry
+            <Hide id="brakes.bias">{brakeEntry
               ?<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#9ca3af',marginBottom:9}}>
                  <span>Brake Bias</span><span style={{fontFamily:'var(--font-mono)',color:'#e2e8f0'}}>{brakeBias}% F</span>
                </div>
@@ -9946,12 +10235,12 @@ function App(){
               hint={brakeGrip
                 ?`Shifts the GRIP brake bias (${gripBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`
                 :`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`}
-              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>}
+              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>}</Hide>
           </Sec></div>}
 
-          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} vis={secVis('drivetrain')} onShow={()=>setSecHidden('drivetrain',false)}
+          <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} {...secProps('drivetrain')}
             onReset={()=>setDr(p=>({...p,...sectionDefaults('drivetrain')}))}>
-            {uiMode!=='beginner'&&<div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
+            {uiMode!=='beginner'&&<Hide id="drive.diffType"><div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
               <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
               <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
@@ -9962,8 +10251,8 @@ function App(){
                   </button>
                 ))}
               </div>
-            </div>}
-            {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
+            </div></Hide>}
+            {uiMode==='pro'&&<Hide id="drive.diffMode"><div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>Differential Mode</span>
               <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly." term="diff-mode"/>
               <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
@@ -9980,7 +10269,7 @@ function App(){
                         :{diffAccel:d.accel,diffDecel:d.decel})}));
                   }}>MANUAL</button>
               </div>
-            </div>}
+            </div></Hide>}
             {!dr.diffManual&&(()=>{
               const groupHdr={fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:3,marginTop:6};
               const dt=dr.diffType??'race';
@@ -9995,7 +10284,7 @@ function App(){
               return(<>
                 {ch.layout==='AWD'&&uiMode!=='beginner'&&<>
                   <div style={groupHdr}>FRONT AXLE</div>
-                  <FeelSlider
+                  <Hide id="drive.frontExit"><FeelSlider
                     label="EXIT"
                     value={-(dr.diffFrontExitBias??0)}
                     onChange={v=>pDr('diffFrontExitBias')(-v)}
@@ -10004,10 +10293,10 @@ function App(){
                     rightLabel="NEUTRAL"
                     markers={[{value:0,color:'#475569'}]}
                     hint="Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation."
-                    readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/>
+                    readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/></Hide>
                 </>}
                 <div style={groupHdr}>{ch.layout==='FWD'?'FRONT AXLE':'REAR AXLE'}</div>
-                {uiMode==='pro'&&<div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                {uiMode==='pro'&&<Hide id="drive.matchChassis"><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                   <button className={`tog${dr.diffComplement?' on':''}`}
                     // Dimmed while nothing solves toward the Balance Target: computeDiff then skips it.
                     style={hasBalTargetSolve(feEffective)?undefined:{opacity:0.45}}
@@ -10016,8 +10305,8 @@ function App(){
                     MATCH CHASSIS
                   </button>
                   <Hint text="Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL." term="match-chassis"/>
-                </div>}
-                <FeelSlider
+                </div></Hide>}
+                <Hide id="drive.exit"><FeelSlider
                   label={<>{dnaDot('diffExit')}EXIT</>}
                   // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
                   // do NOT also flip the sign inside computeDiff's FWD accel formula (the
@@ -10039,8 +10328,8 @@ function App(){
                     +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds a bias from your mech target.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
                   readout={diff.layout==='AWD'
                     ?`R.Accel ${diff.rearAccel}%`
-                    :`Accel ${diff.accel}%`} hintTerm="exit-bias"/>
-                {dt!=='sport'&&<FeelSlider
+                    :`Accel ${diff.accel}%`} hintTerm="exit-bias"/></Hide>
+                {dt!=='sport'&&<Hide id="drive.entry"><FeelSlider
                   label={<>{dnaDot('diffEntry')}ENTRY</>}
                   value={-(dr.diffBiasEntry??0)}
                   onChange={v=>pDr('diffBiasEntry')(-v)}
@@ -10056,10 +10345,10 @@ function App(){
                     +(dr.diffComplement?(uiMode==='pro'?' MATCH CHASSIS is on and adds half its bias here.':' A PRO-only diff setting is also biasing this; switch to PRO to turn it off.'):'')}
                   readout={diff.layout==='AWD'
                     ?`R.Decel ${diff.rearDecel}%`
-                    :`Decel ${diff.decel}%`} hintTerm="entry-bias"/>}
+                    :`Decel ${diff.decel}%`} hintTerm="entry-bias"/></Hide>}
                 {ch.layout==='AWD'&&uiMode!=='beginner'&&dt!=='sport'&&<>
                   <div style={groupHdr}>CENTER</div>
-                  <FeelSlider
+                  <Hide id="drive.powerSplit"><FeelSlider
                     label="POWER SPLIT"
                     value={(dr.diffCenter??65)-50}
                     onChange={v=>pDr('diffCenter')(Math.round(v+50))}
@@ -10072,7 +10361,7 @@ function App(){
                     box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
                           onCommit:v=>pDr('diffCenter')(Math.round(v))}}
                     // computeDiff clamps the split it uses to 45–90, so say so when that differs.
-                    readout={diff.center!=null&&diff.center!==(dr.diffCenter??65)?`→ ${diff.center}%`:null} hintTerm="power-split"/>
+                    readout={diff.center!=null&&diff.center!==(dr.diffCenter??65)?`→ ${diff.center}%`:null} hintTerm="power-split"/></Hide>
                 </>}
               </>);
             })()}
@@ -10088,58 +10377,58 @@ function App(){
               return ch.layout==='AWD'?(
                 <>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                    <div>
+                    <Hide id="drive.manFrontAccel"><div>
                       <Field noSlider label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Front lock under power. Higher = more front pull on exit, but more understeer." hintTerm="accel-lock"/>
                       <RangeHint r={ranges.frontAccel}/>
-                    </div>
+                    </div></Hide>
                     {dt!=='sport'&&
-                    <div>
+                    <Hide id="drive.manFrontDecel"><div>
                       <Field noSlider label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Front lock off throttle. Keep it at 0: any more strongly adds entry understeer." hintTerm="decel-lock"/>
                       <RangeHint r={[0,0]}/>
-                    </div>}
+                    </div></Hide>}
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                    <div>
+                    <Hide id="drive.manRearAccel"><div>
                       <Field noSlider label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Rear lock under power. Higher = more exit oversteer." hintTerm="accel-lock"/>
                       <RangeHint r={ranges.rearAccel}/>
-                    </div>
+                    </div></Hide>
                     {dt!=='sport'&&
-                    <div>
+                    <Hide id="drive.manRearDecel"><div>
                       <Field noSlider label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
                       <RangeHint r={ranges.decel}/>
-                    </div>}
+                    </div></Hide>}
                   </div>
-                  <Field noSlider label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
+                  <Hide id="drive.manCenter"><Field noSlider label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
                     min={0} max={100} step={1} unit="% rear"
-                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/>
+                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/></Hide>
                 </>
               ):(
                 <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
-                  <div>
+                  <Hide id="drive.manAccel"><div>
                     <Field noSlider label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
                       min={0} max={100} step={1} unit="%"
                       hint={ch.layout==='RWD'
                         ?'Rear lock under power. Higher = more exit oversteer.'
                         :'Front lock under power. Higher = more exit understeer.'} hintTerm="accel-lock"/>
                     <RangeHint r={ranges.accel}/>
-                  </div>
+                  </div></Hide>
                   {dt!=='sport'&&
-                  <div>
+                  <Hide id="drive.manDecel"><div>
                     <Field noSlider label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
                       min={0} max={100} step={1} unit="%"
                       hint={ch.layout==='RWD'
                         ?'Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry.'
                         :'Front lock off throttle. Lower = less entry understeer.'} hintTerm="decel-lock"/>
                     <RangeHint r={ranges.decel}/>
-                  </div>}
+                  </div></Hide>}
                 </div>
               );
             })()}
@@ -10164,12 +10453,12 @@ function App(){
             its own simplified panel with no ARB/RIDE/DAMPERS sections for these readouts to relate
             to, so VISUALS stays hidden there. */}
         {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&secVis('visuals')!=='none'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
-          <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} vis={secVis('visuals')} onShow={()=>setSecHidden('visuals',false)}>
+          <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} {...secProps('visuals')}>
             <div style={{maxHeight:(()=>{
               const cap=Math.max(open.visRide?visCaps.ride??0:0,uiMode==='pro'&&open.visLoad?visCaps.load??0:0,uiMode==='pro'&&open.visGrip?visCaps.grip??0:0);
               return cap||(isPhone?'32vh':'50vh');
             })(),overflowY:'auto',overscrollBehavior:'contain'}}>
-              {dnaLink&&<>
+              {dnaLink&&<Hide id="visuals.dna">
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA MATCH</span>
@@ -10196,7 +10485,7 @@ function App(){
                   ≠ = changed since APPLY. MODE = that control is no longer in the mode DNA set. <TermLink id="dna-match"/>
                 </div>
               </div>}
-              </>}
+              </Hide>}
               {(()=>{
                 // RIDE · ROLL · DAMPING — replaced the ARB (ArbDial + roll seesaw) and RIDE /
                 // DAMPERS (SpringDial + DampingDial) groups. The split divide is the display-space
@@ -10204,7 +10493,7 @@ function App(){
                 // stiffness rear fraction so the card still draws.
                 const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
                 const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
-                return<div ref={visMeasureRef('ride')}>
+                return<Hide id="visuals.ride"><div ref={visMeasureRef('ride')}>
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRide:!p.visRide}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
@@ -10228,9 +10517,10 @@ function App(){
                   dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR).value}
                   hzClamped={physics.rearHzClamped}/>
               </div>}
-                </div>;
+                </div></Hide>;
               })()}
 
+              <Hide id="visuals.dynamics">
               <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDynamics:!p.visDynamics}))}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DYNAMICS</span>
@@ -10331,7 +10621,9 @@ function App(){
                   </div>
                 );
               })()}
+              </Hide>
 
+              <Hide id="visuals.sag">
               {ch.useRideHeightCG&&(()=>{
                 const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
                 const tyresOk=pF?.radius!=null&&pR?.radius!=null;
@@ -10433,9 +10725,11 @@ function App(){
                   </div>}
                 </>);
               })()}
+              </Hide>
               {/* LOAD TRANSFER (PRO): the grip model's own transfer at 1 g (loadTransferOf), so the
                   springs and bars move it. Moved here from the bottom of the expanded Handling
                   Balance panel: it is a picture of the car's loads, like the groups above. */}
+              <Hide id="visuals.load">
               {uiMode==='pro'&&(()=>{
                 const lt=loadTransferOf(ch,tune);
                 const{front:F,rear:R}=lt;
@@ -10516,8 +10810,10 @@ function App(){
                   </div>}
                 </div>);
               })()}
+              </Hide>
               {/* GRIP USE (PRO): each axle's share of its grip in use when the car reaches its limit, by
                   phase (gripUseOf) — the grip model's prediction before the car is driven. */}
+              <Hide id="visuals.grip">
               {uiMode==='pro'&&(()=>{
                 const gu=gripUseOf(ch,tune,gripPhase,brakeBias,diff);
                 const{front:F,rear:R}=gu;
@@ -10597,6 +10893,7 @@ function App(){
                   </div>}
                 </div>);
               })()}
+              </Hide>
             </div>
           </Sec>
         </div>}
@@ -10613,6 +10910,12 @@ function App(){
               own rendered width (not the viewport's) to decide when to collapse to 1 column —
               see the .beamng-grid rule in <style>. */}
           <div style={{containerType:'inline-size'}}>
+          {/* The edit view's own DONE, so it can be reached from this panel too (phones). */}
+          {editing&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',marginBottom:8,
+                                 background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
+            <span style={{color:'#818cf8',letterSpacing:1,flex:1}}>EDITING LAYOUT · click a card header, a row or a balance bar part to hide it</span>
+            <button className="tbtn" style={{fontSize:10,color:'#818cf8'}} onClick={()=>setLayoutEdit(false)}>DONE</button>
+          </div>}
 
           {/* Forza (horizon/motorsport): the original six full-width, single-column cards,
               unchanged. BeamNG gets its own two-column layout below instead — see physMode
@@ -10620,7 +10923,7 @@ function App(){
               physMode branches: BeamNG wording belongs on the SuspensionCard layout. */}
           {!physMode&&(<>
           {/* 1 — ALIGNMENT */}
-          <Card title="ALIGNMENT"
+          <Card hid="out.card.align" title="ALIGNMENT"
             hint={(()=>{
               const _camberStr={street:'-1.0°',track:'-1.5°',drift:'-2.5°',rally:'-0.8°',offroad:'-0.3°',drag:'-0.2°'}[dr.buildType??'track']??'-1.5°';
               const _prefix=alignMode==='manual'?'Manual values.':'Recommended starting point.';
@@ -10630,20 +10933,20 @@ function App(){
             })()} hintTerm="align-mode">
 
             <RowGroup>
-              <OutRow label="Camber Front" value={align.recCamberF} unit="°"/>
-              <OutRow label="Camber Rear"  value={align.recCamberR} unit="°"/>
+              <OutRow hid="out.camberF" label="Camber Front" value={align.recCamberF} unit="°"/>
+              <OutRow hid="out.camberR" label="Camber Rear"  value={align.recCamberR} unit="°"/>
             </RowGroup>
             <RowGroup>
-              <OutRow label="Toe Front" value={align.recToeF} unit="°"/>
-              <OutRow label="Toe Rear"  value={align.recToeR} unit="°"/>
+              <OutRow hid="out.toeF" label="Toe Front" value={align.recToeF} unit="°"/>
+              <OutRow hid="out.toeR" label="Toe Rear"  value={align.recToeR} unit="°"/>
             </RowGroup>
             <RowGroup style={{marginBottom:0}}>
-              <OutRow label="Caster" value={align.recCaster} unit="°"/>
+              <OutRow hid="out.caster" label="Caster" value={align.recCaster} unit="°"/>
             </RowGroup>
           </Card>
 
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
-          <Card title="ANTI-ROLL BARS" accent
+          <Card hid="out.card.arb" title="ANTI-ROLL BARS" accent
             headerRight={`ROLL ${tune.rollDeg.toFixed(2)}°`}
             hint="Click values to enter in the game's ARB menu. Amber means above 88% of the game's limit." hintTerm="arb">
 
@@ -10652,13 +10955,13 @@ function App(){
                 ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear',ch.arbMotionRatioR]].map(([lbl,v,rsAb,rsSp,track,side,arbMr])=>{
                 const o=arbOut(v,lim,track,arbMr);
                 const c=arbCtx(v,lim.arb);
-                return <OutRow key={lbl} label={lbl} value={o.value} decimals={o.decimals}
+                return <OutRow key={lbl} hid={lbl==='Front'?'out.arbF':'out.arbR'} label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.arb)} unit={o.unit}
                   note={c?c[0]:null} noteColor={c?c[1]:undefined}
                   meta={arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)}/>;
               })}
             </RowGroup>
-            {tune.rollClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
+            <Keep>{tune.rollClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
               Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
@@ -10671,10 +10974,10 @@ function App(){
                  border:'1px solid #f9731633'}}>
               Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
               achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:lim.arb})} <TermLink id="output-warnings"/>
-            </div>}
+            </div>}</Keep>
           </Card>
 
-          <Card title="SPRINGS" accent
+          <Card hid="out.card.springs" title="SPRINGS" accent
             hint={`Spring rates in the spring unit chosen in UNITS to enter in the tuning menu. Badge = stiffness band (SOFT/ROAD/FIRM/RACE); REAR × = rear Hz ÷ front Hz.`}
             headerRight={`REAR ×${(tune.rHz/tune.fHz).toFixed(2)}`} hintTerm="spring-rate">
 
@@ -10690,14 +10993,14 @@ function App(){
                   {rows.map(([lbl,spring,mr,hz,pct,side])=>{
                     const o=springOut(spring,fe.gameMode,mSpring,mr);
                     const c=hzCtx(hz);
-                    return <OutRow key={lbl} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
+                    return <OutRow key={lbl} hid={lbl==='Front'?'out.springF':'out.springR'} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
                       note={c?c[0]:null} noteColor={c?c[1]:undefined}
                       meta={[`${pct}% roll`,`${hz.toFixed(2)} Hz`]}/>;
                   })}
                 </RowGroup>
               );
             })()}
-            {hzClampNote&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
+            <Keep>{hzClampNote&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
               {hzClampNote} <TermLink id="output-warnings"/>
@@ -10708,7 +11011,7 @@ function App(){
               Rear springs are much stiffer than front ({tune.rHz.toFixed(2)} vs {tune.fHz.toFixed(2)} Hz), risking inside rear wheel lift in hard corners.
               {(fe.springShareAuto!==false)?' Lower the mech balance target or switch to MECH mode.'
                 :' Lower Spring Share or enable AUTO.'} <TermLink id="output-warnings"/>
-            </div>}
+            </div>}</Keep>
           </Card>
 
           {/* 4 — DAMPERS */}
@@ -10718,7 +11021,7 @@ function App(){
               where the Damping Bias slider drives a Hz/mass-aware split instead of a raw %.
               Bump Ratio is only actually applied in 'ratio' damping mode; under
               INDEPENDENT the bump ζ is set directly, so showing a ratio there would be a lie. */}
-          <Card title="DAMPERS" accent
+          <Card hid="out.card.dampers" title="DAMPERS" accent
             headerRight={`F/R BIAS ${(()=>{const zF=tune.zetaF??physics.zetaF,tot=zF+(tune.zetaR??physics.zetaR);
                 return tot>0?Math.round(zF/tot*100):50;})()}% F  ·  ${
               (physics.dampingMode??'ratio')==='ratio'
@@ -10735,7 +11038,8 @@ function App(){
               const zNote=(z,isReb)=>z>100?'⚠ OVERDAMPED':(isReb&&z<40?'⚠ UNDERDAMPED':null);
               const row=([lbl,v,z,mr,settle,isReb])=>{
                 const o=dampOut(v,lim,mr);
-                return <OutRow key={lbl} label={lbl} value={o.value} decimals={o.decimals}
+                return <OutRow key={lbl} hid={{'Front Rebound':'out.rebF','Rear Rebound':'out.rebR','Front Bump':'out.bumpF','Rear Bump':'out.bumpR'}[lbl]}
+                  label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.damping)} unit={o.unit} note={zNote(z,isReb)}
                   meta={[settle!=null?`${settle.toFixed(2)}s settle`:null,`${z.toFixed(0)}% ζ`]}/>;
               };
@@ -10752,32 +11056,32 @@ function App(){
                 </RowGroup>
               </>);
             })()}
-            {landingWarn&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
+            <Keep>{landingWarn&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>{landingWarn}</div>}
             {tune.dampingClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
                  marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
                  border:'1px solid #f5a62333'}}>
               Dampers scaled to fit within 1–{lim.damping}, keeping the F/R ratio. {uiMode==='beginner'?'Move Character toward AGILE to restore the feel.':'Lower Rebound ζ or Bump Ratio to restore the character.'} <TermLink id="output-warnings"/>
-            </div>}
+            </div>}</Keep>
           </Card>
 
           {/* 5 — BRAKES */}
-          <Card title="BRAKES"
+          <Card hid="out.card.brakes" title="BRAKES"
             hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
 
             {(()=>{
               const c=brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
               return(
                 <RowGroup style={{marginBottom:0}}>
-                  <OutRow label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
+                  <OutRow hid="out.brakeBias" label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
                 </RowGroup>
               );
             })()}
           </Card>
 
           {/* 6 — DIFFERENTIAL */}
-          <Card title="DIFFERENTIAL"
+          <Card hid="out.card.diff" title="DIFFERENTIAL"
             hint={diff.layout==='FWD'
               ?'Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.'
               :diff.layout==='RWD'
@@ -10788,11 +11092,14 @@ function App(){
               // SPORT is accel-only in-game, so every decel field reads N/A rather than a
               // number the tuning menu won't accept.
               const isSport=(dr.diffType??'race')==='sport';
+              const LOCK_HID={'Front Accel':'out.diff.frontAccel','Front Decel':'out.diff.frontDecel',
+                'Rear Accel':'out.diff.rearAccel','Rear Decel':'out.diff.rearDecel','Center Split':'out.diff.center',
+                'Accel Lock':'out.diff.accel','Decel Lock':'out.diff.decel'};
               const lock=(label,v,unit='%')=>{
                 if(isSport&&/Decel|Split/.test(label))
-                  return <OutRow key={label} label={label} value="N/A" unit=""/>;
+                  return <OutRow key={label} hid={LOCK_HID[label]} label={label} value="N/A" unit=""/>;
                 const c=diffCtx(v);
-                return <OutRow key={label} label={label} value={v} unit={unit} decimals={0}
+                return <OutRow key={label} hid={LOCK_HID[label]} label={label} value={v} unit={unit} decimals={0}
                   note={c?c[0]:null} noteColor={c?c[1]:undefined}/>;
               };
               // AWD genuinely has three differentials (front, rear, centre); FWD/RWD have one,
@@ -10846,7 +11153,7 @@ function App(){
               if(uiMode==='beginner')return null;
               return(
                 <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6}}>
-                  <div style={box}>
+                  <Hide id="out.diff.rec" style={{flex:'1 1 240px',minWidth:0}}><div style={box}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:recMatch?0:4}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>RECOMMENDED</span>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
@@ -10861,8 +11168,8 @@ function App(){
                     <div style={{fontSize:10,color:recMatch?'#334155':'#475569',lineHeight:1.5}}>
                       {buildLabel} build → {recLabel}: {recReason}.
                     </div>
-                  </div>
-                  {showSplit&&<div style={box}>
+                  </div></Hide>
+                  {showSplit&&<Hide id="out.diff.recCenter" style={{flex:'1 1 240px',minWidth:0}}><div style={box}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>CENTER SPLIT</span>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
@@ -10880,7 +11187,7 @@ function App(){
                         base {_baseCenter}%{_weightAdj!==0?` · weight ${_weightAdj>0?'+':''}${_weightAdj}%`:''}{_diamAdj!==0?` · tyres ${_diamAdj>0?'+':''}${_diamAdj}%`:''}{_natAdj!==0?` · balance ${_natAdj>0?'+':''}${_natAdj}%`:''}
                       </div>}
                     </div>
-                  </div>}
+                  </div></Hide>}
                 </div>
               );
             })()}
@@ -10933,20 +11240,20 @@ function App(){
             const buildArbRow=(side,v,rsAb,rsSp,track,arbMr)=>{
               const o=arbOut(v,lim,track,arbMr);
               const c=arbCtx(v,lim.arb);
-              return {label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
+              return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
                 note:c?c[0]:null,noteColor:c?c[1]:undefined,
                 meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)};
             };
             const buildSpringRow=(side,spring,mr,hz,pct)=>{
               const o=springOut(spring,fe.gameMode,mSpring,mr);
               const c=hzCtx(hz);
-              return {label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
+              return {hid:side==='front'?'out.springF':'out.springR',label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
                 note:c?c[0]:null,noteColor:c?c[1]:undefined,meta:[`${pct}% roll`,`${hz.toFixed(2)} Hz`]};
             };
             const zNote=(z,isReb)=>z>100?'⚠ OVERDAMPED':(isReb&&z<40?'⚠ UNDERDAMPED':null);
-            const buildDampRow=(lbl,v,z,mr,settle,isReb)=>{
+            const buildDampRow=(lbl,v,z,mr,settle,isReb,hid)=>{
               const o=dampOut(v,lim,mr);
-              return {label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping),unit:o.unit,note:zNote(z,isReb),
+              return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping),unit:o.unit,note:zNote(z,isReb),
                 meta:[settle!=null?`${settle.toFixed(2)}s settle`:null,`${z.toFixed(0)}% ζ`]};
             };
 
@@ -10959,16 +11266,16 @@ function App(){
                 :"Reads ~4–6× soft: BeamNG rates the bar at its own lever, so treat it as a direction.")
               :null;
 
-            const frontSuspension=<SuspensionCard side="FRONT" hint={suspHint} arbCaveat={arbCaveat}
+            const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint} arbCaveat={arbCaveat}
               arbRow={buildArbRow('front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,ch.arbMotionRatioF)}
               springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,tune.fHz,springPctF)}
-              dampRebRow={buildDampRow('Rebound',tune.rebF,tune.zetaF,ch.motionRatioF,tune.settleF,true)}
-              dampBumpRow={buildDampRow('Bump',tune.bumpF,tune.bumpZetaF,ch.motionRatioF,null,false)} hintTerm="beamng-output"/>;
-            const rearSuspension=<SuspensionCard side="REAR" hint={suspHint} arbCaveat={arbCaveat}
+              dampRebRow={buildDampRow('Rebound',tune.rebF,tune.zetaF,ch.motionRatioF,tune.settleF,true,'out.rebF')}
+              dampBumpRow={buildDampRow('Bump',tune.bumpF,tune.bumpZetaF,ch.motionRatioF,null,false,'out.bumpF')} hintTerm="beamng-output"/>;
+            const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint} arbCaveat={arbCaveat}
               arbRow={buildArbRow('rear',tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,ch.arbMotionRatioR)}
               springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,tune.rHz,springPctR)}
-              dampRebRow={buildDampRow('Rebound',tune.rebR,tune.zetaR,ch.motionRatioR,tune.settleR,true)}
-              dampBumpRow={buildDampRow('Bump',tune.bumpR,tune.bumpZetaR,ch.motionRatioR,null,false)} hintTerm="beamng-output"/>;
+              dampRebRow={buildDampRow('Rebound',tune.rebR,tune.zetaR,ch.motionRatioR,tune.settleR,true,'out.rebR')}
+              dampBumpRow={buildDampRow('Bump',tune.bumpR,tune.bumpZetaR,ch.motionRatioR,null,false,'out.bumpR')} hintTerm="beamng-output"/>;
 
             // Alignment — same degree targets as Forza, but BeamNG's Camber/Caster/Toe Adjust
             // sliders are % of a per-vehicle Jbeam range, not degrees, and that % shifts if
@@ -10983,22 +11290,24 @@ function App(){
             })();
             const beamngAlignHint=`${alignPrefix} Sliders are %, not degrees: match BeamNG's live readout.`;
 
-            const frontAlign=<AlignCard side="FRONT" camber={align.recCamberF} toe={align.recToeF} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"/>;
-            const rearAlign=<AlignCard side="REAR" camber={align.recCamberR} toe={align.recToeR} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"/>;
+            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={align.recToeF} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"/>;
+            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={align.recToeR} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"/>;
 
             // Differential — same isSport/lock/diffCtx pattern as the Forza card, scoped per
             // axle since BeamNG groups Front/Rear/Center as separate menu sections. Placement
             // is axle-matched: FWD's single diff sits in the front column, RWD's in the rear.
-            const lock=(label,v,unit='%')=>{
-              if(isSport&&/Decel|Split/.test(label))return <OutRow key={label} label={label} value="N/A" unit=""/>;
+            const lock=(label,v,unit,hid)=>{
+              if(isSport&&/Decel|Split/.test(label))return <OutRow key={label} hid={hid} label={label} value="N/A" unit=""/>;
               const c=diffCtx(v);
-              return <OutRow key={label} label={label} value={v} unit={unit} decimals={0}
+              return <OutRow key={label} hid={hid} label={label} value={v} unit={unit} decimals={0}
                 note={c?c[0]:null} noteColor={c?c[1]:undefined}/>;
             };
-            const frontDiff=(isAWD||isFWD)&&<DiffCard title="FRONT DIFFERENTIAL"
-              rows={isAWD?[lock('Accel',diff.frontAccel),lock('Decel',diff.frontDecel)]:[lock('Accel',diff.accel),lock('Decel',diff.decel)]}/>;
-            const rearDiff=(isAWD||isRWD)&&<DiffCard title="REAR DIFFERENTIAL"
-              rows={isAWD?[lock('Accel',diff.rearAccel),lock('Decel',diff.rearDecel)]:[lock('Accel',diff.accel),lock('Decel',diff.decel)]}/>;
+            const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL"
+              rows={isAWD?[lock('Accel',diff.frontAccel,'%','out.diff.frontAccel'),lock('Decel',diff.frontDecel,'%','out.diff.frontDecel')]
+                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}/>;
+            const rearDiff=(isAWD||isRWD)&&<DiffCard hid="out.card.diffR" title="REAR DIFFERENTIAL"
+              rows={isAWD?[lock('Accel',diff.rearAccel,'%','out.diff.rearAccel'),lock('Decel',diff.rearDecel,'%','out.diff.rearDecel')]
+                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}/>;
 
             // Center split — combines diff.center with its recommendation call-out, AWD only.
             // No RECOMMENDED-diff-type box here: that race/sport/rally/offroad/drift system is
@@ -11009,11 +11318,11 @@ function App(){
               const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'track']??'TRACK';
               const centerReasons={street:'mild rear bias — comfortable AWD character',track:'rear-weighted for rotation and exit drive',drift:'very rear-heavy — maximises rotation and wheelspin',rally:'more neutral — front traction on mixed surfaces',offroad:'slight front bias — stability on loose and uneven ground',drag:'rear-heavy for straight-line launch traction'};
               return (
-                <Card title="CENTER SPLIT">
+                <Card hid="out.card.center" title="CENTER SPLIT">
                   <RowGroup style={{marginBottom:uiMode==='beginner'?0:6}}>
-                    {lock('Base Torque Split',diff.center,'% rear')}
+                    {lock('Base Torque Split',diff.center,'% rear','out.diff.center')}
                   </RowGroup>
-                  {uiMode!=='beginner'&&<div style={{padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'}}>
+                  {uiMode!=='beginner'&&<Hide id="out.diff.recCenter"><div style={{padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>RECOMMENDED</span>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
@@ -11031,7 +11340,7 @@ function App(){
                         base {_baseCenter}%{_weightAdj!==0?` · weight ${_weightAdj>0?'+':''}${_weightAdj}%`:''}{_diamAdj!==0?` · tyres ${_diamAdj>0?'+':''}${_diamAdj}%`:''}{_natAdj!==0?` · balance ${_natAdj>0?'+':''}${_natAdj}%`:''}
                       </div>}
                     </div>
-                  </div>}
+                  </div></Hide>}
                 </Card>
               );
             })();
@@ -11039,19 +11348,21 @@ function App(){
             const brakesCard=(()=>{
               const c=brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
               return (
-                <Card title="BRAKES" hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
+                <Card hid="out.card.brakes" title="BRAKES" hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
                   <RowGroup style={{marginBottom:0}}>
-                    <OutRow label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
+                    <OutRow hid="out.brakeBias" label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
                   </RowGroup>
                 </Card>
               );
             })();
 
             return (<>
+              {(layoutCtx.edit||!layoutCtx.isHidden('out.summary')||warnings.length>0)&&
               <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',
                            padding:'6px 8px',background:'#0f172a',border:'1px solid #1e293b',
                            borderRadius:2,marginBottom:10,fontSize:10,color:'#64748b',
                            fontFamily:'var(--font-mono)'}}>
+                <Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',gap:12}}>
                 <span>ROLL {tune.rollDeg.toFixed(2)}°</span>
                 <span>REAR ×{(tune.rHz/tune.fHz).toFixed(2)}</span>
                 <span>F/R BIAS {(()=>{const zF=tune.zetaF??physics.zetaF,tot=zF+(tune.zetaR??physics.zetaR);
@@ -11059,8 +11370,9 @@ function App(){
                 <span>{(physics.dampingMode??'ratio')==='ratio'
                   ?`BUMP RATIO ${physics.bumpRatioVal??56}%`
                   :`BUMP ${Math.round(physics.bumpZeta??39)}% ζ`}</span>
+                </Hide>
                 {warnings.length>0&&<div style={{flexBasis:'100%'}}>{warnings}</div>}
-              </div>
+              </div>}
               {/* Fixed 4-row × 2-column grid (Brakes/Center, Front/Rear Diff, Front/Rear
                   Suspension, Front/Rear Alignment). DOM order is row-major, so collapsing to
                   one column at narrow widths (auto-fit) reproduces the PDF's own top-to-bottom
@@ -11078,6 +11390,12 @@ function App(){
             </>);
           })()}
 
+          {/* A hidden row may be a value still to type into the game, so the panel says so. */}
+          {!editing&&hiddenOut>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+                                               fontSize:10,color:'#64748b',padding:'2px 0 6px'}}>
+            {hiddenOut} output part{hiddenOut>1?'s':''} hidden in this tier
+            <button className="tbtn" style={{fontSize:9}} onClick={()=>setLayoutEdit(true)}>EDIT</button>
+          </div>}
           </div>{/* end maxWidth wrapper */}
           </div>{/* end cards */}
 
@@ -11568,14 +11886,14 @@ function App(){
                       </span>
                     );
                   })()}
-                  {uiMode==='pro'&&tune.mechBalance!=null&&<span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#475569',letterSpacing:1,fontFamily:'var(--font-mono)'}}>
+                  {uiMode==='pro'&&tune.mechBalance!=null&&<Hide id="bar.mechHead" inline><span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#475569',letterSpacing:1,fontFamily:'var(--font-mono)'}}>
                     <span>MECH {tune.mechBalance.toFixed(2)}
                     {(()=>{const _d=tune.mechBalance-natMechBalance;const _a=Math.abs(_d);
                       if(_a<0.01)return null;
                       return <span style={{color:_d>0?'#60a5fa':'#f59e0b'}}>{(_d>=0?'+':'')+_d.toFixed(2)}</span>;
                     })()}</span>
                     <Hint text="Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased." term="mech-balance"/>
-                  </span>}
+                  </span></Hide>}
                   <span style={{fontSize:10,color:'#94a3b8'}}>
                     {(isPhone?footerOpen:open.balanceExpanded)?'▲':'▼'}
                   </span>
@@ -11585,6 +11903,7 @@ function App(){
               {(!isPhone||footerOpen)&&<>
               {/* compact stacked balance bar — the car's own lean is the starting tick, and each
                   tuning contributor is a segment stacked out from it */}
+              <Hide id="bar.stack">
               {(()=>{
                 // PRO draws in grip-margin percent, ×5 so ±10% fills a half. The main bar is MID's
                 // own terms; brakes, drive, diff and damping go in the lanes, as in BEG/INT.
@@ -11714,7 +12033,9 @@ function App(){
                     </div>}
                 </>);
               })()}
+              </Hide>
               {/* stacked bar legend — immediately below the bar it describes */}
+              <Hide id="bar.legend">
               <div style={{display:'flex',gap:8,marginTop:3,paddingLeft:2,alignItems:'center',flexWrap:'wrap'}}>
                 {/* CAR — the grey starting tick, so its swatch is a tick, not a bar; shown when the tick is */}
                 {Math.abs(phase?phase.mid.chas*5:(tune.bChassis??0))>0.3&&
@@ -11789,8 +12110,10 @@ function App(){
                     ?"CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. Brakes, diff and damping are listed in the breakdown."
                     :"CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack brakes, diff and damping off NET."} term={phase?'phase-verdict':'balance-contributors'}/>
               </div>
+              </Hide>
               {/* PRO: the three phases on one line. ENTRY/EXIT are MID plus the brake or drive term;
                   diff lock has a direction only. */}
+              <Hide id="bar.phase">
               {phase&&(()=>{
                 const col=v=>Math.abs(v)<PHASE_NEUTRAL?'#cbd5e1':v>0?'#ef4444':'#3b82f6';
                 const arrow=v=>{const d=signOf(v);return d>0?'▶':d<0?'◀':'';};
@@ -11809,7 +12132,9 @@ function App(){
                     <Hint text={`ENTRY is MID plus brake bias at ${ENTRY_G} g braking; EXIT is MID plus the drive split at ${phase.exit.g} g of drive. An arrow shows which way diff lock pushes, not how far.`} term="phase-verdict"/>
                   </div>);
               })()}
+              </Hide>
               {/* mech balance reference strip: NAT · CURRENT · TARGET on 0–1 scale */}
+              <Hide id="bar.mechStrip">
               {uiMode==='pro'&&tune.mechBalance!=null&&(()=>{
                 const cur=tune.mechBalance;
                 const nat=natMechBalance;
@@ -11867,7 +12192,9 @@ function App(){
                   </div>
                 );
               })()}
+              </Hide>
               {/* response bar */}
+              <Hide id="bar.response">
               {(()=>{
                 const{score}=responseFactors;
                 const p=Math.max(-50,Math.min(50,(score-0.5)*100));
@@ -11901,6 +12228,7 @@ function App(){
                   </div>
                 </>);
               })()}
+              </Hide>
               {/* phones: reach the full contributor breakdown + actionable tip (desktop taps the header for this) */}
               {isPhone&&<div style={{display:'flex',justifyContent:'center',marginTop:8}}>
                 <button onClick={e=>{e.stopPropagation();setOpen(p=>({...p,balanceExpanded:!p.balanceExpanded}));}}
@@ -12157,6 +12485,7 @@ function App(){
           </div>
       </div>
     </div>
+    </LayoutCtx.Provider>
   );
 }
 

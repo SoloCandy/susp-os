@@ -222,10 +222,13 @@ Zone keys valid in `focus` are the `zone-*` ids listed in
 doesn't exist at the current tier (e.g. `balance-target` outside PRO) centres the
 card and dims everything.
 
-**Hidden sections reappear while a tier guide runs.** The SECTIONS modal can hide a section
-or a toolbar button, which would leave a step's `focus` pointing at nothing. `App`'s `secVis`
-returns `show` for every key while `tutMode` is set, and the user's hidden lists come back
-untouched when the guide closes. See [CODE_MAP.md](CODE_MAP.md#hidden-sections-sections-modal).
+**Hidden parts reappear while a tier guide runs.** The layout edit view can hide a section, a
+single control, a toolbar button or an output part, which would leave a step's `focus` (or
+its text) pointing at nothing. `App`'s `secVis` returns `show` for every key and `LayoutCtx`
+gets an empty hidden list while `tutMode` is set, and the user's hidden lists come back
+untouched when the guide closes. Starting a guide also leaves the edit view, and EDIT is
+disabled until the guide ends. See
+[CODE_MAP.md](CODE_MAP.md#layout-edit-view-hiding-sections-controls-and-output-parts).
 
 ---
 

@@ -364,9 +364,22 @@ rear ARBs to win the rotation back) use a fraction of PRO's surface, so a fourth
 assumed the build and hid the rest was considered. Rejected: tiers are an ordered superset
 (BEG ⊂ INT ⊂ PRO), and roughly a hundred `uiMode` checks, the tier guides, the unlock chain and
 the codec's tier field all assume that order. A side-branch tier would need every one of them
-revisited, for what is really a display preference. What shipped instead is the SECTIONS
-modal: INT and PRO each hide whatever they don't use, without the tune or the physics knowing
-— see [CODE_MAP.md](CODE_MAP.md#hidden-sections-sections-modal).
+revisited, for what is really a display preference. What shipped instead is the layout edit
+view: INT and PRO each hide whatever they don't use, down to a single control or output row,
+without the tune or the physics knowing
+— see [CODE_MAP.md](CODE_MAP.md#layout-edit-view-hiding-sections-controls-and-output-parts).
+
+## Open — a control that only appears in another mode can only be hidden from that mode
+
+The layout edit view hides what is on screen. Many controls render only in one mode (Target
+Roll Angle under ROLL °, Spring Share under CO-SOLVE, the MANUAL diff locks, Bump ζ under
+INDEPENDENT), so hiding one means selecting its mode first; the edit banner says so. A
+generated list of every control, off-screen ones included, was the alternative: it would
+duplicate each control's render conditions in a table that has to be kept in step by hand,
+which is exactly the drift `HIDE_ITEMS` avoids by holding ids and fields only.
+
+A hidden control's `live` mode is what keeps the "hidden settings changed" line honest about
+this: a value left behind by another mode is not counted as applying.
 
 ## Open — LANDING solves one linear coefficient against a rigid floor
 
