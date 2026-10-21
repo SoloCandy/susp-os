@@ -42,7 +42,8 @@ const M = new Function(
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
   'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf,' +
-  'natGeomOf,natRsOf,natDisplayOf,natDisplayModelOf,measuredNatBalOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL,resolveFeEffective};'
+  'natGeomOf,natRsOf,natDisplayOf,natDisplayModelOf,measuredNatBalOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL,resolveFeEffective,' +
+  'arbClickRsOf,arbScaleSplit,fmtArbScale,arbProbesOf,arbProbeBalOf,arbReadReachable,fitArbScales,ARB_FIT_MISFIT,ARB_READ_HALF_STEP,ARB_SCALE_MIN};'
 )();
 
 let pass = 0, fail = 0;
@@ -434,6 +435,100 @@ t('a measured scale changes AUTO clicks inversely and leaves roll stiffness alon
   const r2 = solve({ ...ARB_CAL, useMeasuredArbClick: true, measuredArbClick: 2 * M.ARB_RS_SCALE }, { rideStiffness: 2.5 }, 'horizon').tune;
   near(r2.arbR, r1.arbR / 2, 0.05, 'rear clicks halve');
   near(r2.rsAbR, r1.rsAbR, 0.02, 'rear roll stiffness');
+});
+
+console.log('\n── per-axle ARB scale (four readings) ──');
+// The four-reading fit on a chassis whose step 1 matches the model exactly, so what is left is
+// the fit itself. Readings are generated from a known front/rear pair and offset within Forza's
+// rounding the way a real 2dp readout would be.
+const FIT_HZ = 2.2;
+const fitCh = over => {
+  const base = { ...M.DEF_CH, ...over };
+  const nat = M.arbProbeBalOf({ ...base, useMeasuredNatBal: false }, FIT_HZ, 0, 0)(540, 540);
+  return { ...base, useMeasuredNatBal: true, measuredNatBal: nat, measuredNatBalHz: FIT_HZ };
+};
+const readsFor = (ch, probes, sF, sR, offs = [0, 0, 0, 0]) =>
+  probes.map(([f, r], i) => M.arbProbeBalOf(ch, FIT_HZ, f, r)(sF, sR) + offs[i]);
+const P65 = M.arbProbesOf(65);
+// Worst-case rounding patterns: the corners of the ±half-step box, plus none.
+const OFFS = [[0, 0, 0, 0], [1, -1, 1, -1], [-1, 1, -1, 1], [1, 1, -1, -1], [-1, -1, 1, 1]]
+  .map(o => o.map(x => x * 0.0049));
+t('arbScaleOf: rear falls back to the front, is clamped, and the flag off ignores both', () => {
+  const on = { useMeasuredArbClick: true, measuredArbClick: 600 };
+  if (M.arbScaleOf(on, 'R') !== 600) throw new Error('rear fallback');
+  if (M.arbScaleOf({ ...on, measuredArbClickR: 480 }, 'R') !== 480) throw new Error('rear own');
+  if (M.arbScaleOf({ ...on, measuredArbClickR: 480 }, 'F') !== 600) throw new Error('front untouched');
+  if (M.arbScaleOf({ ...on, measuredArbClickR: 1 }, 'R') !== M.ARB_SCALE_MIN) throw new Error('rear clamp');
+  if (M.arbScaleOf({ measuredArbClick: 600, measuredArbClickR: 480 }, 'R') !== M.ARB_RS_SCALE) throw new Error('flag off');
+  // A rear with no front is a split of nothing.
+  if (M.arbScaleOf({ useMeasuredArbClick: true, measuredArbClickR: 480 }, 'R') !== M.ARB_RS_SCALE) throw new Error('rear alone');
+  if (M.arbScaleSplit(on) || !M.arbScaleSplit({ ...on, measuredArbClickR: 480 })) throw new Error('split flag');
+  if (M.fmtArbScale({ ...on, measuredArbClickR: 480 }) !== '600 / 480' || M.fmtArbScale(on) !== '600') throw new Error('format');
+});
+t('arbClickRsOf is each axle\'s scale times its own track squared', () => {
+  const ch = { ...M.DEF_CH, trackF: 1.6, trackR: 1.5, useMeasuredArbClick: true, measuredArbClick: 600, measuredArbClickR: 500 };
+  near(M.arbClickRsOf(ch, 'F'), 600 * 1.6 * 1.6, 1e-12, 'front');
+  near(M.arbClickRsOf(ch, 'R'), 500 * 1.5 * 1.5, 1e-12, 'rear');
+});
+t('the probe set is the two swaps, both at the ceiling, and both at half', () => {
+  const p = JSON.stringify(M.arbProbesOf(65)), q = JSON.stringify(M.arbProbesOf(40));
+  if (p !== '[[1,65],[65,1],[65,65],[33,33]]') throw new Error('horizon ' + p);
+  if (q !== '[[1,40],[40,1],[40,40],[20,20]]') throw new Error('motorsport ' + q);
+});
+t('fitArbScales recovers a known front/rear pair from exact readings', () => {
+  for (const over of [{}, { frontBias: 62 }, { trackF: 1.52, trackR: 1.60 }])
+    for (const [sF, sR] of [[700, 540], [540, 380], [880, 550]]) {
+      const ch = fitCh(over), fit = M.fitArbScales(ch, FIT_HZ, P65, readsFor(ch, P65, sF, sR));
+      if (!fit || !fit.split) throw new Error(`${JSON.stringify(over)} ${sF}/${sR}: expected a split`);
+      near(fit.sF, sF, 0.01, 'front'); near(fit.sR, sR, 0.01, 'rear');
+    }
+});
+t('readings one scale explains within rounding fall back to that one scale', () => {
+  // The whole point of the fallback: on a car whose axles match, a split fits only the rounding.
+  for (const over of [{}, { frontBias: 62 }, { trackF: 1.52, trackR: 1.60 }])
+    for (const offs of OFFS) {
+      const ch = fitCh(over), fit = M.fitArbScales(ch, FIT_HZ, P65, readsFor(ch, P65, 540, 540, offs));
+      if (!fit || fit.split) throw new Error(`${JSON.stringify(over)} ${offs}: expected one scale`);
+      if (fit.sF !== fit.sR) throw new Error('single fit must use one value');
+      near(fit.sF, 540, 0.08, 'single scale');
+      if (fit.res.some(e => Math.abs(e) > M.ARB_READ_HALF_STEP + 1e-9)) throw new Error('residual past half a step');
+    }
+});
+t('a real front/rear difference splits through rounding, and predicts balance better than one scale', () => {
+  for (const ratio of [1.3, 1.6])
+    for (const offs of OFFS) {
+      const ch = fitCh({ frontBias: 62 }), sF = 540 * ratio, sR = 540;
+      const fit = M.fitArbScales(ch, FIT_HZ, P65, readsFor(ch, P65, sF, sR, offs));
+      if (!fit || !fit.split || fit.misfit) throw new Error(`ratio ${ratio}: expected a clean split`);
+      // Judge it where it matters — the balance an ordinary tune shows — not the scale itself.
+      const at = (f, r, a, b) => M.arbProbeBalOf(ch, FIT_HZ, f, r)(a, b);
+      for (const [f, r] of [[20, 20], [30, 10], [10, 30]]) {
+        const err = Math.abs(at(f, r, fit.sF, fit.sR) - at(f, r, sF, sR));
+        if (err > 0.008) throw new Error(`ratio ${ratio} bars ${f}/${r}: off by ${err.toFixed(4)}`);
+      }
+    }
+});
+t('one mistyped reading is flagged as a misfit, and a reading nothing can produce returns null', () => {
+  const ch = fitCh({}), reads = readsFor(ch, P65, 540, 540);
+  const bad = M.fitArbScales(ch, FIT_HZ, P65, [reads[0], reads[1], reads[2] + 0.05, reads[3]]);
+  if (!bad || !bad.misfit) throw new Error('expected a misfit');
+  const worst = bad.res.reduce((w, e, i) => Math.abs(e) > Math.abs(bad.res[w]) ? i : w, 0);
+  if (Math.abs(bad.res[worst]) <= M.ARB_FIT_MISFIT) throw new Error('worst residual under the misfit bound');
+  // Rear bar at the ceiling can only move balance rearward of natural.
+  if (M.arbReadReachable(ch, FIT_HZ, 1, 65, ch.measuredNatBal - 0.05)) throw new Error('unreachable read accepted');
+  if (M.fitArbScales(ch, FIT_HZ, P65, [ch.measuredNatBal - 0.05, reads[1], reads[2], reads[3]]) !== null) throw new Error('expected null');
+  if (M.fitArbScales(ch, FIT_HZ, P65, [reads[0], null, reads[2], reads[3]]) !== null) throw new Error('unset reading must be null');
+});
+t('a split scale reaches computeTune: MAN bars show the balance the fit predicts', () => {
+  // Round trip through the real solve: the same bars on the same springs must display what the
+  // fitted pair says, or a call site is still on one scale.
+  const ch = { ...fitCh({ frontBias: 62 }), measuredNatBalHz: 2.5, useMeasuredArbClick: true, measuredArbClick: 700, measuredArbClickR: 520 };
+  const one = { ...ch, measuredArbClickR: null };
+  const fe = { ...ARB_CAL_FE, arbManF: 30, arbManR: 20 };
+  const split = solve(ch, fe, 'horizon').tune, single = solve(one, fe, 'horizon').tune;
+  near(split.rsAbF, 30 * 700 * ch.trackF * ch.trackF, 1e-6, 'front bar stiffness');
+  near(split.rsAbR, 20 * 520 * ch.trackR * ch.trackR, 1e-6, 'rear bar stiffness');
+  if (!(split.mechBalance < single.mechBalance)) throw new Error('a softer rear scale must move balance forward');
 });
 
 console.log('\n── tyre-series display ──');

@@ -11,6 +11,32 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — MEASURE ARB takes four readings and can give each axle its own click scale
+
+Step 2 averaged two single-scale solves (bars `1 / H` and `H / 1`) into one click scale for
+both axles. Balance came out wrong on front-heavy FWD cars and on cars with unequal track
+widths, which are the cases where Forza's front and rear clicks can carry different stiffness.
+One scale can't express that. The Scirocco R's own readings (FWD, 65% front) fit only
+front/rear ratios of 1.02–1.31.
+
+Just splitting the scale over the same two readings would have been worse. Each axle's scale
+would rest on one 2-decimal reading, which simulated 3–5× worse than the average on a car whose
+axles match. Step 2 now takes four (`arbProbesOf`: adds `H / H` and both at half), and
+`fitArbScales` keeps one shared scale whenever one explains every reading within Forza's
+rounding, fitting a front/rear pair only when none does. Simulated worst balance error: 0.002 →
+0.002 on matched axles, 0.017 → 0.004 at a 1.3 ratio, 0.032 → 0.004–0.005 at 1.6. See
+[PHYSICS.md](PHYSICS.md), "ARB click scale".
+
+- **New `ch.measuredArbClickR`, codec id 90**, the rear scale, `null` = same as the front.
+  `measuredArbClick` (id 74) keeps its key and is the front scale when split, so existing
+  saves and codes are unchanged and a one-scale car never emits id 90.
+- **`arbScaleOf` takes an axle**, and every click↔roll-stiffness conversion now goes through
+  `arbClickRsOf(ch, axle)`. A call site left on one scale would silently apply the front's to
+  the rear.
+- **`ARB_SCALE_SPREAD_WARN` is retired.** Its A/B gap was mostly rounding plus exactly the
+  asymmetry now fitted. Each reading instead shows its residual against the fit, and
+  `ARB_FIT_MISFIT` (0.0075) warns when no pair explains the four.
+
 ## Changed — the app compiles once per version, not on every load
 
 Every load ran the whole of `#app-source` through `Babel.transform` with the `env` preset,

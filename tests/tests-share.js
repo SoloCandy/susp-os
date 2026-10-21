@@ -41,7 +41,7 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
-  'GAME_LIMITS,arbScaleOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX};'
+  'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX};'
 )();
 
 let pass = 0, fail = 0;
@@ -206,10 +206,10 @@ const manTune = (gameMode, arbManF, arbManR) => ({
 const roundTrip = tune => M.sanitizeTune(M.decodeTune(M.encodeTune(tune.ch, tune.fe, tune.dr, 'pro')));
 
 t('a physical-mode MAN tune survives a share code exactly', () => {
-  // What the game-mode selector actually writes (crossArbUnits): clicks × arbScaleOf(ch)·track².
+  // What the game-mode selector actually writes (crossArbUnits): clicks × arbClickRsOf(ch,axle).
   const ch = M.DEF_CH;
-  const f = Math.round(20 * M.arbScaleOf(ch) * ch.trackF * ch.trackF);
-  const r = Math.round(20 * M.arbScaleOf(ch) * ch.trackR * ch.trackR);
+  const f = Math.round(20 * M.arbClickRsOf(ch, 'F'));
+  const r = Math.round(20 * M.arbClickRsOf(ch, 'R'));
   assert(f > 1000 && r > 1000, `fixture is not in physical units: ${f}/${r}`);
   const out = roundTrip(manTune('beamng', f, r));
   assert(out.fe.arbManF === f && out.fe.arbManR === r,
@@ -265,16 +265,16 @@ t('the field\'s N/m ceiling survives a share code at the widest track and ARB mo
 // App effect this replaced converted on EVERY mode change, so a Horizon MAN code's 20 clicks
 // loaded in BeamNG became 20 / 26000 → 0 N·m/rad.
 section('MAN ARB units across a game-mode change');
-const kOf = (ch, track) => M.arbScaleOf(ch) * track * track;
+const kOf = (ch, axle) => M.arbClickRsOf(ch, axle);
 
 t('crossArbUnits converts clicks ↔ roll stiffness losslessly and clamps to the new ceiling', () => {
   const ch = M.DEF_CH;
   const fe = { ...M.DEF_FE, arbMode: 'man', arbManF: 21.4, arbManR: 9.7 };
   const phys = M.crossArbUnits({ ...fe, gameMode: 'beamng' }, ch, 'horizon');
-  assert(phys.arbManF === Math.round(21.4 * kOf(ch, ch.trackF)), `F to N·m/rad: ${phys.arbManF}`);
+  assert(phys.arbManF === Math.round(21.4 * kOf(ch, 'F')), `F to N·m/rad: ${phys.arbManF}`);
   const back = M.crossArbUnits({ ...phys, gameMode: 'horizon' }, ch, 'beamng');
   assert(back.arbManF === 21.4 && back.arbManR === 9.7, `round trip moved the bars: ${back.arbManF}/${back.arbManR}`);
-  const big = M.crossArbUnits({ ...fe, gameMode: 'motorsport', arbManF: 60 * kOf(ch, ch.trackF) }, ch, 'beamng');
+  const big = M.crossArbUnits({ ...fe, gameMode: 'motorsport', arbManF: 60 * kOf(ch, 'F') }, ch, 'beamng');
   assert(big.arbManF === 40, `a bar past MOTORSPORT's ceiling should land on 40, got ${big.arbManF}`);
   const same = { ...fe, gameMode: 'motorsport' };
   assert(M.crossArbUnits(same, ch, 'horizon') === same, 'a click → click switch must be a no-op');
@@ -306,8 +306,8 @@ t('SPRINGS without ARB carries the reader\'s own bars into the new mode', () => 
   const cur = horizonMan();
   const out = M.mergeTune(cur, beamngMan(), { ride: true });
   assert(out.fe.gameMode === 'beamng', 'gameMode did not come across');
-  assert(out.fe.arbManF === Math.round(20 * kOf(cur.ch, cur.ch.trackF))
-    && out.fe.arbManR === Math.round(12 * kOf(cur.ch, cur.ch.trackR)),
+  assert(out.fe.arbManF === Math.round(20 * kOf(cur.ch, 'F'))
+    && out.fe.arbManR === Math.round(12 * kOf(cur.ch, 'R')),
     `the reader's 20/12 clicks should become N·m/rad, got ${out.fe.arbManF}/${out.fe.arbManR}`);
 });
 
@@ -315,6 +315,36 @@ t('ARB without SPRINGS is left as sent (the arbUnitClash warning\'s case)', () =
   const out = M.mergeTune(horizonMan(), beamngMan(), { arb: true });
   assert(out.fe.gameMode === 'horizon' && out.fe.arbManF === 48000,
     `expected the sender's bars unconverted under the reader's mode, got ${out.fe.gameMode} ${out.fe.arbManF}`);
+});
+
+section('per-axle ARB click scale (id 90)');
+const scaled = over => ({ ch: { ...M.DEF_CH, useMeasuredArbClick: true, measuredArbClick: 680,
+  measuredArbNat: 0.55, measuredArbNatHz: 2.2, ...over }, fe: { ...M.DEF_FE }, dr: { ...M.DEF_DR } });
+
+t('a split scale survives a share code, and crossArbUnits converts each axle on its own scale', () => {
+  const out = roundTrip(scaled({ measuredArbClickR: 540 }));
+  assert(out.ch.measuredArbClick === 680 && out.ch.measuredArbClickR === 540,
+    `pair did not survive: ${out.ch.measuredArbClick}/${out.ch.measuredArbClickR}`);
+  const ch = out.ch, fe = { ...M.DEF_FE, arbMode: 'man', arbManF: 20, arbManR: 20 };
+  const phys = M.crossArbUnits({ ...fe, gameMode: 'beamng' }, ch, 'horizon');
+  assert(phys.arbManF === Math.round(20 * 680 * ch.trackF * ch.trackF)
+    && phys.arbManR === Math.round(20 * 540 * ch.trackR * ch.trackR), `per-axle conversion: ${phys.arbManF}/${phys.arbManR}`);
+});
+t('a single scale omits id 90 and decodes with no rear scale', () => {
+  // Base64 over "v|~sum|id:val|…"; a single scale must not emit a 90: pair, a split must.
+  const ids = c => atob(c).split('|').slice(2).map(p => p.split(':')[0]);
+  assert(!ids(M.encodeTune(scaled({}).ch, M.DEF_FE, M.DEF_DR, 'pro')).includes('90'), 'single scale emitted id 90');
+  assert(ids(M.encodeTune(scaled({ measuredArbClickR: 540 }).ch, M.DEF_FE, M.DEF_DR, 'pro')).includes('90'), 'split omitted id 90');
+  const out = roundTrip(scaled({}));
+  assert(out.ch.measuredArbClick === 680 && out.ch.measuredArbClickR === null, `got ${out.ch.measuredArbClickR}`);
+});
+t('sanitizeTune nulls a rear scale with the flag off or no front, and clamps it', () => {
+  const off = M.sanitizeTune(scaled({ useMeasuredArbClick: false, measuredArbClickR: 540 }));
+  assert(off.ch.measuredArbClickR === null, 'flag off kept a rear scale');
+  const alone = M.sanitizeTune(scaled({ measuredArbClick: null, measuredArbClickR: 540 }));
+  assert(alone.ch.measuredArbClickR === null, 'rear kept with no front');
+  const big = M.sanitizeTune(scaled({ measuredArbClickR: 99999 }));
+  assert(big.ch.measuredArbClickR === 1500, `rear not clamped: ${big.ch.measuredArbClickR}`);
 });
 
 section('BUMP MODE → LANDING');

@@ -106,8 +106,9 @@ future version might not carry.
 | 87 | fe | bumpDampingBias | raw number — Bump Bias, −50..+50, stored sign as id 33 (+ = FRONT); read only when id 86 is not `same` |
 | 88 | fe | phaseExitG | raw number — PHASE Balance Target's EXIT Load, g; read only in PHASE (id 53 = 4) |
 | 89 | dr | brakeStock | bool — BRAKES on STOCK (no race brakes): the brakes leave every calculation; INT+ only, see note |
+| 90 | ch | measuredArbClickR | raw number — MEASURE ARB's rear click scale; absent/null = same as id 74, see note |
 
-**Next available id: 90.**
+**Next available id: 91.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -240,6 +241,23 @@ Ids 73/74 (`useMeasuredArbClick`/`measuredArbClick`) are `group:'ch'` like
 only mean the sender's stiffness against the sender's scale, so it travels with
 the chassis.
 
+Id 90 (`measuredArbClickR`) is the rear axle's click scale, set only when MEASURE
+ARB's four readings found the axles differ (see [PHYSICS.md](PHYSICS.md), "ARB
+click scale"). With id 90 set, id 74 is the front scale; without it, id 74 is the
+scale for both axles, exactly as before id 90 existed. So every older code decodes
+unchanged, and a one-scale car never emits the id at all. The front keeps the
+unsuffixed `measuredArbClick` key rather than being renamed `…F`: it is persisted
+and shared, and for every value already stored it still means what it meant.
+`sanitizeTune` nulls id 90 unless id 73 is on and id 74 is set — a rear scale with
+no front one is a split of nothing.
+
+An app older than id 90 skips it as an unknown id and runs the front scale on both
+axles. That reads a split car's rear bars at the front's stiffness, off by the
+front/rear ratio. Readers on the hosted page are always current, so this only
+bites a stale cached copy; the alternative, storing a pooled scale in id 74 for old
+readers, would have made id 74 mean something different on new codes than on old
+ones.
+
 Ids 75/76 (`measuredArbNat`/`measuredArbNatHz`) record the MEAS. NAT BAL and Hz a
 click scale was measured against. `arbScaleStale` flags the scale (RE-MEASURE)
 when the chassis's current reading differs. Absent (older codes, scales applied
@@ -274,7 +292,7 @@ choice, decided after the code is read.
 
 | Part | Group | Fields |
 |---|---|---|
-| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbNat, measuredArbNatHz |
+| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbClickR, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
@@ -389,7 +407,8 @@ assumed. The same reasoning applies to any future enum append.
 Everything else the codec carries means the same thing in every game mode. These
 two do not: they are **Forza clicks** (1..that mode's ceiling) when `gameMode` is
 a click mode, and **roll stiffness** when it is a physical one. The game-mode
-selector converts between the two by `arbScaleOf(ch)·track²` (`crossArbUnits`), so
+selector converts between the two by each axle's `arbClickRsOf(ch, axle)` — its click
+scale times its own track² (`crossArbUnits`), so
 20 clicks becomes roughly 26,000 on a default chassis. A load never converts: a code
 brings its bars in its own mode's units, except that ticking SPRINGS (which carries
 `gameMode`) without ARB converts the reader's own bars the way the selector would.

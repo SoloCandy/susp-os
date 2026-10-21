@@ -354,7 +354,7 @@ the Welcome card and live in the glossary.
 | 1 | Welcome — Pro Mode | — | | | What PRO adds; alignment stays AUTO unless set to MANUAL. |
 | 2 | Chassis Geometry | `chassis` | `chassis.wheelbase` / `.trackF` / `.trackR` / `.tyres` | | FROM THE GAME vs LOOK UP ONLINE; wheelbase, track widths, and what tyre width does; how they set the Balance Guide's NATURAL and GRIP BIAS. |
 | 3 | Calibrating Natural Balance | `chassis` | `chassis.measureNatBal` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
-| 4 | Calibrating ARB Scale | `balance-target` | | | Step 2 · ARB SCALE SETUP, per-reading scales, SCALE IN USE toggle. Its controls are in the MEASURE tab, so no spots. |
+| 4 | Calibrating ARB Scale | `balance-target` | | | Step 2 · ARB SCALE SETUP, four readings, one shared or a front/rear scale, SCALE IN USE toggle. Its controls are in the MEASURE tab, so no spots. |
 | 5 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
 | 6 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. |
 | 7 | Alignment Mode | `alignment` | `align.mode` / `.nudge` / `.nudgeStrength` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
@@ -561,7 +561,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Calibrating ARB Scale
 
-> ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each reading lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE.
+> ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each of the four readings lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE. When one scale cannot explain all four, the front and rear axles get their own.
 
 #### 5. Mech Balance Target
 

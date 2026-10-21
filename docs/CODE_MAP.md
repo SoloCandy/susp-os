@@ -161,9 +161,15 @@ conversion, WEIGHT/CHASSIS bar dilution and the bisected spring Hz ratio both Ri
 `manArbIn` / `manArbRsOf` (MAN's typed bars clamped as `computeTune` reads them,
 and as roll stiffness), `crossArbUnits` (carries MAN bars across a click/physical game-mode
 change; the game-mode selector and `mergeTune`'s SPRINGS-without-ARB case call it), `tyreWidths` / `tireCorrOf` (section widths with the 265 mm
-fallback, and the tyre-width mech-balance correction), `arbScaleOf` (the ARB click scale: MEASURE ARB's value or `ARB_RS_SCALE` — every click↔roll-stiffness
-conversion goes through it), `arbScaleStale` (true when a measured scale's recorded MEAS. NAT BAL or Hz no longer matches the chassis — drives the ARB SCALE SETUP card's and sidebar's RE-MEASURE flags), `solveArbScale` (MEASURE ARB's closed-form solve from one in-game
-reading), `natGeomOf` (the track-width/corner-mass estimate on its own — the solvers' model
+fallback, and the tyre-width mech-balance correction), `arbScaleOf(ch, axle)` (one axle's ARB click scale: MEASURE ARB's value — the rear's own when
+`measuredArbClickR` is set — or `ARB_RS_SCALE`), `arbClickRsOf(ch, axle)` (that scale times the axle's
+track²: every click↔roll-stiffness conversion goes through it), `arbScaleSplit` / `fmtArbScale` (whether
+the stored scale is a front/rear pair, and how the card prints it), `arbScaleStale` (true when a measured scale's recorded MEAS. NAT BAL or Hz no longer matches the chassis — drives the ARB SCALE SETUP card's and sidebar's RE-MEASURE flags), `arbProbesOf` (step 2's four bar setups),
+`arbProbeBalOf` (the display model a step 2 reading is compared against, as a function of front
+and rear scale), `fitArbScales` (step 2's fit: one shared scale when one explains every reading
+within rounding, else a front/rear pair, with per-reading residuals and a misfit flag),
+`arbReadReachable` (whether any pair could produce a reading — the CHECK marker), `solveArbScale`
+(the one-reading, one-scale bisection on the same model), `natGeomOf` (the track-width/corner-mass estimate on its own — the solvers' model
 roll-stiffness natural, and the shared term in the two below), `natRsOf` / `natDisplayOf` /
 `natDisplayModelOf` / `measuredNatBalOf` (natural balance in roll-stiffness space and in display
 space, the model's display prediction, and the clamped reading — there is deliberately no

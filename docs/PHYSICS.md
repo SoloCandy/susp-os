@@ -171,12 +171,16 @@ pre-existing reading at once. Same treatment `measuredArbNatHz` gets via
 
 ### ARB click scale (MEASURE ARB)
 
-One Forza ARB click adds `arbScaleOf(ch)·track²` of suspension roll stiffness
-per axle, before the tyre. `arbScaleOf` returns `ch.measuredArbClick` when
-MEASURE ARB is set, else `ARB_RS_SCALE`. APPLY also records the MEAS. NAT BAL
-and Hz it was measured against (`measuredArbNat`/`measuredArbNatHz`), and
-`arbScaleStale` flags RE-MEASURE once those stop matching. The scale is still
-used while flagged; the flag only says it was solved against a different anchor.
+One Forza ARB click adds `arbClickRsOf(ch, axle)` = `arbScaleOf(ch, axle)·track²`
+of suspension roll stiffness on that axle, before the tyre. Every click↔roll-stiffness
+conversion in the Forza modes goes through `arbClickRsOf`. `arbScaleOf` returns
+`ch.measuredArbClick` when MEASURE ARB is set, else `ARB_RS_SCALE`. For the rear it
+returns `ch.measuredArbClickR` instead when that is set, which happens only when
+step 2 found the axles differ; `null` means "same as the front". MEASURED also
+records the MEAS. NAT BAL and Hz the scale was measured against
+(`measuredArbNat`/`measuredArbNatHz`), and `arbScaleStale` flags RE-MEASURE once
+those stop matching. The scale is still used while flagged; the flag only says it
+was solved against a different anchor.
 
 The constant was 240, then 285, both fitted without the tyre term, which folded
 the tyre's softness into the click. Refitting the same in-game MAN bar sweep
@@ -184,56 +188,84 @@ the tyre's softness into the click. Refitting the same in-game MAN bar sweep
 the tyre-series model gives about **579 (MX-5 Cup), 438 (Ultima Evo) and 626
 (Scirocco R)**, each within Forza's rounding. The spread is the same as before:
 Forza normalises the 1–N slider per car, so no single constant fits every car.
-540 is the compromise default. Fitting front and rear scales separately (before
-the tyre refit) gave ratios within noise of 1, so the front/rear split and the
-`track²` weighting hold; only the magnitude varies by car. The bar data alone,
+540 is the compromise default. The bar data alone,
 with each car's scale free, prefers a tyre frequency of 3.5 Hz or more and is
 flat from there, so it agrees with the springs' 3.94 without pinning it.
+
+**The axles can differ.** An earlier fit of separate front and rear scales, made
+before the tyre refit, gave ratios within noise of 1. That no longer holds up.
+Under the tyre-series model the Scirocco R's two in-game readings (FWD, 65% front,
+bars 14/51 → 0.47 and 62/3 → 0.31) fit only front/rear ratios of **1.02–1.31**,
+never ≤ 1. Two readings can't narrow that further, but it is why the four-reading
+fit below allows a split. The `track²` weighting itself is kept: a per-axle scale
+absorbs any error in it along with any real difference in Forza's slider.
 
 MEASURE ARB (TUNE CHECK's MEASURE mode, **step 2**, below NAT BAL SETUP) finds
 the per-car value. MEASURE presents the two procedures as numbered steps in one
 column, in the order they have to happen: step 2 is solved against step 1's
-reading, on step 1's springs, and is locked until that reading exists. On the NAT BAL springs, the user sets the bars to `1 / H`
-then `H / 1` (`H` = the ARB ceiling, `lim.arb` — 65 in Horizon, 40 in
-Motorsport) and types Forza's mech balance
-for each. `solveArbScale` bisects for the scale at which the display model
-(tyres, `tireCorr` and the MEASURE NAT BAL offset, which is why that must be
-set first) reads what Forza showed. It is handed the Hz **step 1 was read at**
-(`ch.measuredNatBalHz`, falling back to `NAT_BAL_REF_HZ`), not the live Measure
-Hz field: step 2 is defined to be taken on step 1's springs, and the offset the
-solve subtracts is isolated at that same Hz. The card seeds Measure Hz from it on
-open, and says so if the field is later moved away from it. The two results are averaged: one
-2-decimal reading moves the answer by several percent, and swapping the bars
-cancels any front/rear bias. A reading no scale between 150 and 1500 can
-produce is rejected.
+reading, on step 1's springs, and is locked until that reading exists. On the NAT
+BAL springs, the user sets the bars to each of `arbProbesOf(H)` in turn — `1 / H`,
+`H / 1`, `H / H` and `h / h` (`H` = the ARB ceiling, `lim.arb`, 65 in Horizon and
+40 in Motorsport; `h = round(H/2)`) — and types Forza's mech balance for each.
+`arbProbeBalOf` is the display model each reading is compared against (tyres,
+`tireCorr` and the MEASURE NAT BAL offset, which is why that must be set first),
+as a function of a front and a rear scale. It is handed the Hz **step 1 was read
+at** (`ch.measuredNatBalHz`, falling back to `NAT_BAL_REF_HZ`), not the live
+Measure Hz field: step 2 is defined to be taken on step 1's springs, and the
+offset the solve subtracts is isolated at that same Hz. The card seeds Measure Hz
+from it on open, and says so if the field is later moved away from it.
+`solveArbScale` remains the one-reading, one-scale bisection on the same model.
 
-Each reading's own solved scale is shown beside its box, not just the average,
-because averaging hid the one thing worth seeing: whether the two agree. The
-average of a good reading and a mistyped one is bad, and nothing said so.
+**Why four readings.** `1 / H` is almost all rear bar and `H / 1` almost all
+front, so with only those two, a per-axle solve rests each axle's scale on one
+2-decimal reading. Simulated on the app's own functions (default car, 62% front,
+and an 8 cm wider rear track; readings carrying ±0.005; worst balance error over
+bars 20/20, 30/10, 10/30 and 40/40):
 
-**A wide gap between them is not by itself an error.** Swept over eight cars at
-the 2.20 Hz default, 2-decimal rounding *alone* — on a car the model fits
-exactly — spreads the two solves by up to **29.5%** (14–25% on most), because the
-two bar configurations have different sensitivities and the same ±0.005 lands
-very differently in scale space. A front/rear scale asymmetry the single-scale
-model cannot express adds to that: ~34% at 5% asymmetry, ~38% at 10%, ~49% at
-20%. Probing at the ceiling widens it again, since any nonlinearity in Forza's
-slider surfaces as A/B disagreement.
+| true front/rear ratio | one scale, 2 readings (before) | per-axle, 2 readings | per-axle, 4 readings, with fallback |
+|---|---|---|---|
+| 1.0 | 0.002–0.004 | 0.012–0.014 | 0.002 (one scale chosen every time) |
+| 1.3 | 0.017–0.019 | 0.010–0.015 | 0.004 |
+| 1.6 | 0.032–0.034 | 0.010–0.011 | 0.004–0.005 |
 
-Which scale the car uses is a **SCALE IN USE** toggle, `DEFAULT 540` against
-`MEASURED n`, rather than an APPLY/RESET pair. `DEFAULT` nulls the stored
-reading, holding `sanitizeTune`'s invariant that `useMeasuredArbClick` being
-false means `measuredArbClick`/`measuredArbNat`/`measuredArbNatHz` are null; the
-typed readings live in the modal, so flipping back costs one tap while it is
-open. `MEASURED` is disabled until there is a scale to select.
+Per-axle on two readings is 3–5× worse on a car whose axles match. `H / H` and
+`h / h` read the axles against each other, which is what makes the split solvable;
+in the same simulation they beat both `H / h · h / H` and `H / H · 1 / 1`.
 
-`ARB_SCALE_SPREAD_WARN` is therefore **0.45** — above rounding noise plus a
-healthy asymmetry, and still well clear of a genuine mistake, which is much
-louder (a mistyped reading runs 70%+). It was first set to 0.25, which was
-reasoned rather than measured and sat *below* the noise floor: it would have
-fired on flawless data, and a warning that fires on good data is one people learn
-to ignore. The flag suggests rather than accuses, and APPLY still averages the
-pair — it informs, it does not block.
+**The fallback is the rounding, not a threshold.** `fitArbScales` first looks
+for one scale that puts *every* reading within `ARB_READ_HALF_STEP` (0.005, half
+of Forza's 2-decimal step) of what was shown: the least-squares single scale, or,
+failing that, the one that minimises the worst residual. If one exists, the
+readings cannot tell the axles apart, and both share it (`split: false`). Only
+when none does is a front and a rear scale fitted, by least squares (coordinate
+descent of log-space golden-section searches, seeded from the single fit). A
+ratio threshold would have to be tuned and would be wrong somewhere; this asks the
+readings directly whether they exceed their own precision. A reading no front/rear
+pair in `ARB_SCALE_MIN..MAX` (150–1500) could produce is marked CHECK
+(`arbReadReachable`) and nothing is fitted.
+
+Each reading shows its residual against the chosen fit — FITS, or OFF ±0.00x —
+rather than only the result. The result alone hid the one thing worth seeing:
+whether the readings agree, since a fit through three good readings and a
+mistyped one is bad and nothing said so. Past `ARB_FIT_MISFIT` (**0.0075**, 1.5
+display steps) on any reading, no pair explains them. A pair fitted to
+exactly-rounded readings never leaves one step, while a mistyped digit lands at
+0.01 or more. The warning names the worst reading and suggests rather than accuses,
+and MEASURED still applies the fit: it informs, it does not block.
+
+This replaced the two-reading version's `ARB_SCALE_SPREAD_WARN` (0.45), which
+flagged the gap between the two readings' single-scale solves. That gap was mostly
+rounding (up to 29.5% on a car the model fits exactly) plus front/rear asymmetry
+(~34% at 5%, ~49% at 20%). Under four readings the asymmetry is fitted rather than
+warned about, and per-reading single-scale solves no longer mean anything.
+
+Which scale the car uses is a **SCALE IN USE** toggle: `DEFAULT 540` against
+`MEASURED n`, or `MEASURED front / rear` when split (`fmtArbScale`). It is a toggle
+rather than an APPLY/RESET pair. `DEFAULT` nulls the stored reading, holding
+`sanitizeTune`'s invariant that `useMeasuredArbClick` being false means
+`measuredArbClick`/`measuredArbClickR`/`measuredArbNat`/`measuredArbNatHz` are
+null. The typed readings live in the modal, so flipping back costs one tap while
+it is open. `MEASURED` is disabled until there is a scale to select.
 
 `H` is the ceiling rather than a fraction of it because the wider the bar
 spread, the more of the displayed balance the bars account for: **±5.3%** of the
@@ -959,7 +991,7 @@ frequency (dispatch lives in `feelToPhysics`):
   ARB utilisation. Both are expressed in the same currency so the
   comparison is meaningful — spring utilisation is the incremental rear
   roll-stiffness the spring correction is carrying (relative to its `S=0`
-  baseline), converted through the same `arbScaleOf(ch)·track²` relationship
+  baseline), converted through the same per-axle `arbClickRsOf(ch, axle)` relationship
   real ARB clicks use, then scaled 0..1 against `lim.arb`: "how many ARB
   clicks would this same physical correction have cost, had bars done it
   instead." ARB utilisation is the heavier bar's clicks against `lim.arb`,

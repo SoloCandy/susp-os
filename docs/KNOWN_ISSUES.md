@@ -13,6 +13,15 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Limitation — an app older than codec id 90 reads a split ARB scale as the front scale on both axles
+
+A car whose MEASURE ARB found the axles differ shares its rear click scale as id 90
+(`measuredArbClickR`). An app from before that id skips it and applies id 74, the front scale,
+to both axles, so it reads the rear bars off by the front/rear ratio. Readers of the hosted page
+are always current, so this only reaches a stale cached copy. Storing a pooled scale in id 74
+for old readers was rejected: it would make id 74 mean one thing on new codes and another on old
+ones. See [CODEC.md](CODEC.md).
+
 ## Open — the source reads some bindings before their declaration
 
 Parts of `#app-source` read a `const`/`let` above the line that declares it. `rearHzMode` is
@@ -132,7 +141,7 @@ Each is a decision about what a share part promises, not a bug fix:
   surprising one. It also breaks the property that each part maps onto a sidebar
   section, which is what makes the tick list legible.
 - **Convert in `mergeTune`** when the incoming and current `gameMode` differ in
-  physicality, using the same `arbScaleOf(ch)·track²` the game-mode selector uses
+  physicality, using the same per-axle `arbClickRsOf(ch, axle)` the game-mode selector uses
   (`crossArbUnits`). Keeps the
   parts where they are and is invisible when it is not needed. `mergeTune` can do
   this: it holds both chassis objects and `SHARE_PARTS` orders `ch` before `arb`, so
