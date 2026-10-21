@@ -95,7 +95,7 @@ t('every Sec RESET goes through sectionDefaults', () => {
   eq(resets.filter(r => !/sectionDefaults\('\w+'\)/.test(r)), []);
 });
 t('sectionDefaults returns DEF values for exactly the owned keys', () => {
-  eq(Object.keys(sectionDefaults('brakes')), ['brakeBiasShift', 'brakeCentre', 'brakeDecel', 'brakeEntryTarget']);
+  eq(Object.keys(sectionDefaults('brakes')), ['brakeStock', 'brakeBiasShift', 'brakeCentre', 'brakeDecel', 'brakeEntryTarget']);
   eq(sectionDefaults('alignment'), DEF_AL);
   eq(sectionDefaults('chassis'), DEF_CH);
 });

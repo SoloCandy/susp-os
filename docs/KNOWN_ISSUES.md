@@ -13,6 +13,16 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Documented — STOCK brakes are assumed ideal, and loads put RACE back
+
+BRAKES on STOCK (`dr.brakeStock`) is for a car without race brakes, whose real bias Forza
+neither shows nor lets you set. The model can't know it, so STOCK reads the brakes as sitting
+at the entry-load ideal: BRK 0, no brakes row, GRIP USE's ENTRY at that split. A stock car
+that is really front- or rear-heavy on the brakes is not modelled.
+
+STOCK is part of the tune (`dr`), so a FACTORY preset, a build saved on RACE or a code without
+id 89 sets it back to RACE. Hide the Brakes row (or BRAKES) with PERSIST on to keep it.
+
 ## Documented — what undo / redo does not cover
 
 History holds the tune (`ch`, `fe`, `dr`, `al`) and the DNA link, nothing else:

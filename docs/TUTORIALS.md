@@ -333,7 +333,7 @@ the Welcome card and live in the glossary.
 | 5 | ARB Bias & Visuals | `arb`, `visuals` | `arb.bias`, `visuals.ride` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
 | 6 | Ride Ref & Rear Hz | `feel` | `ride.ref` / `.hzMode` / `.targetSpeed` / `.hzMult` / `.hzMan` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
 | 7 | Dampers | `damping` | `dampers.reboundZeta` / `.bumpRatio` / `.bias` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
-| 8 | Brakes | `brakes` | `brakes.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation. |
+| 8 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
 | 9 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
 | 10 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
 | 11 | AWD Center Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. On FWD / RWD nothing here renders and the zones are lit instead. |
@@ -495,7 +495,7 @@ TRY IT task (ticks when the check passes):
 
 #### 8. Brakes
 
-> BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.
+> BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game. No race brakes fitted? Set Brakes to STOCK and the brakes drop out of the calculations.
 
 #### 9. Diff Type
 

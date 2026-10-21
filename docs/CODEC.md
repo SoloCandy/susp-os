@@ -105,8 +105,9 @@ future version might not carry.
 | 86 | fe | bumpBalMode | enum (`BUMP_BAL_MODE_ENC/DEC`) — BUMP BALANCE; `same` (0, the default) follows the rebound's `dampBalMode`. See note |
 | 87 | fe | bumpDampingBias | raw number — Bump Bias, −50..+50, stored sign as id 33 (+ = FRONT); read only when id 86 is not `same` |
 | 88 | fe | phaseExitG | raw number — PHASE Balance Target's EXIT Load, g; read only in PHASE (id 53 = 4) |
+| 89 | dr | brakeStock | bool — BRAKES on STOCK (no race brakes): the brakes leave every calculation; INT+ only, see note |
 
-**Next available id: 89.**
+**Next available id: 90.**
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -125,6 +126,11 @@ Id 80 is new, not a revival: the brake fields pruned in the v1 sparse-table rede
 (`brakeManual`/`brakeBias`/`brakePressure`) were never individually numbered. It stores a
 shift, not a bias, so a code carries the sender's intent and lands on the reader's car as
 that car's recommendation plus the shift. It rides with the DRIVETRAIN part.
+
+Id 89 is a fact about the car, not an intent: the sender had no race brakes. A code with it lands
+on the reader as STOCK whatever their own brakes are, which is right for the same car and easy to
+switch back for another; BEG ignores it, as it ignores the shift. An older client skips the id
+and reads RACE, with the sender's kept bias settings.
 
 Ids 81–83 follow the same reasoning: they carry the Centre, the Decel and the ENTRY target,
 never a resolved bias, so a GRIP or ENTRY code lands on the reader's car as that car's own
@@ -272,7 +278,7 @@ choice, decided after the code is read.
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
-| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
+| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeStock, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 | `carries` (CARRIES) | `meta` | carries — **`applies:false`**: decides which of the parts above can be ticked at all (`partCarried` / `carriedSel`), never merged or shown as a row |
 

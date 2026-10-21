@@ -101,6 +101,12 @@ t('PRO ENTRY replaces the shift', () => {
 t('pre-tier entry shows what it stores', () => {
   eq(brakes(build({ brakeBiasShift: -1, brakeCentre: 'grip' })), ['GRIP BRAKES', 'BRAKES STABLE']);
 });
+t('STOCK replaces every other brake chip, from INT', () => {
+  eq(brakes(build({ brakeStock: true, brakeBiasShift: 4, brakeCentre: 'grip' }, { tier: 'pro' })), ['STOCK BRAKES']);
+  eq(brakes(build({ brakeStock: true, brakeBiasShift: -3 }, { tier: 'intermediate' })), ['STOCK BRAKES']);
+  eq(brakes(build({ brakeStock: true })), ['STOCK BRAKES']);
+});
+t('BEG ignores STOCK', () => eq(brakes(build({ brakeStock: true }, { tier: 'beginner' })), []));
 
 section('provenance');
 t('DNA chip on a stamped build, before TIER, and TIER last', () => {

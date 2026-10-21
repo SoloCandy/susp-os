@@ -243,7 +243,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH). `digits` sets the value's decimals (1; PRO's `Seg` passes 2). `tick` draws a position instead of a fill and drops the share column — the CAR STARTS row, the chassis lean the tuning rows move from |
 | `DirSeg` | a contributor with a direction but no calibrated size — PRO's diff lock and damping rows. Shows toward OS / toward US / — and a NO SIZE label |
 | `VisRollSplit`, `VisSuspTracks` (over `VisTrack` and the `visGhost` helper) | the pinned VISUALS card — its RIDE · ROLL · DAMPING group (`open.visRide`). `VisRollSplit` draws the split divide at `tune.mechBalance`, the display-space value the MECH BALANCE strip plots, so its NAT/TGT ticks match that strip; the springs/ARBs shading within each end uses model-space stiffnesses and is a share of that end only. `VisSuspTracks` renders ride Hz, ARB and damping ζ as F/R rows on shared tracks; the Hz and ARB ghost rings (NAT grey, target green) sit on the derived axle, the one Ride Reference does not fix. These replaced the `SpringDial` / `ArbDial` / `DampingDial` arc dials. What each group draws, marker by marker, is in [VISUALS.md](VISUALS.md). The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
-| `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. The brakes tip explains the BRAKES card's computed bias, which every tier shows, and deliberately does not tell the user to move it — the bar and the card use different neutral points ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). `GroupSection` is called as a function, not rendered as `<GroupSection/>`: a component defined in the body remounts its rows (and their ⓘ) on every `App` render ([HISTORY.md](HISTORY.md)) |
+| `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. It has no brakes row when BRAKES is on STOCK (a null `bBrakeEntry`). The brakes tip explains the BRAKES card's computed bias, which every tier shows, and deliberately does not tell the user to move it — the bar and the card use different neutral points ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). `GroupSection` is called as a function, not rendered as `<GroupSection/>`: a component defined in the body remounts its rows (and their ⓘ) on every `App` render ([HISTORY.md](HISTORY.md)) |
 | `mechReachNote` | a plain helper, not a component: the cause-and-fix sentence both `mechBalClamped` warnings (ARB card and the warnings strip) end with. It works out which bar is at its ceiling or floor from `tune.arbF`/`arbR` against `lim.arb`, and names the fix for the active stiffness mode and CO-SOLVE's Spring Share |
 | `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null. Its `Seg` (a `BiasSeg` at the phase scale) is module-level, just above it, for the same reason as `HandlingVerdict`'s `GroupSection` |
 | `EntryCard` | one garage entry inside the GARAGE drawer |
@@ -427,7 +427,8 @@ A new control needs a `<Hide id>` and a `HIDE_ITEMS` row; `tests-sections.js` fa
 id in either place without the other.
 
 `sectionChanged` and `hiddenChangedIn` share their gates (`liveKeys`): BALANCE counts only
-while `hasBalTargetSolve`, and below PRO BRAKES counts only `brakeBiasShift`.
+while `hasBalTargetSolve`, below PRO BRAKES counts only `brakeStock` and `brakeBiasShift`, and
+on STOCK only `brakeStock`.
 `hiddenChangedIn` is what a shown section's "N hidden settings changed" line counts, and its
 SHOW brings back exactly those ids. A hidden setting that still changes the tune is never
 silent.
@@ -835,8 +836,9 @@ lift, since fixed with a transfer cap; see [HISTORY.md](HISTORY.md). Its monoton
 test carries **no** exemption for the lifted region, and must not be given one again.
 
 **`tests-garage.js` reads `index.html` the same way** and covers `autoTagsOf`: which
-chip each payload produces, and the BRAKES chips' tier gating. That gating is a
-promise about App's `brakeBias`, which only the browser exercises end to end.
+chip each payload produces, and the BRAKES chips' tier gating (STOCK BRAKES replaces the
+rest from INT). That gating is a promise about App's `brakeBias`, which only the browser
+exercises end to end.
 
 **`tests-sections.js` reads `index.html` the same way** and covers `SECTION_VIS` and
 `HIDE_ITEMS`: every `SECTION_KEYS` section has a row, every RESET goes through

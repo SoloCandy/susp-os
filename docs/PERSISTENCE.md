@@ -28,7 +28,7 @@ each other, and an effect also runs too late to protect the first render. See
 |---|---|---|
 | `suspos_ch_v8` | Chassis state (`ch`) — weight, frontBias, tyres, wheelbase, track widths, CG height + CG source (`useRideHeightCG`, `rideHeightF`/`rideHeightR`), layout, measured nat-bal (`useMeasuredNatBal`, `measuredNatBal`, `measuredNatBalHz`, and `measuredNatBalRef` — the prediction it was taken against, for `natBalStale`), BeamNG motion ratios (`motionRatioF`/`motionRatioR`, `arbMotionRatioF`/`arbMotionRatioR`) | `DEF_CH` |
 | `suspos_fe_v8` | Feel/tune state (`fe`) — ride stiffness + its input mode (`rideStiffMode` HZ/BOTTOM G's, `rideBottomG` target), Hz mode + ride reference, ARB modes, damping, balance targets (`arbBalTargetMode`; a stored legacy `'manual'` is read as NATURAL by `balTargetModeOf`, never as MANUAL `'abs'`, whose value is `arbBalAbs`; PHASE adds `phaseExitG`) | `DEF_FE` |
-| `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget` | `DEF_DR` |
+| `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeStock`, `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget` | `DEF_DR` |
 | `suspos_al_v2` | Alignment state (`al`) — mode (build/mech/grip/manual), nudgeStrength, manual camber/toe/caster, and the legacy `alignManual` flag (still read as a fallback for old saves — see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_AL` |
 | `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
 | `suspos_hidden_v1` | What the layout edit view hides, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys (whole sections) and `HIDE_ITEMS` ids (single controls, toolbar buttons, output cards and rows, balance-bar parts). The shape and key are unchanged from when only sections could be hidden, so lists stored then still load; the ids are permanent for the same reason. `repairHidden` drops unknown ids, duplicates and ids from another tier (BALANCE, ALIGNMENT and the PRO-only controls). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
@@ -118,12 +118,12 @@ entry carries:
 | `ch` | layout; BALANCED (within 2 points of 50% front), NOSE HEAVY or TAIL HEAVY |
 | `fe` | Hz band (`hzCtx`, after `rsToHz`) |
 | `dr` | build type; `… DIFF` for the diff type; MANUAL DIFF |
-| `dr` + `tier` | BRAKES ROTATE / BRAKES STABLE (non-zero `brakeBiasShift`), GRIP BRAKES / ENTRY BRAKES (`brakeCentre`) |
+| `dr` + `tier` | STOCK BRAKES (`brakeStock`, in place of the rest), BRAKES ROTATE / BRAKES STABLE (non-zero `brakeBiasShift`), GRIP BRAKES / ENTRY BRAKES (`brakeCentre`) |
 | `dna` beside `fe`/`dr` | DNA |
 | `tier` | `… TIER`, always last |
 
 The brake chips follow App's `brakeBias`, applied for the tier the entry was **saved**
-in. A BEG entry shows none, an INT entry shows the shift but never a Centre, and a
+in. A BEG entry shows none, STOCK shows only STOCK BRAKES, an INT entry shows the shift but never a Centre, and a
 PRO ENTRY Centre replaces the shift, because ENTRY ignores it. An entry with no
 `tier` has nothing to gate by, so it shows what it stores. MANUAL DIFF is not gated:
 a MANUAL diff loaded below PRO still applies its locks. The diff chip carries the

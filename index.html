@@ -1099,11 +1099,13 @@ const loadTransferOf=(ch,tune)=>{
 // drive at the drive split, through the friction circle; both include the pitch transfer, since
 // this predicts what the tyres see — unlike the bar's ENTRY / EXIT figures, which leave PITCH out
 // to isolate the tune. use = √(lateral² + longitudinal²) ÷ capacity, per axle.
+// A null brakeBias (BRAKES on STOCK) brakes at the ENTRY-load ideal, as phaseTermsAt reads it.
 const gripUseOf=(ch,tune,phase,brakeBias,diff)=>{
   const g=9.81,nf=ch.frontBias/100;
   const Kf=tune.rsSpF+tune.rsAbF,Kr=tune.rsSpR+tune.rsAbR;
   const rs=Math.max(0,Math.min(1,(Kf+Kr>0?Kr/(Kf+Kr):1-nf)+natOffsetOf(ch)));
-  const[ax,fxF]=phase==='entry'?[-ENTRY_G,brakeBias/100]:phase==='exit'?[EXIT_G,driveFrontOf(diff)]:[0,0];
+  const fxB=brakeBias==null?Math.max(0,Math.min(1,gripBrakeBiasOf(ch,ENTRY_G)/100)):brakeBias/100;
+  const[ax,fxF]=phase==='entry'?[-ENTRY_G,fxB]:phase==='exit'?[EXIT_G,driveFrontOf(diff)]:[0,0];
   const a=axleGrip(ch,1-rs,rs,ax,fxF);
   const latCap=(Fy,x)=>Math.sqrt(Math.max(0,Fy*Fy-x*x));
   const gF=latCap(a.FyF,a.xF)/(a.Mf*g),gR=latCap(a.FyR,a.xR)/(a.Mr*g);
@@ -3159,7 +3161,8 @@ const autoTagsOf=e=>{
     // ENTRY is the whole answer so the shift isn't added to it. A pre-tier entry has no
     // tier to gate by, so it shows what it stores.
     const tr=tierOf(e.tier);
-    if(tr!=='beginner'){
+    if(tr!=='beginner'&&e.dr.brakeStock)out.push({label:'STOCK BRAKES',color:'#94a3b8'});
+    else if(tr!=='beginner'){
       const centre=!tr||tr==='pro'?e.dr.brakeCentre:'rec';
       const s=e.dr.brakeBiasShift??0;
       if(centre==='entry')out.push({label:'ENTRY BRAKES',color:'#94a3b8'});
@@ -3309,7 +3312,10 @@ const DEF_DR={buildType:'street',diffType:'sport',
               // BRAKES' centre (PRO): 'rec' = recBrakeBias, 'grip' = gripBrakeBiasOf at brakeDecel g.
               brakeCentre:'rec',brakeDecel:1.0,
               // ENTRY Centre: ENTRY's BRK target, grip-margin %, + = entry looser than mid-corner.
-              brakeEntryTarget:0};
+              brakeEntryTarget:0,
+              // BRAKES on STOCK (INT+): no race brakes fitted, so no bias to set. Takes the brakes
+              // out of every calculation; the fields above are kept for when RACE comes back.
+              brakeStock:false};
 const BRAKE_CENTRE_DEC=['rec','grip','entry'];
 const DEF_AL={alignManual:false,
               camberF:-2.3,camberR:-1.8,toeF:-0.1,toeR:0.1,caster:5.5,
@@ -3330,7 +3336,7 @@ const SECTION_VIS=[
   {key:'arb',       label:'ANTI-ROLL BARS', tiers:['intermediate','pro'], fields:['fe',['arbBias','arbMode','arbBalMode','springShare','arbTargetRollMan','arbShareMan','arbBasicMan','arbSplitOpposite','arbNeutralEqual']]},
   {key:'ride',      label:'RIDE',           tiers:['intermediate','pro'], fields:['fe',['rideStiffness','targetSpeed','rearHzMode','rearHzMan','rearHzMult','rideRef','rideStiffMode','rideBottomG']]},
   {key:'dampers',   label:'DAMPERS',        tiers:['intermediate','pro'], fields:['fe',['dampingMode','dampingBias','reboundZeta','bumpRatio','bumpZeta','landingPct','dampCharMode','dampBalMode','bumpBalMode','bumpDampingBias','settleTarget']]},
-  {key:'brakes',    label:'BRAKES',         tiers:['intermediate','pro'], fields:['dr',['brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']]},
+  {key:'brakes',    label:'BRAKES',         tiers:['intermediate','pro'], fields:['dr',['brakeStock','brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']]},
   {key:'drivetrain',label:'DRIVETRAIN',     tiers:['intermediate','pro'], fields:['dr',['diffType','diffManual','diffComplement','diffBiasExit','diffBiasEntry','diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel','diffRearAccel','diffRearDecel','diffCenter']]},
   {key:'visuals',   label:'VISUALS',        tiers:['intermediate','pro'], fields:null},
 ];
@@ -3426,13 +3432,15 @@ const HIDE_ITEMS=[
   {id:'dampers.bumpBalMode',     sec:'dampers', fields:['fe',['bumpBalMode']]},
   {id:'dampers.bumpBias',        sec:'dampers', fields:['fe',['bumpDampingBias']], live:st=>ownBumpBalMode(st.fe.bumpBalMode,st.fe.dampingMode)!=null},
   {id:'dampers.table',           sec:'dampers'},
-  // BRAKES. Below PRO only the shift counts (liveKeys), so the PRO-only rows never do there.
-  {id:'brakes.centre',           sec:'brakes', tiers:['pro'], fields:['dr',['brakeCentre']]},
-  {id:'brakes.entryTarget',      sec:'brakes', tiers:['pro'], fields:['dr',['brakeEntryTarget']], live:st=>st.dr.brakeCentre==='entry'},
-  {id:'brakes.decel',            sec:'brakes', tiers:['pro'], fields:['dr',['brakeDecel']], live:st=>st.dr.brakeCentre==='grip'},
+  // BRAKES. Below PRO only STOCK and the shift count (liveKeys), so the PRO-only rows never do
+  // there; on STOCK nothing else does.
+  {id:'brakes.stock',            sec:'brakes', fields:['dr',['brakeStock']]},
+  {id:'brakes.centre',           sec:'brakes', tiers:['pro'], fields:['dr',['brakeCentre']], live:st=>!st.dr.brakeStock},
+  {id:'brakes.entryTarget',      sec:'brakes', tiers:['pro'], fields:['dr',['brakeEntryTarget']], live:st=>!st.dr.brakeStock&&st.dr.brakeCentre==='entry'},
+  {id:'brakes.decel',            sec:'brakes', tiers:['pro'], fields:['dr',['brakeDecel']], live:st=>!st.dr.brakeStock&&st.dr.brakeCentre==='grip'},
   {id:'brakes.refLine',          sec:'brakes', tiers:['pro']},
   {id:'brakes.entryBrk',         sec:'brakes', tiers:['pro']},
-  {id:'brakes.bias',             sec:'brakes', fields:['dr',['brakeBiasShift']], live:(st,tier)=>tier!=='pro'||st.dr.brakeCentre!=='entry'},
+  {id:'brakes.bias',             sec:'brakes', fields:['dr',['brakeBiasShift']], live:(st,tier)=>!st.dr.brakeStock&&(tier!=='pro'||st.dr.brakeCentre!=='entry')},
   // DRIVETRAIN. The AUTO sliders apply only off MANUAL, the typed locks only on it.
   {id:'drive.diffType',          sec:'drivetrain', fields:['dr',['diffType']]},
   {id:'drive.diffMode',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffManual']]},
@@ -3518,11 +3526,13 @@ const sectionDefaults=key=>{
 // Does a section hold anything that is changing the tune? A hidden section that does is never
 // removed outright — it leaves a stub line, so a value nobody can see still shows it is there.
 // Gated the way the app applies the fields: BALANCE only while something solves toward the
-// target, and below PRO the brakes' Centre is ignored, leaving only the shift.
+// target, below PRO the brakes' Centre is ignored, leaving STOCK and the shift, and on STOCK
+// only STOCK itself applies.
 // The keys of `keys` this tier actually applies, under the gates sectionChanged describes.
 const liveKeys=(sec,keys,st,tier)=>{
   if(sec==='balance'&&!hasBalTargetSolve(st.fe))return[];
-  return sec==='brakes'&&tier!=='pro'?keys.filter(k=>k==='brakeBiasShift'):keys;
+  if(sec==='brakes'&&st.dr?.brakeStock)return keys.filter(k=>k==='brakeStock');
+  return sec==='brakes'&&tier!=='pro'?keys.filter(k=>k==='brakeBiasShift'||k==='brakeStock'):keys;
 };
 const sectionChanged=(key,st,tier)=>{
   const f=SECTION_VIS.find(s=>s.key===key)?.fields;
@@ -4610,7 +4620,7 @@ const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,
     ...(isAWD
       ?[{name:'diff front',val:bDiffFront??0},{name:'diff rear',val:bDiffRear??0}]
       :[{name:'diff exit',val:bDiffAccel??0},{name:'diff entry',val:bDiffDecel??0}]),
-    {name:'brakes',val:bBrakeEntry??0},{name:'damping',val:bDampBias??0}
+    ...(bBrakeEntry==null?[]:[{name:'brakes',val:bBrakeEntry}]),{name:'damping',val:bDampBias??0}
   ];
   // Shares are of the tuning rows only: CHASSIS is the starting point they move from, not a row
   // competing with them. It still picks the tip when it dominates, since it is still the cause.
@@ -4793,7 +4803,7 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
       <div data-spot="bal.rows">
       <div style={{marginBottom:6}}>
         <Head title="ENTRY" sub={`· ${ENTRY_G} g braking`} val={entry.total}/>
-        <Seg label="BRAKES" val={entry.brk} hint={hints.brk} hintTerm={hintTerms.brk}/>
+        {brakeBias!=null&&<Seg label="BRAKES" val={entry.brk} hint={hints.brk} hintTerm={hintTerms.brk}/>}
         <DirSeg label="DIFF ENTRY" dir={signOf(bDiffDecel)} hint={hints.dEntry} hintTerm={hintTerms.dEntry}/>
         <Seg label="PITCH" val={entry.pitch} hint={hints.ePitch} muted hintTerm={hintTerms.ePitch}/>
       </div>
@@ -5704,6 +5714,7 @@ const CODEC_FIELDS=[
   {id:81,group:'dr',key:'brakeCentre',enc:{rec:0,grip:1,entry:2},dec:BRAKE_CENTRE_DEC},
   {id:82,group:'dr',key:'brakeDecel'},
   {id:83,group:'dr',key:'brakeEntryTarget'},
+  {id:89,group:'dr',key:'brakeStock',bool:true},
   // 84: BUMP MODE → LANDING's drop-height target, a % of the RIDE REF. axle's ride height. A
   // target like rideBottomG (id 64): bump ζ re-solves from it against whatever chassis it lands on.
   {id:84,group:'fe',key:'landingPct'}, // was landingDrop (metres) for ~30 min live; reused deliberately, see CODEC.md
@@ -5902,7 +5913,7 @@ const SHARE_PARTS=[
   {id:'dr',group:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes',
    keys:['buildType','diffType','diffManual','diffComplement','diffBiasEntry','diffBiasExit',
          'diffFrontExitBias','diffAccel','diffDecel','diffFrontAccel','diffFrontDecel',
-         'diffRearAccel','diffRearDecel','diffCenter','brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']},
+         'diffRearAccel','diffRearDecel','diffCenter','brakeStock','brakeBiasShift','brakeCentre','brakeDecel','brakeEntryTarget']},
   {id:'tier',group:'meta',label:'TIER',sub:'Recorded, never applied',applies:false,keys:['tier']},
   // Not a choice for the reader either: it decides which of the parts above can be ticked at
   // all (carriedSel), so it is never merged and never shown as a row of its own.
@@ -6101,6 +6112,7 @@ const sanitizeTune=({ch,fe,dr})=>{
       brakeCentre:    BRAKE_CENTRE_DEC.includes(dr?.brakeCentre)?dr.brakeCentre:DEF_DR.brakeCentre,
       brakeDecel:     cl(dr?.brakeDecel,      0.3, 1.5, DEF_DR.brakeDecel),
       brakeEntryTarget: cl(dr?.brakeEntryTarget, -5, 5,   DEF_DR.brakeEntryTarget),
+      brakeStock:     typeof dr?.brakeStock==='boolean'?dr.brakeStock:dr?.brakeStock===1,
     },
   };
 };
@@ -6387,8 +6399,8 @@ const TUTORIALS={
      body:'Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.',
      glossary:['zeta','bump-ratio','damping-bias']},
     {title:'Brakes',
-     focus:['brakes'],spot:['brakes.bias'],
-     body:'BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.',
+     focus:['brakes'],spot:['brakes.stock','brakes.bias'],
+     body:'BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game. No race brakes fitted? Set Brakes to STOCK and the brakes drop out of the calculations.',
      glossary:['brake-balance']},
     {title:'Diff Type',
      focus:['drivetrain'],spot:['drive.diffType'],
@@ -7799,16 +7811,21 @@ function App(){
   // is where intent goes. INT keeps the recommendation whatever brakeCentre says, as BEG keeps it
   // whatever the shift says.
   const gripBrakeBias=Math.round(gripBrakeBiasOf(ch,dr.brakeDecel??DEF_DR.brakeDecel));
-  const brakeGrip=uiMode==='pro'&&dr.brakeCentre==='grip';
+  // BRAKES on STOCK (INT+): a car without race brakes has no bias to set (Forza locks brake
+  // balance behind them), so there is no brakeBias at all — the balance bar, PRO's ENTRY BRK,
+  // GRIP USE and the outputs leave the brakes out. BEG has no BRAKES section and ignores it, as
+  // it does the shift.
+  const brakesStock=uiMode!=='beginner'&&!!dr.brakeStock;
+  const brakeGrip=!brakesStock&&uiMode==='pro'&&dr.brakeCentre==='grip';
   // ENTRY (PRO) solves the bias for an ENTRY BRK target instead (entryBrakeBiasFor). It is the
   // whole answer, not a centre: the target is the intent, so the shift is not added on top.
-  const brakeEntry=uiMode==='pro'&&dr.brakeCentre==='entry';
+  const brakeEntry=!brakesStock&&uiMode==='pro'&&dr.brakeCentre==='entry';
   const brakeCentre=brakeGrip?gripBrakeBias:recBrakeBias;
   // BRAKES' Brake Bias shift (INT+) moves it from that centre, + = rearward (ROTATE), inside the
   // same BRAKE_BIAS_MIN..MAX span. BEG has no BRAKES section, so a shift carried in from INT or a share code
   // is ignored there rather than reset: switching back up restores it. This is the bias outside
   // BRAKES' ENTRY Centre; ENTRY's is solved from the tune further down (brakeBias).
-  const brakeBiasSet=uiMode==='beginner'?recBrakeBias
+  const brakeBiasSet=uiMode==='beginner'?recBrakeBias:brakesStock?null
     :Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,brakeCentre-(dr.brakeBiasShift??0)));
   // PHASE Balance Target's inputs (phaseInOf). Built ahead of the solve, from nothing the tune
   // decides: the brake bias above, or under ENTRY Centre its BRK target itself (the solved bias
@@ -8022,8 +8039,8 @@ function App(){
     [brakeEntry,ch,tune,dr.brakeEntryTarget]);
   const brakeBias=uiMode!=='beginner'&&entrySolve?Math.max(BRAKE_BIAS_MIN,Math.min(BRAKE_BIAS_MAX,Math.round(entrySolve.bias)))
     :brakeBiasSet;
-  // positive = oversteer, negative = understeer
-  const bBrakeEntry=-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
+  // positive = oversteer, negative = understeer; 0 on STOCK, which has no bias
+  const bBrakeEntry=brakeBias==null?0:-(brakeBias-50)*BRAKE_BIAS_SCALE; // high front bias → understeer (−)
   const effectiveAvgZeta=(tune.zetaF+tune.zetaR)/2||70;
   const bDampBias=-(tune.zetaF-tune.zetaR)*16/effectiveAvgZeta; // more front rebound → understeer (−)
   // tune.bChassis is the chassis's own lean (see computeTune); without it the total measured the
@@ -10445,10 +10462,19 @@ function App(){
               a typed value, so the bias keeps following the chassis and build. */}
           {uiMode!=='beginner'&&<div id="zone-brakes" style={dim('brakes')}><Sec title="BRAKES" open={open.brakes} onToggle={tog('brakes')} {...secProps('brakes')}
             onReset={()=>setDr(p=>({...p,...sectionDefaults('brakes')}))}>
+            {/* RACE / STOCK: whether the car has brakes to tune. Forza only offers brake balance
+                with race brakes fitted; STOCK hides the rest and takes the brakes out of the
+                calculations (brakesStock). The other settings are kept for RACE. */}
+            <Hide id="brakes.stock"><Toggle label="Brakes" value={brakesStock?'stock':'race'} onChange={v=>pDr('brakeStock')(v==='stock')}
+              options={[{value:'race',label:'RACE'},{value:'stock',label:'STOCK'}]}
+              hint="STOCK = no race brakes fitted. Forza only lets you set brake balance with race brakes, so STOCK leaves the brakes out of every calculation: no bias to set, and nothing from the brakes in the balance." hintTerm="brake-balance"/></Hide>
+            {brakesStock&&<div style={{fontSize:11,color:'#64748b',lineHeight:1.5,marginBottom:6}}>
+              Stock brakes: brake bias is left out of the balance and the outputs. Your bias settings are kept for RACE.
+            </div>}
             {/* PRO: what the shift is measured from. REC = the recommendation; GRIP = where both axles
                 reach their braking limit together (gripBrakeBiasOf). Switching moves the bias — it
                 is a different answer, not a different way of writing the same one. */}
-            {uiMode==='pro'&&<>
+            {!brakesStock&&uiMode==='pro'&&<>
               <Hide id="brakes.centre"><Toggle label="Centre" value={brakeEntry?'entry':brakeGrip?'grip':'rec'} onChange={pDr('brakeCentre')}
                 options={[{value:'rec',label:'REC'},{value:'grip',label:'GRIP'},{value:'entry',label:'ENTRY'}]}
                 hint="REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved for trail braking: how turn-in on the brakes sits against mid-corner." hintTerm="brake-balance"/></Hide>
@@ -10478,7 +10504,7 @@ function App(){
                   </div></Hide>);
               })()}
             </>}
-            <Hide id="brakes.bias">{brakeEntry
+            {!brakesStock&&<Hide id="brakes.bias">{brakeEntry
               ?<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#9ca3af',marginBottom:9}}>
                  <span>Brake Bias</span><span style={{fontFamily:'var(--font-mono)',color:'#e2e8f0'}}>{brakeBias}% F</span>
                </div>
@@ -10493,7 +10519,7 @@ function App(){
               hint={brakeGrip
                 ?`Shifts the GRIP brake bias (${gripBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`
                 :`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`}
-              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>}</Hide>
+              readout={`${brakeBias}% F`} hintTerm="brake-balance"/>}</Hide>}
           </Sec></div>}
 
           <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} {...secProps('drivetrain')}
@@ -11119,7 +11145,7 @@ function App(){
                     {open.visGrip&&<div style={{marginLeft:'auto',display:'flex',gap:2}} onClick={e=>e.stopPropagation()}>
                       {[['mid','MID'],['entry','ENTRY'],['exit','EXIT']].map(([k,l])=>
                         <button key={k} className={`tog${gripPhase===k?' on':''}`} style={{fontSize:8,padding:'1px 5px'}}
-                          title={k==='mid'?'Steady cornering.':k==='entry'?`Cornering while braking at ${ENTRY_G} g, at the brake bias.`:`Cornering under ${EXIT_G} g of drive, at the drive split.`}
+                          title={k==='mid'?'Steady cornering.':k==='entry'?`Cornering while braking at ${ENTRY_G} g, ${brakeBias==null?'at the entry-load ideal split (STOCK brakes)':'at the brake bias'}.`:`Cornering under ${EXIT_G} g of drive, at the drive split.`}
                           onClick={()=>setGripPhase(k)}>{l}</button>)}
                     </div>}
                     <span style={{marginLeft:open.visGrip?4:'auto',fontSize:9,color:'#475569'}}>{open.visGrip?'▲':'▼'}</span>
@@ -11329,10 +11355,10 @@ function App(){
             hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
 
             {(()=>{
-              const c=brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
+              const c=brakeBias==null?['NO RACE BRAKES','#64748b']:brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
               return(
                 <RowGroup style={{marginBottom:0}}>
-                  <OutRow hid="out.brakeBias" label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
+                  <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={c[0]} noteColor={c[1]}/>
                 </RowGroup>
               );
             })()}
@@ -11604,11 +11630,11 @@ function App(){
             })();
 
             const brakesCard=(()=>{
-              const c=brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
+              const c=brakeBias==null?['NO RACE BRAKES','#64748b']:brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
               return (
                 <Card hid="out.card.brakes" title="BRAKES" hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
                   <RowGroup style={{marginBottom:0}}>
-                    <OutRow hid="out.brakeBias" label="Balance" value={brakeBias} unit="% F" note={c[0]} noteColor={c[1]}/>
+                    <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={c[0]} noteColor={c[1]}/>
                   </RowGroup>
                 </Card>
               );
@@ -12519,7 +12545,7 @@ function App(){
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel}
                   bDiffFront={diff.bDiffFront} bDiffRear={diff.bDiffRear}
                   diffLayout={diff.layout}
-                  bBrakeEntry={bBrakeEntry} bDampBias={bDampBias}
+                  bBrakeEntry={brakeBias==null?null:bBrakeEntry} bDampBias={bDampBias}
                   gripBalance={tune.gripBalance} uiMode={uiMode}/>}
                 {/* RESPONSE factor breakdown */}
                 {(()=>{

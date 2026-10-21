@@ -241,6 +241,14 @@ Build Type uses `HINT_BUILD_TYPE`, quoted under [BEG panel](#beg-panel).
 
 ## BRAKES (INT+)
 
+**Brakes** (RACE / STOCK), first in the section:
+
+> STOCK = no race brakes fitted. Forza only lets you set brake balance with race brakes, so STOCK leaves the brakes out of every calculation: no bias to set, and nothing from the brakes in the balance.
+
+On STOCK every other BRAKES control is hidden and this line stands in for them:
+
+> Stock brakes: brake bias is left out of the balance and the outputs. Your bias settings are kept for RACE.
+
 **Brake Bias** — `{recommended}` is `recBrakeBias`:
 
 > Shifts the recommended brake bias ({recommended}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.
@@ -608,6 +616,8 @@ camber target and `{roll}` the tune's roll angle:
 
 > Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel.
 
+With BRAKES on STOCK (INT+) its Balance row reads `STOCK`, noted `NO RACE BRAKES`.
+
 **DIFFERENTIAL** — FWD, RWD, then AWD (`{rear %}` is the centre split):
 
 > Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.
@@ -820,8 +830,8 @@ DAMP (INT; BEG uses its balance line):
 > Move Damping Bias toward REAR to let the front take weight more freely.
 
 **Contributor rows** — CAR STARTS (the CHASSIS term, drawn as a tick), then SPRINGS, ARB
-(MID · MAKES NET), then DIFF F, DIFF R (AWD), DIFF EXIT and DIFF ENTRY (FWD, then RWD), BRAKES,
-DAMP (ENTRY / EXIT · NOT IN NET):
+(MID · MAKES NET), then DIFF F, DIFF R (AWD), DIFF EXIT and DIFF ENTRY (FWD, then RWD), BRAKES
+(absent on STOCK), DAMP (ENTRY / EXIT · NOT IN NET):
 
 > Where the car sits before any tuning: its own lean at the limit from tyres, track widths, CG and weight split. The rows below move it from here.
 
@@ -895,7 +905,7 @@ EXIT — AWD, then RWD and FWD:
 
 > Exit: front drive takes lateral grip from the front under power. Only throttle and exit diff lock manage it.
 
-**Phase rows** — MID: CAR STARTS (a tick), SPRINGS, ARB; ENTRY: BRAKES, PITCH; EXIT: DRIVE (CENTRE
+**Phase rows** — MID: CAR STARTS (a tick), SPRINGS, ARB; ENTRY: BRAKES (absent on STOCK), PITCH; EXIT: DRIVE (CENTRE
 on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT's DAMP.
 `{entry g}` / `{exit g}` as above; `{ideal front %}` is BRAKES' GRIP bias at `{entry g}` g and
 `{ideal rear %}` the load-proportional drive split:

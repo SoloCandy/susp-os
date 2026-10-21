@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — BRAKES can be set to STOCK, for cars without race brakes
+
+Many meta Forza tunes skip race brakes, and without them the game has no brake balance to set,
+yet BRAKES still solved a bias and the balance bar, PRO's ENTRY phase and GRIP USE all counted
+it. BRAKES now opens with **Brakes: RACE / STOCK**. STOCK takes the brakes out: no bias, no brakes
+row, BRK 0, a BRAKES card that reads STOCK. It is a share-code field (id 89), so a STOCK tune
+reads as STOCK on the other end. The bias settings stay underneath for when RACE comes back.
+
 ## Changed — PERSIST: hidden settings can hold their values through loads
 
 Fixing a setting for good (meta Forza ARBs at MAN 1 / 65) meant re-entering it after every

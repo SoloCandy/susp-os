@@ -93,6 +93,11 @@ const bBrakeEntry = -(brakeBias-50) * BRAKE_BIAS_SCALE; // BRAKE_BIAS_SCALE = 0.
   (see "Phase margins"), so the card's own recommendation usually reads as understeer
   here. The tips explain that rather than telling the user to move the bias; the three
   are not reconciled ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
+- **STOCK.** With BRAKES on STOCK (`dr.brakeStock`, INT and PRO) there is no `brakeBias`:
+  `bBrakeEntry` is 0 and leaves the breakdown, PHASE and the phase panel read BRK 0 (the
+  brakes at `idealBrakeF`, the same as a null bias in `phaseTermsAt`), and `gripUseOf`'s ENTRY
+  brakes at that ideal. The car's real stock split is unknown, so it is assumed ideal rather
+  than guessed.
 
 ## Differential (`computeDiff`)
 
