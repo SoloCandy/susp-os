@@ -3545,6 +3545,49 @@ const hideIdValid=(k,t)=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))
 const repairHidden=v=>Object.fromEntries(Object.keys(DEF_HIDDEN).map(t=>[t,
   Array.isArray(v?.[t])?[...new Set(v[t].filter(k=>typeof k==='string'&&hideIdValid(k,t)))]:[]]));
 
+// ── Tutorial spotlights ─────────────────────────────────────────────────────
+// The zone (the id after zone-) each HIDE_ITEMS sec sits in. The SECTION_VIS keys double as
+// `open` keys, which is how a guide step's focus opens its section.
+const SEC_ZONE={chassis:'chassis',build:'build',balance:'balance-target',alignment:'alignment',
+  arb:'arb',ride:'feel',dampers:'damping',brakes:'brakes',drivetrain:'drivetrain',visuals:'visuals',
+  toolbar:'toolbar',output:'output',bar:'balance-bar'};
+// Things a guide step points at that the edit view can't hide, drawn as data-spot="id" on an
+// existing element. A step's spot list takes these and HIDE_ITEMS ids alike. Ids are permanent,
+// like HIDE_ITEMS'.
+const SPOT_MARKS=[
+  {id:'tb.reset',       zone:'toolbar'},
+  {id:'tb.undo',        zone:'toolbar'},
+  {id:'tb.share',       zone:'toolbar'},
+  {id:'bar.head',       zone:'balance-bar'},
+  {id:'bar.main',       zone:'balance-bar'},
+  {id:'bar.lanes',      zone:'balance-bar'},
+  {id:'bal.rows',       zone:'balance-bar'},
+  {id:'bal.tip',        zone:'balance-bar'},
+  {id:'garage.save',    zone:'garage'},
+  {id:'garage.search',  zone:'garage'},
+  {id:'garage.factory', zone:'garage'},
+  {id:'garage.list',    zone:'garage'},
+];
+const spotZone=id=>SPOT_MARKS.find(m=>m.id===id)?.zone??SEC_ZONE[HIDE_BY_ID[id]?.sec]??null;
+const spotSel=id=>`[data-hid="${id}"],[data-spot="${id}"]`;
+// The stylesheet a guide step's spot list puts on the page: a ring on each spotted part and
+// inside each focused zone holding one, the outermost other parts at 30% and unclickable. A
+// part that contains a spot, or sits inside one, stays lit, so a card holding a spotted row is
+// not dimmed and an unspotted card dims once rather than once per row. A zone where none of
+// the spots rendered (another mode or layout) is left alone, as it was before spots. The rest
+// of the page is dimmed by App's dim(), not here.
+const spotCss=(spot,zones)=>{
+  if(!spot?.length)return'';
+  const on=spot.map(spotSel).join(',');
+  const part=':is([data-hid],[data-spot])';
+  // An outline, not a border, so nothing moves, and drawn outside the part so its own children
+  // (the balance bar's segments) can't cover it; the tint is an inset shadow over its background.
+  const ring=`:is(${on}){outline:1px solid #818cf8;outline-offset:1px;box-shadow:inset 0 0 0 999px #818cf80d;border-radius:2px}`;
+  const dims=(zones??[]).map(z=>`#zone-${z}:has(${on}) ${part}:not(:is(${on})):not(:is(${on}) *)`
+    +`:not(:has(${on})):not(${part}:not(:has(${on})) *){opacity:.3;pointer-events:none;transition:opacity .3s}`);
+  return[ring,...dims].join('\n');
+};
+
 // Every preset authors damping as rebound ζ (CHARACTER), never as a Settle Target. Beginner's
 // loadPreset forces dampCharMode:'zeta', so a SETTLE preset silently fell back to DEF_FE's 70%
 // there while INT/PRO back-solved its target — STREET gave ζ≈30% in INT/PRO and 70% in BEG.
@@ -4198,8 +4241,9 @@ const Toggle=({label,value,onChange,options,hint,hintTerm=null})=>(
 // ── Layout edit view ────────────────────────────────────────────────────────
 // What the user has hidden in this tier, and whether the edit view is on. App provides it; the
 // default (no provider: the modals' own Cards) hides nothing. While a guide runs App passes an
-// empty list, so its spotlights always find their controls.
-const LayoutCtx=React.createContext({edit:false,isHidden:()=>false,toggle:()=>{}});
+// empty list, so its spotlights always find their controls. guide is set while either guide
+// runs, so every Hide puts a data-hid element on the page for spotCss to light or dim.
+const LayoutCtx=React.createContext({edit:false,guide:false,isHidden:()=>false,toggle:()=>{}});
 // One hideable part (a HIDE_ITEMS id). Regular view: nothing when hidden, otherwise the
 // children unwrapped, so the layout is untouched. Edit view: the part sits inert under a
 // full-cover button that hides or shows it, faded when hidden. Never nest one Hide inside
@@ -4209,8 +4253,14 @@ const LayoutCtx=React.createContext({edit:false,isHidden:()=>false,toggle:()=>{}
 const Hide=({id,inline=false,style=null,bodyStyle=null,children})=>{
   const L=React.useContext(LayoutCtx);
   const off=L.isHidden(id);
-  if(!L.edit)return off?null:(children??null);
   const Tag=inline?'span':'div';
+  // A guide's spotlights need an element to find: the edit view's two levels, nothing else.
+  if(!L.edit&&L.guide&&!off)return(
+    <Tag className={inline?'hz-inline':undefined} data-hid={id} style={style??undefined}>
+      <Tag style={bodyStyle??undefined}>{children}</Tag>
+    </Tag>
+  );
+  if(!L.edit)return off?null:(children??null);
   return(
     <Tag className={`hz${inline?' hz-inline':''}${off?' hz-off':''}`} data-hid={id} style={style??undefined}>
       <Tag className="hz-body" inert="" style={bodyStyle??undefined}>{children}</Tag>
@@ -4415,7 +4465,7 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
   }
   const editing=L.edit&&hid!=null;
   return(
-    <div className="card" data-hid={editing?hid:undefined}
+    <div className="card" data-hid={hid??undefined}
          style={{...(accent?{borderColor:'#e2e8f011'}:{}),...(editing&&off?{outline:'1px dashed #475569',outlineOffset:1}:{})}}>
       <div className="ch" style={{...(accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}),
                                   ...(editing?{position:'relative'}:{}),...(editing&&off?{opacity:0.35}:{})}}>
@@ -4617,18 +4667,20 @@ const HandlingVerdict=({total,bChassis,bSp,bAb,bDiffAccel,bDiffDecel,bDiffFront,
   return(
     <div>
       {/* tip first — most actionable info at the top */}
-      <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,padding:'6px 8px',marginBottom:8,
+      <div data-spot="bal.tip" style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,padding:'6px 8px',marginBottom:8,
                    background:'#020617',borderRadius:2,border:'1px solid #0f172a'}}>{tip} <TermLink id="handling-verdict"/></div>
       {/* contributors grouped: the rows that make NET vs the ENTRY / EXIT ones the bar shows as lanes */}
       {/* Called, not rendered as <GroupSection/>: a component defined in this body is a new type
           every render, so each App render would remount the rows and their ⓘ, closing an open
           tooltip and dropping the glossary's return focus. */}
+      <div data-spot="bal.rows">
       <div style={{marginBottom:6}}>
         <BiasSeg label="CAR STARTS" val={bChassis??0} hint={hints.chassis} tick muted
           primary={dom.name==='chassis'&&domBig} hintTerm={hintTerms.chassis}/>
       </div>
       {GroupSection({title:'MID · MAKES NET',items:mechGroup})}
       {GroupSection({title:'ENTRY / EXIT · NOT IN NET',items:dynGroup})}
+      </div>
       <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:4}}>
         Alignment is not counted, though it also affects balance.
       </div>
@@ -4714,10 +4766,11 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
   );
   return(
     <div>
-      <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,padding:'6px 8px',marginBottom:8,
+      <div data-spot="bal.tip" style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,padding:'6px 8px',marginBottom:8,
                    background:'#020617',borderRadius:2,border:'1px solid #0f172a'}}>
         {tips.length?tips.map((t,i)=><div key={i}>{t}</div>):'Balanced through every phase the model reads.'}
       </div>
+      <div data-spot="bal.rows">
       <div style={{marginBottom:6}}>
         <Head title="ENTRY" sub={`· ${ENTRY_G} g braking`} val={entry.total}/>
         <Seg label="BRAKES" val={entry.brk} hint={hints.brk} hintTerm={hintTerms.brk}/>
@@ -4739,6 +4792,7 @@ const PhaseVerdict=({phase,diffLayout,bDiffAccel,bDiffDecel,bDampBias,brakeBias,
       <div style={{marginBottom:6}}>
         <Head title="TRANSIENT" sub="· turn-in, direction changes"/>
         <DirSeg label="DAMP" dir={signOf(bDampBias)} hint={hints.damp} hintTerm={hintTerms.damp}/>
+      </div>
       </div>
       <div style={{fontSize:10,color:'#475569',lineHeight:1.5,marginTop:4}}>
         Grip margin: + = the rear gives up first. GRIP BIAS {gripBalance?.toFixed(2)} is the same model on its 0–1 scale; alignment is not counted. <TermLink id="phase-verdict"/>
@@ -6232,12 +6286,12 @@ const TUTORIALS={
      body:'Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS.',
      glossary:['units']},
     {title:'Load a Preset',
-     focus:['garage'],sidebar:'close',quick:true,
+     focus:['garage'],spot:['garage.factory'],sidebar:'close',quick:true,
      task:{text:'Load any FACTORY preset.',check:(fe,snap)=>fe!==snap},
      body:'Pick a preset for your car\'s class under FACTORY in the garage and load it; ★ marks the ones matching your build type. The results panel then holds a full tune, and the next steps fit it to your car.',
      glossary:['factory-presets']},
     {title:'Getting Around',
-     focus:['toolbar'],
+     focus:['toolbar'],spot:['tb.undo'],
      body:'☰ opens and closes this sidebar; results update live as you change it. ↩ and ↪ at the top undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in the header or a hint) for the full explanation.',
      glossary:['undo-reset']},
     {title:'Layout & Build Type',
@@ -6263,19 +6317,23 @@ const TUTORIALS={
      body:'Damping feel: how quickly the car settles after a bump or weight shift. STABLE is more damped, planted and predictable; AGILE is lighter, livelier and more reactive. Match it to your driving style.',
      glossary:['character']},
     {title:'Handling Balance Bar',
-     focus:['balance-bar'],sidebar:'close',
+     focus:['balance-bar'],spot:['bar.head','bar.main'],sidebar:'close',
      body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff.',
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Results',
-     focus:['output'],quick:true,
-     body:'The results panel shows the values to enter in the game\'s tuning menu, card by card. Amber means a value is near the game\'s limit: soften your inputs slightly.',
+     focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],quick:true,
+     body:'The results panel holds the values to type into the game\'s tuning menu. Start with the suspension: anti-roll bars, springs and dampers come from your ride, balance and character settings. Amber means a value is near the game\'s limit: soften your inputs slightly.',
+     glossary:['output-cards']},
+    {title:'Alignment, Brakes & Diff',
+     focus:['output'],spot:['out.card.align','out.card.brakes','out.card.diff','out.card.alignF','out.card.alignR','out.card.diffF','out.card.diffR','out.card.center'],
+     body:'ALIGNMENT, BRAKES and DIFFERENTIAL follow your layout and build type. Type them in as shown: like every card, they are starting points to fine-tune by feel once you\'ve driven the car.',
      glossary:['output-cards']},
     {title:'Output Toolbar',
-     focus:['toolbar'],
+     focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
      body:'⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage.',
      glossary:['undo-reset','tune-check','share-code']},
     {title:'Saving Your Own',
-     focus:['garage'],sidebar:'close',
+     focus:['garage'],spot:['garage.save'],sidebar:'close',
      body:'Name the setup in the row above the preset list, then SAVE CHASSIS (the car: weight, bias, layout), SAVE BUILD (the tune) or SAVE CAR (both). Saves list under FACTORY; loading one is undoable with ↩. Reopen this guide any time with ?.',
      glossary:['garage']},
   ],
@@ -6285,7 +6343,7 @@ const TUTORIALS={
      body:'Intermediate adds separate ride frequency, damping and ARB controls. The sidebar is now collapsible sections: tap a header to open one, SECTIONS − / + to collapse or expand them all, and a header\'s ↺ to reset just that section. This guide covers only what\'s new.',
      glossary:['hz','zeta','roll-stiffness']},
     {title:'Chassis',
-     focus:['chassis'],
+     focus:['chassis'],spot:['chassis.layout','chassis.weight','chassis.frontBias','chassis.tyres','chassis.cgSource'],
      body:'Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.',
      glossary:['cg-source']},
     {title:'Build Type',
@@ -6293,63 +6351,71 @@ const TUTORIALS={
      body:'Build Type in the BUILD section (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car\'s intended use. It steers the diff\'s automatic locks, the recommended diff type, brake balance and alignment.',
      glossary:['build-type']},
     {title:'ARB Stiffness & Balance Mode',
-     focus:['arb'],
+     focus:['arb'],spot:['arb.mode','arb.basic','arb.roll','arb.share','arb.manF','arb.manR','arb.balMode','arb.neutralMethod'],
      body:'Stiffness Mode sets the total bar stiffness: AUTO, BASIC, ROLL °, SHARE % or MAN (front and rear typed directly, which hides Balance Mode and ARB Bias). Balance Mode splits it front to rear: WEIGHT follows the weight split; NEUTRAL works from the springs, by CANCEL or EQUAL ROLL.',
      glossary:['stiffness-mode','balance-mode','bal-neutral']},
     {title:'ARB Bias & Visuals',
-     focus:['arb','visuals'],
+     focus:['arb','visuals'],spot:['arb.bias','visuals.ride'],
      body:'ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS, pinned at the bottom of the sidebar, shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.',
      glossary:['arb-bias','ride-roll-damping']},
     {title:'Ride Ref & Rear Hz',
-     focus:['feel'],
+     focus:['feel'],spot:['ride.ref','ride.hzMode','ride.targetSpeed','ride.hzMult','ride.hzMan'],
      body:'RIDE REF. picks the axle the stiffness slider sets: FRONT, SHARED (the average) or REAR. Hz MODE derives the other: MULTIPLIER (fixed ratio, default), FLAT RIDE (less pitch bounce at Target Speed), INDEPENDENT (set by hand; not with SHARED) or SHARED (needs RIDE REF. SHARED and BOTTOM G\'s).',
      glossary:['ride-ref','hz-mode','flat-ride']},
     {title:'Dampers',
-     focus:['damping'],
+     focus:['damping'],spot:['dampers.reboundZeta','dampers.bumpRatio','dampers.bias'],
      body:'Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.',
      glossary:['zeta','bump-ratio','damping-bias']},
     {title:'Brakes',
-     focus:['brakes'],
+     focus:['brakes'],spot:['brakes.bias'],
      body:'BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game.',
      glossary:['brake-balance']},
     {title:'Diff Type',
-     focus:['drivetrain'],
+     focus:['drivetrain'],spot:['drive.diffType'],
      body:'DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.',
      glossary:['diff-type']},
     {title:'Corner Exit & Entry',
-     focus:['drivetrain'],
+     focus:['drivetrain'],spot:['drive.exit','drive.entry'],
      body:'EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.',
      glossary:['exit-bias','entry-bias']},
     {title:'AWD Center Diff',
-     focus:['drivetrain'],
+     focus:['drivetrain','output'],spot:['drive.powerSplit','drive.frontExit','out.diff.recCenter','out.card.center'],sidebar:'open',
      body:'AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card\'s CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
      glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
-     focus:['visuals'],
+     focus:['visuals'],spot:['visuals.ride','visuals.dynamics','visuals.sag'],
      body:'VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.',
      glossary:['ride-roll-damping','dynamics-chart','sag-vs-load']},
     {title:'Handling Balance Bar',
-     focus:['balance-bar'],sidebar:'close',
-     body:'The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. INT adds ENTRY and EXIT lanes off NET for diff, brakes and damping. Tap it for the rows behind each.',
-     glossary:['balance-bar','balance-contributors']},
+     focus:['balance-bar'],spot:['bar.head','bar.main','bar.legend'],sidebar:'close',
+     body:'The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. The grey tick is the car on its own; SPR and ARB stack from it to the white NET tick. Tap it for the rows behind each.',
+     glossary:['balance-bar']},
+    {title:'Entry & Exit Lanes',
+     focus:['balance-bar'],spot:['bar.lanes'],sidebar:'close',
+     body:'Below the bar, the ENTRY and EXIT lanes start from NET and stack what acts only at each end of a corner: brakes and damping on entry, the diff on both. They show how the car changes through the corner without moving the headline.',
+     glossary:['balance-contributors']},
     {title:'Reading the Results',
-     focus:['output'],sidebar:'close',
-     body:'The results panel shows exact values to enter in the game\'s tuning menu, card by card. Amber means a value is near the game\'s limit: soften your inputs slightly.',
+     focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],sidebar:'close',
+     body:'The results panel holds the exact values to type into the game\'s tuning menu. Start with the suspension: anti-roll bars, springs and dampers, from the ANTI-ROLL BARS, RIDE and DAMPERS sections. Amber means a value is near the game\'s limit: soften your inputs slightly.',
+     glossary:['output-cards']},
+    {title:'Alignment, Brakes & Diff',
+     focus:['output'],spot:['out.card.align','out.card.brakes','out.card.diff','out.card.alignF','out.card.alignR','out.card.diffF','out.card.diffR','out.card.center'],sidebar:'close',
+     body:'ALIGNMENT follows your build type, BRAKES applies your Brake Bias shift and DIFFERENTIAL the locks your DRIVETRAIN settings solve for. Type them in as shown, then fine-tune by feel.',
      glossary:['output-cards']},
     {title:'Output Toolbar',
-     focus:['toolbar'],
+     focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
      body:'At the top of the sidebar: ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.',
      glossary:['undo-reset','tune-check','share-code']},
     {title:'Garage',
-     focus:['garage'],sidebar:'close',
+     focus:['garage'],spot:['garage.save','garage.list'],sidebar:'close',
      body:'GARAGE (top right) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car\'s LOAD CHASSIS and LOAD BUILD let you pair one car\'s chassis with another\'s tune, and every load is undoable with ↩.',
      glossary:['garage']},
     {title:'Organizing & Searching',
-     focus:['garage'],sidebar:'close',
+     focus:['garage'],spot:['garage.search'],sidebar:'close',
      body:'Entries take notes and your own tags, plus automatic ones, all searchable from the row under the save buttons, with filter and sort. ↺ rewrites an entry from your current setup as CHASSIS, BUILD or BOTH; BOTH turns a chassis entry into a full car.',
      glossary:['garage']},
     {title:'Sharing & Backup',
-     focus:['garage'],sidebar:'close',
+     focus:['toolbar'],spot:['tb.share'],sidebar:'open',
      body:'SHARE copies a code or link (COPY CODE / COPY LINK), loads one (LOAD CODE), and backs up or restores the garage as JSON (BACKUP / RESTORE). A loaded code is staged: tick the parts you want and APPLY SELECTED takes only those.',
      glossary:['share-code','backup']},
   ],
@@ -6359,11 +6425,11 @@ const TUTORIALS={
      body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths), a brake bias Centre and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
-     focus:['chassis'],
+     focus:['chassis'],spot:['chassis.wheelbase','chassis.trackF','chassis.trackR','chassis.tyres'],
      body:'CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
      glossary:['tyre-size','track-width','balance-guide']},
     {title:'Calibrating Natural Balance',
-     focus:['chassis'],
+     focus:['chassis'],spot:['chassis.measureNatBal'],
      body:'MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.',
      glossary:['measure-nat-bal','natural-balance']},
     {title:'Calibrating ARB Scale',
@@ -6371,53 +6437,57 @@ const TUTORIALS={
      body:'ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each reading lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE.',
      glossary:['measure-arb-scale','arb-scale']},
     {title:'Mech Balance Target',
-     focus:['balance-target'],
+     focus:['balance-target'],spot:['balance.targetNat','balance.guide'],
      body:'How far to move Forza\'s Mech Balance from the car\'s natural balance (NAT): 0 stays natural, + adds rotation, − adds stability; start from the Balance Guide\'s range. It shows only while ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, solves toward it; CHASSIS anchors on natural balance instead.',
      glossary:['mech-balance-target','balance-guide']},
     {title:'Balance Target Mode',
-     focus:['balance-target'],
+     focus:['balance-target'],spot:['balance.targetMode','balance.offset','balance.targetAbs','balance.exitLoad'],
      body:'Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide\'s RANGE), GRIP (GRIP TARGET, the grip-neutral point), PHASE (PHASE TARGET, neutral across entry, mid-corner and exit) or MANUAL (a raw value, e.g. 0.60). In RANGE, GRIP and PHASE, Balance Offset shifts it toward oversteer (+) or understeer (−).',
      glossary:['target-range','target-grip','target-phase','balance-offset']},
     {title:'Alignment Mode',
-     focus:['alignment'],
+     focus:['alignment'],spot:['align.mode','align.nudge','align.nudgeStrength'],
      body:'AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target\'s intent and GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.',
      glossary:['align-mode','nudge']},
     {title:'PRO ARB Balance Modes',
-     focus:['arb'],
+     focus:['arb'],spot:['arb.balMode','arb.springShare','arb.mechSplit','arb.coSolveSplit','arb.coSolveCorr'],
      body:'CHASSIS is WEIGHT anchored on the car\'s natural balance instead of raw weight %. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. A target the car can\'t reach within game limits is flagged.',
      glossary:['bal-chassis','bal-mech','bal-cosolve']},
     {title:'Hz MECH & Balance Target Mode',
-     focus:['feel','balance-target','visuals'],
+     focus:['feel','balance-target','visuals'],spot:['ride.hzMode','balance.targetMode','visuals.ride'],
      body:'Hz MODE MECH, in RIDE, derives the other axle\'s Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself, and NEUTRAL CANCEL, whose bars would undo it. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.',
      glossary:['hz-mode','ride-roll-damping']},
     {title:'Brake Bias Centre',
-     focus:['brakes'],
+     focus:['brakes'],spot:['brakes.centre','brakes.decel','brakes.entryTarget','brakes.entryBrk'],
      body:'BRAKES adds Centre. REC shifts Brake Bias from the recommendation; GRIP from the bias where both axles hit their braking limit together at your Decel; ENTRY solves it for trail braking, from Entry vs MID. ENTRY BRK, under the toggle, shows what the bias does to corner entry.',
      glossary:['brake-balance','phase-verdict']},
     {title:'Manual Differential',
-     focus:['drivetrain'],
+     focus:['drivetrain'],spot:['drive.diffMode','drive.matchChassis','drive.manFrontAccel','drive.manFrontDecel','drive.manRearAccel','drive.manRearDecel','drive.manCenter','drive.manAccel','drive.manDecel'],
      body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
      glossary:['diff-mode','match-chassis','power-split']},
     {title:'Handling Balance Expanded',
-     focus:['balance-bar'],
+     focus:['balance-bar'],spot:['bal.tip','bal.rows','bar.phase'],
      body:'Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.',
-     glossary:['phase-verdict','mech-balance-strip','response-factors']},
+     glossary:['phase-verdict']},
+    {title:'Mech Balance & Response',
+     focus:['balance-bar'],spot:['bar.mechHead','bar.mechStrip','bar.response'],
+     body:'The MECH BALANCE strip reads balance on the game\'s 0–1 scale: NAT is the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE, apart from understeer and oversteer.',
+     glossary:['mech-balance-strip','response','response-factors']},
     {title:'Load Transfer',
-     focus:['visuals'],
+     focus:['visuals'],spot:['visuals.load','visuals.grip'],
      body:'LOAD TRANSFER in VISUALS shows the loads at 1 g cornering. FRONT TAKES is the front\'s share of the transfer against the weight split; springs and bars move it. GRIP USE below it predicts which axle runs out of grip first, mid-corner, on entry and on exit.',
      glossary:['load-transfer','grip-use']},
     {title:'Output Panel & Tune Check',
-     focus:['toolbar'],
+     focus:['toolbar'],spot:['tbCheck','tb.share','tb.reset'],
      body:'The results cards work as in the lower tiers. CHECK opens Tune Check: DECODE reads back an existing tune\'s frequencies and damping, and MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land; RESET never touches saves, and a tune RESET is one ↩ from undone.',
      glossary:['tune-check','share-code','undo-reset']},
   ],
   balance:[
     {title:'Handling Balance',
-     focus:null,
+     focus:null,spot:['bar.head'],
      body:'The headline is NET: the car\'s own lean plus springs and bars. + leans oversteer, − understeer. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.',
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Bar',
-     focus:null,
+     focus:null,spot:['bar.main','bar.lanes','bar.legend'],
      body:'The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. From INT, ENTRY and EXIT lanes below stack brakes, diff and damping off NET; PRO arrows diff and damping, adds the drive split, and draws a pink TOTAL line above.',
      glossary:['balance-bar','balance-contributors']},
     {title:'Typical Targets by Build',
@@ -6425,15 +6495,15 @@ const TUTORIALS={
      body:'Drift and rotation-heavy builds typically run +15 to +35, track builds +5 to +20, street and GT builds mild understeer. Read the bar for where balance comes from, not as a number to zero. These are BEG/INT points; PRO\'s grip-margin percent is a smaller unit, NEUTRAL within ±1%.',
      glossary:['balance-bar']},
     {title:'Reading Each Row',
-     focus:null,
+     focus:null,spot:['bal.rows'],
      body:'CAR STARTS is the car\'s own lean before tuning. The rows below move it: springs and anti-roll bars make NET, then diff, brakes and damping act on entry and exit. Each shows its value and share, so the dominant one stands out. PRO groups the rows by corner phase.',
      glossary:['balance-contributors','balance-bar']},
     {title:'Using the Correction Tip',
-     focus:null,
+     focus:null,spot:['bal.tip'],
      body:'The tip at the top of the expanded panel names the largest contributor and which way to move. Reach for that input first; for big shifts, your main balance control has the most leverage.',
      glossary:['handling-verdict']},
     {title:'Response Bar',
-     focus:null,
+     focus:null,spot:['bar.response'],
      body:'RESPONSE rates how quickly the car reacts to steering, separately from understeer and oversteer: a neutral car can still be very planted or very reactive. PLANTED (left) is settled and predictable but slower to change direction; REACTIVE (right) turns in sharply but can feel nervous.',
      glossary:['response','response-factors']},
   ],
@@ -6661,10 +6731,31 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     setShowMore(!!el&&el.scrollHeight-el.scrollTop-el.clientHeight>4);
   };
 
+  // The step's spotted parts that are on screen now (a spot can belong to another mode, layout
+  // or game, and is then simply absent). Found fresh on each measure: Hide puts its data-hid
+  // element on the page only once the guide is running, and a section opens after the step.
+  const spotEls=()=>(t?.spot??[]).flatMap(id=>[...document.querySelectorAll(spotSel(id))])
+    .filter(e=>{const b=e.getBoundingClientRect();return(b.width||b.height)&&b.right>0;});
   useEffect(()=>{
     const el=focusKey?document.getElementById('zone-'+focusKey):null;
+    // The topmost spotted part (spot lists name both games' cards, so list order isn't page
+    // order): bring it into view inside its own scroller (sidebar, results, expanded panel,
+    // garage list), the nearest ancestor that actually scrolls. Instant, as below.
+    const scrollSpot=()=>{
+      const s=spotEls().sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top)[0];
+      for(let p=s?.parentElement;p&&p!==document.body;p=p.parentElement){
+        const oy=getComputedStyle(p).overflowY;
+        if(!/(auto|scroll)/.test(oy)||p.scrollHeight<=p.clientHeight)continue;
+        const pr=p.getBoundingClientRect(),sr=s.getBoundingClientRect();
+        if(sr.top<pr.top+40||sr.bottom>pr.bottom-40)
+          p.scrollTo({top:Math.max(0,sr.top-pr.top+p.scrollTop-80),behavior:'auto'});
+        return;
+      }
+    };
     // Scroll sidebar so element is visible — use direct scrollTop rather than
-    // scrollIntoView which can target the wrong scroll container on mobile
+    // scrollIntoView which can target the wrong scroll container on mobile. The zone first,
+    // now: the step's section opens only after this effect (App's runs after its children's),
+    // so its spotted parts aren't there yet — scrollSpot follows at measure time.
     if(el){
       const sidebar=document.querySelector('.sidebar-scroll');
       if(sidebar){
@@ -6681,101 +6772,115 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     }
     const measure=()=>{
       if(!el){setPos(null);return;}
-      // Anchor to every spotlit zone, not just the first — a step spotlighting two
-      // stacked controls would otherwise place the card over the second one.
+      // Anchor to the spotted parts when any are on screen, otherwise to every spotlit zone,
+      // not just the first — a step spotlighting two stacked controls would otherwise place
+      // the card over the second one.
+      const spots=spotEls();
       const keys=mode==='balance'?['balance-bar']:(t?.focus??[focusKey]);
-      const rects=keys.map(k=>document.getElementById('zone-'+k)?.getBoundingClientRect())
+      const rects=spots.length?spots.map(e=>e.getBoundingClientRect())
+        :keys.map(k=>document.getElementById('zone-'+k)?.getBoundingClientRect())
         .filter(b=>b&&(b.width||b.height)&&b.right>0);
       // Hidden element (sidebar collapsed on desktop, or the mobile drawer parked off-screen
       // at translateX(-100%) — it stays mounted there so it can slide) → centre card
       if(!rects.length){setPos(null);return;}
-      const raw={top:Math.min(...rects.map(b=>b.top)),bottom:Math.max(...rects.map(b=>b.bottom)),
-        left:Math.min(...rects.map(b=>b.left)),right:Math.max(...rects.map(b=>b.right))};
-      // getBoundingClientRect() returns visual (viewport) pixels, but position:fixed
-      // coordinates inside a CSS-zoomed container are in zoomed units (divide by zoom).
-      const r={top:raw.top/zoom,bottom:raw.bottom/zoom,left:raw.left/zoom,right:raw.right/zoom};
-      const vw=window.innerWidth/zoom;
-      // Use the *visible* viewport height (excludes the iOS address bar/toolbar).
-      const vh=((window.visualViewport&&window.visualViewport.height)||window.innerHeight)/zoom;
-      const midY=(r.top+r.bottom)/2;
-      const midX=(r.left+r.right)/2;
-      // Beside the sidebar only when the card fits there. On phones the sidebar is
-      // nearly full-width, so the clamp below would drop the card on top of the very
-      // control it points at — fall through to above/below placement instead.
-      const sbEl=document.querySelector('.sidebar-scroll');
-      const sbRight=sbEl?sbEl.getBoundingClientRect().right/zoom:r.right;
-      if(midX<vw/2&&sbRight+10+CARD_W<=vw-8){
-        // LEFT panel: float card just past the sidebar's right edge, sized to its
-        // actual content rather than a fixed offset from the target's midpoint —
-        // a target sitting low in a long sidebar section (e.g. a tall BALANCE
-        // section) shouldn't pin the card low too and starve it of height the
-        // (mostly empty, since it's just dimmed background above) rest of the
-        // screen has plenty of. Ceiling is near-full viewport height; the card
-        // then only takes what its own content actually needs, centred on the
-        // target and clamped to stay fully on-screen.
-        const left=sbRight+10;
-        const maxH=Math.max(140,vh-16);
-        const rawCardH=cardRef.current?.getBoundingClientRect().height;
-        const cardH=Math.min(rawCardH?rawCardH/zoom:maxH,maxH);
-        const top=Math.max(8,Math.min(vh-cardH-8,midY-cardH/2));
-        const arrowOff=Math.max(16,Math.min(cardH-16,midY-top));
-        setPos({top,left,arrowDir:'left',arrowOff,maxH});
-      } else {
-        // RIGHT panel (output, balance-bar), or a sidebar target with no room beside
-        // the sidebar (phones): float the card above or below the
-        // element, whichever side has more room — hugging its actual rendered
-        // height rather than filling all available space on that side, but a
-        // target sitting near the top of the viewport (little room above, most
-        // of the screen free below it) shouldn't get starved into a short box
-        // above it when the space below goes unused.
-        const GAP=10;
-        const availAbove=r.top-8-GAP;
-        const availBelow=vh-r.bottom-GAP-8;
-        const below=availBelow>availAbove;
-        const availH=below?availBelow:availAbove;
-        // cardRef's rect is raw (post-zoom) viewport pixels, but everything else in this
-        // branch (r.top, maxH, vh) is pre-zoom — must divide by zoom before mixing them,
-        // or the card renders too tall/low and can push off the bottom of the viewport
-        // at any zoom level other than 100% (the default is 110%, so this hit everyone).
-        // Reads the card's *unconstrained* height from its last render — steps always
-        // render once via the centred fallback (generous ~100dvh cap) before this first
-        // measure() runs, so this reflects what the content actually needs, not last
-        // step's clamped leftovers.
-        const rawCardH=cardRef.current?.getBoundingClientRect().height;
-        const naturalH=rawCardH?rawCardH/zoom:null;
-        // Some right-panel targets (zone-output) span nearly the full panel height,
-        // starting almost at the very top — leaving no real room to float a card
-        // above OR below them. Picking whichever sliver is merely the *larger* of
-        // two bad options still forces a scrollbar on content that would fit fine
-        // centred with the ~full-viewport room that fallback gets. Centre instead
-        // whenever neither side can actually fit what the card needs.
-        const MIN_USABLE=180;
-        const need=naturalH?Math.min(naturalH,vh-24):MIN_USABLE;
-        if(availH<MIN_USABLE||availH<need){
-          // A sidebar section taller than the screen (phones): no side is free, and
-          // centring covers the middle of it. Pin to the bottom edge instead so the
-          // section header and its first controls — where the sidebar scroll put
-          // them — stay in view.
-          if(midX<vw/2){
-            const maxH=Math.max(140,vh-24);
-            const cardH=Math.min(naturalH??maxH,maxH);
-            setPos({top:vh-cardH-8,left:Math.max(8,(vw-CARD_W)/2),arrowDir:'none',maxH});
-            return;
+      // Placed against `rects`; retry, if given, is a smaller set to try when there's no room.
+      const placeAt=(rects,retry)=>{
+        const raw={top:Math.min(...rects.map(b=>b.top)),bottom:Math.max(...rects.map(b=>b.bottom)),
+          left:Math.min(...rects.map(b=>b.left)),right:Math.max(...rects.map(b=>b.right))};
+        // getBoundingClientRect() returns visual (viewport) pixels, but position:fixed
+        // coordinates inside a CSS-zoomed container are in zoomed units (divide by zoom).
+        const r={top:raw.top/zoom,bottom:raw.bottom/zoom,left:raw.left/zoom,right:raw.right/zoom};
+        const vw=window.innerWidth/zoom;
+        // Use the *visible* viewport height (excludes the iOS address bar/toolbar).
+        const vh=((window.visualViewport&&window.visualViewport.height)||window.innerHeight)/zoom;
+        const midY=(r.top+r.bottom)/2;
+        const midX=(r.left+r.right)/2;
+        // Beside the sidebar only when the card fits there. On phones the sidebar is
+        // nearly full-width, so the clamp below would drop the card on top of the very
+        // control it points at — fall through to above/below placement instead.
+        const sbEl=document.querySelector('.sidebar-scroll');
+        const sbRight=sbEl?sbEl.getBoundingClientRect().right/zoom:r.right;
+        // A sidebar target ends at or before the sidebar's right edge. Not "left of centre": with
+        // the sidebar closed, a full-width part of the results (the bar's lanes) sits there too.
+        const inSidebar=r.right<=sbRight+2;
+        if(inSidebar&&sbRight+10+CARD_W<=vw-8){
+          // LEFT panel: float card just past the sidebar's right edge, sized to its
+          // actual content rather than a fixed offset from the target's midpoint —
+          // a target sitting low in a long sidebar section (e.g. a tall BALANCE
+          // section) shouldn't pin the card low too and starve it of height the
+          // (mostly empty, since it's just dimmed background above) rest of the
+          // screen has plenty of. Ceiling is near-full viewport height; the card
+          // then only takes what its own content actually needs, centred on the
+          // target and clamped to stay fully on-screen.
+          const left=sbRight+10;
+          const maxH=Math.max(140,vh-16);
+          const rawCardH=cardRef.current?.getBoundingClientRect().height;
+          const cardH=Math.min(rawCardH?rawCardH/zoom:maxH,maxH);
+          const top=Math.max(8,Math.min(vh-cardH-8,midY-cardH/2));
+          const arrowOff=Math.max(16,Math.min(cardH-16,midY-top));
+          setPos({top,left,arrowDir:'left',arrowOff,maxH});
+        } else {
+          // RIGHT panel (output, balance-bar), or a sidebar target with no room beside
+          // the sidebar (phones): float the card above or below the
+          // element, whichever side has more room — hugging its actual rendered
+          // height rather than filling all available space on that side, but a
+          // target sitting near the top of the viewport (little room above, most
+          // of the screen free below it) shouldn't get starved into a short box
+          // above it when the space below goes unused.
+          const GAP=10;
+          const availAbove=r.top-8-GAP;
+          const availBelow=vh-r.bottom-GAP-8;
+          const below=availBelow>availAbove;
+          const availH=below?availBelow:availAbove;
+          // cardRef's rect is raw (post-zoom) viewport pixels, but everything else in this
+          // branch (r.top, maxH, vh) is pre-zoom — must divide by zoom before mixing them,
+          // or the card renders too tall/low and can push off the bottom of the viewport
+          // at any zoom level other than 100% (the default is 110%, so this hit everyone).
+          // Reads the card's *unconstrained* height from its last render — steps always
+          // render once via the centred fallback (generous ~100dvh cap) before this first
+          // measure() runs, so this reflects what the content actually needs, not last
+          // step's clamped leftovers.
+          const rawCardH=cardRef.current?.getBoundingClientRect().height;
+          const naturalH=rawCardH?rawCardH/zoom:null;
+          // Some right-panel targets (zone-output) span nearly the full panel height,
+          // starting almost at the very top — leaving no real room to float a card
+          // above OR below them. Picking whichever sliver is merely the *larger* of
+          // two bad options still forces a scrollbar on content that would fit fine
+          // centred with the ~full-viewport room that fallback gets. Centre instead
+          // whenever neither side can actually fit what the card needs.
+          const MIN_USABLE=180;
+          const need=naturalH?Math.min(naturalH,vh-24):MIN_USABLE;
+          if(availH<MIN_USABLE||availH<need){
+            // Spots spread over the whole panel (the expanded balance panel): point at the
+            // step's first spot alone before giving up and centring.
+            if(retry&&!inSidebar){placeAt(retry,null);return;}
+            // A sidebar section taller than the screen (phones): no side is free, and
+            // centring covers the middle of it. Pin to the bottom edge instead so the
+            // section header and its first controls — where the sidebar scroll put
+            // them — stay in view.
+            if(inSidebar){
+              const maxH=Math.max(140,vh-24);
+              const cardH=Math.min(naturalH??maxH,maxH);
+              setPos({top:vh-cardH-8,left:Math.max(8,(vw-CARD_W)/2),arrowDir:'none',maxH});
+              return;
+            }
+            setPos(null); return;
           }
-          setPos(null); return;
+          const maxH=Math.max(140,Math.min(availH,vh-24));
+          const cardH=Math.min(naturalH??maxH,maxH);
+          const top=below?Math.min(vh-cardH-8,r.bottom+GAP):Math.max(8,r.top-cardH-GAP);
+          const left=Math.max(8,Math.min(vw-CARD_W-8,midX-CARD_W/2));
+          const arrowOff=Math.max(12,Math.min(CARD_W-24,midX-left));
+          setPos({top,left,arrowDir:below?'up':'down',arrowOff,maxH});
         }
-        const maxH=Math.max(140,Math.min(availH,vh-24));
-        const cardH=Math.min(naturalH??maxH,maxH);
-        const top=below?Math.min(vh-cardH-8,r.bottom+GAP):Math.max(8,r.top-cardH-GAP);
-        const left=Math.max(8,Math.min(vw-CARD_W-8,midX-CARD_W/2));
-        const arrowOff=Math.max(12,Math.min(CARD_W-24,midX-left));
-        setPos({top,left,arrowDir:below?'up':'down',arrowOff,maxH});
-      }
+      };
+      placeAt(rects,spots.length>1?[rects[0]]:null);
     };
-    // Slight delay lets the accordion open/collapse reflow settle before we measure
-    const tid=setTimeout(measure,60);
+    // Slight delay lets the accordion open/collapse reflow settle before we measure. Spots are
+    // scrolled first, in the same tick, so the measure reads where they end up.
+    const tid=setTimeout(()=>{scrollSpot();measure();},60);
     // Again once the mobile drawer's .2s slide has finished — at 60ms it is still moving.
-    const tid2=setTimeout(measure,260);
+    const tid2=setTimeout(()=>{scrollSpot();measure();},260);
     window.addEventListener('resize',measure);
     if(window.visualViewport)window.visualViewport.addEventListener('resize',measure);
     return()=>{clearTimeout(tid);clearTimeout(tid2);window.removeEventListener('resize',measure);
@@ -7120,9 +7225,11 @@ function App(){
   // there. A hidden section still holding a changed setting leaves a stub (sectionChanged).
   // The edit view renders every section, greying the hidden ones itself (Sec reads LayoutCtx).
   const hiddenHere=uiMode==='beginner'?[]:(hiddenSecs[uiMode]??[]);
-  const editing=layoutEdit&&!tutMode&&uiMode!=='beginner';
+  // Either guide running: everything hidden comes back, and the edit view is off.
+  const guideOn=!!tutMode||balTutOpen;
+  const editing=layoutEdit&&!guideOn&&uiMode!=='beginner';
   const secVis=key=>{
-    if(tutMode||editing||!hiddenHere.includes(key))return'show';
+    if(guideOn||editing||!hiddenHere.includes(key))return'show';
     return sectionChanged(key,{ch,fe,dr,al},uiMode)?'stub':'none';
   };
   const setSecHidden=(key,hide)=>setHiddenSecs(p=>{
@@ -7134,19 +7241,33 @@ function App(){
     return{...p,[uiMode]:hide?[...cur,...ids]:cur};
   });
   const layoutCtx=useMemo(()=>{
-    const list=tutMode?[]:hiddenHere;
-    return{edit:editing,isHidden:id=>list.includes(id),toggle:id=>setSecHidden(id,!hiddenHere.includes(id))};
-  },[editing,tutMode,hiddenHere,uiMode]); // eslint-disable-line
+    const list=guideOn?[]:hiddenHere;
+    return{edit:editing,guide:guideOn,isHidden:id=>list.includes(id),toggle:id=>setSecHidden(id,!hiddenHere.includes(id))};
+  },[editing,guideOn,hiddenHere,uiMode]); // eslint-disable-line
   // Every Sec's visibility props in one spread: its own hide, plus the line for hidden
   // controls inside it that still change the tune (hiddenChangedIn).
   const secProps=key=>{
-    const chg=tutMode||editing?[]:hiddenChangedIn(key,hiddenHere,{ch,fe,dr,al},uiMode);
+    const chg=guideOn||editing?[]:hiddenChangedIn(key,hiddenHere,{ch,fe,dr,al},uiMode);
     return{hid:key,vis:secVis(key),onShow:()=>setSecHidden(key,false),
            hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false)};
   };
   // Hidden output parts, for the panel's footer: a hidden row may be a value still to type in.
-  const hiddenOut=tutMode?0:hiddenHere.filter(id=>HIDE_BY_ID[id]&&['output','bar'].includes(HIDE_BY_ID[id].sec)).length;
-  useEffect(()=>{if(tutMode)setLayoutEdit(false);},[tutMode]);
+  const hiddenOut=guideOn?0:hiddenHere.filter(id=>HIDE_BY_ID[id]&&['output','bar'].includes(HIDE_BY_ID[id].sec)).length;
+  useEffect(()=>{if(guideOn)setLayoutEdit(false);},[guideOn]);
+  // The step on screen, from either guide, and the stylesheet its spot list puts on the page.
+  // The balance guide dims nothing outside the bar, so its spots dim only inside it.
+  const guideStep=tutMode?tutSteps(tutMode,tutQuick)[tutStep]:balTutOpen?TUTORIALS.balance[balTutStep]:null;
+  const guideCss=spotCss(guideStep?.spot,tutMode?tutFocus:['balance-bar']);
+  // On phones the bar's stack folds behind its summary line: a step pointing into the bar opens it.
+  useEffect(()=>{
+    if(isPhone&&guideStep?.spot?.some(id=>spotZone(id)==='balance-bar'))setFooterOpen(true);
+  },[guideStep]); // eslint-disable-line
+  // The balance guide only opens the expanded panel, for a step inside it: the user opened the
+  // guide from that panel or the bar, and closes the panel themselves.
+  useEffect(()=>{
+    if(balTutOpen&&TUTORIALS.balance[balTutStep]?.spot?.some(id=>id.startsWith('bal.')))
+      setOpen(p=>p.balanceExpanded?p:{...p,balanceExpanded:true});
+  },[balTutOpen,balTutStep]);
   useEffect(()=>{setLayoutEdit(false);},[uiMode]);
   useEffect(()=>{
     if(!editing)return;
@@ -7165,22 +7286,17 @@ function App(){
     // Sidebar sections default collapsed — auto-expand whichever section the
     // current tutorial step points at (and collapse the rest) so the highlighted
     // fields are actually visible instead of hidden behind a closed accordion.
+    // SECTION_VIS keys are `open` keys, and SEC_ZONE names the zone that focuses each. The
+    // expanded balance panel opens for a step pointing into it (a bal.* spot) and closes
+    // otherwise, for the garage's reason below.
+    const stepMeta=tutSteps(tutMode,tutQuick)[tutStep];
     setOpen(p=>({...p,
-      chassis:!!(tutFocus?.includes('chassis')),
-      build:!!(tutFocus?.includes('build')),
-      balance:!!(tutFocus?.includes('balance-target')),
-      drivetrain:!!(tutFocus?.includes('drivetrain')),
-      brakes:!!(tutFocus?.includes('brakes')),
-      arb:!!(tutFocus?.includes('arb')),
-      ride:!!(tutFocus?.includes('feel')),
-      dampers:!!(tutFocus?.includes('damping')),
-      alignment:!!(tutFocus?.includes('alignment')),
-      visuals:!!(tutFocus?.includes('visuals')),
+      ...Object.fromEntries(SECTION_VIS.map(s=>[s.key,!!tutFocus?.includes(SEC_ZONE[s.key])])),
+      balanceExpanded:!!stepMeta?.spot?.some(id=>id.startsWith('bal.')),
     }));
     // Assignment, not a conditional: the old inline drawer only ever needed opening, but a
     // full-height overlay left open would obscure the results panel for every later step.
     setGaragePanelOpen(!!tutFocus?.includes('garage'));
-    const stepMeta=tutSteps(tutMode,tutQuick)[tutStep];
     if(stepMeta?.sidebar==='close')setSidebarOpen(false);
     else if(stepMeta?.sidebar==='open')setSidebarOpen(true);
     // Sidebar now defaults closed too — a step whose focus lives in the sidebar
@@ -8125,6 +8241,7 @@ function App(){
   const effZoom=isPhone?1:uiZoom;
   return(
     <LayoutCtx.Provider value={layoutCtx}>
+      {guideCss&&<style>{guideCss}</style>}
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
       {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} units={units} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
@@ -8597,19 +8714,19 @@ function App(){
         {/* PINNED — TOOLBAR (reset, check, share) */}
         <div id="zone-toolbar" style={{flexShrink:0,borderBottom:'1px solid #0f172a',background:'#020617',...dim('toolbar')}}>
           <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:isMobile?'6px 8px':'6px 12px'}}>{/* 8px on the narrowest (282px, 320px-phone) sidebar keeps ⟲ ↩ ↪ DNA CHECK SHARE on one row */}
-            <button className="tbtn" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}} aria-label="Reset"
+            <button className="tbtn" data-spot="tb.reset" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}} aria-label="Reset"
               title="Reset tune or tutorials to defaults (saves not affected)">⟲</button>
-            <button className="tbtn undo-btn" style={{fontSize:11}}
+            <button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:11}}
               onClick={undo} disabled={!canUndo} aria-label="Undo"
               title={histTitle('Undo',histRef.current.undoLabel,canUndo)}>↩</button>
-            <button className="tbtn undo-btn" style={{fontSize:11}}
+            <button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:11}}
               onClick={redo} disabled={!canRedo} aria-label="Redo"
               title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>
             <div style={{flex:1}}/>
             <Hide id="tbDna" inline><button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:'#818cf8'}}
               title="Vehicle DNA — build a tune from handling targets, and your saved DNAs">DNA</button></Hide>
             <Hide id="tbCheck" inline><button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button></Hide>
-            <button className="tbtn" style={{fontSize:11}} onClick={()=>{
+            <button className="tbtn" data-spot="tb.share" style={{fontSize:11}} onClick={()=>{
               setDataMode('share');setShareSel({ch:true,fe:true,dr:true});
               setShareCopied(false);setImportCode('');setImportErr('');setPending(null);
               // importSel is deliberately NOT reset: the part ticks are the user's standing
@@ -8749,7 +8866,7 @@ function App(){
                        padding:'5px 12px 4px',borderBottom:'1px solid #0f172a'}}>
             <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS
               {hiddenHere.length>0&&<span style={{color:'#64748b'}}> · {hiddenHere.length} HIDDEN</span>}</span>
-            <button className="tbtn" style={{fontSize:10}} onClick={()=>setLayoutEdit(true)} disabled={!!tutMode}
+            <button className="tbtn" style={{fontSize:10}} onClick={()=>setLayoutEdit(true)} disabled={guideOn}
               title="Choose which sections, controls and output parts are shown">EDIT</button>
             <button className="tbtn" style={{fontSize:10}}
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,false]))}))}>−</button>
@@ -11840,7 +11957,7 @@ function App(){
                    }
                  }}
                  style={{padding:isPhone?'10px 8px':'10px 14px',cursor:'pointer'}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
+              <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
                 <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,flex:1,minWidth:0,overflow:'hidden'}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>HANDLING BALANCE</span>
                   <Hint text={phase
@@ -11983,7 +12100,7 @@ function App(){
                   {/* TOTAL lane (PRO): one line where everything sized lands. Above the bar so it
                       reads as the summary of what is drawn beneath. */}
                   {phase&&
-                    <div style={{position:'relative',height:9,marginBottom:2,background:'#0a0f1a',
+                    <div data-spot="bar.lanes" style={{position:'relative',height:9,marginBottom:2,background:'#0a0f1a',
                                  border:'1px solid #1e293b',borderRadius:2,overflow:'hidden'}}>
                       <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:1,background:'#334155'}}/>
                       <span style={{position:'absolute',left:5,top:'50%',transform:'translateY(-50%)',
@@ -11992,7 +12109,7 @@ function App(){
                         style={{position:'absolute',top:0,bottom:0,left:`${50+cl(total)}%`,width:2,
                                 transform:'translateX(-50%)',background:'#f472b6'}}/>
                     </div>}
-                  <div style={{position:'relative',height:16,background:'#0a0f1a',border:'1px solid #1e293b',
+                  <div data-spot="bar.main" style={{position:'relative',height:16,background:'#0a0f1a',border:'1px solid #1e293b',
                                borderRadius:2,overflow:'hidden'}}>
                     {/* zone shading */}
                     <div style={{position:'absolute',left:'5%', width:'20%',top:0,bottom:0,background:'#3b82f614'}}/>
@@ -12016,7 +12133,7 @@ function App(){
                                  fontSize:10,color:'#ef4444',letterSpacing:1,fontWeight:700}}>OS</div>
                   </div>
                   {lanes.some(l=>l.segs.length||l.dirs.length)&&
-                    <div style={{position:'relative',marginTop:2,background:'#0a0f1a',border:'1px solid #1e293b',
+                    <div data-spot="bar.lanes" style={{position:'relative',marginTop:2,background:'#0a0f1a',border:'1px solid #1e293b',
                                  borderRadius:2,overflow:'hidden'}}>
                       <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:1,background:'#334155'}}/>
                       {/* NET carried down, so each lane visibly starts from it */}
@@ -12379,7 +12496,7 @@ function App(){
                         fontSize:16,lineHeight:1,padding:0}}>✕</button>
             </div>
             {/* save row */}
-            <div style={{padding:'8px 12px',borderBottom:'1px solid #0f172a',flexShrink:0}}>
+            <div data-spot="garage.save" style={{padding:'8px 12px',borderBottom:'1px solid #0f172a',flexShrink:0}}>
               <input value={entryName} onChange={e=>setEntryName(e.target.value)}
                 placeholder="Name this entry…"
                 style={{width:'100%',background:'#0f172a',border:'1px solid #1e293b',borderRadius:2,
@@ -12393,7 +12510,7 @@ function App(){
               </div>
             </div>
             {/* filter / sort / search */}
-            <div style={{padding:'7px 12px',borderBottom:'1px solid #0f172a',flexShrink:0,
+            <div data-spot="garage.search" style={{padding:'7px 12px',borderBottom:'1px solid #0f172a',flexShrink:0,
                          display:'flex',flexDirection:'column',gap:5}}>
               <div style={{display:'flex',gap:3}}>
                 {[['all','ALL',garageEntries.length],['chassis','CHASSIS',kindCounts.chassis||0],
@@ -12432,7 +12549,7 @@ function App(){
                   affordance, keeps them out of counts/search/backups, and preserves
                   loadPreset's tier-specific overrides. One LOAD button and no chassis button,
                   which is what structurally enforces "a preset never touches ch". */}
-              <div style={{marginBottom:10}}>
+              <div data-spot="garage.factory" style={{marginBottom:10}}>
                 <div onClick={()=>setOpen(p=>({...p,factoryOpen:!p.factoryOpen}))}
                   style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',
                           marginBottom:5,userSelect:'none'}}>
@@ -12462,6 +12579,7 @@ function App(){
               </div>
               {/* three distinct empty states, each with an inline escape hatch — the failure
                   mode of a filter UI is a user who can't find their data and doesn't know why */}
+              <div data-spot="garage.list">
               {garageList.length===0
                 ?<div style={{fontSize:10,color:'#374151',textAlign:'center',padding:'20px 0',letterSpacing:1}}>
                    {garageEntries.length===0
@@ -12481,6 +12599,7 @@ function App(){
                      onRewrite={garageRewrite} onDelete={garageDelete} onRename={garageRename}
                      onNotes={garageNotes} onAddTag={garageAddTag} onRemoveTag={garageRemoveTag}/>
                  ))}
+              </div>
             </div>
           </div>
       </div>

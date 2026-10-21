@@ -11,6 +11,37 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — guide steps point at single controls, cards and bar parts
+
+Tier guide steps spotlit whole zones (whole sidebar sections, the whole results panel), and
+the balance guide spotlit nothing. Steps now carry a `spot` list of the edit view's part ids
+plus `SPOT_MARKS` for parts it can't hide, ringing those and fading the rest of their zone.
+What came out of it:
+
+- **Broad steps split.** BEG and INT "Reading the Results" became the suspension cards, then
+  a new "Alignment, Brakes & Diff"; INT gained "Entry & Exit Lanes" after its balance bar
+  step; PRO gained "Mech Balance & Response", which "Handling Balance Expanded" had left to
+  TERMS chips. Saved RESUME points are step indices, so a guide left past one of these
+  resumes one or two cards early. Clamped on read, so accepted rather than migrated, as
+  when the Key Terms cards went.
+- **"Sharing & Backup" spotlit the garage** while describing SHARE, a toolbar button. It now
+  focuses the toolbar and spots SHARE.
+- **The balance guide didn't bring hidden parts back.** Only `tutMode` emptied the hidden
+  list, so a user who had hidden the bar's stack got a guide explaining a bar that wasn't
+  there. `guideOn` now covers both guides, and the balance guide also leaves the edit view
+  and disables EDIT.
+- **"Left of centre" was not "in the sidebar".** The card positioner treated any target
+  whose midpoint sat left of centre as a sidebar target. With the sidebar closed, the
+  full-width bar lanes sit just there, and the card landed on top of them. A sidebar target
+  is now one that ends at or before the sidebar's right edge.
+- **List order isn't page order.** Output steps name both games' cards; BeamNG's BRAKES
+  comes first on the page but not in the list. The scroll goes to the topmost spotted part,
+  and when the spotted parts fill the screen (the expanded balance panel), the card tries
+  the step's first spot alone before centring.
+
+`tests-sections.js` now checks every spot id against `HIDE_ITEMS`, `SPOT_MARKS`, the step's
+focus and the guide's tier.
+
 ## Changed — the SECTIONS modal became a layout edit view, down to single controls
 
 The modal could hide whole sections and the DNA / CHECK buttons. EDIT now switches the page

@@ -40,7 +40,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 ## Complexity Tiers
 
-A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more), grouped like the app's own sections. Every entry is tagged with the lowest tier that can see what it describes, and paragraphs that only apply higher up carry an INT or PRO badge; the glossary opens on ALL, and BEG / INT / PRO chips narrow it (and its search) to one tier and below. Hints stay short — most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link that opens the glossary at the entry with the full explanation. The GitHub mark beside it opens this repository in a new tab — and when a newer version has been published while the page is open, it turns green with a ↻ and reloads the page instead (your tune and garage are kept).
+A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier — reopen it any time with the **?** button. Its steps point at the exact controls, result cards and balance-bar parts they describe, fading the rest. The **TERMS** button next to it opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more), grouped like the app's own sections. Every entry is tagged with the lowest tier that can see what it describes, and paragraphs that only apply higher up carry an INT or PRO badge; the glossary opens on ALL, and BEG / INT / PRO chips narrow it (and its search) to one tier and below. Hints stay short — most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link that opens the glossary at the entry with the full explanation. The GitHub mark beside it opens this repository in a new tab — and when a newer version has been published while the page is open, it turns green with a ↻ and reloads the page instead (your tune and garage are kept).
 
 Every slider's value can be typed as well as dragged, in the number box beside its label.
 
@@ -133,7 +133,7 @@ node tests/tests-history.js  # undo / redo history core tests (reads index.html 
 node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
-node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists (reads index.html directly)
+node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

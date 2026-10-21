@@ -381,6 +381,20 @@ which is exactly the drift `HIDE_ITEMS` avoids by holding ids and fields only.
 A hidden control's `live` mode is what keeps the "hidden settings changed" line honest about
 this: a value left behind by another mode is not counted as applying.
 
+## Open — a guide step's spots can be absent, or off screen
+
+A tutorial step's `spot` list names parts that only render in some modes, layouts or games:
+the Balance Target controls need MECH, CO-SOLVE or Hz MECH, the track widths disappear once
+NAT BAL is measured, the AWD Center Diff step has nothing to point at on FWD or RWD, and
+Forza and BeamNG have different output cards. An absent spot is skipped, and with none left
+the step lights its whole zone as before spots, so the card never points at nothing, but
+the reader may be told about a control they can't see until they switch mode. Spots that
+are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
+cards above and below the suspension cards, and a short window shows only the top of them.
+
+The fade inside a zone uses `:has()`. A browser without it drops that rule and keeps the
+outline, so the spotted parts are still marked but the rest of their zone isn't faded.
+
 ## Open — LANDING solves one linear coefficient against a rigid floor
 
 BUMP MODE → LANDING (see [PHYSICS.md](PHYSICS.md#landing-bump-mode)) is a guide figure,

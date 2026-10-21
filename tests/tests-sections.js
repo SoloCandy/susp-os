@@ -20,6 +20,10 @@
 //      section gates and the item's own live() mode, and ignores shown controls.
 //   5. repairHidden: junk input, unknown ids and ids from another tier are dropped; the
 //      stored lists from before HIDE_ITEMS (section keys, tbDna, tbCheck) still load.
+//   6. Tutorial spots: every step's spot id is a HIDE_ITEMS or SPOT_MARKS id, sits in a zone
+//      the step focuses, and renders in the guide's tier; every SPOT_MARKS id is drawn as a
+//      data-spot literal and used; spotCss lights each id and dims only focused zones.
+//      Whether a spot is on screen at a given step is the browser's to check, not this file's.
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -40,11 +44,13 @@ const M = new Function(
   slice('const ownBumpBalMode=', '\n') + '\n' +
   slice('const hasBalTargetSolve=', '// rideStiffness now stores') + '\n' +
   slice('const DEF_CH=', '// ── Section visibility') + '\n' +
-  slice('// ── Section visibility', '// Every preset authors damping') +
-  '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,DEF_AL};'
+  slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
+  slice('const TUTORIALS={', '\n};') + '\n};\n' +
+  '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,DEF_AL,' +
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
-        DEF_CH, DEF_FE, DEF_DR, DEF_AL } = M;
+        DEF_CH, DEF_FE, DEF_DR, DEF_AL, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -217,6 +223,63 @@ t('lists stored before HIDE_ITEMS still load', () => {
 });
 t('no beginner list is kept', () => {
   ok(!('beginner' in repairHidden({ beginner: ['arb'] })));
+});
+
+section('tutorial spots');
+const TIERS = ['beginner', 'intermediate', 'pro'];
+const markIds = SPOT_MARKS.map(m => m.id);
+const HIDE_IDS = HIDE_ITEMS.map(i => i.id);
+// Where an id renders: an item's own tiers, else its sidebar section's, else (output, bar,
+// toolbar, and every spot mark) every tier.
+const tiersOf = id => {
+  const it = HIDE_ITEMS.find(i => i.id === id);
+  return it?.tiers ?? SECTION_VIS.find(s => s.key === it?.sec)?.tiers ?? TIERS;
+};
+const steps = Object.entries(TUTORIALS).flatMap(([g, list]) => list.map(s => ({ g, ...s })));
+const spotted = steps.filter(s => s.spot);
+t('spot marks are unique and share no id with HIDE_ITEMS or SECTION_VIS', () => {
+  const all = [...SECTION_VIS.map(s => s.key), ...HIDE_IDS, ...markIds];
+  eq(all.filter((k, i) => all.indexOf(k) !== i), []);
+});
+t('every data-spot literal is a mark, and every mark is drawn', () => {
+  const drawn = new Set([...src.matchAll(/data-spot="([a-zA-Z]+\.[a-zA-Z.]+)"/g)].map(m => m[1]));
+  eq([...drawn].filter(id => !markIds.includes(id)), [], 'drawn, not listed');
+  eq(markIds.filter(id => !drawn.has(id)), [], 'listed, not drawn');
+});
+t('every spot id is a HIDE_ITEMS id or a spot mark', () => {
+  eq(spotted.flatMap(s => s.spot.filter(id => !HIDE_IDS.includes(id) && !markIds.includes(id))
+    .map(id => `${s.g}/${s.title}: ${id}`)), []);
+});
+t('every spot mark is used by some step', () => {
+  eq(markIds.filter(id => !spotted.some(s => s.spot.includes(id))), []);
+});
+t('SEC_ZONE covers every item section, and every zone exists', () => {
+  eq([...new Set(HIDE_ITEMS.map(i => i.sec))].filter(s => !SEC_ZONE[s]), [], 'unmapped sections');
+  const zones = [...Object.values(SEC_ZONE), ...SPOT_MARKS.map(m => m.zone)];
+  eq([...new Set(zones)].filter(z => !src.includes(`id="zone-${z}"`)), [], 'no such zone');
+});
+t('each spot sits in a zone its step focuses (the balance guide: the bar)', () => {
+  eq(spotted.flatMap(s => s.spot.filter(id => !(s.g === 'balance' ? ['balance-bar'] : s.focus ?? []).includes(spotZone(id)))
+    .map(id => `${s.g}/${s.title}: ${id} in ${spotZone(id)}`)), []);
+});
+t('a tier guide spots only what renders in its tier', () => {
+  eq(spotted.filter(s => s.g !== 'balance').flatMap(s => s.spot.filter(id => !tiersOf(id).includes(s.g))
+    .map(id => `${s.g}/${s.title}: ${id}`)), []);
+});
+t('every balance-guide spot list holds something every tier renders', () => {
+  eq(spotted.filter(s => s.g === 'balance' && !s.spot.some(id => tiersOf(id).length === TIERS.length))
+    .map(s => s.title), []);
+});
+t('spotCss: no spot, no stylesheet', () => {
+  eq(spotCss(undefined, ['arb']), '');
+  eq(spotCss([], ['arb']), '');
+});
+t('spotCss: lights every id and dims each focused zone, only where a spot is', () => {
+  const css = spotCss(['arb.bias', 'visuals.ride'], ['arb', 'visuals']);
+  for (const id of ['arb.bias', 'visuals.ride'])
+    ok(css.includes(`[data-hid="${id}"]`) && css.includes(`[data-spot="${id}"]`), id);
+  const dims = css.split('\n').filter(l => l.includes('opacity'));
+  eq(dims.map(l => l.match(/^#zone-([\w-]+):has\(/)?.[1]), ['arb', 'visuals']);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

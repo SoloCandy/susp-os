@@ -232,8 +232,8 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `Toggle` | mode switches |
 | `Sec` | the ten collapsible sidebar sections (`div.stog` header). Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a small HIDE / SHOW button for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
 | `HiddenStub` | the one-line notice for hidden settings that still apply: amber dot, optional title, `text`, SHOW. Used for a whole hidden section that `sectionChanged` says differs from its defaults ("hidden · changed settings still apply"), and for changed controls hidden inside a shown one (`hiddenChangedIn`) |
-| `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` is the app's only React context: `{edit, isHidden(id), toggle(id)}`, provided by `App` (an empty hidden list while a guide runs). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, faded and dashed when hidden. `inline`, `style` and `bodyStyle` only shape the edit-view wrapper. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
-| `hid` on `OutRow` / `Card` | the output panel's hideable parts. `OutRow hid` goes through `Hide`; `RowGroup` drops hidden `OutRow` children (by their `hid` prop) in the regular view and renders nothing once none are left. `Card hid` puts the toggle on the header only, so the rows stay clickable, and a `<Keep>` child (the card's warnings) still renders on its own when the card is hidden. `SuspensionCard` / `AlignCard` / `DiffCard` take `hid` and give their rows theirs |
+| `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` is the app's only React context: `{edit, guide, isHidden(id), toggle(id)}`, provided by `App` (an empty hidden list while a guide runs, and `guide` set). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, faded and dashed when hidden. While a guide runs it renders the edit view's two levels without the button or `inert`, carrying `data-hid`, so a step's spots can find the part (see [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)). `inline`, `style` and `bodyStyle` only shape those wrappers. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
+| `hid` on `OutRow` / `Card` | the output panel's hideable parts. `OutRow hid` goes through `Hide`; `RowGroup` drops hidden `OutRow` children (by their `hid` prop) in the regular view and renders nothing once none are left. `Card hid` puts the toggle on the header only, so the rows stay clickable, and a `<Keep>` child (the card's warnings) still renders on its own when the card is hidden. `Card` always puts `data-hid` on its root, for guide spots. `SuspensionCard` / `AlignCard` / `DiffCard` take `hid` and give their rows theirs |
 | `SrcHead` | `group` (`HIDE_ITEMS` ids) drops the header in the regular view once everything under it is hidden |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
@@ -440,9 +440,17 @@ Read-outs that are only information (`balance.guide`, `ride.hzStrip`, `dampers.t
 hideable. The ones that carry their own clamp or ⚠ state (RIDE's MECH and SHARED solved
 read-outs, the ARB NEUTRAL read-outs) are not.
 
-`App`'s `secVis(key)` and `LayoutCtx` both treat everything as shown while `tutMode` is
-active, so a guide's spotlight always finds its zone. EDIT is disabled during a guide, and
-BEG never hides anything. The stored lists are `suspos_hidden_v1`, per tier; see
+`App`'s `secVis(key)` and `LayoutCtx` both treat everything as shown while `guideOn` (a tier
+guide or the balance guide) is set, so a guide's spotlight always finds its zone and its
+spots. EDIT is disabled during either guide, and BEG never hides anything.
+
+**Guide spots reuse these ids.** A tutorial step's `spot` list names `HIDE_ITEMS` ids, plus
+`SPOT_MARKS` (under `── Tutorial spotlights ──`, after `repairHidden`) for parts the edit
+view can't hide, drawn as `data-spot="…"`. `SEC_ZONE` maps an item's `sec` to its `zone-*`
+key, and the `[tutMode, tutStep]` effect opens sections from it. `spotCss(spot, zones)` is
+the stylesheet `App` renders while a step has spots. So a `HIDE_ITEMS` id is also a
+tutorial target: retiring one means checking `TUTORIALS` too, which `tests-sections.js`
+does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts). The stored lists are `suspos_hidden_v1`, per tier; see
 [PERSISTENCE.md](PERSISTENCE.md).
 
 ---
@@ -714,7 +722,9 @@ hidden in physical modes, so these look unreachable. They cover a persisted
 tutorial target, and it does *not* reach that branch: a full-height element leaves
 no room above or below, so `measure()` falls through to `setPos(null)` and centres
 the card, which then draws over the drawer (card z700, drawer z200). Verified, not
-assumed. The fallback stays as a cheap defensive branch.
+assumed. Every garage step now spots a part of the drawer (`garage.save` and the like),
+so the card points at that part instead; a garage step without spots would still
+centre. The fallback stays as a cheap defensive branch.
 
 **The mobile sidebar stays mounted when closed** — below 768px the drawer keeps
 `display:flex` and hides at `translateX(-100%)` + `visibility:hidden` (visibility is
@@ -804,8 +814,11 @@ promise about App's `brakeBias`, which only the browser exercises end to end.
 `HIDE_ITEMS`: every `SECTION_KEYS` section has a row, every RESET goes through
 `sectionDefaults`, no field has two owners, `sectionChanged`'s gating, every `<Hide id>` /
 `hid=` in the render is listed and every listed id is used, `hiddenChangedIn`'s gates and
-`live` modes, and `repairHidden` (old stored lists included). Whether the edit view, the
-lines and the footer render, and the tutorial override, still needs the browser.
+`live` modes, and `repairHidden` (old stored lists included). It also checks the tutorial
+spots: every step's spot id is a `HIDE_ITEMS` or `SPOT_MARKS` id in a zone the step
+focuses and renders in the guide's tier, every mark is drawn and used, and `spotCss`'s
+rules. Whether the edit view, the lines and the footer render, the tutorial override, and
+whether a spot is actually on screen at its step, still needs the browser.
 
 **`tests-dna.js` reads `index.html` the same way**, for the same reason: the DNA
 compiler drives the real solver, so only the real solver can test it. Where it can, it
