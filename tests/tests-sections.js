@@ -50,11 +50,11 @@ const M = new Function(
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
   slice('const TUTORIALS={', '// Standalone reference') +
   '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,DEF_AL,' +
-  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_ADDED_SINCE_V1,tutProgressFromV1,tutResumeStep};'
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_ADDED_SINCE_V1,tutProgressFromV1,tutResumeStep,heldFields};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
         DEF_CH, DEF_FE, DEF_DR, DEF_AL, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
-        DEF_TUT_PROGRESS, repairTutProgress, TUT_ADDED_SINCE_V1, tutProgressFromV1, tutResumeStep } = M;
+        DEF_TUT_PROGRESS, repairTutProgress, TUT_ADDED_SINCE_V1, tutProgressFromV1, tutResumeStep, heldFields } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -227,6 +227,33 @@ t('lists stored before HIDE_ITEMS still load', () => {
 });
 t('no beginner list is kept', () => {
   ok(!('beginner' in repairHidden({ beginner: ['arb'] })));
+});
+
+section('heldFields (PERSIST)');
+const NONE = { ch: [], fe: [], dr: [], al: [] };
+t('nothing hidden holds nothing', () => {
+  eq(heldFields([], 'pro'), NONE);
+  eq(heldFields(undefined, 'pro'), NONE);
+});
+t('a hidden ARB section holds its own fields and its items\', MAN values included', () => {
+  const h = heldFields(['arb'], 'pro');
+  for (const k of ['arbMode', 'arbBias', 'arbManF', 'arbManR', 'springShareAuto']) ok(h.fe.includes(k), k);
+  eq([h.ch, h.dr, h.al], [[], [], []]);
+});
+t('a hidden item holds exactly its fields', () => {
+  eq(heldFields(['brakes.bias'], 'intermediate'), { ...NONE, dr: ['brakeBiasShift'] });
+  eq(heldFields(['chassis.tyres'], 'pro'), { ...NONE, ch: ['tyreF', 'tyreR'] });
+});
+t('output, bar, toolbar and VISUALS parts hold nothing', () => {
+  eq(heldFields(['out.card.arb', 'out.arbF', 'bar.stack', 'tbDna', 'visuals', 'visuals.ride'], 'pro'), NONE);
+});
+t('a hidden section holds its PRO-only items\' extra fields only in PRO', () => {
+  // springShareAuto belongs to no section's RESET, only to PRO's arb.springShare item.
+  ok(heldFields(['arb'], 'pro').fe.includes('springShareAuto'), 'PRO');
+  ok(!heldFields(['arb'], 'intermediate').fe.includes('springShareAuto'), 'INT');
+});
+t('keys are listed once', () => {
+  eq(heldFields(['align.mode', 'align.nudge', 'alignment'], 'pro').al.filter(k => k === 'mode').length, 1);
 });
 
 section('tutorial spots');

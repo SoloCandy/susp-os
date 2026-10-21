@@ -444,6 +444,27 @@ read-outs, the ARB NEUTRAL read-outs) are not.
 guide or the balance guide) is set, so a guide's spotlight always finds its zone and its
 spots. EDIT is disabled during either guide, and BEG never hides anything.
 
+**PERSIST: hidden settings hold their values.** The switch above the edit banner
+(`suspos_persist_v1`, one for INT and PRO) makes everything in the current tier's hidden list
+keep its value through every `commit()`: apply DNA, a FACTORY preset, LOAD BUILD / CHASSIS,
+LOAD CODE, CHECK's import and ⟲ RESET all go through it. `heldFields(hidden, tier)` (after
+`repairHidden`) turns the list into `{ch, fe, dr, al}` keys. A hidden section holds its own
+fields plus every item's in it, which is how a hidden ANTI-ROLL BARS holds `arbManF` / `arbManR`
+(outside its RESET). An item holds its `fields`, and output, bar and toolbar parts hold nothing.
+`live` is not consulted.
+
+The hold is applied in the recording setters (`setCh` / `setFe` / `setDr` / `setAl` →
+`holdWrite`). While `inCommitRef` is set, a write keeps each held key at its pre-commit value
+(`snapRef.current`) and records it in `keptRef`. `commit` then sets `persistNote` (the sidebar's
+"PERSIST kept n…" line), or clears it. It is applied per write, not as a second update after the
+load, because `usePersist`'s setter evaluates a function update against the render-time value:
+a later update in the same commit would never see the load.
+
+What it does not cover, on purpose:
+- a section's own ↺ RESET (an explicit request for that section, not a `commit`);
+- tier, game-mode and validity effects (they keep the tune valid);
+- undo / redo (the history step was taken before the load, with the held values in it).
+
 **Guide spots reuse these ids.** A tutorial step's `spot` list names `HIDE_ITEMS` ids, plus
 `SPOT_MARKS` (under `── Tutorial spotlights ──`, after `repairHidden`) for parts the edit
 view can't hide, drawn as `data-spot="…"`. `SEC_ZONE` maps an item's `sec` to its `zone-*`

@@ -3544,6 +3544,24 @@ const hideIdValid=(k,t)=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))
   ||(HIDE_BY_ID[k]!=null&&hideItemTiers(HIDE_BY_ID[k]).includes(t));
 const repairHidden=v=>Object.fromEntries(Object.keys(DEF_HIDDEN).map(t=>[t,
   Array.isArray(v?.[t])?[...new Set(v[t].filter(k=>typeof k==='string'&&hideIdValid(k,t)))]:[]]));
+// PERSIST: the settings a tier's hidden list holds through every commit (loads, DNA, codes,
+// RESET), as {ch,fe,dr,al} key lists. A hidden section holds its own fields and those of every
+// item in it, so a hidden ANTI-ROLL BARS holds arbManF / arbManR, which its RESET doesn't own.
+// An item holds its fields; output, bar and toolbar parts hold nothing. live() is not
+// consulted: holding a value its mode isn't using is harmless, and it is still the user's
+// value when that mode comes back.
+const heldFields=(hidden,tier)=>{
+  const out={ch:new Set(),fe:new Set(),dr:new Set(),al:new Set()};
+  const add=f=>{if(f)for(const k of f[1]??Object.keys(SECTION_DEFS[f[0]]))out[f[0]].add(k);};
+  for(const id of hidden??[]){
+    const sec=SECTION_VIS.find(s=>s.key===id);
+    if(sec){
+      add(sec.fields);
+      for(const it of HIDE_ITEMS)if(it.sec===id&&hideItemTiers(it).includes(tier))add(it.fields);
+    }else add(HIDE_BY_ID[id]?.fields);
+  }
+  return Object.fromEntries(Object.entries(out).map(([s,v])=>[s,[...v]]));
+};
 
 // ── Tutorial spotlights ─────────────────────────────────────────────────────
 // The zone (the id after zone-) each HIDE_ITEMS sec sits in. The SECTION_VIS keys double as
@@ -4282,7 +4300,7 @@ const HiddenStub=({title,text='hidden · changed settings still apply',onShow})=
     <button type="button" className="tbtn" style={{fontSize:9}} onClick={onShow}>SHOW</button>
   </div>
 );
-const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged=0,onShowHidden,children})=>{
+const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged=0,onShowHidden,held=false,children})=>{
   const[pending,setPending]=useState(false);
   const timer=useRef(null);
   const L=React.useContext(LayoutCtx);
@@ -4326,7 +4344,9 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
     );
   }
   if(vis==='none')return null;
-  if(vis==='stub')return <HiddenStub title={title} onShow={onShow}/>;
+  // held: PERSIST is on, so these hidden settings also survive loads, DNA, codes and RESET.
+  if(vis==='stub')return <HiddenStub title={title} onShow={onShow}
+    text={`hidden · changed settings still apply${held?' · held':''}`}/>;
   // The header is a div (not a <button>) because RESET needs to be a real,
   // independently focusable <button> nested inside it — buttons can't nest
   // inside buttons in valid HTML. role="button"+tabIndex+onKeyDown restores
@@ -4357,7 +4377,7 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
         </div>
       </div>
       {hiddenChanged>0&&<HiddenStub onShow={onShowHidden}
-        text={`${hiddenChanged} hidden setting${hiddenChanged>1?'s':''} changed · still ${hiddenChanged>1?'apply':'applies'}`}/>}
+        text={`${hiddenChanged} hidden setting${hiddenChanged>1?'s':''} changed · still ${hiddenChanged>1?'apply':'applies'}${held?' · held':''}`}/>}
       {open&&<div style={{padding:'8px 12px 10px'}}>{children}</div>}
     </div>
   );
@@ -7101,10 +7121,23 @@ function App(){
   const restoringRef=useRef(false);
   const recordChangeRef=useRef(()=>{});
   const recordChange=()=>recordChangeRef.current();
-  const setCh=v=>{recordChange();setChRaw(v);};
-  const setFe=v=>{recordChange();setFeRaw(v);};
-  const setDr=v=>{recordChange();setDrRaw(v);};
-  const setAl=v=>{recordChange();setAlRaw(v);};
+  // PERSIST: inside a commit (a load, DNA, a code, RESET), a write keeps the held keys at their
+  // pre-commit values. Applied here, per write, rather than as a second update after the load:
+  // usePersist's setter computes a function update from the render-time value, so a later
+  // update in the same commit would not see the load at all. heldRef and keptRef are set below.
+  const heldRef=useRef(null),keptRef=useRef(new Set());
+  const holdWrite=(state,v)=>{
+    const keys=inCommitRef.current?heldRef.current?.[state]:null;
+    if(!keys?.length)return v;
+    const cur=snapRef.current[state],next=typeof v==='function'?v(cur):v;
+    const back=keys.filter(k=>JSON.stringify(next?.[k]??null)!==JSON.stringify(cur?.[k]??null));
+    back.forEach(k=>keptRef.current.add(state+'.'+k));
+    return back.length?{...next,...Object.fromEntries(back.map(k=>[k,cur[k]]))}:next;
+  };
+  const setCh=v=>{recordChange();setChRaw(holdWrite('ch',v));};
+  const setFe=v=>{recordChange();setFeRaw(holdWrite('fe',v));};
+  const setDr=v=>{recordChange();setDrRaw(holdWrite('dr',v));};
+  const setAl=v=>{recordChange();setAlRaw(holdWrite('al',v));};
   const[units,setUnits]=usePersist('suspos_units_v2',legacyUnits());
   const mMass=units.mass==='kg',mSpring=springUnit(units.spring),mLen=units.length==='cm',mSpeed=units.speed==='kmh';
   const[showUnits,setShowUnits]=useState(false);
@@ -7112,6 +7145,11 @@ function App(){
   // HIDE_ITEMS ids), and whether the edit view is on. layoutEdit is never stored.
   const[layoutEdit,setLayoutEdit]=useState(false);
   const[hiddenSecs,setHiddenSecs]=usePersist('suspos_hidden_v1',DEF_HIDDEN,repairHidden);
+  // PERSIST: hidden settings hold their values through commits. One switch for INT and PRO; what
+  // it holds is the current tier's hidden list (heldFields). persistNote is the sidebar line
+  // after a commit that kept something: {label, n}.
+  const[persist,setPersist]=usePersist('suspos_persist_v1',false);
+  const[persistNote,setPersistNote]=useState(null);
   const[saves]=usePersist('suspos_saves_v9',PRESET_SAVES); // read-only: legacy slots, source for one-time MY BUILDS migration
   const[uiMode,setUiMode]=usePersist('suspos_uimode_v1','beginner');
   // Read-only since the header zoom buttons were removed — the persisted value is still
@@ -7301,6 +7339,10 @@ function App(){
   // there. A hidden section still holding a changed setting leaves a stub (sectionChanged).
   // The edit view renders every section, greying the hidden ones itself (Sec reads LayoutCtx).
   const hiddenHere=uiMode==='beginner'?[]:(hiddenSecs[uiMode]??[]);
+  const held=persist&&uiMode!=='beginner'?heldFields(hiddenHere,uiMode):null;
+  heldRef.current=held;
+  const holdsAny=!!held&&Object.values(held).some(k=>k.length);
+  useEffect(()=>{setPersistNote(null);},[uiMode]);
   // Either guide running: everything hidden comes back, and the edit view is off.
   const guideOn=!!tutMode||balTutOpen;
   const editing=layoutEdit&&!guideOn&&uiMode!=='beginner';
@@ -7325,7 +7367,7 @@ function App(){
   const secProps=key=>{
     const chg=guideOn||editing?[]:hiddenChangedIn(key,hiddenHere,{ch,fe,dr,al},uiMode);
     return{hid:key,vis:secVis(key),onShow:()=>setSecHidden(key,false),
-           hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false)};
+           hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false),held:!!held};
   };
   // Hidden output parts, for the panel's footer: a hidden row may be a value still to type in.
   const hiddenOut=guideOn?0:hiddenHere.filter(id=>HIDE_BY_ID[id]&&['output','bar'].includes(HIDE_BY_ID[id].sec)).length;
@@ -7673,7 +7715,10 @@ function App(){
     clearTimeout(burstTimerRef.current);
     histRef.current.commit(snapRef.current,label);
     inCommitRef.current=true;
+    keptRef.current=new Set();
     try{fn();}finally{inCommitRef.current=false;}
+    // Every commit replaces the last PERSIST line: the newest load is the one it is about.
+    setPersistNote(keptRef.current.size?{label,n:keptRef.current.size}:null);
     bumpHist();
   };
   // restoringRef tells the effects that react to a CHANGE (BOTTOM G's RIDE REF mirror) that this
@@ -8941,7 +8986,8 @@ function App(){
           {uiMode!=='beginner'&&!editing&&<div style={{display:'flex',justifyContent:'flex-end',gap:3,
                        padding:'5px 12px 4px',borderBottom:'1px solid #0f172a'}}>
             <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,alignSelf:'center',marginRight:4}}>SECTIONS
-              {hiddenHere.length>0&&<span style={{color:'#64748b'}}> · {hiddenHere.length} HIDDEN</span>}</span>
+              {hiddenHere.length>0&&<span style={{color:'#64748b'}}> · {hiddenHere.length} HIDDEN</span>}
+              {holdsAny&&<span style={{color:'#818cf8'}}> · PERSIST</span>}</span>
             <button className="tbtn" style={{fontSize:10}} onClick={()=>setLayoutEdit(true)} disabled={guideOn}
               title="Choose which sections, controls and output parts are shown">EDIT</button>
             <button className="tbtn" style={{fontSize:10}}
@@ -8950,6 +8996,19 @@ function App(){
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,true]))}))}>+</button>
           </div>}
           {editing&&<div data-layout-banner style={{padding:'6px 12px 7px',borderBottom:'1px solid #312e81',background:'#0f0e2a'}}>
+            {/* PERSIST, above the edit banner: one switch for INT and PRO */}
+            <div data-persist style={{paddingBottom:6,marginBottom:6,borderBottom:'1px solid #1e1b4b'}}>
+              <div style={{display:'flex',alignItems:'center',gap:3}}>
+                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>PERSIST HIDDEN SETTINGS</span>
+                <div style={{display:'flex',gap:3,width:96}}>
+                  <button type="button" className={`tog${!persist?' on':''}`} aria-pressed={!persist} onClick={()=>setPersist(false)}>OFF</button>
+                  <button type="button" className={`tog${persist?' on':''}`} aria-pressed={persist} onClick={()=>setPersist(true)}>ON</button>
+                </div>
+              </div>
+              <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginTop:4}}>
+                On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
+              </div>
+            </div>
             <div style={{display:'flex',alignItems:'center',gap:3}}>
               <span style={{fontSize:10,color:'#818cf8',letterSpacing:1,flex:1}}>EDITING LAYOUT
                 <span style={{color:'#64748b'}}> · {TIER_LABEL[uiMode]}{hiddenHere.length>0?` · ${hiddenHere.length} HIDDEN`:''}</span></span>
@@ -8963,6 +9022,12 @@ function App(){
           </div>}
 
           {uiMode!=='beginner'&&<>
+          {persistNote&&<div data-persist-note style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
+                                 background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
+            <span style={{color:'#818cf8',flex:1,minWidth:0}}>PERSIST kept {persistNote.n} hidden setting{persistNote.n>1?'s':''} through {persistNote.label}</span>
+            <button onClick={()=>setPersistNote(null)} aria-label="Dismiss"
+              style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
+          </div>}
           {dnaLink&&<div style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
             <span style={{color:'#818cf8',letterSpacing:1,cursor:'pointer'}} title="Open the DNA editor"

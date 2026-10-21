@@ -381,6 +381,21 @@ which is exactly the drift `HIDE_ITEMS` avoids by holding ids and fields only.
 A hidden control's `live` mode is what keeps the "hidden settings changed" line honest about
 this: a value left behind by another mode is not counted as applying.
 
+## Open — PERSIST holds values after the fact; DNA and unit changes don't plan around it
+
+PERSIST writes held settings back once a load or RESET has run (`holdWrite`). Nothing upstream
+knows about them.
+- **DNA** solves the whole tune freely, then the held values replace part of its answer. The DNA
+  link line then reports the drift honestly ("· 2 drifted"), but the axes DNA aimed for are not
+  met. Solving around fixed settings would mean teaching each DNA resolver which inputs it may
+  not touch.
+- **Switching game mode** converts MAN anti-roll bar values between Forza clicks and BeamNG
+  N/m (`crossArbUnits`), which is not a commit, so a held 1 / 65 becomes the BeamNG equivalent.
+  That is deliberate: holding the raw numbers across the switch would hold the wrong stiffness.
+- **A held setting can sit in a combination the load never meant.** For example, a held ARB MAN
+  under a build that expected AUTO. The tune is still valid, since every combination the
+  controls can produce is, but it is not the build that was saved.
+
 ## Open — a guide step's spots can be absent, or off screen
 
 A tutorial step's `spot` list names parts that only render in some modes, layouts or games:

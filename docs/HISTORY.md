@@ -11,6 +11,24 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PERSIST: hidden settings can hold their values through loads
+
+Fixing a setting for good (meta Forza ARBs at MAN 1 / 65) meant re-entering it after every
+preset, LOAD BUILD, LOAD CODE, DNA apply or RESET. The edit view now has a PERSIST switch above
+its banner; with it on, whatever is hidden in the current tier holds its value through all of
+them, and a sidebar line says how many settings were kept.
+
+- **The first design hid the problem.** A second functional update queued after the load looked
+  enough, but `usePersist`'s setter evaluates function updates against the render-time value,
+  so it would have restored from before the load and silently undone it. The hold is applied
+  in the recording setters instead, per write, while a commit runs.
+- **Holding is what the user sees hidden in this tier**, not a separate pin list: a control
+  visible in INT is not held there even if PRO hides it, so a load never leaves a visible
+  control mysteriously unchanged.
+- **A hidden section holds more than its RESET.** ANTI-ROLL BARS' RESET doesn't own `arbManF`
+  / `arbManR`, but the MAN values are the point of hiding it, so a section holds its items'
+  fields too.
+
 ## Changed — RESUME points are saved by title; the card flags spots out of view
 
 - **RESUME stored bare step indices** (`suspos_tutorial_step_v1`), so every added or removed

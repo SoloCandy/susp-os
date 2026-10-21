@@ -1050,7 +1050,12 @@ The description under the mode picker — SHARE, LOAD, BACKUP, RESTORE:
 
 ## Layout edit view (INT / PRO)
 
-EDIT in the sidebar's SECTIONS row turns it into a banner. Its explanation:
+EDIT in the sidebar's SECTIONS row turns it into a banner. Above it, the PERSIST switch
+(PERSIST HIDDEN SETTINGS, OFF / ON, one switch for INT and PRO) and its note:
+
+> On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
+
+The banner's explanation:
 
 > Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
 
@@ -1068,6 +1073,16 @@ The line under a shown section's header when controls hidden inside it still dif
 defaults. SHOW brings back those controls only:
 
 > {n} hidden setting{s} changed · still {apply / applies}
+
+With PERSIST on, both lines end ` · held`, and the SECTIONS row adds ` · PERSIST` after its
+hidden count while PERSIST holds anything.
+
+After a load, DNA, LOAD CODE, CHECK's import or RESET that PERSIST kept something from, a line
+above the DNA link line until ✕, the next such action or a tier change; `{label}` is the undo
+label (`load STREET`, `apply DNA MOMENTUM`, `reset`, `load share code`, …) and `{n}` counts
+settings, not controls:
+
+> PERSIST kept {n} hidden setting{s} through {label}
 
 The note at the foot of the output panel while any card, row or balance-bar part is hidden:
 
