@@ -390,10 +390,18 @@ Forza and BeamNG have different output cards. An absent spot is skipped, and wit
 the step lights its whole zone as before spots, so the card never points at nothing, but
 the reader may be told about a control they can't see until they switch mode. Spots that
 are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
-cards above and below the suspension cards, and a short window shows only the top of them.
+cards above and below the suspension cards. The card says so ("▼ 2 more highlighted
+below — scroll to see") and the line follows the scroll, but the reader has to scroll; no
+single scroll position shows them all on a short window, and the card does not move with
+them.
 
-The fade inside a zone uses `:has()`. A browser without it drops that rule and keeps the
+The fade inside a zone uses `:has()`, to dim only in a zone where a spot rendered and to
+leave a card holding a spotted row lit. A browser without it drops that rule and keeps the
 outline, so the spotted parts are still marked but the rest of their zone isn't faded.
+`:has()` shipped in Safari 15.4 (2022), Chrome 105 (2022) and Firefox 121 (2023). A
+fallback would mean working out containment in script after every render, since a part can
+appear or vanish while a step is open (switching a mode under the guide), and keeping it in
+step with the CSS by hand; for a fade on browsers that old, that was judged not worth it.
 
 ## Open — LANDING solves one linear coefficient against a rigid floor
 

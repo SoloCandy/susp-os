@@ -606,7 +606,7 @@ requires it — the stale key is simply ignored).
 
 `suspos_ch_v8`, `suspos_fe_v8`, `suspos_dr_v8`, `suspos_al_v2`,
 `suspos_units_v2` (+ `suspos_units_v1`, read-only), `suspos_uimode_v1`, `suspos_zoom_v1` (read-only now),
-`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, `suspos_baltut_seen_v1`, `suspos_onboard_v1`,
+`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v2` (+ `suspos_tutorial_step_v1`, read-only), `suspos_baltut_seen_v1`, `suspos_onboard_v1`,
 `suspos_garage_v2`, `suspos_garage_ui_v1`.
 
 Special ones — a three-deep migration chain plus its two sentinels:
@@ -647,6 +647,13 @@ value that no UI control sets is the intended design here, not an oversight.
 
 **`ARB_MODE_DEC` index 3** — decodes a retired `'balance'` value to `'auto'`.
 Index 4 is `'man'`, relocated from `ARB_BAL_MODE`. Both positions are frozen.
+
+**`TUT_ADDED_SINCE_V1` and `tutProgressFromV1`** — read the retired
+`suspos_tutorial_step_v1`, whose bare indices count each guide without the steps the spot
+work added, to seed `suspos_tutorial_step_v2` by title. The list is frozen: a step added
+later can't move a `_v2` save, so it never grows, and a title in it that no longer exists
+fails `tests-sections.js`. Removing them resets the RESUME point of anyone who last saved
+under `_v1`.
 
 **`al.alignManual`** — `DEF_AL` still defines it and `alignMode` still falls
 back to it (`ALIGN_MODE_DEC.includes(al.mode) ? al.mode : (al.alignManual ? 'manual' : 'build')`) for state

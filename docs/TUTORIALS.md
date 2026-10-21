@@ -53,7 +53,7 @@ so the step body stays short and the depth lives in one place.
   and restarts at step 1 of the `quick:true` steps; the progress bar and `n / total`
   count that path, and its DONE card adds that `?` replays the full tour. `openTut`
   always resets `tutQuick`, so `?` opens the full tour (or offers RESUME for it). The
-  quick path doesn't write `suspos_tutorial_step_v1` — its step index counts the
+  quick path doesn't write `suspos_tutorial_step_v2` — its step index counts the
   filtered path, so saving it would resume the full tour at the wrong step. Both paths close through
   `closeTutEnd`, so the complexity popup and `tutSeen` behave the same.
 
@@ -268,6 +268,12 @@ permanent, like the codec's: retire one, never reuse it.
   mode (MANUAL diff, a Sport diff's missing ENTRY, a measured NAT BAL hiding the track
   widths) or another game (BeamNG's per-axle cards against Forza's per-subsystem ones) is
   absent, and the step falls back to its zone for anchoring and dimming.
+- **Out of view.** Spots that are present can lie beyond what their scroller shows: BeamNG
+  puts BRAKES and the diffs above the suspension cards and ALIGNMENT below them. The card
+  counts the spot ids wholly outside their scroller (and the screen), above and below, and
+  adds a line under its body (`data-tut-offscreen`); it recounts on any scroll, once a
+  frame, so the line follows the reader. Counting rather than scrolling, because scrolling
+  to one part would push another out.
 - **Dimming needs `:has()`.** A browser without it ignores the dim rule, keeping the
   outline but not the fade.
 
@@ -650,6 +656,13 @@ START path:
 The first beginner card (`pathChoice`) swaps NEXT for two buttons, QUICK START and
 FULL TOUR →.
 
+**Spots out of view** — under the body of a card whose step has spotted parts outside
+what their scroller shows (`spotOff`), one line per direction, `{n}` counting spot ids:
+
+> ▲ {n} more highlighted above — scroll to see
+
+> ▼ {n} more highlighted below — scroll to see
+
 **Resume choice** — the header `?` with a saved step for this tier; buttons
 START OVER and RESUME AT STEP {n}:
 
@@ -682,29 +695,30 @@ Then, always:
 | Key | Holds |
 |---|---|
 | `suspos_tutorial_seen_v1` | `{beginner, intermediate, pro}` — tier guides seen (also the tier gate) |
-| `suspos_tutorial_step_v1` | `{beginner, intermediate, pro}` — last step reached per tier guide |
+| `suspos_tutorial_step_v2` | `{beginner, intermediate, pro}` — last step reached per tier guide, as `{title, step}` or `null` |
+| `suspos_tutorial_step_v1` | the same as bare indices — read-only, converted into `_v2` once |
 | `suspos_baltut_seen_v1` | Balance guide seen |
 | `suspos_onboard_v1` | Onboarding popup dismissed (defaults `true`) |
 
 Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Which guide is open is session
 state — a reload closes it — but every step change in a tier guide writes that step
-to `suspos_tutorial_step_v1`. Pressing the header `?` with a saved step above 0
-shows a small choice, **RESUME AT STEP n** or **START OVER**; with nothing saved it
-opens at step 1 as before. The saved step is clamped to the guide's current length,
-since steps get added and removed. It is an index, not a title, so removing a step
-shifts every later saved position: when the intermediate guide's two Key Terms cards
-were dropped (their terms now live in the glossary, reached from the Welcome card's
-TERMS chips), an INT save resumes two steps further on than where it was left.
-That was accepted rather than migrated, and again when spots split three steps: BEG gained
-Alignment, Brakes & Diff (after step 11), INT gained Entry & Exit Lanes and Alignment,
-Brakes & Diff (after steps 13 and 14), PRO gained Mech Balance & Response (after step 12),
-so a save past those points resumes one or two cards early. Resuming goes through `openTut(mode, step)`, so
+to `suspos_tutorial_step_v2` as `{title, step}` (step 1 writes `null`). Pressing the
+header `?` with a saved step shows a small choice, **RESUME AT STEP n** or **START
+OVER**; with nothing saved it opens at step 1 as before. `tutResumeStep` finds the saved
+title wherever the step has moved, so adding, removing or reordering steps no longer shifts
+anyone's place; only a removed step falls back to the saved index, clamped. Step titles must
+therefore be unique within a guide (`tests-sections.js` checks).
+
+`_v1` saved bare indices, and paid for it twice: dropping the INT Key Terms cards moved INT
+saves on by two, and the spot splits would have moved later saves back by one or two. `_v1`
+is now read once, through `tutProgressFromV1`, which counts each guide without the steps in
+`TUT_ADDED_SINCE_V1` (the spot splits) to find the title it meant. Resuming goes through `openTut(mode, step)`, so
 the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
 state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
 The balance guide is not tracked — it's six steps.
 
 RESET (⟲) with **Tutorials** ticked sets all three tier flags and
-`suspos_baltut_seen_v1` back to `false` and zeroes `suspos_tutorial_step_v1`, which re-locks INT and PRO until their
+`suspos_baltut_seen_v1` back to `false` and clears `suspos_tutorial_step_v2`, which re-locks INT and PRO until their
 prerequisite guides are opened again. It does not open a guide by itself, and
 does not move you out of the tier you're in: the auto-open effect runs on a
 *tier change*, so each tier guide reappears the next time you switch into its

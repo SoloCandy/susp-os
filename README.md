@@ -133,7 +133,7 @@ node tests/tests-history.js  # undo / redo history core tests (reads index.html 
 node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
-node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots (reads index.html directly)
+node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots and resume points (reads index.html directly)
 ```
 
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:

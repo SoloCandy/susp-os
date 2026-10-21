@@ -24,6 +24,9 @@
 //      the step focuses, and renders in the guide's tier; every SPOT_MARKS id is drawn as a
 //      data-spot literal and used; spotCss lights each id and dims only focused zones.
 //      Whether a spot is on screen at a given step is the browser's to check, not this file's.
+//   7. Tutorial resume points: titles are unique within a guide, old index saves
+//      (suspos_tutorial_step_v1) convert to the same step by title, and a save whose step
+//      has gone falls back to its index, clamped.
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -45,12 +48,13 @@ const M = new Function(
   slice('const hasBalTargetSolve=', '// rideStiffness now stores') + '\n' +
   slice('const DEF_CH=', '// ── Section visibility') + '\n' +
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
-  slice('const TUTORIALS={', '\n};') + '\n};\n' +
+  slice('const TUTORIALS={', '// Standalone reference') +
   '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,DEF_AL,' +
-  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS};'
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_ADDED_SINCE_V1,tutProgressFromV1,tutResumeStep};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
-        DEF_CH, DEF_FE, DEF_DR, DEF_AL, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS } = M;
+        DEF_CH, DEF_FE, DEF_DR, DEF_AL, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
+        DEF_TUT_PROGRESS, repairTutProgress, TUT_ADDED_SINCE_V1, tutProgressFromV1, tutResumeStep } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -280,6 +284,44 @@ t('spotCss: lights every id and dims each focused zone, only where a spot is', (
     ok(css.includes(`[data-hid="${id}"]`) && css.includes(`[data-spot="${id}"]`), id);
   const dims = css.split('\n').filter(l => l.includes('opacity'));
   eq(dims.map(l => l.match(/^#zone-([\w-]+):has\(/)?.[1]), ['arb', 'visuals']);
+});
+
+section('tutorial resume points');
+const titleAt = (m, i) => TUTORIALS[m][i]?.title;
+t('step titles are unique within each guide', () => {
+  for (const [g, list] of Object.entries(TUTORIALS)) {
+    const ts = list.map(s => s.title);
+    eq(ts.filter((x, i) => ts.indexOf(x) !== i), [], g);
+  }
+});
+t('every step added since _v1 exists in its guide', () => {
+  eq(Object.entries(TUT_ADDED_SINCE_V1).flatMap(([m, ts]) => ts.filter(x => !TUTORIALS[m].some(s => s.title === x))
+    .map(x => `${m}: ${x}`)), []);
+});
+t('_v1 indices convert to the same step, by title, past the steps added since', () => {
+  // _v1 counted BEG Output Toolbar as 11, INT Reading the Results as 13 and Output Toolbar as
+  // 14, PRO Load Transfer as 12.
+  const v2 = tutProgressFromV1({ beginner: 11, intermediate: 14, pro: 12 });
+  eq(v2.beginner, { title: 'Output Toolbar', step: 12 });
+  eq(v2.intermediate, { title: 'Output Toolbar', step: 16 });
+  eq(v2.pro, { title: 'Load Transfer', step: 13 });
+  eq(tutProgressFromV1({ intermediate: 13 }).intermediate, { title: 'Reading the Results', step: 14 });
+});
+t('_v1 junk, zero or nothing converts to nothing to resume; too far clamps', () => {
+  for (const v of [null, undefined, 'x', { beginner: 0 }, { beginner: -3, pro: 'a' }])
+    eq(tutProgressFromV1(v), DEF_TUT_PROGRESS, JSON.stringify(v));
+  eq(tutProgressFromV1({ pro: 999 }).pro.title, titleAt('pro', TUTORIALS.pro.length - 1));
+});
+t('resume finds the title wherever it moved, else the clamped index', () => {
+  eq(tutResumeStep('intermediate', { title: 'Garage', step: 3 }), TUTORIALS.intermediate.findIndex(s => s.title === 'Garage'));
+  eq(tutResumeStep('pro', { title: 'A step since removed', step: 7 }), 7);
+  eq(tutResumeStep('pro', { title: 'A step since removed', step: 99 }), TUTORIALS.pro.length - 1);
+  eq(tutResumeStep('beginner', null), 0);
+});
+t('repairTutProgress keeps well-formed saves only', () => {
+  eq(repairTutProgress({ beginner: { title: 'Balance', step: 7 }, intermediate: 5, pro: { title: 3, step: 2 } }),
+     { beginner: { title: 'Balance', step: 7 }, intermediate: null, pro: null });
+  eq(repairTutProgress(null), DEF_TUT_PROGRESS);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

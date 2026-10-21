@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — RESUME points are saved by title; the card flags spots out of view
+
+- **RESUME stored bare step indices** (`suspos_tutorial_step_v1`), so every added or removed
+  step moved every later save: the INT Key Terms cards moved saves on by two, and the spot
+  splits would have moved them back by one or two. `suspos_tutorial_step_v2` stores
+  `{title, step}`: the title finds the step wherever it moved, the index only stands in for
+  a removed step. `_v1` is read once and converted by title, counting each guide without
+  the steps added since (`TUT_ADDED_SINCE_V1`, frozen), so nobody's place shifted.
+- **Spots off screen were silent.** BeamNG's "Alignment, Brakes & Diff" spots BRAKES and the
+  diffs above the suspension cards and ALIGNMENT below them, and a short window showed only
+  the top. The card now says how many spotted parts are above or below what their scroller
+  shows, and the count follows the scroll. Scrolling to them was the alternative, but any
+  scroll that reveals one part hides another.
+- **`:has()`'s fallback was considered and left out**; see KNOWN_ISSUES.
+
 ## Changed — guide steps point at single controls, cards and bar parts
 
 Tier guide steps spotlit whole zones (whole sidebar sections, the whole results panel), and
@@ -21,9 +36,8 @@ What came out of it:
 - **Broad steps split.** BEG and INT "Reading the Results" became the suspension cards, then
   a new "Alignment, Brakes & Diff"; INT gained "Entry & Exit Lanes" after its balance bar
   step; PRO gained "Mech Balance & Response", which "Handling Balance Expanded" had left to
-  TERMS chips. Saved RESUME points are step indices, so a guide left past one of these
-  resumes one or two cards early. Clamped on read, so accepted rather than migrated, as
-  when the Key Terms cards went.
+  TERMS chips. Saved RESUME points were step indices, which these splits would have
+  shifted; the entry above moved them to titles first.
 - **"Sharing & Backup" spotlit the garage** while describing SHARE, a toolbar button. It now
   focuses the toolbar and spots SHARE.
 - **The balance guide didn't bring hidden parts back.** Only `tutMode` emptied the hidden

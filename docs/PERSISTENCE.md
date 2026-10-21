@@ -37,7 +37,8 @@ each other, and an effect also runs too late to protect the first render. See
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |
 | `suspos_zoom_v1` | Desktop UI zoom level — **read-only** since the header zoom buttons were removed in favour of browser zoom. A previously-set value is still honoured; nothing writes it any more | `1.1` |
 | `suspos_tutorial_seen_v1` | Which tier guides have been dismissed | `{beginner:false, intermediate:false, pro:false}` |
-| `suspos_tutorial_step_v1` | Last step reached in each tier guide (0-based), so `?` can offer RESUME. `0` = nothing to resume; cleared when that guide hits DONE and by RESET (Tutorials). Clamped to the guide's current length on read | `{beginner:0, intermediate:0, pro:0}` |
+| `suspos_tutorial_step_v2` | Last step reached in each tier guide, so `?` can offer RESUME: `{title, step}` per tier, or `null` = nothing to resume. RESUME opens the step with that title wherever it now is, else `step` clamped to the guide (`tutResumeStep`). Cleared when that guide hits DONE and by RESET (Tutorials); `repairTutProgress` drops malformed entries | `{beginner:null, intermediate:null, pro:null}`, or converted from `suspos_tutorial_step_v1` |
+| `suspos_tutorial_step_v1` | Legacy bare step indices (0-based) — **read-only**, seeds the `_v2` default once (`tutProgressFromV1`). Its indices count each guide without the steps in `TUT_ADDED_SINCE_V1`, which is frozen | `{beginner:0, intermediate:0, pro:0}` |
 | `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
@@ -216,7 +217,7 @@ on the way in; writing to `suspos_garage_v2` directly bypasses that and can cras
 the garage cards, which is worth knowing before hand-editing the key.
 
 The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
-`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v1`, `suspos_hidden_v1`, …) is per-device and
+`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v2`, `suspos_hidden_v1`, …) is per-device and
 deliberately not included.
 
 ## Share links (`#t=`) persist nothing

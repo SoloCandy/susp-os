@@ -6514,6 +6514,40 @@ const TUTORIALS={
 // TUTORIALS reshapes the quick path with no other edit.
 const tutSteps=(mode,quick)=>{const all=TUTORIALS[mode]??[];return quick?all.filter(x=>x.quick):all;};
 
+// Where each tier guide was left, for RESUME. suspos_tutorial_step_v1 held bare step indices,
+// so every step added or removed moved every later save (the Key Terms cards, then the spot
+// splits). _v2 holds {title, step} per tier, or null for nothing to resume: the title finds the
+// step wherever it has moved, and step, clamped, stands in for a step that has been removed.
+// Titles are therefore unique within a guide (tests-sections.js checks).
+const DEF_TUT_PROGRESS={beginner:null,intermediate:null,pro:null};
+const repairTutProgress=v=>Object.fromEntries(Object.keys(DEF_TUT_PROGRESS).map(m=>{
+  const p=v?.[m];
+  return[m,p&&typeof p.title==='string'&&Number.isFinite(p.step)&&p.step>0
+    ?{title:p.title,step:Math.floor(p.step)}:null];
+}));
+// The steps added after _v1 stopped being written. Its indices count each guide without them,
+// so this list is frozen: _v1 is read-only and only seeds _v2, as suspos_units_v1 seeds
+// suspos_units_v2. Never extend it — a step added now can't move a _v2 save.
+const TUT_ADDED_SINCE_V1={beginner:['Alignment, Brakes & Diff'],
+  intermediate:['Entry & Exit Lanes','Alignment, Brakes & Diff'],pro:['Mech Balance & Response']};
+const tutProgressFromV1=v1=>Object.fromEntries(Object.keys(DEF_TUT_PROGRESS).map(m=>{
+  const all=TUTORIALS[m]??[],old=all.filter(s=>!TUT_ADDED_SINCE_V1[m].includes(s.title));
+  const n=Math.floor(+v1?.[m]||0),s=n>0&&old.length?old[Math.min(n,old.length-1)]:null;
+  return[m,s?{title:s.title,step:all.indexOf(s)}:null];
+}));
+const legacyTutProgress=()=>{
+  try{return tutProgressFromV1(JSON.parse(localStorage.getItem('suspos_tutorial_step_v1')));}
+  catch(e){return DEF_TUT_PROGRESS;}
+};
+// The step RESUME reopens a tier guide at: wherever its saved title is now, else the saved
+// index clamped to the guide. 0 = nothing to resume.
+const tutResumeStep=(mode,p)=>{
+  const list=TUTORIALS[mode]??[];
+  if(!p||!list.length)return 0;
+  const i=list.findIndex(s=>s.title===p.title);
+  return i>=0?i:Math.max(0,Math.min(p.step,list.length-1));
+};
+
 // Standalone reference — unlike TUTORIALS this isn't a guided sequence, it's an
 // always-available lookup for anyone who forgets what a term means. Each entry's tier is
 // the lowest tier that meets it, and a "[INT] "/"[PRO] " paragraph applies from that tier
@@ -6734,23 +6768,60 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
   // The step's spotted parts that are on screen now (a spot can belong to another mode, layout
   // or game, and is then simply absent). Found fresh on each measure: Hide puts its data-hid
   // element on the page only once the guide is running, and a section opens after the step.
-  const spotEls=()=>(t?.spot??[]).flatMap(id=>[...document.querySelectorAll(spotSel(id))])
+  const spotElsOf=id=>[...document.querySelectorAll(spotSel(id))]
     .filter(e=>{const b=e.getBoundingClientRect();return(b.width||b.height)&&b.right>0;});
+  const spotEls=()=>(t?.spot??[]).flatMap(spotElsOf);
+  // The nearest ancestor that actually scrolls: the sidebar, the results, the expanded balance
+  // panel or the garage list.
+  const scrollerOf=e=>{
+    for(let p=e?.parentElement;p&&p!==document.body;p=p.parentElement){
+      const oy=getComputedStyle(p).overflowY;
+      if(/(auto|scroll)/.test(oy)&&p.scrollHeight>p.clientHeight)return p;
+    }
+    return null;
+  };
+  // Spots wholly outside what their scroller shows, counted by id, above and below. A step's
+  // spots can run past the screen — BeamNG puts BRAKES and the diffs above the suspension
+  // cards and ALIGNMENT below them — so the card says what is out of view rather than
+  // scrolling one part away to show another.
+  const[spotOff,setSpotOff]=useState({above:0,below:0});
+  useEffect(()=>{
+    const vh=()=>(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+    const count=()=>{
+      let above=0,below=0;
+      for(const id of t?.spot??[]){
+        const sides=spotElsOf(id).map(e=>{
+          const r=e.getBoundingClientRect(),b=scrollerOf(e)?.getBoundingClientRect();
+          const top=Math.max(0,b?b.top:0),bottom=Math.min(vh(),b?b.bottom:vh());
+          return r.bottom<=top+4?-1:r.top>=bottom-4?1:0;
+        });
+        if(!sides.length||sides.includes(0))continue;
+        if(sides.every(s=>s<0))above++;else below++;
+      }
+      setSpotOff(o=>o.above===above&&o.below===below?o:{above,below});
+    };
+    setSpotOff({above:0,below:0});
+    if(!t?.spot?.length)return;
+    // Any scroller, so capture; one count per frame.
+    let raf=0;
+    const onScroll=()=>{if(!raf)raf=requestAnimationFrame(()=>{raf=0;count();});};
+    const tid=setTimeout(count,320);
+    document.addEventListener('scroll',onScroll,true);
+    window.addEventListener('resize',onScroll);
+    return()=>{clearTimeout(tid);cancelAnimationFrame(raf);
+      document.removeEventListener('scroll',onScroll,true);window.removeEventListener('resize',onScroll);};
+  },[mode,step]); // eslint-disable-line
   useEffect(()=>{
     const el=focusKey?document.getElementById('zone-'+focusKey):null;
     // The topmost spotted part (spot lists name both games' cards, so list order isn't page
-    // order): bring it into view inside its own scroller (sidebar, results, expanded panel,
-    // garage list), the nearest ancestor that actually scrolls. Instant, as below.
+    // order): bring it into view inside its own scroller. Instant, as below.
     const scrollSpot=()=>{
       const s=spotEls().sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top)[0];
-      for(let p=s?.parentElement;p&&p!==document.body;p=p.parentElement){
-        const oy=getComputedStyle(p).overflowY;
-        if(!/(auto|scroll)/.test(oy)||p.scrollHeight<=p.clientHeight)continue;
-        const pr=p.getBoundingClientRect(),sr=s.getBoundingClientRect();
-        if(sr.top<pr.top+40||sr.bottom>pr.bottom-40)
-          p.scrollTo({top:Math.max(0,sr.top-pr.top+p.scrollTop-80),behavior:'auto'});
-        return;
-      }
+      const p=scrollerOf(s);
+      if(!p)return;
+      const pr=p.getBoundingClientRect(),sr=s.getBoundingClientRect();
+      if(sr.top<pr.top+40||sr.bottom>pr.bottom-40)
+        p.scrollTo({top:Math.max(0,sr.top-pr.top+p.scrollTop-80),behavior:'auto'});
     };
     // Scroll sidebar so element is visible — use direct scrollTop rather than
     // scrollIntoView which can target the wrong scroll container on mobile. The zone first,
@@ -6994,6 +7065,11 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
           <span style={{fontSize:9,color:'#818cf8',letterSpacing:1,paddingBottom:1}}>▼ SCROLL FOR MORE</span>
         </div>}
       </div>
+      {(spotOff.above>0||spotOff.below>0)&&<div data-tut-offscreen
+           style={{fontSize:10,color:'#818cf8',lineHeight:1.5,margin:'0 0 8px'}}>
+        {spotOff.above>0&&<div>▲ {spotOff.above} more highlighted above — scroll to see</div>}
+        {spotOff.below>0&&<div>▼ {spotOff.below} more highlighted below — scroll to see</div>}
+      </div>}
       <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
         {step>0&&<button style={btnStyle} onClick={onPrev}>← PREV</button>}
         {t.pathChoice&&!quick&&onQuick
@@ -7044,9 +7120,9 @@ function App(){
   const[uiZoom]=usePersist('suspos_zoom_v1',1.1);
   const[tutSeen,setTutSeen]=usePersist('suspos_tutorial_seen_v1',{beginner:false,intermediate:false,pro:false});
   const[balTutSeen,setBalTutSeen]=usePersist('suspos_baltut_seen_v1',false);
-  // Last step reached per tier guide, so ? can offer RESUME. 0 = nothing to resume;
-  // cleared on DONE and by RESET (Tutorials). Clamped on read — steps get added and removed.
-  const[tutProgress,setTutProgress]=usePersist('suspos_tutorial_step_v1',{beginner:0,intermediate:0,pro:0});
+  // Last step reached per tier guide, by title, so ? can offer RESUME (see tutResumeStep).
+  // null = nothing to resume; cleared on DONE and by RESET (Tutorials).
+  const[tutProgress,setTutProgress]=usePersist('suspos_tutorial_step_v2',legacyTutProgress(),repairTutProgress);
   const[balTutOpen,setBalTutOpen]=useState(false);
   const[balTutStep,setBalTutStep]=useState(0);
   const openBalTut=()=>{setBalTutStep(0);setBalTutOpen(true);};
@@ -7156,10 +7232,7 @@ function App(){
   const[tutStep,setTutStep]=useState(0);
   const[tutQuick,setTutQuick]=useState(false); // QUICK START chosen on a pathChoice card — see tutSteps
   const[tutResume,setTutResume]=useState(null); // {mode, step} while the RESUME / START OVER choice is up
-  const savedTutStep=mode=>{
-    const n=+tutProgress?.[mode]||0,len=TUTORIALS[mode]?.length??0;
-    return len?Math.max(0,Math.min(Math.floor(n),len-1)):0;
-  };
+  const savedTutStep=mode=>tutResumeStep(mode,tutProgress?.[mode]);
   const openTut=(mode,step=0)=>{
     setTutMode(mode);setTutStep(step);setTutQuick(false);
     // The opening step's sidebar is driven by its own metadata; default to open otherwise.
@@ -7172,8 +7245,11 @@ function App(){
     if(n>0)setTutResume({mode,step:n});else openTut(mode);
   };
   useEffect(()=>{
-    if(tutMode&&tutMode!=='balance'&&!tutQuick&&(tutProgress?.[tutMode]??0)!==tutStep)
-      setTutProgress(p=>({...p,[tutMode]:tutStep}));
+    if(!tutMode||tutMode==='balance'||tutQuick)return;
+    const t=TUTORIALS[tutMode]?.[tutStep];
+    const next=tutStep>0&&t?{title:t.title,step:tutStep}:null;
+    if(JSON.stringify(tutProgress?.[tutMode]??null)!==JSON.stringify(next))
+      setTutProgress(p=>({...p,[tutMode]:next}));
   },[tutMode,tutStep,tutQuick]); // eslint-disable-line
   // One-shot note on the guide's first card explaining a locked-tier redirect; cleared on close
   const[tutNotice,setTutNotice]=useState(null);
@@ -7181,7 +7257,7 @@ function App(){
   const closeTut=()=>{if(tutFocus?.includes('garage'))setGaragePanelOpen(false);setTutMode(null);setTutNotice(null);};
   // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier).
   // showComplexity holds the tier that guide unlocks, so the popup can name it.
-  const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:0}));closeTutEnd();};
+  const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:null}));closeTutEnd();};
   const closeTutEnd=()=>{
     if(tutMode==='beginner')setShowComplexity('intermediate');
     else if(tutMode==='intermediate')setShowComplexity('pro');
@@ -8229,7 +8305,7 @@ function App(){
       setAl({...DEF_AL});
       dnaUnlink();
     });
-    if(resetOpts.tutorials){setTutSeen({beginner:false,intermediate:false,pro:false});setBalTutSeen(false);setTutProgress({beginner:0,intermediate:0,pro:0});}
+    if(resetOpts.tutorials){setTutSeen({beginner:false,intermediate:false,pro:false});setBalTutSeen(false);setTutProgress(DEF_TUT_PROGRESS);}
     setShowResetModal(false);
     setResetOpts({tune:true,tutorials:false});
   };
