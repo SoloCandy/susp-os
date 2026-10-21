@@ -33,7 +33,6 @@
 <title>SUSP.OS</title>
 <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -151,7 +150,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   </div>
 </div>
 <script>
-// Global error catcher — fires before React/Babel, shows error on blank screen
+// Global error catcher — fires before React and the app, shows error on blank screen
 window.onerror=function(msg,src,line,col,err){
   var d=document.getElementById('pre-load');
   if(d){
@@ -12796,30 +12795,71 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         +'<button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:12px">RELOAD</button>';
     }
   }
-  try{
-    if(typeof Babel==='undefined'){showError('Babel failed to load','Check your internet connection and reload.');return;}
-    var src=document.getElementById('app-source').textContent;
-    var compiled;
-    try{
-      compiled=Babel.transform(src,{
-        presets:['env','react'],
-        plugins:['transform-optional-chaining','transform-nullish-coalescing-operator','transform-logical-assignment-operators'],
-        filename:'susp-os.jsx'
-      }).code;
-    }catch(e){
-      showError('Babel compilation failed',e.message||String(e));
-      return;
-    }
-    // Use indirect eval so errors are catchable on all browsers including iOS WebKit.
-    // Direct script injection loses the error context on WebKit.
-    try{
-      (0,eval)(compiled);
-    }catch(e){
-      showError('Runtime error',e.message||String(e));
-    }
-  }catch(e){
-    showError('Load failed',e.message||String(e));
+  var BABEL_URL='https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js';
+  // JSX and block scoping only: every browser the app supports runs the rest natively, and the
+  // `env` preset cost ~5 s a load. Block scoping stays because parts of the source read a
+  // const/let above its declaration and rely on const→var making that undefined, not a throw.
+  var OPTS={presets:['react'],plugins:['transform-block-scoping'],filename:'susp-os.jsx'};
+  // Compiled-output cache. One IndexedDB record holds the compiled code beside the exact source
+  // and settings it came from, and is reused only when both still match — so a push that touches
+  // #app-source, or a new Babel version or option, recompiles. babel.min.js (~3 MB) is fetched
+  // only on a miss. Any IndexedDB failure or stall just means a miss.
+  var CACHE_ID=BABEL_URL+'|'+JSON.stringify(OPTS);
+  var DB='susp-os-boot',STORE='compiled';
+  var src=document.getElementById('app-source').textContent;
+  function openDb(){
+    return new Promise(function(res,rej){
+      var r=indexedDB.open(DB,1);
+      r.onupgradeneeded=function(){r.result.createObjectStore(STORE);};
+      r.onsuccess=function(){res(r.result);};
+      r.onerror=r.onblocked=function(){rej(r.error);};
+    });
   }
+  function readCache(){
+    return new Promise(function(res){
+      var t=setTimeout(function(){res(null);},1500);
+      function done(v){clearTimeout(t);res(v);}
+      openDb().then(function(db){
+        var q=db.transaction(STORE).objectStore(STORE).get('app');
+        q.onsuccess=function(){var v=q.result;db.close();done(v&&v.id===CACHE_ID&&v.src===src?v.code:null);};
+        q.onerror=function(){db.close();done(null);};
+      }).catch(function(){done(null);});
+    });
+  }
+  function writeCache(code){
+    openDb().then(function(db){
+      var tx=db.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).put({id:CACHE_ID,src:src,code:code},'app');
+      tx.oncomplete=tx.onerror=tx.onabort=function(){db.close();};
+    }).catch(function(){});
+  }
+  function loadBabel(){
+    return new Promise(function(res,rej){
+      if(typeof Babel!=='undefined')return res();
+      var s=document.createElement('script');
+      s.src=BABEL_URL;
+      s.onload=function(){typeof Babel!=='undefined'?res():rej();};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  // Use indirect eval so errors are catchable on all browsers including iOS WebKit.
+  // Direct script injection loses the error context on WebKit.
+  function run(code){
+    try{(0,eval)(code);return true;}
+    catch(e){showError('Runtime error',e.message||String(e));return false;}
+  }
+  // Console compile-check with the real settings; loads Babel if this load was a cache hit.
+  window.compileAppSource=function(){return loadBabel().then(function(){return Babel.transform(src,OPTS).code;});};
+  readCache().then(function(cached){
+    if(cached){run(cached);return;}
+    return loadBabel().then(function(){
+      var compiled;
+      try{compiled=Babel.transform(src,OPTS).code;}
+      catch(e){showError('Babel compilation failed',e.message||String(e));return;}
+      if(run(compiled))writeCache(compiled);
+    },function(){showError('Babel failed to load','Check your internet connection and reload.');});
+  }).catch(function(e){showError('Load failed',e&&e.message||String(e));});
 })();
 </script>
 </body>

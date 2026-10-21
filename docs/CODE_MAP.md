@@ -20,15 +20,34 @@ alignment). This one describes the *file*.
 ```
 
 A small bootstrap at the end of the file reads that element's `textContent`,
-runs it through `Babel.transform` (presets `env` + `react`, plus the
-optional-chaining / nullish-coalescing / logical-assignment plugins), and
-evaluates the result with indirect `eval` — indirect specifically so errors
-stay catchable on iOS WebKit.
+runs it through `Babel.transform` (preset `react` plus the `transform-block-scoping`
+plugin), and evaluates the result with indirect `eval` — indirect specifically so
+errors stay catchable on iOS WebKit.
+
+Two things about that compile are deliberate:
+
+- **No `env` preset.** Every supported browser runs the modern syntax natively
+  (`?.`, `??` and `??=` set the floor at Chrome 85 / Firefox 79 / Safari 14), and `env`
+  took about 5 s of every load. Only JSX needs compiling.
+- **`transform-block-scoping` is load-bearing — do not drop it.** It turns `const`/`let`
+  into `var`, and parts of the source read a binding above its declaration, which then
+  yields `undefined` rather than throwing. Without it the app dies on load with
+  "Cannot access 'rearHzMode' before initialization". See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+**The compiled output is cached.** The bootstrap keeps one IndexedDB record
+(database `susp-os-boot`, see [PERSISTENCE.md](PERSISTENCE.md)) holding the compiled
+code beside the exact source and settings it came from, and runs it without Babel when
+both still match. `babel.min.js` (~3 MB) is no longer a `<head>` script: it is injected
+only on a miss — the first visit, and the first after a push that changes `#app-source`,
+the Babel version or `OPTS`. A miss compiles, runs, and only then writes the record, so
+a source that throws is never cached. Any IndexedDB failure is a miss, and a read that
+hasn't answered in 1.5 s is treated as one.
 
 This is why there is no build step, and it shapes how failures appear:
 
 | Failure | What the user sees |
 |---|---|
+| Cache miss and the Babel script can't load (offline, CDN blocked) | `#pre-load` shows "Babel failed to load" |
 | Babel can't parse the source (JSX/syntax error) | `#pre-load` shows "Babel compilation failed" + the message |
 | Source parses but throws while evaluating | `#pre-load` shows "Runtime error" + the message |
 | React renders but a component throws | `ErrorBoundary` renders "SUSP.OS — Failed to load" |
@@ -38,10 +57,12 @@ Two consequences worth knowing when editing:
 
 - A syntax error blanks the whole page. `#pre-load` is the first thing to
   check when the app won't load.
-- You can compile-check the app from the browser console without rendering it,
-  by transforming `#app-source` yourself inside a `try/catch`. That is the
-  cheapest gate available, and given there is no linter or CI it is worth
-  using after any JSX edit.
+- You can compile-check the app from the browser console without rendering it:
+  `await compileAppSource()` compiles `#app-source` with the bootstrap's own settings,
+  loading Babel first when this load was a cache hit, and rejects on a syntax error.
+  That is the cheapest gate available, and given there is no linter or CI it is worth
+  using after any JSX edit. A cache hit never needs Babel, so `Babel` itself is
+  undefined after one.
 
 ---
 
@@ -74,7 +95,9 @@ The source runs top to bottom in this order:
    `GlossaryModal` and its tier helpers sit earlier, with the shared components.
 8. **`App()`** — all remaining state, the derived `useMemo` chain, and the
    entire sidebar + output JSX.
-9. **Bootstrap** — the Babel/eval block described above.
+9. **Bootstrap** — the compile-cache/Babel/eval block described above. It sits outside
+   `#app-source`, so the deploy check never sees a change to it (see
+   [KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
 
 ### Pure physics entry points
 
@@ -622,7 +645,9 @@ entry are deliberately outside history — see KNOWN_ISSUES.md.
 
 ## localStorage
 
-All keys are namespaced `suspos_`. Versions are per-key; see
+All keys are namespaced `suspos_`. The one store outside localStorage is the
+bootstrap's compiled-code cache in IndexedDB, which sits outside the app and holds no
+user data — see [PERSISTENCE.md](PERSISTENCE.md). Versions are per-key; see
 [PERSISTENCE.md](PERSISTENCE.md) for when to bump one (removing a field never
 requires it — the stale key is simply ignored).
 
@@ -858,7 +883,8 @@ checks DNA against the app's own flags (`shareClamped`, `mechBalClamped`,
 So the only real verification is the browser. A reasonable routine after a
 non-trivial edit:
 
-1. Compile-check `#app-source` through Babel (catches the page-blanking case).
+1. Compile-check `#app-source` with `await compileAppSource()` in the console (catches the
+   page-blanking case).
 2. Load the app; confirm `#pre-load` is empty and the console is clean.
 3. Exercise the tiers the change touches — BEG, INT and PRO gate different
    code, and VISUALS, the expanded balance panel, and the modals are not

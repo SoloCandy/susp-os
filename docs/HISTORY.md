@@ -11,6 +11,25 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the app compiles once per version, not on every load
+
+Every load ran the whole of `#app-source` through `Babel.transform` with the `env` preset,
+which rewrites modern syntax down to ES5. That took about 5.5 s of a 5.4 s DOMContentLoaded,
+with every CDN file already cached. Two changes:
+
+- **`env` and its three syntax plugins are gone.** The compile is now preset `react` plus
+  `transform-block-scoping`, about 0.7 s. Dropping `env` outright failed on load with
+  "Cannot access 'rearHzMode' before initialization": the source reads some bindings above
+  their declarations and has relied on `env`'s const→var all along. Block scoping keeps
+  exactly that; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). The native-syntax floor is now
+  Chrome 85 / Firefox 79 / Safari 14, set by `??=`.
+- **The compiled output is cached in IndexedDB**, keyed by the exact source and compile
+  settings, and `babel.min.js` loads only on a miss. A repeat visit rendered in about 60 ms
+  against about 800 ms for a miss. See [PERSISTENCE.md](PERSISTENCE.md).
+
+The bootstrap sits outside `#app-source`, so this push did not light the update notice in
+open tabs; they pick it up on their next reload.
+
 ## Fixed — LANDING bump under BUMP BALANCE STANDARD ignored CO-SOLVE's rear Hz
 
 `computeTune` re-solves each damper stroke on the post-CO-SOLVE rear Hz, but skipped any stroke

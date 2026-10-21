@@ -21,7 +21,7 @@ A single-file suspension tuning calculator for **Forza Horizon**, **Forza Motors
 
 **[Open the live app](https://solocandy.github.io/susp-os/)** — or download `index.html` and open it in any browser. No install, no server, no build step. A downloaded copy checks the live site while online, and the GitHub button in its header turns green (↓) once a newer version is out.
 
-> **Offline note:** React and Babel load from a CDN on first use. Once cached, the app works fully offline. For a fully air-gapped setup, open it once with internet access, then it works without a connection.
+> **Offline note:** React and Babel load from a CDN on first use. After that the app keeps its compiled code in the browser and works fully offline, and repeat visits skip Babel entirely. For a fully air-gapped setup, open it once with internet access, then it works without a connection.
 
 ---
 
@@ -68,7 +68,8 @@ INT and PRO can also hide what you don't use. **EDIT** in the sidebar's SECTIONS
 
 The entire app is a single HTML file: a pure-JS physics engine
 (`solveTune`: `feelToPhysics` → `computeTune`, then `computeDiff`/`computeAlignment`), a React
-UI transpiled in-browser via `@babel/standalone`, `localStorage` persistence,
+UI transpiled in-browser via `@babel/standalone` (once per version — the output is cached
+in IndexedDB), `localStorage` persistence,
 and a sparse Base64 share codec. No build step, no server.
 
 A **HORIZON / MOTORSPORT / BEAMNG** dropdown in the header picks which game's
@@ -147,8 +148,8 @@ green run means the facts line up, not that the writing is still accurate.
 
 ## Compatibility
 
-- **Desktop:** Chrome, Firefox, Safari, Edge
-- **Mobile:** iOS Safari (iPhone/iPad), Android Chrome
+- **Desktop:** Chrome, Firefox, Safari, Edge — any version from late 2020 on (Chrome/Edge 85+, Firefox 79+, Safari 14+)
+- **Mobile:** iOS Safari 14+ (iPhone/iPad), Android Chrome
 - Works fully **offline** after first load
 - No build step, no Node.js, no dependencies
 

@@ -13,6 +13,16 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — the source reads some bindings before their declaration
+
+Parts of `#app-source` read a `const`/`let` above the line that declares it. `rearHzMode` is
+one; `restoreTick` was declared early to dodge another (see [CODE_MAP.md](CODE_MAP.md#undo--redo)).
+Babel's `transform-block-scoping` turns them into `var`, so the early read yields `undefined`
+instead of throwing, and the bootstrap keeps that plugin for this reason alone. Without it the
+app fails on load. Each such read is a latent bug in its own right: an `undefined` that a
+dependency array or a first render quietly works with. Finding and reordering them all would
+let the plugin go and the browser run the source as written; until then it stays.
+
 ## Documented — STOCK brakes are assumed ideal, and loads put RACE back
 
 BRAKES on STOCK (`dr.brakeStock`) is for a car without race brakes, whose real bias Forza

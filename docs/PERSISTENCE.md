@@ -50,6 +50,21 @@ each other, and an effect also runs too late to protect the first render. See
 | `suspos_builds_migrated_v1` | Sentinel, not data — `suspos_saves_v9` → `suspos_builds_v1` migration has run | *(absent)* |
 | `suspos_garage_unified_v2` | Sentinel, not data — the `_v1` → `suspos_garage_v2` migration has run | *(absent)* |
 
+## The compiled-code cache (IndexedDB, not localStorage)
+
+The bootstrap at the end of `index.html` keeps one record outside localStorage: IndexedDB
+database `susp-os-boot`, object store `compiled`, key `app`, value
+`{id, src, code}` — `id` the Babel script URL plus the JSON of its options, `src` the exact
+`#app-source` text that was compiled, `code` Babel's output. It is reused only when `id` and
+`src` both match the page, so it can't run stale code; any mismatch recompiles and overwrites
+it. It is about 2 MB, since it holds the source as well as the output — comparing the whole
+source rather than a hash makes a false match impossible.
+
+It is a cache, not data: deleting it costs one compile on the next load, nothing else. It is
+not in the backup, has no version suffix to bump (change `OPTS` or the Babel URL and every
+record misses), and lives outside `#app-source`, so the `suspos_` key checks in
+`tests-docs.js` don't see it. How the bootstrap uses it: [CODE_MAP.md](CODE_MAP.md#the-file-is-one-big-textplain-script).
+
 ## When to bump a version suffix
 
 Bump (e.g. `_v8` → `_v9`) when:
