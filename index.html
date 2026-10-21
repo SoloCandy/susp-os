@@ -1845,13 +1845,16 @@ const computeTune=(ch,phys,gameMode)=>{
   // slider value, or the settle-time guarantee this recompute exists for breaks under SETTLE.
   // STANDARD is Hz-agnostic, so a stroke under STANDARD keeps feelToPhysics' pair. With BUMP
   // BALANCE set, rebound and bump decide this separately — either can be the one that re-solves.
+  // LANDING's bump anchor is not Hz-agnostic, so bump re-solves under LANDING whatever the mode:
+  // skipping STANDARD there left it on the pre-CO-SOLVE anchor, short of (or past) the drop while
+  // every other BUMP BALANCE caught it. See docs/HISTORY.md.
   const ownBump=phys.bumpBalMode??null,bumpMode=ownBump??phys.dampBalMode;
   const bumpLinked=!ownBump&&phys.dampingMode==='ratio';
   if(phys.dampBalMode!=='standard'){
     const{zF,zR}=splitDampZetas(phys.dampBalMode,phys.rideRef,m.front,fHz,m.rear,effectiveRHz,phys.baseZeta,phys.dampingBias??0);
     zetaF=zF;zetaR=zR;
   }
-  if(bumpMode!=='standard'){
+  if(bumpMode!=='standard'||phys.dampingMode==='landing'){
     const bumpRatioVal=phys.bumpRatioVal??56;
     // LANDING's anchor is solved on the ride-reference axle's Hz, so it re-solves here on the
     // post-CO-SOLVE rear Hz for the same reason the rebound split does.
@@ -10250,9 +10253,11 @@ function App(){
                   // Stored as % of the ride-reference axle's ride height; the readout adds the
                   // absolute equivalent in the CHASSIS length unit.
                   const ref=physics.rideRef==='rear'?'rear':physics.rideRef==='shared'?'average':'front';
-                  const bF=physics.bumpZetaF,bR=physics.bumpZetaR;
+                  // The tune's zetas, as the DAMPERS table reads them: the drop solve depends on
+                  // Hz, and physics.* is the pre-CO-SOLVE solve, so it disagreed with the table.
+                  const bF=tune.bumpZetaF??physics.bumpZetaF,bR=tune.bumpZetaR??physics.bumpZetaR;
                   const split=Math.abs(bF-bR)>0.5;
-                  const cross=(bF>physics.zetaF+0.5||bR>physics.zetaR+0.5)?' ⚠ CROSSED':'';
+                  const cross=(bF>(tune.zetaF??physics.zetaF)+0.5||bR>(tune.zetaR??physics.zetaR)+0.5)?' ⚠ CROSSED':'';
                   const zTxt=split?`ζ F ${Math.round(bF)}% | ${Math.round(bR)}% R`:`ζ ${Math.round(bF)}%`;
                   const readout=!landingSol?zTxt
                     :landingSol.travel<=0?'⚠ SAG IN BUMP STOPS'

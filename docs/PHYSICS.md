@@ -643,7 +643,8 @@ mode needs LANDING's drop height, so `ownBumpBalMode` resolves a stored `catch` 
 
 `computeTune` re-solves each stroke on the post-CO-SOLVE rear Hz when that stroke's
 own mode is not STANDARD, so rebound on STANDARD with bump on TIME SYNC re-solves
-bump only. An own mode equal to the rebound's with an equal bias reproduces SAME
+bump only. Bump under LANDING always re-solves, STANDARD included: STANDARD's split
+is Hz-agnostic, but LANDING's anchor is not. An own mode equal to the rebound's with an equal bias reproduces SAME
 exactly under INDEPENDENT and LANDING. Under RATIO it lands within rounding, since
 TIME SYNC is not linear in ζ.
 

@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — LANDING bump under BUMP BALANCE STANDARD ignored CO-SOLVE's rear Hz
+
+`computeTune` re-solves each damper stroke on the post-CO-SOLVE rear Hz, but skipped any stroke
+on STANDARD because STANDARD's split is Hz-agnostic. LANDING's anchor is not: it is the drop
+solve on the ride-reference axle's Hz. So with CO-SOLVE moving the rear Hz and a REAR (or
+SHARED) Ride Reference, STANDARD kept feelToPhysics' stale anchor while SAME and every other
+BUMP BALANCE re-solved it. In one report STANDARD exported 31% bump against 55% for the other
+modes, and its Catch row fell well short of the drop. Bump now re-solves under LANDING whatever
+the mode. The Drop slider's ζ readout read `physics.bumpZeta*` too, so it disagreed with the
+DAMPERS table under CO-SOLVE (35/31 against 55/54). It now reads the tune's zetas, as the table
+does.
+
 ## Changed — BRAKES can be set to STOCK, for cars without race brakes
 
 Many meta Forza tunes skip race brakes, and without them the game has no brake balance to set,

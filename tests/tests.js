@@ -1292,6 +1292,18 @@ console.log('\nmirror vs app (reads index.html)');
       const n = A.catchZetas('front', 1.5, 1.5, chc, 0.20, -25);
       assert('catch: no floor, front solves the target as before', n.zF, A.landingBumpZeta(0.20, 1.5, 0.25).zeta, 1e-12);
     }
+    // CO-SOLVE moves the rear Hz after feelToPhysics; LANDING's anchor must re-solve on it under
+    // BUMP BALANCE STANDARD too, not just the Hz-aware modes. It used to keep the stale anchor.
+    {
+      const chl = { ...A.DEF_CH, rideHeightF: 0.25, rideHeightR: 0.24 };
+      const run = m => A.solveTune(chl, A.resolveFeEffective(chl, { ...A.DEF_FE, dampingMode: 'landing', landingPct: 120,
+        rideRef: 'rear', arbBalMode: 'coSolve', bumpBalMode: m }), 'beamng');
+      const st = run('standard'), sy = run('sync');
+      assertEq('landing: CO-SOLVE moves the rear Hz in this case', Math.abs(st.tune.rHz - st.physics.rearHz) > 0.05, true);
+      const want = A.landingBumpZeta(st.physics.landingDrop, st.tune.rHz, 0.24).zeta;
+      assert('landing: STANDARD rear bump re-solves on the post-CO-SOLVE Hz', st.tune.bumpZetaR, want, 1);
+      assert('landing: STANDARD and TIME SYNC agree on the ref axle', st.tune.bumpZetaR, sy.tune.bumpZetaR, 1);
+    }
   }
 
   // ── tripwire: every top-level mirror in this file is compared or exempted with a reason
