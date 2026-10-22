@@ -10591,6 +10591,21 @@ function App(){
                  mis:Math.abs(rlD)>=0.03,dir:rlD<0?'F':'R',
                  t:`Rebound ζ in roll; the ARB adds no damping. Arrow = less roll-damped axle, loads first on turn-in${Math.abs(rlD)>=0.03?` (${rlD<0?'F':'R'} LEADS ${Math.round(Math.abs(rlD)*100)}%)`:' (MATCHED)'}.`},
               ];
+              if(bumpBalMode){
+                // An own BUMP BALANCE equalises a bump metric the rebound Settle/Force rows can't show,
+                // so bump gets its own pair, from the same formulas on the final bump ζ. Inserted
+                // after Force so the two strokes' pairs read as a block above Roll ζ.
+                const bsF=settleTimeFromZeta(bumpZetaF,tune.fHz),bsR=settleTimeFromZeta(bumpZetaR,tune.rHz),bsD=bsF-bsR;
+                const bfF=bumpZetaF*mF*tune.fHz,bfR=bumpZetaR*mR*tune.rHz;
+                const bfP=bfF+bfR>0?Math.round(bfF/(bfF+bfR)*100):50;
+                rows.splice(rows.findIndex(r=>r.k==='roll'),0,
+                  {k:'bsettle',l:'Bump Settle',f:`${bsF.toFixed(2)}s`,r:`${bsR.toFixed(2)}s`,
+                   mis:Math.abs(bsD)>=0.01,dir:bsD<0?'F':'R',
+                   t:'Settle estimate at each axle\'s bump ζ, the Settle row\'s formula. Arrow = faster axle. BUMP BALANCE TIME SYNC targets equal.'},
+                  {k:'bforce',l:'Bump Force',f:`${bfP}%`,r:`${100-bfP}%`,
+                   mis:Math.abs(bfP-50)>=1,dir:bfP>50?'F':'R',
+                   t:'Share of bump damping force (bump ζ × corner mass × Hz). Arrow = axle doing more work. BUMP BALANCE EQUAL FORCE targets 50/50.'});
+              }
               if(landingSol||ch.useRideHeightCG){
                 // What each axle's FINAL bump ζ (after the balance split and the click snap)
                 // actually catches, on its own Hz and ride height. Under LANDING it is amber when an
@@ -10617,10 +10632,10 @@ function App(){
                 }
               }
               const target={standard:['reb'],sync:['settle'],hybrid:['settle','force'],neutral:['force']}[dampBalMode]??[];
-              // Settle and Force are rebound rows, so an own BUMP BALANCE is marked on the Bump ζ row;
-              // EQUAL CATCH equalises the Catch row as well.
-              if(bumpBalMode&&!target.includes('bmp'))target.push('bmp');
-              if(bumpBalMode==='catch')target.push('catch');
+              // An own BUMP BALANCE marks the bump row its mode equalises, as Damping Balance Mode does
+              // for rebound. EQUAL CATCH solves bump ζ per axle, so it marks Bump ζ and Catch.
+              target.push(...({standard:['bmp'],sync:['bsettle'],hybrid:['bsettle','bforce'],neutral:['bforce'],
+                                catch:['bmp','catch']}[bumpBalMode]??[]));
               const hd={fontSize:9,color:'#64748b',letterSpacing:1,textAlign:'right'};
               return(<Hide id="dampers.table">
                 <div style={{padding:'4px 8px',background:'#0a0f1a',borderRadius:2,border:'1px solid #1e293b',

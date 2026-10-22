@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the DAMPERS table shows bump settle and force under an own BUMP BALANCE
+
+BUMP BALANCE TIME SYNC, EQUAL FORCE and HYBRID each equalise a bump metric, but the table's
+Settle and Force rows are rebound-only, so the table just highlighted Bump ζ, whose front
+and rear figures differ by design under those modes. You couldn't check whether the solve
+did its job. Bump Settle and Bump Force rows now appear while BUMP BALANCE is not SAME, and
+the highlight goes to the row bump's mode equalises.
+
 ## Fixed — the scroll wheel stalled on Ride Stiffness in BeamNG
 
 Ride Stiffness (INT/PRO and BEG) was bound to the Hz the tune delivers (`tune.fHz`, or the

@@ -756,6 +756,15 @@ axle's share of `ζ × corner mass × Hz`. The row the Damping Balance Mode
 equalises is highlighted (STANDARD → Rebound ζ, TIME SYNC → Settle, EQUAL FORCE → Force, HYBRID →
 both).
 
+Settle and Force read rebound ζ only. When BUMP BALANCE has its own mode, two more rows
+sit above Roll ζ: **Bump Settle** (`settleTimeFromZeta` on each axle's final bump ζ) and
+**Bump Force** (each axle's share of `bump ζ × corner mass × Hz`). Without them the metric
+bump's mode equalises showed nowhere. The bump row that mode equalises is highlighted the
+same way (STANDARD → Bump ζ, TIME SYNC → Bump Settle, EQUAL FORCE → Bump Force, HYBRID →
+both, EQUAL CATCH → Bump ζ and Catch). On SAME the rows are hidden: bump follows the
+rebound split, and the rebound rows already show what that split equalises. Like the
+rebound rows they read the final, click-snapped ζ, so a small mismatch can show.
+
 **Roll ζ** is rebound ζ in roll, per axle. The same damper resists roll, but
 the ARB adds roll stiffness with no damping. Treating each axle's two corners
 as a pair rolling about its centre, track width and corner mass cancel, which
