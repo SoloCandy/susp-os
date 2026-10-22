@@ -610,7 +610,7 @@ camber target and `{roll}` the tune's roll angle:
 
 **DAMPERS:**
 
-> Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. F/R BIAS = front share of damping: 50% is balanced, above is front-biased.
+> Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; the brighter figures on each row are the ones that mode evens out.
 
 **BRAKES** (the same text on the Forza and BeamNG cards):
 

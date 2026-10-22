@@ -378,7 +378,9 @@ each final click value back through `impliedZeta` — so everything
 downstream of that point (`settleF`/`settleR`, the output cards' ζ%
 sub-labels, `bDampBias`) describes the damping the *displayed* click value
 actually produces, not the pre-clamp target that was originally solved
-for. Same treatment `rsAbF`/`rsAbR` already get for ARB (recomputed from
+for. `dampClamp` (`{reb, bmp}`, each `'ceil'`, `'floor'` or null) records which bound each stroke's
+scale fitted, so the output warning can say which way to move; `dampingClamped` is either being set.
+Same treatment `rsAbF`/`rsAbR` already get for ARB (recomputed from
 the clamped click values rather than the pre-clamp roll-stiffness target,
 "so the balance bar shows what the game will really do").
 
@@ -1629,7 +1631,7 @@ solve reports instead of pretending:
   says FLOOR).
 - When even **115%** bottoms it pins there and returns `reachable:false`.
   The readout says `⚠ MAX …%`, the biggest % that can be caught
-  (`(0.88B−1)²/(2B·0.33²)`, so about 410% at 3 g), and an output warning repeats it
+  (`(0.88B−1)²/(2B·0.33²)`, so about 410% at 3 g), and the output's landing warning repeats it
   with the length. When static sag already reaches the bump-stop zone
   (bottom g ≤ 1/0.88 ≈ 1.14), nothing catches anything, and the readout
   says `⚠ SAG IN BUMP STOPS`.
@@ -1643,7 +1645,7 @@ whenever RIDE HEIGHT → CG is on, since it needs real ride heights; under
 BUMP RATIO and INDEPENDENT it is a reading with no target) shows `landingCatchDrop` for each axle's *final* bump ζ (after the split
 and the click snap) on that axle's own Hz and ride height, as a % of the
 reference ride height the target uses (lengths in the tooltip), and under LANDING
-turns amber when an axle falls short. The row's tooltip gives peak bump force per
+turns amber when an axle falls short. The output panel uses the same test (catch under 99% of the drop): that axle's Bump row reads `⚠ SHORT`, and the landing warning names each short axle with its cause: no travel at rest, bump ζ pinned at 115%, or a split that gave it less than the drop needs (only the reference axle is solved for it, unless EQUAL CATCH, where Bump Bias can ask an axle to catch less). The row's tooltip gives peak bump force per
 corner at the target drop, `c·V = 2·m·ωn·ζ·V`, in model kN rather than game
 clicks.
 

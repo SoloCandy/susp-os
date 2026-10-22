@@ -11,6 +11,26 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the DAMPERS output names its modes and shows what they equalise
+
+The output header read `F/R BIAS x% F · BUMP y% ζ`. F/R BIAS was the front's share of rebound ζ,
+labelled "50% is balanced", which is only true under STANDARD: TIME SYNC, EQUAL FORCE and HYBRID
+leave ζ unequal on purpose, and bump's split never showed. `BUMP y% ζ` was the bump anchor before
+the front/rear split (under LANDING, solved before CO-SOLVE moved the rear Hz), so it matched
+neither row, and under EQUAL CATCH it was not used at all. The header now names the settings
+(`HYBRID · LANDING 120% / EQUAL CATCH`), and the rows carry the figures the active modes
+equalise, brighter, from the sidebar table's own `damperMetrics`.
+
+Row flags followed different rules from the sidebar: no CROSSED, OVERDAMPED on a LANDING bump
+the solver itself put at 115%, and the landing warning checked only the ride-reference axle, so
+an EQUAL CATCH axle pinned short of the drop said nothing. Rows now flag SHORT > CROSSED >
+OVERDAMPED > UNDERDAMPED, and the warning names every short axle and why.
+
+The click-range warning always said to lower Rebound ζ or Bump Ratio (BEG: Character toward
+AGILE). Off the 1-click floor that is backwards, and under SETTLE TIME, INDEPENDENT or LANDING
+those controls aren't there. `computeTune` now reports `dampClamp` per stroke and the warning
+names the active control and direction.
+
 ## Changed — the DAMPERS table shows bump settle and force under an own BUMP BALANCE
 
 BUMP BALANCE TIME SYNC, EQUAL FORCE and HYBRID each equalise a bump metric, but the table's

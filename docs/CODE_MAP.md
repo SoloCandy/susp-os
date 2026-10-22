@@ -143,7 +143,11 @@ dispatcher; `splitDampZetas` wraps it with STANDARD's percentage swing and the c
 and is called once per stroke: the rebound anchor, then the bump anchor unless RATIO
 bump on SAME just scales the rebound pair. `ownBumpBalMode` resolves BUMP BALANCE,
 null for SAME and for EQUAL CATCH outside LANDING; `catchZetas` is EQUAL CATCH's per-axle
-landing solve, used in place of `splitDampZetas` for bump, with the floor kept in drops), `peakCompressionFactor`/`landingTravel`/
+landing solve, used in place of `splitDampZetas` for bump, with the floor kept in drops), `damperMetrics`
+(the DAMPERS table's per-axle readings off a tune's final ζ and Hz: rebound/bump ζ, settle, force share,
+bump settle and bump force, roll ζ, catch — one source, so any other readout of what a balance mode
+equalises quotes the table's figures) with `damperTargets` (which of those keys Damping Balance Mode and
+an own BUMP BALANCE equalise — the table's highlighted rows), `peakCompressionFactor`/`landingTravel`/
 `landingCatchDrop`/`landingBumpZeta`/`landingRef`/`clampLandingPct` (BUMP MODE → LANDING: the drop-height
 solve and the per-axle Catch figure; `BUMP_STOP_ZONE` is the travel kept clear, shared with the SAG
 chart's shading — see PHYSICS.md "LANDING bump mode"), `cornerMasses`,
@@ -275,7 +279,8 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `SrcHead` | `group` (`HIDE_ITEMS` ids) drops the header in the regular view once everything under it is hidden |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
 | `Card` | section wrapper in the output panel (title, ⓘ hint, `headerRight`) |
-| `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode` |
+| `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — full-width single column for Forza (`horizon`/`motorsport`); assembled into the BeamNG two-column layout's cards below when `physMode`. A `meta` entry is a string or `{text, on}`; `on` draws it brighter (a figure the active damper mode equalises) |
+| `dampView` (App, not a component) | the DAMPERS output built once for both layouts: the header (balance mode and bump source, never an intermediate solve value), each damper row's `note` and `meta` from `damperMetrics`/`damperTargets`, the per-axle landing warning and the direction-aware clamp warning. The Forza DAMPERS card, the BeamNG `SuspensionCard` rows, the summary strip and the warnings list all read it |
 | `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a generic per-axle differential card. The BeamNG layout itself (summary strip, CENTER SPLIT card, the fixed 2-column `.beamng-grid`) is inline JSX in `App`, not a separate component — see the `physMode` branch in the output panel |
 | `Readout`, `Stat` | Tune Check and sidebar readouts — **not** the output panel any more (it moved to `OutRow` so each value is one scannable line to transcribe into a tuning menu) |
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH). `digits` sets the value's decimals (1; PRO's `Seg` passes 2). `tick` draws a position instead of a fill and drops the share column — the CAR STARTS row, the chassis lean the tuning rows move from |
