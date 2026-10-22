@@ -32,7 +32,7 @@ Forza's suspension tuning menus expose raw numbers — spring rate lb/in, damper
 1. **You describe your car** — weight, front weight bias, drivetrain layout, and build type. From INT mode: tyre sizes, and CG height, estimated from ride height and tyre radius by default, or entered manually. In PRO mode: wheelbase, and track widths for full chassis geometry.
 2. **You set a handling target** — ride stiffness, mech balance target (how rear-biased the roll stiffness should be for your drivetrain and build), damping character, and differential intent. The balance guide shows a recommended range for your layout and build type — scaled between your chassis's natural balance and its grip-neutral point rather than a flat offset — and flags how far your chassis natural balance sits from the target.
 3. **SUSP.OS computes the physics** — spring rates from natural frequency targets, damper clicks from critical damping coefficients, ARB split solved to hit your mech balance target, alignment geometry, brake bias, and differential lock percentages.
-4. **You enter the output values into your game's tuning menu** — springs, dampers, ARBs, alignment, brakes, and differential: exact clicks for the two Forza titles, real physical units for BeamNG.
+4. **You enter the output values into your game's tuning menu** — springs, dampers, ARBs, alignment, brakes, and differential: exact clicks for the two Forza titles, real physical units for BeamNG. The ANTI-ROLL BARS, SPRINGS and DAMPERS headers name the modes that produced their values, each row brightens the figure its mode aims at, and a warning under a card says when a target was out of reach and which control to move.
 
 The result is a tune that starts from a principled baseline rather than trial-and-error guessing.
 

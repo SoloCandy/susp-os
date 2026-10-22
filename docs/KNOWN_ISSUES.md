@@ -13,6 +13,27 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — an alignment value held at its range says nothing
+
+`computeAlignment` and the MECH/GRIP nudge clamp camber (front −4.0..0.0°, rear
+−3.5..0.0°), toe (front −0.20..0.15°, rear 0.0..0.25°) and caster (4.0–7.5°) without a
+flag, so a clamped value prints like any other. The output can't infer it from the value:
+some recommendations sit on an edge without being clamped (DRAG's rear toe is 0.0). A
+LIMIT note needs `computeAlignment` to hand back its values before clamping.
+
+## Open — an out-of-reach ENTRY brake target shows only in the sidebar
+
+Under BRAKES Centre ENTRY, `entryBrakeBiasFor` stops the bias at 40% or 68% when the
+target is beyond them (`clamped: 'rear'|'front'`). The BRAKES section says so ("Out of
+reach…"); the output's BRAKES card prints the stopped bias with no warning.
+
+## Open — the sidebar DAMPERS table marks rows its mode doesn't aim at
+
+Settle, Force, Bump Settle and Bump Force turn amber whenever front and rear differ,
+under every balance mode. Under STANDARD, for instance, settle times differ by design, so
+the amber reads as a fault the mode never set out to fix. The output panel already marks
+only the targeted figures (`damperTargets`); the table should use the same rule.
+
 ## Limitation — an app older than codec id 90 reads a split ARB scale as the front scale on both axles
 
 A car whose MEASURE ARB found the axles differ shares its rear click scale as id 90

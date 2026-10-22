@@ -1085,6 +1085,7 @@ share doesn't scale with the bars. Total bar stiffness moves instead, and ROLL Â
 SHARE % report that through `rollClamped`/`shareClamped`. When the re-solved bar
 also hits a limit the balance can't be held, and lands as close as the limits
 allow. MAN is untouched (a typed value), and the physical modes have no ceiling.
+The ANTI-ROLL BARS output tags a pinned bar FLOOR or CEILING (`arbView`).
 
 The bar to pin is normally the one furthest out of range. In WEIGHT, CHASSIS and
 NEUTRAL, if its partner's re-solve would leave the range but pinning the partner
