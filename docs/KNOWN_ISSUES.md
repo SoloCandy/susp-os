@@ -1130,6 +1130,34 @@ shows 🔒 while you are on it, and PRO is unlocked. Opening the BEG guide
 
 ---
 
+## Limitation — three RIDE REF. switches cannot hold the car exactly
+
+The RIDE REF. hint promises "Switching never changes the actual Hz", and
+`rideRefSwitch` keeps that promise by solving each candidate and rehoming the Hz
+mode when re-anchoring alone would miss (see [PHYSICS.md](PHYSICS.md#ride-ref-switch-riderefswitch)).
+Three states have no exact form on the new axle, and the switch does the nearest
+thing instead:
+
+- **CO-SOLVE with the rear clamped at the band edge.** CO-SOLVE derives the rear
+  from the front, so there is no Hz mode to rehome. Under FRONT the rear can ask
+  for more than `HZ_MAX` and run at it; anchored on the rear at `HZ_MAX`, the front
+  is re-solved to the one that asks for exactly `HZ_MAX`, which is softer (5.00 →
+  3.73 Hz on a heavy FWD car). The clamp itself is not flagged under CO-SOLVE
+  either: `rearHzClamped` is forced false there, and `mechBalClamped` only fires if
+  the balance misses as a result.
+- **INDEPENDENT → SHARED with a front/rear ratio outside 0.50–3.00.** SHARED has no
+  INDEPENDENT, and MULTIPLIER's range ends at 0.50–3.00, so 5.0 / 2.0 Hz (0.40)
+  becomes 4.67 / 2.33 Hz at a ratio of 0.50.
+- **BeamNG, on the 0.001 Hz stiffness grid.** The switch also tries the stiffness a
+  few ticks either side to keep both snapped springs. Sometimes no grid point does:
+  a state reached from REAR can sit off the FRONT grid between two snap boundaries.
+  One spring then moves a single 500 N/m step (about 0.004–0.007 Hz). The pre-snap
+  Hz still hold within 0.002 Hz, and the Hz mode is left alone.
+
+Widening the multiplier's 0.50–3.00 would close the second case, but it is
+`sanitizeTune`'s clamp, the slider's range and the DNA `pitchRatio` axis at once,
+for a ratio no real setup runs.
+
 ## Accepted — Ride Stiffness can read 3 decimals after a BOTTOM G's edit
 
 The Hz sliders step by 0.01 and the BOTTOM G's slider steps by 0.01 g, but the
@@ -1150,4 +1178,8 @@ This is deliberate. Two alternatives were considered and rejected:
   extra digit.
 
 Typing into the Hz box, or stepping either Hz slider, still lands on 0.01 — the
-third decimal only appears when BOTTOM G's put it there.
+third decimal only appears when BOTTOM G's put it there, or when a RIDE REF.
+switch hands the slider the Hz the car is on. The same goes for the Hz-mode
+values a switch or a rehome seeds: the MULTIPLIER ratio can read four decimals
+(`holdHzMult`'s 0.0001 grid) and an INDEPENDENT Hz three, because rounding either
+to the slider's 0.01 step moved the derived axle.

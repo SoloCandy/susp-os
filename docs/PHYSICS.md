@@ -938,12 +938,21 @@ frequency (dispatch lives in `feelToPhysics`):
 - **CO-SOLVE** (PRO only — the branch in `feelToPhysics`, plus the main
   solve in `computeTune`) — solves rear Hz *and* ARB split together, with
   `fe.springShare` controlling how much of the balance correction comes
-  from springs vs ARBs. `Kcs = rHz/fHz` is derived once from the chassis,
-  target, and spring share, then the ride-reference axle's slider is
-  inverted through `Kcs` so the *other* axle's Hz stays correct regardless
-  of which axle the user chose to anchor.
+  from springs vs ARBs. The solve runs front → rear: `coSolveRearOf(ch,
+  fHz, …)` gives the rear Hz for a front Hz, and `computeTune` clamps it into
+  the band as `effectiveRHz`. Under a REAR or SHARED Ride Reference the
+  slider sets the rear (or the average), so `feelToPhysics` first bisects
+  the front Hz that `coSolveRearOf` carries to it — on the unclamped rear for
+  REAR, on `(front + clamped rear)/2` for SHARED — and pins the front at a band
+  edge when the target lies beyond it. Bisection rather than a ratio: under
+  Auto Spring Share, `S` moves with the front Hz, so `rHz/fHz` is not a
+  constant. The two-pass fixed point that used to stand here never settled
+  under ROLL and missed by up to 0.4 Hz on a heavy FWD car; the rear rises
+  with the front everywhere but a few thousandths of a Hz at `S`'s search
+  kinks, so bisection holds to the 0.002 Hz `tests-ride.js` asks for.
 
-  Both MECH and CO-SOLVE (and the CO-SOLVE `Kcs` pre-inversion) convert the
+  Both MECH and CO-SOLVE (and the REAR/SHARED inversion, through the same
+  `resolveCoSolveSpringShare`) convert the
   absolute `resolveArbBalTarget`/`arbBalTarget` reading into a *physical*
   roll-stiffness target the same way: subtract `tireCorr` (tyre-width) and
   `natOffset` (`natOffsetOf(ch)`) before it enters any ratio-inversion
@@ -963,7 +972,8 @@ frequency (dispatch lives in `feelToPhysics`):
   real, even when the Balance Target sat exactly on the measured NAT (0
   bias). See [HISTORY.md](HISTORY.md) for the full incident and
   all four sites this touched (`resolveCoSolveSpringShare`'s `R_baseline`,
-  the CO-SOLVE `Kcs` pre-inversion's `Rbl`, `computeTune`'s ARB-split
+  the CO-SOLVE `Kcs` pre-inversion's `Rbl` — since replaced by the bisection
+  above, which reads `resolveCoSolveSpringShare`'s — `computeTune`'s ARB-split
   `_mechTgt`/`mechBalance`, and MECH's own `rsBalTgt`).
 
   **How far the ARB split can reach.** With ARB Balance MECH the bars split a fixed budget
@@ -1040,7 +1050,7 @@ Which modes can raise it:
 | SHARED | yes |
 | MULTIPLIER | yes — under a FRONT/REAR reference when the ratio throws the derived axle out of band, under SHARED when it throws one end of the split out |
 | INDEPENDENT | no — the field itself is already clamped on entry |
-| CO-SOLVE | no — forced false, since `mechBalClamped` covers its limits instead |
+| CO-SOLVE | no — forced false, since `mechBalClamped` covers its limits instead (a rear `computeTune` clamps at the band edge is not flagged at all; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 
 Two gaps here were closed together, both of which made the flag lie rather than
 merely under-report. Under a REAR reference the assignment step discarded the
@@ -1479,14 +1489,42 @@ reading silently drift.
 A single `useEffect` (`index.html`, directly after `tune`/`physics` are
 computed) keeps this resolved, live — on ride-height edits, on a
 build/share-code load landing a different target on the current chassis, and
-on mount. It also handles the one case that must go the *other* direction:
-switching RIDE REF. (FRONT/SHARED/REAR) must never itself change the actual
-front/rear Hz (the RIDE REF. hint and its `ride-ref` glossary entry both promise this) — so on an axle switch, the
-effect mirrors the stored target to the newly-active axle's already-current
-g instead of resolving Hz from the old axle's target. It distinguishes these
-two cases with a `useRef` that remembers only the previous RIDE REF. value
-(not a float, so no rounding-drift false positives) — everything else (ride
-height, the target itself) is a genuine "resolve" trigger.
+on mount. It makes its decision through the pure `bottomGStep`, which
+`tests-ride.js` drives directly. It also handles the cases that must go the
+*other* direction, mirroring the stored target from the springs instead of
+resolving Hz from it:
+
+- **Switching RIDE REF.** (FRONT/SHARED/REAR) must never itself change the
+  actual front/rear Hz (the RIDE REF. hint and its `ride-ref` glossary entry
+  both promise this), so on an axle switch the target is mirrored to the
+  newly-active axle's already-current g. The step tells this apart with a
+  `prev` that remembers only the previous RIDE REF. value (not a float, so no
+  rounding-drift false positives) — everything else (ride height, the target
+  itself) is a genuine "resolve" trigger.
+- **The target coming back into reach.** It is only live where its slider is:
+  BOTTOM G's needs RIDE HEIGHT → CG, and BEG has no STIFFNESS toggle. While
+  either hides it the target lies dormant — nothing resolves — and when it
+  returns it is mirrored the same way. The mode used to be read alone, so a
+  BOTTOM G's left on from INT/PRO, or under CHASSIS → MANUAL, kept resolving
+  under the Hz slider shown in its place and pulled every drag straight back:
+  the slider looked frozen.
+
+The mirror reads the stored setting (`fe.rideStiffness`, the reference axle's
+Hz or the average) and stores the g unrounded. The resolve on the next commit
+turns that g straight back into Hz, so it has to land on the stiffness already
+stored. The old 0.01 g rounding, or BeamNG's snapped `tune.fHz`/`rHz`, nudged
+the springs on every switch. Reading the pre-snap Hz would undo the grid nudge
+`rideRefSwitch` can make in BeamNG.
+
+The sliders follow the same rule. Ride Stiffness (INT/PRO and BEG) shows
+`fe.rideStiffness`, and Bottom-Out shows `fe.rideBottomG`, clamped to the
+slider's range for this ride height, with its box rounded to 0.001 g. Neither
+shows the Hz the tune delivers. FeelSlider's wheel steps from the value it is
+bound to (`wheelStepOf`). Bound to BeamNG's snapped `tune.fHz`, which can sit
+more than half a 0.01 step below the stored value at the soft end, a notch
+rounded back onto the stored value and the wheel stalled. The two still differ
+where the target is out of reach (a CO-SOLVE front pinned at a band edge), and
+there the SPRINGS card shows what the car runs.
 
 This started as two separate effects (a resolve effect and a mirror effect)
 and shipped with a real bug: a single `fe` update that changes
@@ -1500,6 +1538,32 @@ to disambiguate, closed that race. If this logic is touched again, re-verify
 by loading a build with a known target onto a chassis with a different ride
 height and confirming the resolved Hz matches the target exactly (not a
 value quietly re-derived from whatever Hz happened to be loaded).
+
+### RIDE REF. switch (`rideRefSwitch`)
+
+The three RIDE REF. buttons hand the slider the Hz the car is already on, read
+**before** BeamNG's spring snap (`physics.frontHz`, and `tune.rHzTarget` for the
+rear, which also carries CO-SOLVE's rear where `physics.rearHz` does not). Under
+CO-SOLVE the bisection above makes that exact. Outside it, re-anchoring alone is
+exact only while the Hz mode can re-derive the other axle from the new reference.
+A derived axle clamped at the band edge cannot be re-derived: FRONT 5.00 ×1.60 asks
+for an 8.00 rear and runs 5.50, and anchoring the rear at 5.50 put the front at
+5.50 / 1.60 = 3.44.
+
+So `rideRefSwitch` solves each candidate and checks it lands within
+`RIDE_REF_HOLD_TOL` (0.002 Hz) of both axles. When it misses, the Hz mode is rehomed
+to MULTIPLIER at the ratio the car is running, or — outside MULTIPLIER's
+0.50–3.00 — INDEPENDENT holding the derived axle by hand. That's the same "only the
+control changes, not the car" rule the INDEPENDENT ↔ SHARED and BOTTOM G's rehoming
+already followed. A switch that holds keeps the user's Hz mode. In the
+physical-unit modes the car is the snapped springs, so the stiffness is also tried
+a few ticks either way on its 0.001 Hz grid to find a value that seats both. When
+none does (a SHARED stiffness moves both axles at once), the pre-snap check is
+enough, and the Hz mode is left alone. The ratio it seeds goes through
+`holdHzMult`, as do `holdHzRatio` and the MULTIPLIER Hz-mode button's ratio. That
+puts it on a 0.0001 grid rather than 0.01, a step worth up to ~0.01 Hz on the
+derived axle. An INDEPENDENT Hz goes through `hzToRs` onto the same 0.001 Hz grid
+as the stiffness. What still cannot hold is in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ### LANDING bump mode
 
@@ -1615,6 +1679,8 @@ model (`dampRate`, `rateToZeta`, `settleTimeFromZeta`, `settleZetas`,
 and `mechBalanceLLT`/`balanceFromRsBal` (settle-mode ride-reference
 anchoring in particular has a dedicated test section, since it was the site
 of a prior legacy-formula regression guard). The Hz-mode dispatch inside
-`feelToPhysics` (MULTIPLIER/MECH/CO-SOLVE branch selection) is not
-separately tested — only the underlying functions each mode calls into.
-`computeTune`, the codec, and all React UI have no coverage at all.
+`feelToPhysics` is not tested from `tests.js` — only the underlying functions
+each mode calls into — but `tests-ride.js` drives the real `feelToPhysics` and
+`computeTune` through every Hz mode and Ride Reference: the CO-SOLVE inversion,
+`rideRefSwitch` holding both axles, and `bottomGStep`. React UI has no coverage
+beyond the source-text checks those suites make on its wiring.

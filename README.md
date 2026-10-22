@@ -132,6 +132,7 @@ node tests/tests-docs.js     # documentation drift checks (reads index.html and 
 node tests/tests-dna.js      # Vehicle DNA core tests (reads index.html directly)
 node tests/tests-history.js  # undo / redo history core tests (reads index.html directly)
 node tests/tests-share.js    # share parts: a code loads in pieces (reads index.html directly)
+node tests/tests-ride.js     # Ride Reference: CO-SOLVE inversion, RIDE REF. switch, BOTTOM G's (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
 node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots and resume points (reads index.html directly)

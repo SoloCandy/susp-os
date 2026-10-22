@@ -151,7 +151,9 @@ chart's shading — see PHYSICS.md "LANDING bump mode"), `cornerMasses`,
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
 `rollMomentOf`, `clampBalTarget` (the Balance Target's stored `BAL_TARGET_MIN..BAL_TARGET_MAX` band, 0.05..0.95, which the Balance Guide strip also spans; its controls step and round by `BAL_TARGET_STEP`, 0.005, through `roundBalStep`;
 `sanitizeTune` clamps the stored DELTA instead), `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
-REPORT a clamp still test their own raw value), `hasBalTargetSolve` (is anything
+REPORT a clamp still test their own raw value), `wheelStepOf` (one FeelSlider wheel
+notch — it steps from the slider's bound value, which is why every slider binds the value
+it stores), `hasBalTargetSolve` (is anything
 solving toward the Balance Target — ARB balance mode MECH/CO-SOLVE, or Rear Hz
 Mode MECH even under MAN ARB), `mechSpringSplit` (Rear Hz Mode MECH outside CO-SOLVE: the target
 conversion, WEIGHT/CHASSIS bar dilution and the bisected spring Hz ratio both Ride Reference paths of
@@ -223,9 +225,16 @@ with the two-pass window fit — shared by the DYNAMICS chart's dashed markers
 and the DAMPERS table's Settle-row MEAS hover so both quote the same number; the chart's
 own `firstCrossing` reads the neutral crossing off the same points),
 `resolveCoSolveSpringShare`
-(CO-SOLVE's Auto Spring Share search — shared by `feelToPhysics`'s Kcs
-pre-inversion and `computeTune`'s `effectiveRHz` solve so both agree on the
-same spring share). `computeCheck` backs the TUNE CHECK reverse calculator.
+(CO-SOLVE's Auto Spring Share search) and `coSolveRearOf` (the rear Hz CO-SOLVE
+solves for a front Hz, unclamped, from that search — `computeTune` clamps it into
+`effectiveRHz`, and `feelToPhysics` bisects on it to honour a REAR or SHARED Ride
+Reference, so the slider and the solve answer to one function), `rideRefSwitch`
+(the RIDE REF. buttons' fe: re-anchors on the pre-snap Hz, solves the candidate,
+and rehomes the Hz mode when re-anchoring alone would move the car; `holdHzMult`
+is the ratio grid it, `holdHzRatio` and the MULTIPLIER button seed) and
+`bottomGStep` (BOTTOM G's one decision per fire — resolve, mirror or stay dormant
+— which App's effect only feeds and applies; pure so `tests-ride.js` can drive
+it). `computeCheck` backs the TUNE CHECK reverse calculator.
 
 In `App()` the chain is `resolveFeEffective` → `solveTune` (`feelToPhysics` →
 `computeTune`, repeated for the Forza target modes) → everything else, each in its
@@ -632,7 +641,7 @@ is a mouse-wheel run on a focused control.
 
 **Restores and effects.** A restore writes through the raw setters, then:
 
-- sets `restoringRef`, which BOTTOM G's RIDE REF. mirror checks and skips. The
+- sets `restoringRef`, which BOTTOM G's RIDE REF. mirror (`bottomGStep`'s `restoring`) checks and skips. The
   snapshot already holds its output; running it again applies it twice. The ARB
   unit conversion was once such an effect and had exactly that bug on undo (see
   HISTORY.md); it now runs only from the game-mode selector, which a restore never
@@ -847,6 +856,15 @@ matching after a reorganisation, fix the markers; don't delete the suite.
 **`tests-history.js` reads `index.html` too** and tests the shipped `makeHistory`:
 commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap.
 
+**`tests-ride.js` reads `index.html` the same way** and drives the real `feelToPhysics`
+and `computeTune` through every Hz mode and Ride Reference: the CO-SOLVE REAR/SHARED
+inversion delivering the slider's Hz, `rideRefSwitch` holding both axles (clamped,
+BeamNG-snapped and CO-SOLVE cases included), and `bottomGStep`'s resolve / mirror /
+dormant decisions, and the stiffness sliders' wheel across the whole band (`wheelStepOf`
+from the stored setting moves on every notch; from the snapped Hz it must still stall). The
+effect, the buttons and the slider bindings around those are checked only as source text; dragging the Hz slider in BEG and under CHASSIS → MANUAL still needs the
+browser.
+
 **`tests-share.js` reads `index.html` the same way** and covers the share parts:
 `SHARE_PARTS` coverage and disjointness against `CODEC_FIELDS`, each part merging in
 isolation, an empty parts map changing nothing, no mutation of the current tune, and a
@@ -922,3 +940,7 @@ non-trivial edit:
 12. `node tests/tests-sections.js` after adding a `Sec` or a control, changing what a RESET
    resets, or touching `SECTION_VIS`, `HIDE_ITEMS`, `sectionChanged`, `hiddenChangedIn` or
    `repairHidden`.
+13. `node tests/tests-ride.js` after touching `feelToPhysics`'s Ride Reference or CO-SOLVE
+   paths, `coSolveRearOf` / `resolveCoSolveSpringShare`, the RIDE REF. buttons
+   (`rideRefSwitch`), the BOTTOM G's effect (`bottomGStep`), the stiffness sliders' bindings,
+   or FeelSlider's wheel (`wheelStepOf`). Reads `index.html`.

@@ -685,6 +685,11 @@ const clampHz=hz=>Math.max(HZ_MIN,Math.min(HZ_MAX,hz));
 // a row produced no change at all. 0.001 Hz is finer than any g step the slider can take.
 // The Hz sliders keep their own 0.01 step — this is the floor under them, not their step.
 const hzToRs=hz=>Math.round(clampHz(hz)*1000)/1000;
+// One FeelSlider wheel notch: step from v, clamp, round to the step grid. It steps from whatever
+// the slider is bound to, so a slider must be bound to the value it stores — bound to a derived
+// one that sits more than half a step off it, the round lands back on the stored value and the
+// notch does nothing (the BeamNG Ride Stiffness stall; docs/HISTORY.md).
+const wheelStepOf=(v,dir,step,min,max)=>parseFloat((Math.round(Math.max(min,Math.min(max,v+dir*step))/step)*step).toFixed(6));
 // Flat ride (Olley): the rear wheel meets a bump `t = wheelbase/speed` seconds after the
 // front, so the rear's period is shortened by exactly that much — rearPeriod = frontPeriod − t
 // — and the two axles come back into phase, cancelling pitch.
@@ -1521,38 +1526,31 @@ const feelToPhysics=(ch,fe)=>{
   const arbBalModeEarly=manArb&&arbBalModeStored==='coSolve'?'weight':arbBalModeStored;
   const uiRideRef=['front','rear','shared'].includes(fe.rideRef)?fe.rideRef:'front';
   const rideRef=arbBalModeEarly==='coSolve'?'front':uiRideRef;
-  // CO-SOLVE: K = effectiveRHz/frontHz is constant for given chassis/target/share.
-  // Invert it so slider controls the user's chosen reference axle.
+  // CO-SOLVE solves the rear from the front, so a REAR or SHARED slider value has to be turned
+  // into the front Hz that computeTune's coSolveRearOf will carry to it. Bisected on the same
+  // function computeTune calls, so the two cannot disagree: Auto Spring Share's S moves with the
+  // front Hz, and the two-pass fixed point this replaces never settled under ROLL (it swung by
+  // up to 0.4 Hz on a heavy FWD car) and missed by 0.2 Hz under SHARE. The rear rises with the
+  // front everywhere but a few thousandths of a Hz at S's search kinks, so bisection holds. REAR
+  // inverts the unclamped rear (a target at HZ_MAX is reachable); SHARED the clamped one, since
+  // the average it promises is of what the car runs. A target beyond either end pins the front
+  // there. See docs/HISTORY.md.
   if(arbBalModeEarly==='coSolve'&&uiRideRef!=='front'){
-    const mc=cornerMasses(ch);
-    const abt=clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET);
-    // Match computeTune: subtract the same tyre-width correction so Kcs is consistent.
-    const tireCorr=tireCorrOf(ch);
-    const A=mc.rear*ch.trackR*ch.trackR/(mc.front*ch.trackF*ch.trackF); // natural rear/front roll-stiffness ratio (no width)
-    const Rbl=A/(1+A); // geometric equal-Hz, zero-ARB ratio — the real "no correction" spring state
-    // A MEAS. NAT BAL reading moves the natural away from this geometric estimate — treat the gap
-    // as a constant offset (same treatment as tireCorr). See resolveCoSolveSpringShare for what a
-    // target sitting exactly on NAT does and does not collapse to.
-    const natOffset=natOffsetOf(ch);
-    const rst=Math.max(0.001,Math.min(0.999,abt-tireCorr-natOffset));
-    const springShareAuto=fe.springShareAuto!==false;
     const csArbMode=fe.arbMode??'auto';
-    const csOpts={arbBalTarget:abt,arbMode:csArbMode,
+    const csOpts={arbBalTarget:clampBalTarget(fe.arbBalTarget??MECH_BALANCE_TARGET),arbMode:csArbMode,
       arbShareMan:Math.max(0,Math.min(80,fe.arbShareMan??15)),
       arbBasicMan:Math.max(0,Math.min(100,fe.arbBasicMan??50)),
       arbTargetRoll:csArbMode==='roll'?Math.max(0.3,Math.min(5.0,fe.arbTargetRollMan)):0,
-      springShareAuto,springShareManual:fe.springShare??50};
-    // Kcs needs S, but Auto Spring Share's S depends on the front Hz Kcs itself produces
-    // (when the reference axle isn't front) — two-pass fixed point, so this converges to what
-    // computeTune's resolveCoSolveSpringShare call will settle on.
-    let est=frontHz,Kcs=1;
-    for(let _i=0;_i<(springShareAuto?2:1);_i++){
-      const{S}=resolveCoSolveSpringShare(ch,est,csOpts,fe.gameMode);
-      const Rsp=Math.max(0.001,Math.min(0.999,Rbl+S*(rst-Rbl)));
-      Kcs=Math.sqrt(Rsp*mc.front*ch.trackF*ch.trackF/((1-Rsp)*mc.rear*ch.trackR*ch.trackR)); // rear/front Hz ratio (no width)
-      est=uiRideRef==='rear'?Math.max(HZ_MIN,frontHz/Kcs):Math.max(HZ_MIN,2*frontHz/(1+Kcs));
+      springShareAuto:fe.springShareAuto!==false,springShareManual:Math.max(0,Math.min(100,fe.springShare??50))};
+    const want=frontHz;
+    const reach=f=>{const r=coSolveRearOf(ch,f,csOpts,fe.gameMode).rawHz;return uiRideRef==='rear'?r:(f+clampHz(r))/2;};
+    let lo=HZ_MIN,hi=HZ_MAX;
+    if(reach(lo)>=want)frontHz=lo;
+    else if(reach(hi)<=want)frontHz=hi;
+    else{
+      for(let _i=0;_i<24;_i++){const mid=(lo+hi)/2;if(reach(mid)<want)lo=mid;else hi=mid;}
+      frontHz=(lo+hi)/2;
     }
-    frontHz=est;
   }
   // SHARED splits an average-Hz target into front/rear by a ratio. All three sites below need
   // identical treatment, so it lives here once: clamp BOTH axles to the band, and report the
@@ -1790,8 +1788,115 @@ const feelToPhysics=(ch,fe)=>{
     landingPct,landingDrop,dampBalMode,dampCharMode,dampingBias:fe.dampingBias??0,bumpBalMode,bumpDampingBias:fe.bumpDampingBias??0,bumpRatioVal,arbBalance,arbBias:fe.arbBias??0,arbTargetRoll,arbMode,arbShareMan,arbBasicMan,arbBalTarget,arbBalMode,arbSplitOpposite,arbNeutralEqual:!!fe.arbNeutralEqual,springShare,springShareAuto:fe.springShareAuto!==false,arbManF:fe.arbManF,arbManR:fe.arbManR};
 };
 
-// CO-SOLVE spring-share (S) resolution — shared by feelToPhysics (Kcs slider pre-inversion)
-// and computeTune (effectiveRHz) so both agree on the same S. Auto Spring Share has no closed
+// RIDE REF. switch: the fe that puts the slider on axle `to` without moving the car. Hands the
+// slider the Hz the car is solved to BEFORE BeamNG's spring snap (physics.frontHz,
+// tune.rHzTarget): the snapped tune.fHz/rHz re-snap on the way back and can step a spring.
+// Re-anchoring alone is exact only while the Hz mode can re-derive the other axle: a derived axle
+// clamped at the band edge (FRONT 5.00 ×1.60 asks for an 8.00 rear) re-derived from the new
+// reference moved the front to 3.44. So each candidate is solved and checked, and if it misses
+// the Hz mode is rehomed to MULTIPLIER at the ratio the car sits at, or, outside MULTIPLIER's
+// 0.50–3.00, INDEPENDENT holding the derived axle by hand — the same "only the control changes"
+// rule INDEPENDENT → SHARED already followed. In the physical-unit modes the check is on the
+// snapped springs too, and the stiffness is tried a tick or two either side on its 0.001 Hz grid:
+// one tick can carry a value sitting on a snap boundary across it. SHARED has no INDEPENDENT, so
+// a ratio outside 0.50–3.00 gets the nearest it can, and CO-SOLVE derives the rear itself, so
+// nothing rehomes there: both in docs/KNOWN_ISSUES.md. feEff is the fe physics was solved from
+// (MECH and CO-SOLVE read its resolved Balance Target).
+const RIDE_REF_HOLD_TOL=0.002;
+// A Hz ratio for MULTIPLIER that keeps the car where it is: inside the slider's 0.50–3.00, on a
+// 0.0001 grid. Not 0.01 — that step is worth up to ~0.01 Hz on the derived axle — and not
+// unrounded, which the number box would print to six places. 0.0001 is worth under 0.0003 Hz.
+const holdHzMult=r=>Math.round(Math.max(0.5,Math.min(3,r))*1e4)/1e4;
+const rideRefSwitch=(ch,feEff,p,to,physics,tune)=>{
+  const preF=physics.frontHz,preR=tune.rHzTarget??tune.rHz;
+  const gm=feEff.gameMode,snapped=isPhysical(gm);
+  const ratio=preF>0?preR/preF:1.2;
+  const mult=holdHzMult(ratio);
+  const derived=hzToRs(to==='rear'?preF:preR); // INDEPENDENT's Hz, on the same 0.001 grid
+  let next={...p,rideRef:to,rideStiffness:hzToRs(to==='rear'?preR:to==='shared'?(preF+preR)/2:preF)};
+  if(p.rearHzMode==='independent')
+    next=to==='shared'?{...next,rearHzMode:'multiplier',rearHzMult:mult}:{...next,rearHzMan:derived};
+  else if(p.rearHzMode==='shared'&&to!=='shared')
+    next={...next,rearHzMode:'multiplier',rearHzMult:mult};
+  // n, with its stiffness nudged along the grid until the solve lands on the car; null if it
+  // never does. In the physical-unit modes "the car" is the snapped springs — identical springs
+  // are an identical tune — so the strict pass searches a few ticks either way for them, and the
+  // loose pass settles for the pre-snap Hz: a SHARED stiffness moves both axles at once, so no
+  // nudge may seat both, and that alone is no reason to take the user's Hz mode away from them.
+  const hold=(n,loose)=>{
+    for(const d of snapped&&!loose?[0,-1,1,-2,2,-3,3,-4,4,-5,5]:[0]){
+      const c={...n,rideStiffness:hzToRs(n.rideStiffness+d*0.001)};
+      const q=feelToPhysics(ch,{...feEff,rideRef:c.rideRef,rideStiffness:c.rideStiffness,
+        rearHzMode:c.rearHzMode,rearHzMult:c.rearHzMult,rearHzMan:c.rearHzMan});
+      const t=computeTune(ch,q,gm);
+      const ok=snapped&&!loose
+        ?Math.abs(t.fHz-tune.fHz)<1e-6&&Math.abs(t.rHz-tune.rHz)<1e-6
+        :Math.abs(q.frontHz-preF)<=RIDE_REF_HOLD_TOL&&Math.abs((t.rHzTarget??t.rHz)-preR)<=RIDE_REF_HOLD_TOL;
+      if(ok)return c;
+    }
+    return null;
+  };
+  const best=n=>hold(n,false)??hold(n,true);
+  const held=best(next);
+  if(held)return held;
+  if((feEff.arbMode??'auto')!=='man'&&feEff.arbBalMode==='coSolve')return next;
+  const viaMult={...next,rearHzMode:'multiplier',rearHzMult:mult};
+  const heldMult=best(viaMult);
+  if(heldMult)return heldMult;
+  if(to==='shared')return viaMult;
+  const viaInd={...next,rearHzMode:'independent',rearHzMan:derived};
+  return best(viaInd)??viaInd;
+};
+
+// BOTTOM G's stiffness mode: fe.rideBottomG is a stored TARGET load factor (not a Hz), so it
+// must keep resolving to a fresh Hz whenever the chassis it applies to changes — ride height
+// edits, or a build/share-code load landing a new target on the current chassis. Switching
+// RIDE REF. is the one exception: it must NEVER itself change the actual front/rear Hz (see
+// the RIDE REF. hint text), so on an axle switch this mirrors the target to the new axle's
+// already-current g instead of resolving Hz from the old axle's target.
+//
+// This used to be two separate effects (a "resolve" one and a "mirror" one). Splitting them
+// caused a real bug: a single fe update that changes rideStiffness AND rideBottomG together
+// (e.g. LOAD BUILD) makes BOTH effects' dependencies fire in the SAME commit, both reading the
+// SAME pre-resolve tune snapshot — the mirror effect would stomp the freshly-loaded target with
+// a value derived from the not-yet-resolved Hz, fighting the resolve effect into converging on
+// the wrong number (or oscillating). One effect making one atomic decision per fire — using
+// `prev` to remember only whether RIDE REF. itself just changed, since that's the sole case that
+// should mirror instead of resolve — avoids the race entirely.
+//
+// The target is only live where its slider is (`live`): BOTTOM G's needs RIDE HEIGHT → CG, and
+// BEG has no STIFFNESS toggle at all. The mode used to be read alone, so a BOTTOM G's left on
+// from INT/PRO (or under CHASSIS → MANUAL) kept resolving under the Hz slider shown instead, and
+// pulled every drag back to the stored target — the slider looked frozen. While out of reach the
+// target lies dormant; when it comes back it is mirrored from the springs as they stand, the same
+// as an axle switch, so a control reappearing never moves the car either.
+//
+// hzNow is the stored setting (the reference axle's Hz, or the average), and the mirrored g is
+// stored unrounded: the resolve on the next commit turns that g straight back into Hz, so it must
+// land on the stiffness already stored. Rounding the g to 0.01, or reading BeamNG's snapped
+// tune.fHz/rHz, moved the springs on every switch, and reading the pre-snap Hz would undo the grid
+// nudge rideRefSwitch can make in BeamNG to keep both snapped springs.
+// Returns the next `prev` and the fe fields to write (null for none). Pure, for tests-ride.js.
+const bottomGStep=(prev,{wantsG,live,rRef,rh_mm,hzNow,target,rs,restoring})=>{
+  if(!wantsG||!live)return{prev:{rh:null,rRef:null,dormant:!!wantsG},patch:null};
+  if(!(rh_mm>0))return{prev,patch:null};
+  const mirror=!!prev.dormant||(prev.rRef!=null&&prev.rRef!==rRef);
+  const next={rh:rh_mm,rRef,dormant:false};
+  // A restore can flip RIDE REF., but the snapshot already holds the rideBottomG that goes with it.
+  if(restoring)return{prev:next,patch:null};
+  if(mirror){
+    const g=rh_mm*Math.pow(2*Math.PI*hzNow,2)/9810;
+    return{prev:next,patch:target==null||Math.abs(g-target)>1e-9?{rideBottomG:g}:null};
+  }
+  if(target==null)return{prev:next,patch:null};
+  const want=hzToRs(clampHz(Math.sqrt(9810*target/rh_mm)/(2*Math.PI)));
+  // Sub-grid epsilon: one hzToRs tick IS 0.001, so testing >0.001 would discard every
+  // single-tick resolve and strand the target one step away from the Hz it asks for.
+  return{prev:next,patch:Math.abs(want-rs)>1e-6?{rideStiffness:want}:null};
+};
+
+// CO-SOLVE spring-share (S) resolution — reached through coSolveRearOf by both feelToPhysics (the
+// REAR/SHARED slider inversion) and computeTune (effectiveRHz) so both agree on the same S. Auto Spring Share has no closed
 // form (it's a search), so feelToPhysics can't approximate it independently without the two
 // diverging — see docs/HISTORY.md.
 const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
@@ -1872,6 +1977,16 @@ const resolveCoSolveSpringShare=(ch,fHz,opts,gameMode)=>{
   }
   return{S,R_baseline,targetRsBalance,rsSpF_cs};
 };
+// The rear Hz CO-SOLVE solves for a given front Hz, unclamped (rawHz) — computeTune clamps it,
+// feelToPhysics bisects on it to honour a REAR or SHARED Ride Reference. One function for both, so
+// the slider and the solve answer to the same S.
+const coSolveRearOf=(ch,fHz,opts,gameMode)=>{
+  const r=resolveCoSolveSpringShare(ch,fHz,opts,gameMode);
+  const m=cornerMasses(ch);
+  const R_sp=Math.max(0.001,Math.min(0.999,r.R_baseline+r.S*(r.targetRsBalance-r.R_baseline)));
+  const rsSpR_tgt=R_sp*r.rsSpF_cs/(1-R_sp);
+  return{...r,rawHz:Math.sqrt(2*rsSpR_tgt/(m.rear*ch.trackR*ch.trackR))/(2*Math.PI)};
+};
 const computeTune=(ch,phys,gameMode)=>{
   // lim is read unguarded below (lim.damping in the click-fitting branch, lim.arb in the ARB
   // ones), so gameMode must name a real GAME_LIMITS entry. limitsOf guarantees one rather than
@@ -1904,14 +2019,12 @@ const computeTune=(ch,phys,gameMode)=>{
   let coSolveR_baseline=null; // spring-only balance at equal Hz (S=0 baseline), captured for contribution readout
   let coSolveAutoS=null;      // resolved Spring Share (0-100) when AUTO mode is active
   if(arbBalMode==='coSolve'){
-    const{S,R_baseline,targetRsBalance,rsSpF_cs}=resolveCoSolveSpringShare(ch,fHz,
+    const{S,R_baseline,rawHz}=coSolveRearOf(ch,fHz,
       {arbBalTarget,arbMode,arbShareMan,arbBasicMan,arbTargetRoll,springShareAuto:phys.springShareAuto,springShareManual:phys.springShare??50},
       gameMode);
     coSolveR_baseline=R_baseline;
     coSolveAutoS=Math.round(S*100);
-    const R_sp=Math.max(0.001,Math.min(0.999,R_baseline+S*(targetRsBalance-R_baseline)));
-    const rsSpR_tgt=R_sp*rsSpF_cs/(1-R_sp);
-    effectiveRHz=clampHz(Math.sqrt(2*rsSpR_tgt/(m.rear*ch.trackR*ch.trackR))/(2*Math.PI));
+    effectiveRHz=clampHz(rawHz);
   }
   // SYNC/NEUTRAL damping balance: recompute zetas using final effectiveRHz so the solve matches
   // post-coSolve Hz. Anchor to the user's ride-reference axle; derive the other(s). Must run
@@ -1962,6 +2075,9 @@ const computeTune=(ch,phys,gameMode)=>{
   const springR=physUnits
     ? snapPhys(solveSpring(effectiveRHz,m.rear,1)*LB_IN_TO_NM,PHYS_SNAP.spring)/LB_IN_TO_NM
     : solveSpring(effectiveRHz,m.rear,1);
+  // The rear Hz the solve asked for, before the snap: what a RIDE REF. switch must hand back to
+  // the slider, since feeding it the snapped tune.rHz re-snaps and can move a spring a step.
+  const rHzTarget=effectiveRHz;
   if(physUnits){
     fHz=hzOfSpring(springF,m.front);
     effectiveRHz=hzOfSpring(springR,m.rear);
@@ -2260,7 +2376,7 @@ const computeTune=(ch,phys,gameMode)=>{
          rebF:r1(rebF),rebR:r1(rebR),
          bumpF:r1(bumpF),bumpR:r1(bumpR),
          arbF,arbR,
-         fHz,rHz:effectiveRHz,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,neutralClampEnd,dampingClamped,
+         fHz,rHz:effectiveRHz,rHzTarget,settleF,settleR,rollDeg,rollTarget:arbTargetRoll,rollClamped,shareClamped,arbShareTol,mechBalClamped,neutralClamped,neutralClampEnd,dampingClamped,
          arbShare:arbShareOut,
          bSp,bAb,bTot,bChassis,mechBalance,gripBalance,
          rsSpF,rsSpR,rsAbF,rsAbR,
@@ -4123,10 +4239,7 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
       e.preventDefault();
       e.stopPropagation();
       if(lockRef.current)return;
-      const dir=e.deltaY<0?1:-1;
-      const next=Math.max(min,Math.min(max,valRef.current+dir*step));
-      const snapped=Math.round(next/step)*step;
-      onChangeRef.current(parseFloat(snapped.toFixed(6)));
+      onChangeRef.current(wheelStepOf(valRef.current,e.deltaY<0?1:-1,step,min,max));
     };
     const w=wrapRef.current;
     w&&w.addEventListener('wheel',onWheel,{passive:false});
@@ -8066,45 +8179,19 @@ function App(){
         +(r.drift&&!aside?', drifted':'')}
       style={{color:aside?'#475569':r.drift?'#f59e0b':'#818cf8',marginRight:4,fontSize:9}}>●</span>;
   };
-  // BOTTOM G's stiffness mode: fe.rideBottomG is a stored TARGET load factor (not a Hz), so it
-  // must keep resolving to a fresh Hz whenever the chassis it applies to changes — ride height
-  // edits, or a build/share-code load landing a new target on the current chassis. Switching
-  // RIDE REF. is the one exception: it must NEVER itself change the actual front/rear Hz (see
-  // the RIDE REF. hint text), so on an axle switch this mirrors the target to the new axle's
-  // already-current g instead of resolving Hz from the old axle's target.
-  //
-  // This used to be two separate effects (a "resolve" one and a "mirror" one). Splitting them
-  // caused a real bug: a single fe update that changes rideStiffness AND rideBottomG together
-  // (e.g. LOAD BUILD) makes BOTH effects' dependencies fire in the SAME commit, both reading the
-  // SAME pre-resolve tune snapshot — the mirror effect would stomp the freshly-loaded target with
-  // a value derived from the not-yet-resolved Hz, fighting the resolve effect into converging on
-  // the wrong number (or oscillating). One effect making one atomic decision per fire — using a
-  // ref to remember only whether RIDE REF. itself just changed, since that's the sole case that
-  // should mirror instead of resolve — avoids the race entirely.
-  const bottomGPrevRef=useRef({rh:null,rRef:null});
+  // BOTTOM G's stiffness mode keeps fe.rideBottomG resolved to Hz — see bottomGStep for when it
+  // resolves, when it mirrors instead, and when it lies dormant. One effect, one decision per fire.
+  const bottomGPrevRef=useRef({rh:null,rRef:null,dormant:false});
   useEffect(()=>{
-    if((fe.rideStiffMode??'hz')!=='bottomG'){bottomGPrevRef.current={rh:null,rRef:null};return;}
     const rRef=physics.rideRef??'front';
-    const rhPrimary_mm=rRef==='rear'?ch.rideHeightR*1000:rRef==='shared'?(ch.rideHeightF+ch.rideHeightR)/2*1000:ch.rideHeightF*1000;
-    if(!(rhPrimary_mm>0))return;
-    const prev=bottomGPrevRef.current;
-    const refSwitched=prev.rRef!==null&&prev.rRef!==rRef;
-    bottomGPrevRef.current={rh:rhPrimary_mm,rRef};
-    // A restore can flip RIDE REF., but the snapshot already holds the rideBottomG that goes with it.
-    if(restoringRef.current)return;
-    const hzNow=rRef==='rear'?tune.rHz:rRef==='shared'?(tune.fHz+tune.rHz)/2:tune.fHz;
-    if(refSwitched){
-      const curG=Math.round(rhPrimary_mm*Math.pow(2*Math.PI*hzNow,2)/9810*100)/100;
-      if(fe.rideBottomG==null||Math.abs(curG-fe.rideBottomG)>0.001)setFeRaw(p=>({...p,rideBottomG:curG}));
-      return;
-    }
-    if(fe.rideBottomG==null)return;
-    const hz=clampHz(Math.sqrt(9810*fe.rideBottomG/rhPrimary_mm)/(2*Math.PI));
-    const rs=hzToRs(hz);
-    // Sub-grid epsilon: one hzToRs tick IS 0.001, so testing >0.001 would discard every
-    // single-tick resolve and strand the target one step away from the Hz it asks for.
-    if(Math.abs(rs-fe.rideStiffness)>1e-6)setFeRaw(p=>({...p,rideStiffness:rs}));
-  },[ch.rideHeightF,ch.rideHeightR,fe.rideStiffMode,fe.rideBottomG,physics.rideRef,tune.fHz,tune.rHz]); // eslint-disable-line
+    const r=bottomGStep(bottomGPrevRef.current,{
+      wantsG:(fe.rideStiffMode??'hz')==='bottomG',live:!!ch.useRideHeightCG&&uiMode!=='beginner',rRef,
+      rh_mm:rRef==='rear'?ch.rideHeightR*1000:rRef==='shared'?(ch.rideHeightF+ch.rideHeightR)/2*1000:ch.rideHeightF*1000,
+      hzNow:rsToHz(fe.rideStiffness??DEF_FE.rideStiffness),
+      target:fe.rideBottomG,rs:fe.rideStiffness,restoring:restoringRef.current});
+    bottomGPrevRef.current=r.prev;
+    if(r.patch)setFeRaw(p=>({...p,...r.patch}));
+  },[ch.rideHeightF,ch.rideHeightR,ch.useRideHeightCG,uiMode,fe.rideStiffMode,fe.rideBottomG,fe.rideStiffness,physics.rideRef,tune.fHz,tune.rHz]); // eslint-disable-line
   const autoAlign=useMemo(()=>computeAlignment(ch,tune,ch.layout,dr.buildType),[ch,tune,ch.layout,dr.buildType]);
   // alignMode: 'build' (default, computeAlignment only) | 'mech' (nudge toward the resolved
   // Mech Balance Target's gap from natural — reinforces deliberate tuning intent, same signal
@@ -8999,8 +9086,10 @@ function App(){
             // Ride Stiffness must follow whichever axle rideRef currently anchors — BEG has no
             // toggle for this, but rideRef can persist from a prior INT/PRO session, and binding
             // this slider to frontHz unconditionally silently edits the wrong axle when it isn't 'front'.
+            // The stored setting already is that axle's Hz (or the average): bound to it rather than
+            // the delivered Hz, as the INT/PRO slider is, so BeamNG's snap cannot stall the wheel.
             const rideRefBeg=physics.rideRef??'front';
-            const ridePrimaryHz=rideRefBeg==='rear'?tune.rHz:rideRefBeg==='shared'?(tune.fHz+tune.rHz)/2:tune.fHz;
+            const ridePrimaryHz=rsToHz(fe.rideStiffness??DEF_FE.rideStiffness);
             const[hzCat,hzCol]=hzCtx(ridePrimaryHz);
             // Beginner can't reach MECH/CO-SOLVE/MAN (PRO-only) — only whatever INT uses.
             // Blends NEUTRAL ARB mode (springs' bias cancelled) with a slight ride-Hz-ratio
@@ -9942,16 +10031,23 @@ function App(){
             <div style={dim('feel')}>
             {(()=>{
               const rRef=physics.rideRef??'front'; // 'front', 'rear', or 'shared'
-              // Use tune.fHz/tune.rHz (not physics values) so CO-SOLVE effectiveRHz is reflected.
-              // physics.rearHz is the pre-CO-SOLVE flatRide value; tune.rHz is the actual solved Hz.
-              const avgHz=(tune.fHz+tune.rHz)/2;
-              const primaryHz=rRef==='rear'?tune.rHz:rRef==='shared'?avgHz:tune.fHz;
+              // The slider is bound to the stored setting, not the Hz the tune delivers. Every Ride
+              // Reference now delivers what it is set to (CO-SOLVE's REAR/SHARED inversion
+              // included), but BeamNG snaps the springs: bound to the snapped tune.fHz, a wheel
+              // notch stepped from 0.812 to 0.822, rounded back to the 0.82 already stored, and
+              // the wheel stuck there for good. The delivered Hz is the SPRINGS card's to show.
+              const primaryHz=rsToHz(fe.rideStiffness??DEF_FE.rideStiffness);
               // Bottom-out g <-> Hz, same sag model as the SAG vs LOAD chart (gConst=9810mm/s^2).
               const rhPrimary_mm=rRef==='rear'?ch.rideHeightR*1000:rRef==='shared'?(ch.rideHeightF+ch.rideHeightR)/2*1000:ch.rideHeightF*1000;
               const hzToBottomG=hz=>rhPrimary_mm*Math.pow(2*Math.PI*hz,2)/9810;
               const bottomGToHz=g=>Math.sqrt(9810*Math.max(0,g)/rhPrimary_mm)/(2*Math.PI);
               const bottomGLo=hzToBottomG(HZ_MIN), bottomGHi=hzToBottomG(HZ_MAX);
               const primaryBottomG=hzToBottomG(primaryHz);
+              // Bottom-Out reads its stored target for the same reason; the effect keeps the two in
+              // step while the slider is live (bottomGStep), and the range clamp only shows a target
+              // past this ride height's band at the end it resolves to.
+              const shownBottomG=Math.max(bottomGLo,Math.min(bottomGHi,
+                typeof fe.rideBottomG==='number'&&isFinite(fe.rideBottomG)?fe.rideBottomG:primaryBottomG));
               // Translational parity for the REAR HZ mode: 'shared' (equal bottom-out) only
               // exists under BOTTOM G's, and 'independent' only under FRONT/REAR ref, so those
               // combinations have to be rehomed when the mode they belong to is left. Falling
@@ -9959,28 +10055,17 @@ function App(){
               // MULTIPLIER to the ratio the car is sitting at right now reproduces the exact
               // same front and rear frequencies, so only the control changes, not the car.
               const holdHzRatio={rearHzMode:'multiplier',
-                rearHzMult:Math.round(Math.max(0.5,Math.min(3,physics.frontHz>0?physics.rearHz/physics.frontHz:1.2))*100)/100};
+                rearHzMult:holdHzMult(physics.frontHz>0?physics.rearHz/physics.frontHz:1.2)};
+              // RIDE REF. buttons: see rideRefSwitch. It reads the CO-SOLVE rear from tune, not
+              // physics.rearHz, which is the pre-CO-SOLVE value.
+              const switchRef=to=>setFe(p=>rideRefSwitch(ch,feEffective,p,to,physics,tune));
               return(<>
                 {/* Ride reference toggle — always visible, works in CO-SOLVE via Hz inversion */}
                 <Hide id="ride.ref"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
                   <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>RIDE REF.<Hint text="Which axle the stiffness slider sets. FRONT or REAR: that axle, the other is derived. SHARED: the average, with the mode below setting the ratio. Switching never changes the actual Hz." term="ride-ref"/></span>
-                  <button className={`tog${rRef==='front'?' on':''}`}
-                    onClick={()=>setFe(p=>({...p,
-                      rideRef:'front',
-                      rideStiffness:hzToRs(physics.frontHz),
-                      ...(p.rearHzMode==='independent'?{rearHzMan:Math.round(physics.rearHz*100)/100}:{}),
-                      ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>FRONT</button>
-                  <button className={`tog${rRef==='shared'?' on':''}`}
-                    onClick={()=>setFe(p=>({...p,
-                      rideRef:'shared',
-                      rideStiffness:hzToRs((tune.fHz+tune.rHz)/2),
-                      ...(p.rearHzMode==='independent'?holdHzRatio:{})}))}>SHARED</button>
-                  <button className={`tog${rRef==='rear'?' on':''}`}
-                    onClick={()=>setFe(p=>({...p,
-                      rideRef:'rear',
-                      rideStiffness:hzToRs(tune.rHz),
-                      ...(p.rearHzMode==='independent'?{rearHzMan:Math.round(tune.fHz*100)/100}:{}),
-                      ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>REAR</button>
+                  <button className={`tog${rRef==='front'?' on':''}`} onClick={()=>switchRef('front')}>FRONT</button>
+                  <button className={`tog${rRef==='shared'?' on':''}`} onClick={()=>switchRef('shared')}>SHARED</button>
+                  <button className={`tog${rRef==='rear'?' on':''}`} onClick={()=>switchRef('rear')}>REAR</button>
                 </div></Hide>
                 {(()=>{
                   const effStiffMode=(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?'bottomG':'hz';
@@ -9994,11 +10079,13 @@ function App(){
                 <Hide id="ride.stiffness">{(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?
                 <FeelSlider
                   label={rRef==='rear'?'Rear Bottom-Out':rRef==='shared'?'Avg Bottom-Out':'Front Bottom-Out'}
-                  value={primaryBottomG}
+                  value={shownBottomG}
                   onChange={v=>setFe(p=>({...p,rideStiffness:hzToRs(bottomGToHz(v)),rideBottomG:v}))}
                   min={bottomGLo} max={bottomGHi} step={0.01} leftLabel={bottomGLo.toFixed(2)} rightLabel={bottomGHi.toFixed(2)}
                   markers={null}
-                  box={{unit:'g'}}
+                  // The box shows the g to 0.001, as the Hz grid does; the slider and the stored
+                  // target keep full precision, so this changes only what is printed.
+                  box={{unit:'g',value:Math.round(shownBottomG*1000)/1000}}
                   hint={`Vertical load, in g, at which the ${rRef==='rear'?'rear':rRef==='shared'?'average':'front'} axle bottoms out, from static ride height and 1g sag. Saved with the build; Hz re-solves to hold it.`} hintTerm="bottom-g"/>
                 :
                 <FeelSlider
@@ -10030,14 +10117,14 @@ function App(){
                 <div style={{display:'grid',gridTemplateColumns:`repeat(${btnCount},1fr)`,gap:3,marginBottom:10}}>
                   <button className={`tog${rearHzMode==='multiplier'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'multiplier',
-                      rearHzMult:Math.round(physics.rearHz/physics.frontHz*100)/100}))}>MULTIPLIER</button>
+                      rearHzMult:holdHzMult(physics.frontHz>0?physics.rearHz/physics.frontHz:1.2)}))}>MULTIPLIER</button>
                   {showHzMech&&<button className={`tog${rearHzMode==='mech'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'mech'}))}>MECH</button>}
                   <button className={`tog${rearHzMode==='flatRide'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'flatRide'}))}>FLAT RIDE</button>
                   {!isShared&&<button className={`tog${rearHzMode==='independent'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'independent',
-                      rearHzMan:Math.round((physics.rideRef==='rear'?physics.frontHz:physics.rearHz)*100)/100}))}>INDEPENDENT</button>}
+                      rearHzMan:hzToRs(physics.rideRef==='rear'?physics.frontHz:physics.rearHz)}))}>INDEPENDENT</button>}
                   {showSharedG&&<button className={`tog${rearHzMode==='shared'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'shared'}))}>SHARED</button>}
                 </div></Hide>

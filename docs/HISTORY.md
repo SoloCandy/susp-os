@@ -11,6 +11,76 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — the scroll wheel stalled on Ride Stiffness in BeamNG
+
+Ride Stiffness (INT/PRO and BEG) was bound to the Hz the tune delivers (`tune.fHz`, or the
+rear or average), and FeelSlider's wheel steps from the value a slider is bound to. In BeamNG
+that is the snapped spring's Hz. At the soft end of a light car one 500 N/m step is worth more
+than a whole 0.01 slider step, so the snapped Hz could sit more than half a step below the
+setting: stored 0.82, shown 0.8124, a notch up gave 0.8224, which rounded back to 0.82. The
+wheel stayed stuck there (49 of 50 notches did nothing), and the number box printed `0.812386`.
+
+Both stiffness sliders now show `fe.rideStiffness`, and Bottom-Out shows `fe.rideBottomG`. The
+wheel step is the pure `wheelStepOf`. The BOTTOM G's button and the BOTTOM G's mirror now seed
+from the stored setting too: the BeamNG snapped Hz they read before moved the stiffness onto
+the snap on every seed. `tests-ride.js` drives the wheel across the whole band from both
+bindings, and the snapped one must still stall, so the fixture keeps testing something.
+
+## Fixed — CO-SOLVE's REAR / SHARED slider landed up to 0.4 Hz from the value set
+
+Under CO-SOLVE with a REAR or SHARED Ride Reference, `feelToPhysics` has to find the front Hz
+that the front → rear solve carries to the slider's value. Auto Spring Share's `S` moves with
+that front Hz, so it ran a two-pass fixed point (the fix recorded further down, "CO-SOLVE's
+Hz-slider pre-inversion ignored Auto Spring Share"). Two passes did not converge: on a heavy
+FWD car REAR 2.75 Hz delivered 3.17 Hz under ROLL and 4.00 delivered 4.25 under SHARE %, and
+ROLL never settled however many passes it got, swinging by 0.2–0.4 Hz. The slider shows the
+delivered Hz, so it jumped away from where it was dragged.
+
+It now bisects the front Hz on `coSolveRearOf`, the same function `computeTune` takes its rear
+from, so the two cannot disagree. The rear rises with the front everywhere except a few
+thousandths of a Hz at `S`'s search kinks, so the bisection holds: worst miss across three
+chassis, four ARB modes and five targets is 0.0003 Hz. The same MECH lesson is recorded further down,
+where its two-pass estimate diverged under ROLL ° and was replaced by a bisection too.
+`tests-ride.js` pins it.
+
+## Fixed — a leftover BOTTOM G's froze the Hz slider where BOTTOM G's is hidden
+
+The BOTTOM G's effect resolved `rideBottomG` to Hz whenever `fe.rideStiffMode` was
+`bottomG`. It never asked whether that slider could be seen, and two places hide it:
+BEG, which has no STIFFNESS toggle, and INT/PRO with CHASSIS → MANUAL, which hides the
+STIFFNESS row. Both show the Hz slider instead, and every drag was resolved straight back to
+the stored target, so the slider would not move. Reproduced in BEG (dragged to 1.30, read 1.93)
+and in PRO under MANUAL.
+
+The decision now lives in the pure `bottomGStep`, which takes a `live` flag. While the target
+is out of reach it lies dormant. When it comes back it is mirrored from the springs as they
+stand, the way an axle switch mirrors it, rather than resolved from a target the user could
+not see. Two smaller drifts in the mirror went with it: it rounded the mirrored g to 0.01, so
+the resolve that follows moved the stiffness by up to ~0.002 Hz, and it read BeamNG's snapped
+Hz.
+
+## Fixed — RIDE REF. moved the springs when the derived axle was clamped, and in BeamNG
+
+"Switching never changes the actual Hz" held only while the Hz mode could re-derive the other
+axle. With the derived axle clamped at the band edge it could not. FRONT 5.00 ×1.60 asks for
+an 8.00 rear and runs 5.50; switching to REAR anchored 5.50 and derived 5.50 / 1.60 = 3.44 at
+the front. FLAT RIDE and MECH did the same, by up to 1.5 Hz. `rideRefSwitch` now solves each
+candidate and, when it misses, rehomes the Hz mode to MULTIPLIER at the ratio the car runs (or
+INDEPENDENT, outside 0.50–3.00). That's the rule INDEPENDENT → SHARED already followed.
+
+Three smaller drifts went in the same change:
+
+- **BeamNG read the snapped springs.** REAR and SHARED read `tune.rHz` (the rear the snap
+  delivers), so the switch re-snapped and could move a spring one 500 N/m step. The switch now
+  reads `tune.rHzTarget`, the pre-snap rear, and nudges the stiffness along its grid to keep
+  both snapped springs.
+- **The held ratio and INDEPENDENT Hz were rounded to 0.01.** Worth up to ~0.015 Hz on the
+  derived axle; now `holdHzMult`'s 0.0001 grid and the 0.001 Hz grid.
+- **The MULTIPLIER Hz-mode button seeded a ratio outside the slider's 0.50–3.00.** Every other
+  site clamped it.
+
+The states that still have no exact form are in KNOWN_ISSUES.md.
+
 ## Changed — MEASURE ARB takes four readings and can give each axle its own click scale
 
 Step 2 averaged two single-scale solves (bars `1 / H` and `H / 1`) into one click scale for
