@@ -37,7 +37,7 @@ const slice = (a, b) => {
 const M = new Function(
   slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
-  slice('const KG_TO_LB=', 'const arbCtx=') +
+  slice('const KG_TO_LB=', 'const arbRowMeta=') +
   '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +

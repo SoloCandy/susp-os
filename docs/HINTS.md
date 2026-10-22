@@ -602,11 +602,11 @@ camber target and `{roll}` the tune's roll angle:
 
 **ANTI-ROLL BARS:**
 
-> Click values to enter in the game's ARB menu. Amber means above 88% of the game's limit.
+> Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets.
 
 **SPRINGS:**
 
-> Spring rates in the spring unit chosen in UNITS to enter in the tuning menu. Badge = stiffness band (SOFT/ROAD/FIRM/RACE); REAR × = rear Hz ÷ front Hz.
+> Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; the brighter figure on each row is the one that mode sets. % roll: the spring's share of its axle.
 
 **DAMPERS:**
 

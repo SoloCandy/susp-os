@@ -35,7 +35,7 @@ const slice = (a, b) => {
 const M = new Function(
   slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
-  slice('const KG_TO_LB=', 'const arbCtx=') + '\n' +
+  slice('const KG_TO_LB=', 'const arbRowMeta=') + '\n' +
   slice('const DNA_ARCHETYPES=', 'const Hint=') + '\n' +
   slice('const CODEC_FIELDS=', 'const sanitizeTune=') + '\n' +
   slice('const sanitizeTune=', '\nconst useTwoTap') +

@@ -48,7 +48,7 @@ const slice = (a, b) => {
 const M = new Function(
   slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
-  slice('const KG_TO_LB=', 'const arbCtx=') +
+  slice('const KG_TO_LB=', 'const arbRowMeta=') +
   '\nreturn{DEF_CH,DEF_FE,cornerMasses,tyreWidths,tireCorrOf,parseTyre,' +
   'axleRollStiffness,rollCenterHeight,latLoadTransfer,mechBalanceLLT,balanceFromRsBal,' +
   'displayRsBalance,natGeomOf,natRsOf,natDisplayOf,gripNeutralOf,clampBalTarget,' +
@@ -696,7 +696,7 @@ t('the chassis term does not depend on MECH_BAL_GAIN', () => {
   const M2 = new Function(
     alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
     alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
-    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbCtx=')) +
+    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbRowMeta=')) +
     '\nreturn{gripNeutralSplitOf,balanceFromRsBal};')();
   for (const { name, ch } of CHASSIS) {
     near(M2.gripNeutralSplitOf(ch), M.gripNeutralSplitOf(ch), 1e-9, `${name}: split moved with the gain`);
@@ -789,7 +789,7 @@ t('the phase margins do not depend on MECH_BAL_GAIN, and mechBalanceLLT is axleL
   const M2 = new Function(
     alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
     alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
-    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbCtx=')) +
+    alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbRowMeta=')) +
     '\nreturn{phaseMargins};')();
   for (const { name, ch } of CHASSIS) {
     const tn = tuneOf(ch), a = M.phaseMargins(ch, tn, 60, { layout: 'AWD', center: 60 }), b = M2.phaseMargins(ch, tn, 60, { layout: 'AWD', center: 60 });

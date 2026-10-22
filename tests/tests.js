@@ -1036,7 +1036,7 @@ console.log('\nmirror vs app (reads index.html)');
   const A = new Function(
     slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
     slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
-    slice('const KG_TO_LB=', 'const arbCtx=') +
+    slice('const KG_TO_LB=', 'const arbRowMeta=') +
     '\nreturn{DEF_CH,DEF_FE,DEF_DR,KG_TO_LB,LB_IN_TO_NM,MPH_TO_MS,DAMPING_CALIBRATION,GAME_LIMITS,' +
     'TIRE_LOAD_SENS,MECH_BAL_GAIN,WIDTH_GRIP_EXP,MECH_BALANCE_TARGET,DIFF_BIAS_SCALE,DIFF_TYPE_SCALE,' +
     'HZ_MIN,HZ_MAX,rollCenterHeight,cornerMasses,mechBalanceLLT,balanceFromRsBal,' +

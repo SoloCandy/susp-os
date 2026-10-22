@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — DAMPERS values pushed off the card on a phone
+
+The DAMPERS output's three row figures (settle, force, ζ) made a rebound row wider than a
+375 px screen. Every part of an output row was `nowrap`, so nothing could give, and the value
+and its `/ 20` went off the card's right edge: the one number the row exists to transcribe. The
+meta figures now sit in one box that wraps onto a second line under the label; on desktop the
+rows are unchanged.
+
+## Changed — ANTI-ROLL BARS and SPRINGS output name their modes
+
+The ARB header read `ROLL x°` and the SPRINGS header `REAR ×y`, which said nothing about how
+either was solved, and the ARB rows' LOW/MED/HIGH/MAX tag repeated the amber over-88% warning
+in four colours. As DAMPERS already does, the headers now name the settings
+(`SHARE 25% · NEUTRAL EQUAL ROLL · 1.20°`, `FLAT RIDE 70 mph · FRONT REF`), and the row
+figure the active mode sets is brighter. ARB rows tag only a pinned bar (FLOOR, CEILING);
+spring rows keep the Hz band but show CLAMPED or LIFT RISK on the axle it affects. The roll
+warning names the bar at its ceiling and points Target Roll Angle at the roll reached; the lift
+warning gives the rear/front ratio against its ×1.20 line and names the Balance Target slider in
+use. `arbCtx`, the tag's only source, is gone.
+
+## Changed — output warnings are written once, for both layouts
+
+The roll-target, mech-balance, Hz-clamp and wheel-lift warnings were written out twice: inline in
+the Forza ARB and SPRINGS cards, and again in the BeamNG layout's `warnBox` list. The only
+difference was the `mechReachNote` limit argument (`lim.arb` in one, `physMode?null:lim.arb` in
+the other, the same value in each layout). They now come from one `outWarns` view, with the damper warnings, and one `OutWarn` box.
+The Forza amber border moves from `#f5a623` to the text's own `#f59e0b`, as BeamNG already drew it.
+
 ## Changed — the DAMPERS output names its modes and shows what they equalise
 
 The output header read `F/R BIAS x% F · BUMP y% ζ`. F/R BIAS was the front's share of rebound ζ,

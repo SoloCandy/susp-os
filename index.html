@@ -1713,7 +1713,7 @@ const feelToPhysics=(ch,fe)=>{
     // guarded, but it means "the DERIVED axle was clamped" — under a REAR reference that axle
     // is the front, so it must still carry secondaryHzClamped. Hard-coding false here silently
     // swallowed every front-axle clamp under REAR (inverse FLAT RIDE at a low Target Speed
-    // floors the front at HZ_MIN), leaving the banner, the warnBox and the CLAMPED badge all
+    // floors the front at HZ_MIN), leaving the banner, the output warning and the CLAMPED badge all
     // dark while the reference axle itself, which is never clamped, was the only one reported.
     if(rideRef==='front'){
       rearHz=secondaryHz;rearHzClamped=secondaryHzClamped;
@@ -2030,7 +2030,7 @@ const computeTune=(ch,phys,gameMode)=>{
   // stay lb/in and dampers/ARBs come out as real coefficients, instead of being compressed
   // into a click scale that has no counterpart in the target game. The display layer then
   // converts to whatever units that game's sliders actually use — for BeamNG, N/m springs,
-  // N/m/s damping and a linear N/m anti-roll rate; see the helpers near arbCtx.
+  // N/m/s damping and a linear N/m anti-roll rate; see the helpers near arbOut.
   // `dampCalib` of 1 and `physUnits` below are the only two switches here.
   const physUnits=isPhysical(gameMode);
   const dampCalib=physUnits?1:DAMPING_CALIBRATION;
@@ -3066,16 +3066,6 @@ const arbOut=(v,lim,track=1.55,mr=1)=>lim.arb==null
   ? {value:roundTo(2*v/(track*track*mrDiv(mr)),1000),unit:'N/m',decimals:0}
   : {value:v,unit:`/ ${lim.arb}`,decimals:1};
 const warnOver=(v,ceiling)=>ceiling==null?false:v>ceiling*0.88;
-// "how close to the game's ceiling" — meaningless without one, so callers in physical
-// modes get null back and render no badge rather than an invented band.
-const arbCtx=(arb,limit)=>{
-  if(limit==null)return null;
-  const p=(arb-1)/(limit-1);
-  if(p<0.50)return['LOW','#60a5fa'];
-  if(p<0.75)return['MED','#f59e0b'];
-  if(p<0.90)return['HIGH','#f97316'];
-  return['MAX','#ef4444'];
-};
 // An ARB row's meta: its share of the axle's roll stiffness, and of both bars together. With no
 // bars at all (BeamNG floors at 0) the second is 0/0 — "—" rather than NaN, or an invented split.
 const arbRowMeta=(rsAb,rsSp,rsAbTotal)=>[
@@ -4671,13 +4661,16 @@ const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<
 const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor='#f59e0b'})=>(
   <div style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 10px'}}>
     <span style={{fontSize:11,color:'#cbd5e1',letterSpacing:0.5,flexShrink:0}}>{label}</span>
-    {/* A meta entry is a string, or {text,on}: on = a figure the active mode equalises, drawn
-        brighter (the DAMPERS rows, mirroring the sidebar table's highlighted rows). */}
-    {(Array.isArray(meta)?meta:[meta]).filter(Boolean).map((m,i)=>(
-      <span key={i} style={{fontSize:10,color:m?.on?'#cbd5e1':'#64748b',fontFamily:'var(--font-mono)',
-                            whiteSpace:'nowrap'}}>{m?.text??m}</span>
-    ))}
-    <span style={{flex:1,minWidth:8}}/>
+    {/* A meta entry is a string, or {text,on}: on = a figure the active mode sets, drawn
+        brighter (mirroring the sidebar DAMPERS table's highlighted rows). The figures share one
+        box that wraps and takes the spare width, so on a phone they fold onto a second line
+        instead of pushing the value, the one thing to transcribe, off the card. */}
+    <span style={{flex:1,minWidth:0,display:'flex',flexWrap:'wrap',columnGap:10,rowGap:2,alignItems:'baseline'}}>
+      {(Array.isArray(meta)?meta:[meta]).filter(Boolean).map((m,i)=>(
+        <span key={i} style={{fontSize:10,color:m?.on?'#cbd5e1':'#64748b',fontFamily:'var(--font-mono)',
+                              whiteSpace:'nowrap'}}>{m?.text??m}</span>
+      ))}
+    </span>
     {note&&<span style={{fontSize:10,color:noteColor,whiteSpace:'nowrap'}}>{note}</span>}
     <span style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,
                   color:warn?'#f59e0b':'#e2e8f0',whiteSpace:'nowrap'}}>
@@ -4715,6 +4708,11 @@ const Stat=({label,value,unit,decimals=2})=>(
 // A <Keep> child is what must outlive a hidden card (its warnings): drawn in place normally,
 // and on its own when the card is hidden.
 const Keep=({children})=>children??null;
+// The output panel's warning box, for both layouts. Its text comes from App's outWarns.
+const OutWarn=({color='#f59e0b',children})=>(
+  <div style={{fontSize:11,color,lineHeight:1.6,marginTop:8,padding:'6px 8px',
+       background:'#020617',borderRadius:2,border:`1px solid ${color}33`}}>{children}</div>
+);
 const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null})=>{
   const L=React.useContext(LayoutCtx);
   const off=hid!=null&&L.isHidden(hid);
@@ -6870,7 +6868,7 @@ const GLOSSARY=[
   ]},
   {group:'Roll & Anti-Roll Bars',terms:[
     {id:'roll-stiffness',term:'Roll Stiffness',tier:'beginner',def:"Total resistance to body lean in a corner, from springs and ARBs together. The front/rear split, not the total, sets understeer or oversteer tendency. The axle with the larger share takes more of the cornering load transfer, and because tyre grip falls off with load, that axle lets go first. The total sets how far the body leans. The ANTI-ROLL BARS card header gives body roll at 1 g.\n\nAn axle's spring roll stiffness grows with ride frequency squared, corner mass and track width squared. ARBs add to it without stiffening the ride. What it resists is the roll moment: body mass times CG height above the roll centre. Heavier or taller cars need more.\n\n[INT] In the ANTI-ROLL BARS section, ROLL ° solves the bars for a target roll angle and SHARE % sets the ARB fraction of the total. VISUALS draws the front/rear split.",see:['arb','mech-balance','load-transfer','stiffness-mode']},
-    {id:'arb',term:'ARB (Anti-Roll Bar)',tier:'beginner',def:"A bar linking the left and right wheels on one axle. It resists body roll without stiffening the ride vertically, because it only engages when one side compresses relative to the other. Stiffer bars mean less roll, but less compliance when one wheel hits a bump. The front/rear ARB split is the main lever for mechanical handling balance. A stiffer front gives more understeer and a stiffer rear more oversteer. In BEG the Balance slider moves it.\n\nIn Forza the card gives clicks from 1 up to the game's limit: 65 in Horizon, 40 in Motorsport. A LOW/MED/HIGH/MAX tag shows where each sits, and values above 88% of the limit turn amber. Each row also shows the bar's % of that axle's roll stiffness and the axle's % of total ARB. BeamNG gives Anti-Roll Spring Rate in N/m instead.\n\n[INT] In the ANTI-ROLL BARS section, Stiffness Mode sets the total and Balance Mode the split. MAN takes clicks directly.",see:['roll-stiffness','arb-scale','stiffness-mode','balance-mode']},
+    {id:'arb',term:'ARB (Anti-Roll Bar)',tier:'beginner',def:"A bar linking the left and right wheels on one axle. It resists body roll without stiffening the ride vertically, because it only engages when one side compresses relative to the other. Stiffer bars mean less roll, but less compliance when one wheel hits a bump. The front/rear ARB split is the main lever for mechanical handling balance. A stiffer front gives more understeer and a stiffer rear more oversteer. In BEG the Balance slider moves it.\n\nIn Forza the card gives clicks from 1 up to the game's limit: 65 in Horizon, 40 in Motorsport. Values above 88% of the limit turn amber, and FLOOR or CEILING marks a bar pinned at 1 click or the limit. Each row also shows the bar's % of that axle's roll stiffness and the axle's % of total ARB. BeamNG gives Anti-Roll Spring Rate in N/m instead.\n\n[INT] In the ANTI-ROLL BARS section, Stiffness Mode sets the total and Balance Mode the split. MAN takes clicks directly.",see:['roll-stiffness','arb-scale','stiffness-mode','balance-mode']},
     {id:'mech-balance',term:'Mech(anical) Balance',tier:'beginner',short:'Mech Balance',def:"The rear axle's share of total roll stiffness (springs + ARBs), on a 0–1 scale where 0.50 is an even split. Higher means more rear roll resistance and more oversteer tendency; lower means more front and more understeer. Forza displays it as Mech Balance, and Tune Check's MEASURE steps ask you to type it in.\n\nForza's reading also counts each tyre flexing in series with the suspension, plus a small tyre-width term. So it moves less than the raw spring and bar split, and the app reports it the same way. It describes roll stiffness, not grip.\n\n[INT] The VISUALS roll split puts its divide where this reading sits.\n\n[PRO] GRIP BIAS is the separate at-the-limit grip tendency. The MECH chip shows Mech Balance with its Δ from natural: blue is more rear-biased than natural, amber more front-biased. The Mech Balance Target, MECH, CO-SOLVE and Hz MECH all aim at the displayed figure.",see:['natural-balance','tyre-compliance','mech-balance-target','grip-bias']},
     {id:'tyre-compliance',term:'Tyre Compliance',tier:'pro',def:"The tyre's own flex, acting like a spring. In Forza it adds to the suspension's the way two springs stacked end to end do, so an axle reads K·Kt/(K+Kt). The stiffer an axle's springs and bars, the more the tyre limits it, which compresses front/rear differences. Doubling a spring rate therefore moves Forza's Mech Balance less than you'd expect. The app models the tyre as a 3.94 Hz spring on a 269 kg corner, stiffening with the square root of load. That was fitted to 33 in-game readings on three cars, and tyre width showed no measurable effect. BeamNG stays suspension-only.\n\nThe FIT? badge on the Handling Balance bar shows where figures are extrapolated rather than wrong: spring Hz outside 2.5–3.5, corner mass outside 269–476 kg, or tyre width outside 215–335 mm. LIFT means an inside wheel unloads at 1 g, so more bar on that end stops moving the balance. CG (amber) means the ride-height CG estimate is clamped. Every reading holds only at the tyre pressures it was taken at.",see:['mech-balance','natural-balance','arb-scale']},
     {id:'arb-scale',term:'ARB Scale',tier:'beginner',def:"How much roll stiffness one ARB click is worth. Forza scales its ARB slider differently on every car. Unless you measure yours, the app uses a shared default of 540 (N·m/rad per click per m² of track). The scale turns solved roll stiffness into clicks, so a measured scale moves the ARB outputs.\n\nMeasure it with STEP 2 · ARB SCALE SETUP in Tune Check's MEASURE tab. It is Forza only and comes after step 1. Keep step 1's springs, ride height and tyres. Take four readings: front 1 and rear at the game limit, the reverse, both at the limit, and both at half. Type the Mech Balance shown each time. If one scale (150–1500) explains all four within Forza's rounding, both axles share it; if not, the front and rear get their own scales. MEASURED on SCALE IN USE applies it, and DEFAULT returns to 540. It saves with the chassis; scales from before the tyre-model update were cleared.\n\nIt turns RE-MEASURE when the natural balance reading changes or is cleared.\n\n[PRO] The BALANCE section then also shows ARB SCALE: RE-MEASURE.",see:['arb','natural-balance','tune-check']},
@@ -6894,7 +6892,7 @@ const GLOSSARY=[
   ]},
   {group:'Ride & Springs',terms:[
     {id:'hz',term:'Hz (Ride Frequency)',tier:'beginner',def:"Ride frequency, in Hz, is how many times per second a corner would bounce if pushed down and released — spring stiffness measured against the weight it carries. Higher Hz means a stiffer spring, faster response and more body control, at the cost of compliance over bumps. Working in Hz rather than spring rate means the same number gives the same feel on a light or a heavy car. Street cars usually run 1.0–1.8 Hz (the app's SOFT and ROAD bands); track cars 1.8–2.6 Hz (FIRM into RACE). The bands split at 1.2, 1.8 and 2.5 Hz, and the app works between 0.8 and 5.5 Hz.\n\n[INT] Each axle has its own Hz: RIDE REF. picks the axle the stiffness slider sets and Hz MODE derives the other. A higher rear-to-front ratio adds rear roll stiffness and leans toward oversteer; a lower one leans toward understeer.",see:['ride-stiffness','spring-rate','corner-mass','hz-mode']},
-    {id:'spring-rate',term:'Spring Rate (lb/in, N/mm or kgf/mm)',tier:'beginner',def:"Spring rate is the force needed to compress a spring by one unit of travel — the number you enter in the game's spring menu. SUSP.OS derives it from each axle's ride frequency and corner mass; you never set it directly. Rate rises with the square of Hz, so ×1.20 in frequency is ×1.44 in rate, and a heavier corner needs a proportionally stiffer spring for the same Hz. The unit follows your UNITS choice; BeamNG uses N/m.\n\nThe SPRINGS card lists each axle's rate with its SOFT / ROAD / FIRM / RACE badge and Hz; REAR × in its header is rear Hz ÷ front Hz, however that ratio was derived.\n\n[INT] The SPR F / SPR R strip in the RIDE section shows the same values as the SPRINGS card.",see:['hz','corner-mass','ride-stiffness']},
+    {id:'spring-rate',term:'Spring Rate (lb/in, N/mm or kgf/mm)',tier:'beginner',def:"Spring rate is the force needed to compress a spring by one unit of travel — the number you enter in the game's spring menu. SUSP.OS derives it from each axle's ride frequency and corner mass; you never set it directly. Rate rises with the square of Hz, so ×1.20 in frequency is ×1.44 in rate, and a heavier corner needs a proportionally stiffer spring for the same Hz. The unit follows your UNITS choice; BeamNG uses N/m.\n\nThe SPRINGS card lists each axle's rate with its SOFT / ROAD / FIRM / RACE badge and Hz; its header names the Hz mode (MULTIPLIER ×1.20, FLAT RIDE 70 mph, MECH 0.60…) and the ride reference axle.\n\n[INT] The SPR F / SPR R strip in the RIDE section shows the same values as the SPRINGS card.",see:['hz','corner-mass','ride-stiffness']},
     {id:'corner-mass',term:'Corner Mass',tier:'intermediate',def:"Corner mass is the weight resting on one wheel: total weight split by front weight bias, then halved for each side. It turns a ride frequency into a spring rate and a damping ratio into a damper value, since a heavier corner needs more force to move the same way. It is also why EQUAL FORCE damping differs from TIME SYNC: equal force weighs each axle's ζ by corner mass × Hz, while equal settle time ignores mass.",see:['spring-rate','equal-force','time-sync']},
     {id:'sag',term:'Sag',tier:'intermediate',def:"Sag is how far the suspension compresses under the car's own weight at rest, before any cornering or bumps. In this model it depends only on ride frequency: static sag is 9810 ÷ (2π·Hz)² mm, so softer springs sag more and doubling Hz cuts sag to a quarter, whatever the car weighs. More vertical load sags it proportionally further.\n\nThe SAG vs LOAD chart in VISUALS plots it against vertical load, with an outside-wheel line that adds cornering load transfer, and shows how much travel is left before bottoming. It needs RIDE HEIGHT → CG on in CHASSIS and valid tyre sizes.",see:['bottoming','sag-vs-load','bottom-g']},
     {id:'bottoming',term:'Bottoming',tier:'beginner',def:"Bottoming is running out of suspension travel: the wheel compresses as far as it can and the chassis takes the hit directly, which spikes grip loss mid-corner. Raising ride height or stiffening springs both buy travel back. Saved car entries in the garage show the load, in g, at which that car bottoms out on its own ride height.\n\n[INT] The model treats static ride height as the travel available and bottoms a corner when its sag under load reaches it, so the bottom-out load, in g, is ride height in mm × (2π·Hz)² ÷ 9810. STIFFNESS → BOTTOM G's lets you set the stiffness slider in those terms, and the SAG vs LOAD chart grades the risk from LOW to BOTTOMED.",see:['sag','bottom-g','sag-vs-load']},
@@ -6959,8 +6957,8 @@ const GLOSSARY=[
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
     {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from +0.20° (planted) to −0.20° (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
-    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: header = body roll at 1 g; each row shows the bar's share of its axle's roll stiffness, its share of all bar stiffness, and LOW, MED, HIGH or MAX up the click range. SPRINGS: rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), with the spring's share of its axle's roll stiffness; header REAR × = rear Hz ÷ front Hz. DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
-    {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either the bars are at their limit (stiffer springs would cut roll further) or the springs alone already exceed the target (softer springs give the bars room). Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear springs much stiffer than the front cut droop and can lift the inside rear; lower the target, use MECH, or lower Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
+    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
+    {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Center Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MED below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTER SPLIT recommends a rear % with the build's reason and its own → USE.\n\n[PRO] CENTER SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Center Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings, and there is no RECOMMENDED diff type (a Forza concept). The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever, so treat it as a direction unless you know the geometry.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
     {id:'ride-roll-damping',term:'RIDE · ROLL · DAMPING',tier:'intermediate',def:"The first VISUALS group; collapsed it reads R (rear % of roll stiffness), × (rear ÷ front Hz) and body roll. ROLL SPLIT is the car's front/rear share of roll stiffness as the game's Mech Balance counts it, each end shaded springs (solid) vs ARBs (light). The grey tick is NAT, the natural balance: a divide right of it means more front roll stiffness (toward understeer), left toward oversteer. Below: body roll at 1 g (plus your Roll Target in ROLL ° mode) and the springs / ARBs share of total roll stiffness.\n\nRIDE Hz puts front and rear on one SOFT to RACE scale (0.8–5.5 Hz), R/F × in the header, amber when the derived axle hit a limit. ARB runs 0 to the game's ceiling, bands at 50, 75 and 90%, amber past 88% (BeamNG: N/m, scaled to the stiffer bar, no bands). DAMPING ζ shows rebound (filled) and bump (hollow) on 10–200%, zoned UNDER below 40, →BW to 70, BWORTH+ to 100, OVER beyond; the header gives bump as a % of rebound, amber if bump exceeds rebound. Hollow grey rings on the derived axle (the one Ride Reference does not fix) show where it would sit for springs alone, or bars alone, to carry natural balance. Green ticks and rings mark the Balance Target (set in PRO's BALANCE section; 0.60 until set) when it differs from NAT.\n\n[PRO] The divide sits where the MECH BALANCE strip's CUR does.",see:['roll-stiffness','mech-balance','hz','zeta']},
@@ -8459,6 +8457,97 @@ function App(){
       ?'Move Ride Stiffness toward the middle of its range.'
       :'Move the Rear/Front Multiplier toward 1.00, or adjust Ride Stiffness.';
     return `${what} ${advice}`;
+  })();
+  // ANTI-ROLL BARS output for both layouts, built like dampView: the header names the stiffness
+  // and balance modes (then the roll achieved), and each row's meta marks the figure its balance
+  // mode sets. Read from physics, the modes the solve ran (MAN turns a stored CO-SOLVE into WEIGHT).
+  const arbView=(()=>{
+    const man=physics.arbMode==='man',bal=physics.arbBalMode;
+    const target=feEffective.arbBalTarget,opp=physics.arbSplitOpposite?' OPP':'';
+    const stiff={auto:'AUTO',basic:`BASIC ${Math.round(physics.arbBasicMan)}%`,roll:`ROLL ${tune.rollTarget.toFixed(2)}°`,
+      share:`SHARE ${Math.round(physics.arbShareMan)}%`,man:'MAN'}[physics.arbMode]??'AUTO';
+    const balName=man?null:{weight:`WEIGHT${opp}`,chassis:`CHASSIS${opp}`,
+      neutral:physics.arbNeutralEqual?'NEUTRAL EQUAL ROLL':'NEUTRAL CANCEL',
+      mech:`MECH ${target.toFixed(2)}`,coSolve:`CO-SOLVE ${target.toFixed(2)}`}[bal]??null;
+    const header=[stiff,balName,`${tune.rollDeg.toFixed(2)}°`].filter(Boolean).join(' · ');
+    // arbRowMeta's [% roll, % ARB]: EQUAL ROLL evens the first across the axles, WEIGHT and
+    // CHASSIS set the second. CANCEL, MECH and CO-SOLVE aim at the whole car's balance.
+    const onIdx=man?-1:bal==='neutral'&&physics.arbNeutralEqual?0:bal==='weight'||bal==='chassis'?1:-1;
+    const pin=v=>physMode?(v<=0?'FLOOR':null)
+      :v<=1.05?'FLOOR':lim.arb!=null&&v>=lim.arb-0.05?'CEILING':null;
+    const row=(v,rsAb,rsSp)=>({note:pin(v),
+      meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR).map((text,i)=>({text,on:i===onIdx}))});
+    return{header,pin,front:row(tune.arbF,tune.rsAbF,tune.rsSpF),rear:row(tune.arbR,tune.rsAbR,tune.rsSpR)};
+  })();
+  // SPRINGS output, likewise: the header names the Hz mode and the ride reference; rows mark the
+  // figure that mode sets, and flag the axle the Hz band clamped or the CO-SOLVE lift risk.
+  const springView=(()=>{
+    const co=physics.arbBalMode==='coSolve',hzMode=physics.rearHzMode;
+    const target=feEffective.arbBalTarget,spd=fe.targetSpeed??70;
+    const mode=co?`CO-SOLVE ${physics.springShareAuto?'AUTO':`${Math.round(physics.springShare)}%`}`
+      :{multiplier:`MULTIPLIER ×${(fe.rearHzMult??1.20).toFixed(2)}`,
+        flatRide:spd>=200?'FLAT RIDE OFF':`FLAT RIDE ${mSpeed?`${Math.round(spd*KMH_PER_MPH)} km/h`:`${spd} mph`}`,
+        independent:`INDEPENDENT ${(fe.rearHzMan??1.5).toFixed(2)} Hz`,
+        // SHARED: the g the solve ran on (the average ride height at Ride Stiffness's Hz), which
+        // each unclamped axle then matches, not the stored target the RIDE effect follows it to.
+        mech:`MECH ${target.toFixed(2)}`,
+        shared:`SHARED ${((ch.rideHeightF+ch.rideHeightR)/2*1000*Math.pow(2*Math.PI*rsToHz(fe.rideStiffness??DEF_FE.rideStiffness),2)/9810).toFixed(2)} g`}[hzMode]??'MULTIPLIER';
+    const header=`${mode} · ${(physics.rideRef??'front').toUpperCase()} REF`;
+    // Bottom-out g, the SAG chart's sag model, on each axle's own ride height: shown while the
+    // RIDE slider sets it (BOTTOM G's, live) and under SHARED, which evens it front and rear.
+    const gShown=hzMode==='shared'||((fe.rideStiffMode??'hz')==='bottomG'&&!!ch.useRideHeightCG&&uiMode!=='beginner');
+    const hzOn=!co&&(hzMode==='multiplier'||hzMode==='flatRide'||hzMode==='independent');
+    const gOn=!co&&hzMode==='shared';
+    const atEdge=hz=>physics.rearHzClamped&&(hz<=HZ_MIN+1e-6||hz>=HZ_MAX-1e-6);
+    const row=(hz,physHz,rh,rsSp,rsAb,rear)=>{
+      const c=hzCtx(hz);
+      const flag=atEdge(physHz)?'CLAMPED':rear&&tune.coSolveLiftRisk?'LIFT RISK':null;
+      return{note:flag??c[0],noteColor:flag?'#f59e0b':c[1],
+        meta:[`${Math.round(rsSp/(rsSp+rsAb)*100)}% roll`,{text:`${hz.toFixed(2)} Hz`,on:hzOn},
+          ...(gShown?[{text:`${(rh*1000*Math.pow(2*Math.PI*hz,2)/9810).toFixed(2)} g`,on:gOn}]:[])]};
+    };
+    return{header,
+      front:row(tune.fHz,physics.frontHz,ch.rideHeightF,tune.rsSpF,tune.rsAbF,false),
+      rear:row(tune.rHz,physics.rearHz,ch.rideHeightR,tune.rsSpR,tune.rsAbR,true)};
+  })();
+  // The output panel's warnings, grouped by the Forza card that shows them. BeamNG shows all of
+  // them, in this order, under its summary strip. Each is {key,color,text}.
+  const outWarns=(()=>{
+    const W=(key,text,color='#f59e0b')=>text?[{key,color,text}]:[];
+    // Roll target missed: name the pinned bar(s) and the levers ROLL ° offers.
+    const rollWarn=(()=>{
+      if(!tune.rollClamped)return null;
+      const over=tune.rollDeg>tune.rollTarget,got=tune.rollDeg.toFixed(2);
+      const ceil=['front','rear'].filter((s,i)=>arbView.pin(i?tune.arbR:tune.arbF)==='CEILING');
+      const cause=over
+        ?(ceil.length?`The ${ceil.join(' and ')} bar${ceil.length>1?'s are':' is'} at the ${lim.arb}-click ceiling. Stiffer springs would reduce roll further, or raise Target Roll Angle toward ${got}°.`
+          :`Bars are maxed. Stiffer springs would reduce roll further, or raise Target Roll Angle toward ${got}°.`)
+        :`Springs alone already exceed the target; softer springs give the bars room, or lower Target Roll Angle toward ${got}°. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.`;
+      return <>Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
+        achieved {got}°. {cause} <TermLink id="output-warnings"/></>;
+    })();
+    // CO-SOLVE lift risk: the ratio past the ×1.20 line, and the Balance Target slider in use.
+    const liftWarn=(()=>{
+      if(!tune.coSolveLiftRisk)return null;
+      const tm=balTargetModeOf(fe),slider=tm==='natural'||tm==='abs'?'Mech Balance Target':'Balance Offset';
+      return <>Rear springs run ×{(tune.rHz/tune.fHz).toFixed(2)} the front's Hz ({tune.rHz.toFixed(2)} vs {tune.fHz.toFixed(2)}); past ×1.20 the inside rear wheel can lift in hard corners.
+        {physics.springShareAuto?` Lower the ${slider}, or set ARB Balance Mode to MECH.`
+          :' Lower Spring Share or enable AUTO.'} <TermLink id="output-warnings"/></>;
+    })();
+    return{
+      arb:[
+        ...W('roll',rollWarn),
+        ...W('mechbal',tune.mechBalClamped&&<>
+          Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
+          achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})} <TermLink id="output-warnings"/>
+        </>,'#f97316'),
+      ],
+      springs:[
+        ...W('rearhz',hzClampNote&&<>{hzClampNote} <TermLink id="output-warnings"/></>),
+        ...W('lift',liftWarn),
+      ],
+      dampers:[...W('landing',dampView.landingWarn),...W('damp',dampView.clampWarn)],
+    };
   })();
   const responseFactors=(()=>{
     // Agility = transient response character: how quickly and freely the car responds to steering inputs.
@@ -11542,71 +11631,33 @@ function App(){
 
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
           <Card hid="out.card.arb" title="ANTI-ROLL BARS" accent
-            headerRight={`ROLL ${tune.rollDeg.toFixed(2)}°`}
-            hint="Click values to enter in the game's ARB menu. Amber means above 88% of the game's limit." hintTerm="arb">
+            headerRight={arbView.header}
+            hint="Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets." hintTerm="arb">
 
             <RowGroup style={{marginBottom:0}}>
-              {[['Front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,'front',ch.arbMotionRatioF],
-                ['Rear', tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,'rear',ch.arbMotionRatioR]].map(([lbl,v,rsAb,rsSp,track,side,arbMr])=>{
+              {[['Front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front],
+                ['Rear', tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear]].map(([lbl,v,track,arbMr,{note,meta}])=>{
                 const o=arbOut(v,lim,track,arbMr);
-                const c=arbCtx(v,lim.arb);
                 return <OutRow key={lbl} hid={lbl==='Front'?'out.arbF':'out.arbR'} label={lbl} value={o.value} decimals={o.decimals}
-                  warn={warnOver(v,lim.arb)} unit={o.unit}
-                  note={c?c[0]:null} noteColor={c?c[1]:undefined}
-                  meta={arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)}/>;
+                  warn={warnOver(v,lim.arb)} unit={o.unit} note={note} meta={meta}/>;
               })}
             </RowGroup>
-            <Keep>{tune.rollClamped&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f5a62333'}}>
-              Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
-              achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
-                ?'Bars are maxed; stiffer springs would reduce roll further.'
-                :'Springs alone already exceed the target; softer springs give the bars room. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.'} <TermLink id="output-warnings"/>
-            </div>}
-            {tune.mechBalClamped&&<div style={{fontSize:11,color:'#f97316',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f9731633'}}>
-              Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:lim.arb})} <TermLink id="output-warnings"/>
-            </div>}</Keep>
+            <Keep>{outWarns.arb.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
 
           <Card hid="out.card.springs" title="SPRINGS" accent
-            hint={`Spring rates in the spring unit chosen in UNITS to enter in the tuning menu. Badge = stiffness band (SOFT/ROAD/FIRM/RACE); REAR × = rear Hz ÷ front Hz.`}
-            headerRight={`REAR ×${(tune.rHz/tune.fHz).toFixed(2)}`} hintTerm="spring-rate">
+            hint="Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; the brighter figure on each row is the one that mode sets. % roll: the spring's share of its axle."
+            headerRight={springView.header} hintTerm="spring-rate">
 
-            {(()=>{
-              // Spring's own share of each axle's total roll stiffness (springs+ARB) —
-              // complements the ARB card's own "% of front/rear roll" line.
-              const springPctF=Math.round(tune.rsSpF/(tune.rsSpF+tune.rsAbF)*100);
-              const springPctR=Math.round(tune.rsSpR/(tune.rsSpR+tune.rsAbR)*100);
-              const rows=[['Front',tune.springF,ch.motionRatioF,tune.fHz,springPctF,'front'],
-                          ['Rear', tune.springR,ch.motionRatioR,tune.rHz,springPctR,'rear']];
-              return(
-                <RowGroup style={{marginBottom:0}}>
-                  {rows.map(([lbl,spring,mr,hz,pct,side])=>{
-                    const o=springOut(spring,fe.gameMode,mSpring,mr);
-                    const c=hzCtx(hz);
-                    return <OutRow key={lbl} hid={lbl==='Front'?'out.springF':'out.springR'} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
-                      note={c?c[0]:null} noteColor={c?c[1]:undefined}
-                      meta={[`${pct}% roll`,`${hz.toFixed(2)} Hz`]}/>;
-                  })}
-                </RowGroup>
-              );
-            })()}
-            <Keep>{hzClampNote&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f5a62333'}}>
-              {hzClampNote} <TermLink id="output-warnings"/>
-            </div>}
-            {tune.coSolveLiftRisk&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f5a62333'}}>
-              Rear springs are much stiffer than front ({tune.rHz.toFixed(2)} vs {tune.fHz.toFixed(2)} Hz), risking inside rear wheel lift in hard corners.
-              {(fe.springShareAuto!==false)?' Lower the mech balance target or switch to MECH mode.'
-                :' Lower Spring Share or enable AUTO.'} <TermLink id="output-warnings"/>
-            </div>}</Keep>
+            <RowGroup style={{marginBottom:0}}>
+              {[['Front',tune.springF,ch.motionRatioF,springView.front],
+                ['Rear', tune.springR,ch.motionRatioR,springView.rear]].map(([lbl,spring,mr,{note,noteColor,meta}])=>{
+                const o=springOut(spring,fe.gameMode,mSpring,mr);
+                return <OutRow key={lbl} hid={lbl==='Front'?'out.springF':'out.springR'} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
+                  note={note} noteColor={noteColor} meta={meta}/>;
+              })}
+            </RowGroup>
+            <Keep>{outWarns.springs.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
 
           {/* 4 — DAMPERS */}
@@ -11633,12 +11684,7 @@ function App(){
                 </RowGroup>
               </>);
             })()}
-            <Keep>{dampView.landingWarn&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f5a62333'}}>{dampView.landingWarn}</div>}
-            {dampView.clampWarn&&<div style={{fontSize:11,color:'#f59e0b',lineHeight:1.6,
-                 marginTop:8,padding:'6px 8px',background:'#020617',borderRadius:2,
-                 border:'1px solid #f5a62333'}}>{dampView.clampWarn}</div>}</Keep>
+            <Keep>{outWarns.dampers.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
 
           {/* 5 — BRAKES */}
@@ -11781,56 +11827,28 @@ function App(){
 
             // Cross-axle callouts lifted out of the ARB/SPRINGS/DAMPERS cards being merged/
             // split below — these compare front vs rear, so they don't belong to one axle.
-            const warnBox=(key,color,text)=>(
-              <div key={key} style={{fontSize:11,color,lineHeight:1.6,marginTop:8,
-                   padding:'6px 8px',background:'#020617',borderRadius:2,border:`1px solid ${color}33`}}>
-                {text}
-              </div>
-            );
-            const warnings=[];
-            if(tune.rollClamped)warnings.push(warnBox('roll','#f59e0b',<>
-              Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
-              achieved {tune.rollDeg.toFixed(2)}°. {tune.rollDeg>tune.rollTarget
-                ?'Bars are maxed; stiffer springs would reduce roll further.'
-                :'Springs alone already exceed the target; softer springs give the bars room. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.'} <TermLink id="output-warnings"/>
-            </>));
-            if(tune.mechBalClamped)warnings.push(warnBox('mechbal','#f97316',<>
-              Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
-              achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})} <TermLink id="output-warnings"/>
-            </>));
-            if(hzClampNote)warnings.push(warnBox('rearhz','#f59e0b',<>{hzClampNote} <TermLink id="output-warnings"/></>));
-            if(tune.coSolveLiftRisk)warnings.push(warnBox('lift','#f59e0b',<>
-              Rear springs are much stiffer than front ({tune.rHz.toFixed(2)} vs {tune.fHz.toFixed(2)} Hz), risking inside rear wheel lift in hard corners.
-              {(fe.springShareAuto!==false)?' Lower the mech balance target or switch to MECH mode.'
-                :' Lower Spring Share or enable AUTO.'} <TermLink id="output-warnings"/>
-            </>));
-            if(dampView.landingWarn)warnings.push(warnBox('landing','#f59e0b',dampView.landingWarn));
-            if(dampView.clampWarn)warnings.push(warnBox('damp','#f59e0b',dampView.clampWarn));
+            const warnings=[...outWarns.arb,...outWarns.springs,...outWarns.dampers]
+              .map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>);
 
-            // Per-axle suspension rows — same arbOut/springOut/dampOut/arbCtx/hzCtx/warnOver
-            // functions the Forza cards above call, just assembled into row-prop objects
-            // instead of inline OutRows, since SuspensionCard merges three subsystems into one.
-            const buildArbRow=(side,v,rsAb,rsSp,track,arbMr)=>{
+            // Per-axle suspension rows — same arbOut/springOut/dampOut/warnOver functions the Forza
+            // cards above call, just assembled into row-prop objects instead of inline OutRows,
+            // since SuspensionCard merges three subsystems into one. Note and meta come from
+            // arbView/springView/dampView, as on the Forza cards.
+            const buildArbRow=(side,v,track,arbMr,{note,meta})=>{
               const o=arbOut(v,lim,track,arbMr);
-              const c=arbCtx(v,lim.arb);
               return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
-                note:c?c[0]:null,noteColor:c?c[1]:undefined,
-                meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR)};
+                note,meta};
             };
-            const buildSpringRow=(side,spring,mr,hz,pct)=>{
+            const buildSpringRow=(side,spring,mr,{note,noteColor,meta})=>{
               const o=springOut(spring,fe.gameMode,mSpring,mr);
-              const c=hzCtx(hz);
               return {hid:side==='front'?'out.springF':'out.springR',label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
-                note:c?c[0]:null,noteColor:c?c[1]:undefined,meta:[`${pct}% roll`,`${hz.toFixed(2)} Hz`]};
+                note,noteColor,meta};
             };
-            // Note and meta come from dampView, as on the Forza DAMPERS card.
             const buildDampRow=(lbl,v,mr,{note,meta},hid)=>{
               const o=dampOut(v,lim,mr);
               return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping),unit:o.unit,note,meta};
             };
 
-            const springPctF=Math.round(tune.rsSpF/(tune.rsSpF+tune.rsAbF)*100);
-            const springPctR=Math.round(tune.rsSpR/(tune.rsSpR+tune.rsAbR)*100);
             const suspHint="Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers. Anti-Roll reads soft; see the note under that row.";
             const arbCaveat=(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1
               ?(uiMode==='pro'
@@ -11839,13 +11857,13 @@ function App(){
               :null;
 
             const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint} arbCaveat={arbCaveat}
-              arbRow={buildArbRow('front',tune.arbF,tune.rsAbF,tune.rsSpF,ch.trackF,ch.arbMotionRatioF)}
-              springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,tune.fHz,springPctF)}
+              arbRow={buildArbRow('front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front)}
+              springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,springView.front)}
               dampRebRow={buildDampRow('Rebound',tune.rebF,ch.motionRatioF,dampView.front.reb,'out.rebF')}
               dampBumpRow={buildDampRow('Bump',tune.bumpF,ch.motionRatioF,dampView.front.bump,'out.bumpF')} hintTerm="beamng-output"/>;
             const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint} arbCaveat={arbCaveat}
-              arbRow={buildArbRow('rear',tune.arbR,tune.rsAbR,tune.rsSpR,ch.trackR,ch.arbMotionRatioR)}
-              springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,tune.rHz,springPctR)}
+              arbRow={buildArbRow('rear',tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear)}
+              springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,springView.rear)}
               dampRebRow={buildDampRow('Rebound',tune.rebR,ch.motionRatioR,dampView.rear.reb,'out.rebR')}
               dampBumpRow={buildDampRow('Bump',tune.bumpR,ch.motionRatioR,dampView.rear.bump,'out.bumpR')} hintTerm="beamng-output"/>;
 
@@ -11935,8 +11953,8 @@ function App(){
                            borderRadius:2,marginBottom:10,fontSize:10,color:'#64748b',
                            fontFamily:'var(--font-mono)'}}>
                 <Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',gap:12}}>
-                <span>ROLL {tune.rollDeg.toFixed(2)}°</span>
-                <span>REAR ×{(tune.rHz/tune.fHz).toFixed(2)}</span>
+                <span>ARB {arbView.header}</span>
+                <span>SPRINGS {springView.header}</span>
                 <span>{dampView.header}</span>
                 </Hide>
                 {warnings.length>0&&<div style={{flexBasis:'100%'}}>{warnings}</div>}

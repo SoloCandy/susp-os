@@ -476,9 +476,9 @@ Two things deliberately do **not** snap:
 
 - **ARB `MAN`.** It is a value the user typed rather than one the solver chose,
   and Forza's `MAN` likewise bypasses `clk()`'s own 0.1-click rounding.
-- **`warnOver`/`arbCtx`.** Both are still called with the raw pre-conversion `v`
-  at every call site, not `o.value`, so ceiling warnings and the
-  LOW/MED/HIGH/MAX badge key off the unrounded number.
+- **`warnOver` and `arbView`'s FLOOR/CEILING.** Both read the raw pre-conversion `v`,
+  not `o.value`, so ceiling warnings and the pinned-bar badge key off the
+  unrounded number.
 
 The rounding in `springOut`/`dampOut`/`arbOut` remains in place and is now
 normally a no-op re-application of a snap already performed upstream. It is kept
@@ -1044,7 +1044,7 @@ frequency (dispatch lives in `feelToPhysics`):
 
 Every mode above clamps its solved frequencies into `HZ_MIN..HZ_MAX`. One flag,
 `rearHzClamped`, says whether that clamp actually bit, and it drives three things:
-the amber banner under the RIDE rows, the matching `warnBox` in the output panel,
+the amber banner under the RIDE rows, the matching output-panel warning (`outWarns.springs`),
 and the `CLAMPED`/`⚠` markers on the Hz readouts.
 
 The name is historical — it means **the derived axle was clamped**, not
