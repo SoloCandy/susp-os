@@ -2461,6 +2461,13 @@ const solveTune=(ch,fe,gameMode,build,ph)=>{
   const clamped=(fe.arbMode??'auto')!=='man'&&(fe.arbBalMode==='mech'||fe.arbBalMode==='coSolve')&&bestErr>0.01;
   return{physics:best.physics,tune:{...best.tune,mechBalClamped:clamped},target:wantOf(best.tune)};
 };
+// Camber the outer wheel gains per degree of body roll (front), and the rear's fraction of it.
+// computeAlignment subtracts roll × gain from its dynamic target; the ALIGNMENT output adds it back
+// to show the camber at the achieved roll.
+const camberGainOf=(ch,layout)=>({
+  camberGain:Math.max(0.55,Math.min(0.85,1.05-(ch.cgHeight??0.45)*0.8)),
+  rearGainMult:layout==='FWD'?0.50:layout==='AWD'?0.70:0.75,
+});
 const computeAlignment=(ch,tune,layout,buildType)=>{
   const{fHz,rHz,rollDeg}=tune;
   const build=buildType??'track';
@@ -2470,8 +2477,7 @@ const computeAlignment=(ch,tune,layout,buildType)=>{
   const isOffroad=build==='offroad';
   const isDrag=build==='drag';
 
-  const camberGain=Math.max(0.55,Math.min(0.85,1.05-(ch.cgHeight??0.45)*0.8));
-  const rearGainMult=layout==='FWD'?0.50:layout==='AWD'?0.70:0.75;
+  const{camberGain,rearGainMult}=camberGainOf(ch,layout);
   const fwdReduction=layout==='FWD'?0.3:0.0;
 
   // Drift wants more static camber than Track for sustained high-slip-angle grip; Drag wants
@@ -4708,6 +4714,8 @@ const Stat=({label,value,unit,decimals=2})=>(
 // A <Keep> child is what must outlive a hidden card (its warnings): drawn in place normally,
 // and on its own when the card is hidden.
 const Keep=({children})=>children??null;
+// The BRAKES output card's hint, the same in both layouts.
+const HINT_BRAKES_OUT="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the brighter figure is the one it sets.";
 // The output panel's warning box, for both layouts. Its text comes from App's outWarns.
 const OutWarn=({color='#f59e0b',children})=>(
   <div style={{fontSize:11,color,lineHeight:1.6,marginTop:8,padding:'6px 8px',
@@ -4761,10 +4769,10 @@ const SuspensionCard=({hid=null,side,arbRow,springRow,dampRebRow,dampBumpRow,arb
     </RowGroup>
   </Card>
 );
-const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null})=>(
+const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null,camberMeta=[],toeMeta=[]})=>(
   <Card hid={hid} title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm}>
-    <RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°"/></RowGroup>
-    <RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°"/></RowGroup>
+    <RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°" meta={camberMeta}/></RowGroup>
+    <RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°" meta={toeMeta}/></RowGroup>
     {caster!=null&&<RowGroup style={{marginBottom:0}}><OutRow hid="out.caster" label="Caster" value={caster} unit="°"/></RowGroup>}
   </Card>
 );
@@ -6928,7 +6936,7 @@ const GLOSSARY=[
     {id:'damper-table',term:'Damper Comparison Table',tier:'intermediate',short:'Damper table',def:"The table under Damping Bias compares front and rear on five rows and highlights the one the current Damping Balance Mode equalises. A mismatched row turns amber, with ◄ or ► pointing at the axle that is firmer, faster, working harder or less roll-damped; hover a row for its full reading.\n\nRebound ζ and Bump ζ are each axle's damping ratios; Bump ζ's tooltip adds the bump/rebound mean, a rough overall figure that hides which stroke comes first. Settle is the quick settle-time estimate SETTLE TIME targets, graded by the slower axle, with the DYNAMICS chart's measured figure (MEAS) in its tooltip. Force is each axle's share of actual damping force, ζ × corner mass × Hz; EQUAL FORCE targets 50/50. Roll ζ is rebound ζ in roll: ζ × √(the springs' share of that axle's roll stiffness), since the bar adds stiffness without damping. The less roll-damped axle takes its load first on turn-in, and front and rear match in both ride and roll only when the bar fractions match (NEUTRAL EQUAL ROLL). Roll centres and chassis coupling are ignored.",see:['damping-balance-mode','settle-time','equal-force','bal-neutral']},
   ]},
   {group:'Brakes',terms:[
-    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card tags it FRONT above 55%, REAR below 50%, NEUTRAL between. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 10 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 40–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 40–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, GRIP's bias at 0.3 g braking (close to front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.\n\n[PRO] BRAKES' Centre picks what Brake Bias shifts from. REC is the recommendation above. GRIP is the bias at which both axles reach their braking limit at the same moment, braking in a straight line at the Decel you set (about 1.0 g for threshold braking): each axle gets brake force in proportion to the grip it has under that load, so a taller CG, a shorter wheelbase or harder braking moves it forward, and a wider rear tyre moves it back. It leaves out the build offsets and the grip term, and the springs and bars do not move it; the shift is where intent goes. Switching Centre moves the bias. With Decel at 0.3 g, GRIP is ENTRY's own reference, so ENTRY BRK, shown under the toggle, reads 0 there; each point of shift moves it about half a percent.\n\n[PRO] ENTRY is the trail-braking mode. It solves the bias instead: you set Entry vs MID, how much looser (+) or tighter (−) the car should be while trail braking into the corner than mid-corner, and the bias is found that puts ENTRY BRK there; Brake Bias then shows the result rather than a shift. It targets the brakes' part of ENTRY, not the ENTRY total, so the springs cannot drag the bias around to cover a mid-corner problem. Each point of bias is worth about half a percent, so the 40–68 span reaches roughly +7% to −5%; past that the bias stops at the end and says so. The off-throttle diff and damping also act on entry but are not sized at PRO, so they are not part of the solve.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
+    {id:'brake-balance',term:'Brake Balance',tier:'beginner',def:"Brake balance is the share of braking force sent to the front axle, in % front. SUSP.OS computes a recommendation for every car. The BRAKES card's header names the Centre (REC, GRIP or ENTRY) and its row the centre bias and any shift, with LIMIT when the 40–68% span held the result back. More front bias steadies corner entry (toward understeer); less lets the car rotate on the brakes. Fine-tune in 1% steps by feel.\n\n[INT] The BRAKES section in the sidebar holds Brake Bias, a shift of up to 10 points from the recommendation: toward ROTATE moves it rearward, toward STABLE forward. Centre is the recommendation, and the result stays within 40–68%. It is a shift rather than a typed value, so it keeps following the chassis and build. BEG ignores it.\n\nThe recommendation is front weight % plus braking weight transfer (CG height ÷ wheelbase × 50) plus a build offset (TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, STREET and RALLY 0), kept within 40–68%. Weight transfer front-biases most cars; DRIFT and DRAG on a rear-weighted car can land below 50%, a real trail-braking and drift technique, not an error.\n\nThe recommendation and the balance readouts do not share one reference, so they can disagree. The BEG and INT BRK row scores the bias against a fixed 50/50, (bias − 50) × 0.20 points, understeer (−) above 50% front, so a front-biased recommendation reads as mild understeer. BRK describes the bias; it is not a request to move it to 50.\n\n[PRO] The recommendation adds a chassis grip term, (GRIP BIAS − 0.5) × 15 points, so an oversteer-prone chassis gets more front bias. PRO's ENTRY phase measures the bias against the entry-load ideal, GRIP's bias at 0.3 g braking (close to front weight share plus 0.3 × CG height ÷ wheelbase): forward of it is toward understeer, behind it toward oversteer. That ideal carries less weight transfer than the card, so ENTRY usually also leans understeer at the recommended value.\n\n[PRO] BRAKES' Centre picks what Brake Bias shifts from. REC is the recommendation above. GRIP is the bias at which both axles reach their braking limit at the same moment, braking in a straight line at the Decel you set (about 1.0 g for threshold braking): each axle gets brake force in proportion to the grip it has under that load, so a taller CG, a shorter wheelbase or harder braking moves it forward, and a wider rear tyre moves it back. It leaves out the build offsets and the grip term, and the springs and bars do not move it; the shift is where intent goes. Switching Centre moves the bias. With Decel at 0.3 g, GRIP is ENTRY's own reference, so ENTRY BRK, shown under the toggle, reads 0 there; each point of shift moves it about half a percent.\n\n[PRO] ENTRY is the trail-braking mode. It solves the bias instead: you set Entry vs MID, how much looser (+) or tighter (−) the car should be while trail braking into the corner than mid-corner, and the bias is found that puts ENTRY BRK there; Brake Bias then shows the result rather than a shift. It targets the brakes' part of ENTRY, not the ENTRY total, so the springs cannot drag the bias around to cover a mid-corner problem. Each point of bias is worth about half a percent, so the 40–68 span reaches roughly +7% to −5%; past that the bias stops at the end and says so. The off-throttle diff and damping also act on entry but are not sized at PRO, so they are not part of the solve.",see:['balance-contributors','phase-verdict','load-transfer','build-type']},
   ]},
   {group:'Differential',terms:[
     {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MED below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
@@ -6957,7 +6965,7 @@ const GLOSSARY=[
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
     {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from +0.20° (planted) to −0.20° (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
-    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
+    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows eff, the lock × the type's scale.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Center Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MED below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTER SPLIT recommends a rear % with the build's reason and its own → USE.\n\n[PRO] CENTER SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Center Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings, and there is no RECOMMENDED diff type (a Forza concept). The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever, so treat it as a direction unless you know the geometry.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
@@ -8509,6 +8517,53 @@ function App(){
     return{header,
       front:row(tune.fHz,physics.frontHz,ch.rideHeightF,tune.rsSpF,tune.rsAbF,false),
       rear:row(tune.rHz,physics.rearHz,ch.rideHeightR,tune.rsSpR,tune.rsAbR,true)};
+  })();
+  // ALIGNMENT output for both layouts: the header names the mode, the build type and any nudge;
+  // camber rows carry the camber at the achieved roll (what AUTO aims at, so brighter there), and
+  // under a nudge each nudged row carries how far it moved off the AUTO value.
+  const alignView=(()=>{
+    const manual=alignMode==='manual',nudge=alignMode==='mech'||alignMode==='grip';
+    const BUILD={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'track']??'TRACK';
+    // MECH reads the Balance Target's gap, which is 0 while nothing solves toward it.
+    const nudgeName=!nudge?null:alignMode==='mech'&&!hasBalTargetSolve(feEffective)?'NUDGE MECH IDLE'
+      :`NUDGE ${alignMode.toUpperCase()} ${Math.round(al.nudgeStrength??50)}%`;
+    const header=manual?'MANUAL':['AUTO',BUILD,nudgeName].filter(Boolean).join(' · ');
+    const{camberGain,rearGainMult}=camberGainOf(ch,ch.layout);
+    const r1=v=>Math.round(v*10)/10||0; // ||0: no "-0.0"
+    const deg=v=>`${r1(v)>0?'+':''}${r1(v).toFixed(1)}°`;
+    const moved=(v,auto)=>nudge&&r1(v-auto)!==0?[`nudge ${deg(v-auto)}`]:[];
+    return{header,
+      camberF:[{text:`dyn ${r1(align.recCamberF+tune.rollDeg*camberGain).toFixed(1)}°`,on:!manual},...moved(align.recCamberF,autoAlign.recCamberF)],
+      camberR:[{text:`dyn ${r1(align.recCamberR+tune.rollDeg*camberGain*rearGainMult).toFixed(1)}°`,on:!manual},...moved(align.recCamberR,autoAlign.recCamberR)],
+      toeF:moved(align.recToeF,autoAlign.recToeF),toeR:moved(align.recToeR,autoAlign.recToeR)};
+  })();
+  // BRAKES output: the header names the Centre (INT always runs REC) and its setting; the row
+  // carries what that Centre sets: the centre bias and the shift off it, or ENTRY's BRK margin.
+  const brakeView=(()=>{
+    if(brakeBias==null)return{header:'STOCK',meta:[]};
+    if(brakeEntry){
+      const t=dr.brakeEntryTarget??0;
+      return{header:`ENTRY ${t>=0?'+':''}${t.toFixed(2)}%`,
+        meta:phase?[{text:`ENTRY BRK ${phase.entry.brk>=0?'+':''}${phase.entry.brk.toFixed(2)}%`,on:true}]:[]};
+    }
+    // The shift as set, in bias points (stored + = rearward, so it lowers the bias). LIMIT when the
+    // 40–68% span held the result short of centre + shift. BEG ignores the shift.
+    const d=uiMode==='beginner'?0:-(dr.brakeBiasShift??0);
+    return{header:brakeGrip?`GRIP ${(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g`:'REC',
+      note:brakeBias!==brakeCentre+d?'LIMIT':null,
+      meta:[{text:`centre ${brakeCentre}%`,on:true},...(d?[`shift ${d>0?'+':''}${d}`]:[])]};
+  })();
+  // DIFFERENTIAL output: AUTO or MANUAL, the diff type, and MATCH CHASSIS while it applies. A lock
+  // row's meta is the effective lock (% × the type's scale), which AUTO holds across diff types and
+  // the balance reads; RACE's scale is 1, so it would only repeat the value there.
+  const diffView=(()=>{
+    const type=dr.diffType??'race',manual=!!dr.diffManual,scale=DIFF_TYPE_SCALE[type]??1;
+    const TYPE={race:'RACE',sport:'SPORT',rally:'RALLY',offroad:'OFFROAD',drift:'DRIFT'}[type]??'RACE';
+    // computeDiff skips MATCH CHASSIS while nothing solves toward the Balance Target; PRO shows that.
+    const match=manual||!dr.diffComplement?null:hasBalTargetSolve(feEffective)?'MATCH CHASSIS'
+      :uiMode==='pro'?'MATCH CHASSIS IDLE':null;
+    return{header:[manual?'MANUAL':'AUTO',TYPE,match].filter(Boolean).join(' · '),
+      meta:v=>type==='race'?[]:[{text:`eff ${Math.round(v*scale)}%`,on:!manual}]};
   })();
   // The output panel's warnings, grouped by the Forza card that shows them. BeamNG shows all of
   // them, in this order, under its summary strip. Each is {key,color,text}.
@@ -11607,22 +11662,22 @@ function App(){
               physMode branches: BeamNG wording belongs on the SuspensionCard layout. */}
           {!physMode&&(<>
           {/* 1 — ALIGNMENT */}
-          <Card hid="out.card.align" title="ALIGNMENT"
+          <Card hid="out.card.align" title="ALIGNMENT" headerRight={alignView.header}
             hint={(()=>{
               const _camberStr={street:'-1.0°',track:'-1.5°',drift:'-2.5°',rally:'-0.8°',offroad:'-0.3°',drag:'-0.2°'}[dr.buildType??'track']??'-1.5°';
               const _prefix=alignMode==='manual'?'Manual values.':'Recommended starting point.';
               return ch.layout==='FWD'
-                ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability.`
-                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG.`;
+                ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability. dyn = camber at the car's roll.`
+                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG. dyn = camber at that roll.`;
             })()} hintTerm="align-mode">
 
             <RowGroup>
-              <OutRow hid="out.camberF" label="Camber Front" value={align.recCamberF} unit="°"/>
-              <OutRow hid="out.camberR" label="Camber Rear"  value={align.recCamberR} unit="°"/>
+              <OutRow hid="out.camberF" label="Camber Front" value={align.recCamberF} unit="°" meta={alignView.camberF}/>
+              <OutRow hid="out.camberR" label="Camber Rear"  value={align.recCamberR} unit="°" meta={alignView.camberR}/>
             </RowGroup>
             <RowGroup>
-              <OutRow hid="out.toeF" label="Toe Front" value={align.recToeF} unit="°"/>
-              <OutRow hid="out.toeR" label="Toe Rear"  value={align.recToeR} unit="°"/>
+              <OutRow hid="out.toeF" label="Toe Front" value={align.recToeF} unit="°" meta={alignView.toeF}/>
+              <OutRow hid="out.toeR" label="Toe Rear"  value={align.recToeR} unit="°" meta={alignView.toeR}/>
             </RowGroup>
             <RowGroup style={{marginBottom:0}}>
               <OutRow hid="out.caster" label="Caster" value={align.recCaster} unit="°"/>
@@ -11688,17 +11743,11 @@ function App(){
           </Card>
 
           {/* 5 — BRAKES */}
-          <Card hid="out.card.brakes" title="BRAKES"
-            hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
-
-            {(()=>{
-              const c=brakeBias==null?['NO RACE BRAKES','#64748b']:brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
-              return(
-                <RowGroup style={{marginBottom:0}}>
-                  <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={c[0]} noteColor={c[1]}/>
-                </RowGroup>
-              );
-            })()}
+          <Card hid="out.card.brakes" title="BRAKES" headerRight={brakeView.header}
+            hint={HINT_BRAKES_OUT} hintTerm="brake-balance">
+            <RowGroup style={{marginBottom:0}}>
+              <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={brakeView.note} meta={brakeView.meta}/>
+            </RowGroup>
           </Card>
 
           {/* 6 — DIFFERENTIAL */}
@@ -11708,7 +11757,7 @@ function App(){
               :diff.layout==='RWD'
               ?'Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.'
               :`Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Center ${diff.center}% rear.`}
-            headerRight={`${({race:'RACE',sport:'SPORT',rally:'RALLY',offroad:'OFFROAD',drift:'DRIFT'})[dr.diffType??'race']??'RACE'} DIFF`} hintTerm="diff-output">
+            headerRight={diffView.header} hintTerm="diff-output">
             {(()=>{
               // SPORT is accel-only in-game, so every decel field reads N/A rather than a
               // number the tuning menu won't accept.
@@ -11721,7 +11770,7 @@ function App(){
                   return <OutRow key={label} hid={LOCK_HID[label]} label={label} value="N/A" unit=""/>;
                 const c=diffCtx(v);
                 return <OutRow key={label} hid={LOCK_HID[label]} label={label} value={v} unit={unit} decimals={0}
-                  note={c?c[0]:null} noteColor={c?c[1]:undefined}/>;
+                  note={c?c[0]:null} noteColor={c?c[1]:undefined} meta={unit==='%'?diffView.meta(v):[]}/>;
               };
               // AWD genuinely has three differentials (front, rear, centre); FWD/RWD have one,
               // so they get two rows and no split — there is no axle split to show.
@@ -11875,13 +11924,15 @@ function App(){
               const _camberStr={street:'-1.0°',track:'-1.5°',drift:'-2.5°',rally:'-0.8°',offroad:'-0.3°',drag:'-0.2°'}[dr.buildType??'track']??'-1.5°';
               const _prefix=alignMode==='manual'?'Manual values.':'Recommended starting point.';
               return ch.layout==='FWD'
-                ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability.`
-                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG.`;
+                ?`${_prefix} Camber targets ${_camberStr} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability. dyn = camber at the car's roll.`
+                :`${_prefix} Camber targets ${_camberStr} dynamic at ${tune.rollDeg.toFixed(2)}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG. dyn = camber at that roll.`;
             })();
             const beamngAlignHint=`${alignPrefix} Sliders are %, not degrees: match BeamNG's live readout.`;
 
-            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={align.recToeF} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"/>;
-            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={align.recToeR} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"/>;
+            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={align.recToeF} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"
+              camberMeta={alignView.camberF} toeMeta={alignView.toeF}/>;
+            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={align.recToeR} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"
+              camberMeta={alignView.camberR} toeMeta={alignView.toeR}/>;
 
             // Differential — same isSport/lock/diffCtx pattern as the Forza card, scoped per
             // axle since BeamNG groups Front/Rear/Center as separate menu sections. Placement
@@ -11890,7 +11941,7 @@ function App(){
               if(isSport&&/Decel|Split/.test(label))return <OutRow key={label} hid={hid} label={label} value="N/A" unit=""/>;
               const c=diffCtx(v);
               return <OutRow key={label} hid={hid} label={label} value={v} unit={unit} decimals={0}
-                note={c?c[0]:null} noteColor={c?c[1]:undefined}/>;
+                note={c?c[0]:null} noteColor={c?c[1]:undefined} meta={unit==='%'?diffView.meta(v):[]}/>;
             };
             const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL"
               rows={isAWD?[lock('Accel',diff.frontAccel,'%','out.diff.frontAccel'),lock('Decel',diff.frontDecel,'%','out.diff.frontDecel')]
@@ -11935,16 +11986,13 @@ function App(){
               );
             })();
 
-            const brakesCard=(()=>{
-              const c=brakeBias==null?['NO RACE BRAKES','#64748b']:brakeBias>55?['FRONT','#3b82f6']:brakeBias<50?['REAR','#ef4444']:['NEUTRAL','#cbd5e1'];
-              return (
-                <Card hid="out.card.brakes" title="BRAKES" hint="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel." hintTerm="brake-balance">
-                  <RowGroup style={{marginBottom:0}}>
-                    <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={c[0]} noteColor={c[1]}/>
-                  </RowGroup>
-                </Card>
-              );
-            })();
+            const brakesCard=(
+              <Card hid="out.card.brakes" title="BRAKES" headerRight={brakeView.header} hint={HINT_BRAKES_OUT} hintTerm="brake-balance">
+                <RowGroup style={{marginBottom:0}}>
+                  <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={brakeView.note} meta={brakeView.meta}/>
+                </RowGroup>
+              </Card>
+            );
 
             return (<>
               {(layoutCtx.edit||!layoutCtx.isHidden('out.summary')||warnings.length>0)&&
@@ -11956,6 +12004,8 @@ function App(){
                 <span>ARB {arbView.header}</span>
                 <span>SPRINGS {springView.header}</span>
                 <span>{dampView.header}</span>
+                <span>ALIGN {alignView.header}</span>
+                <span>DIFF {diffView.header}</span>
                 </Hide>
                 {warnings.length>0&&<div style={{flexBasis:'100%'}}>{warnings}</div>}
               </div>}

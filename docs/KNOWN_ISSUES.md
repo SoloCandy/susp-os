@@ -25,7 +25,8 @@ LIMIT note needs `computeAlignment` to hand back its values before clamping.
 
 Under BRAKES Centre ENTRY, `entryBrakeBiasFor` stops the bias at 40% or 68% when the
 target is beyond them (`clamped: 'rear'|'front'`). The BRAKES section says so ("Out of
-reach…"); the output's BRAKES card prints the stopped bias with no warning.
+reach…"); the output's BRAKES card prints the stopped bias with no warning. (Under REC and
+GRIP the card already tags LIMIT when the span holds the bias back.)
 
 ## Open — the sidebar DAMPERS table marks rows its mode doesn't aim at
 

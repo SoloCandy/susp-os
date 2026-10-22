@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
+
+The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,
+BRAKES tagged its bias FRONT above 55%, REAR below 50% and NEUTRAL between (so 54% front read
+neutral), and DIFFERENTIAL's header named only the diff type. Their headers now name the modes
+(`AUTO · TRACK · NUDGE MECH 50%`, `GRIP 1.00 g`, `AUTO · SPORT · MATCH CHASSIS`), and rows carry
+what those modes set: the camber at the tune's roll, the brake centre and shift (or ENTRY BRK),
+and the effective lock on a non-Race diff. The brake row tags LIMIT when the 40–68% span held a
+REC or GRIP bias short of centre + shift, which it did silently before (a GRIP centre of 74% with
+any shift printed 68% with nothing to say why). `camberGainOf` lifts the camber gain out of
+`computeAlignment` so the output reads the same figure.
+
 ## Fixed — DAMPERS values pushed off the card on a phone
 
 The DAMPERS output's three row figures (settle, force, ζ) made a rebound row wider than a

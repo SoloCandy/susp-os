@@ -596,9 +596,9 @@ camber target and `{roll}` the tune's roll angle:
 
 > Recommended starting point.
 
-> Camber targets {camber} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability.
+> Camber targets {camber} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability. dyn = camber at the car's roll.
 
-> Camber targets {camber} dynamic at {roll}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG.
+> Camber targets {camber} dynamic at {roll}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG. dyn = camber at that roll.
 
 **ANTI-ROLL BARS:**
 
@@ -614,9 +614,9 @@ camber target and `{roll}` the tune's roll angle:
 
 **BRAKES** (the same text on the Forza and BeamNG cards):
 
-> Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel.
+> Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the brighter figure is the one it sets.
 
-With BRAKES on STOCK (INT+) its Balance row reads `STOCK`, noted `NO RACE BRAKES`.
+It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on STOCK (INT+) the header and the Balance row both read `STOCK`.
 
 **DIFFERENTIAL** — FWD, RWD, then AWD (`{rear %}` is the centre split):
 

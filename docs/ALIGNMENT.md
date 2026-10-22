@@ -20,6 +20,7 @@ as-is. See "Alignment Mode (PRO)" below.
 ```js
 camberGain = clamp(0.55, 0.85, 1.05 - cgHeight*0.8)     // roll-compensation gain, higher CG → less gain
 rearGainMult = FWD: 0.50 | AWD: 0.70 | RWD: 0.75         // rear camber reacts less to roll than front
+// both from camberGainOf(ch, layout), which the ALIGNMENT output also reads
 fwdReduction = FWD: 0.3 | else: 0.0                      // FWD front camber reduced (needs front grip for both steering and traction)
 ```
 
@@ -30,6 +31,11 @@ only thing that varies per build:
 recCamberF = clamp(-4.0, 0.0, optimalCamber - rollDeg*camberGain + fwdReduction)
 recCamberR = clamp(-3.5, 0.0, optimalCamber - rollDeg*camberGain*rearGainMult)
 ```
+
+The ALIGNMENT output adds the roll term back to show each axle's `dyn` camber:
+`static + rollDeg*camberGain` front, `static + rollDeg*camberGain*rearGainMult` rear. Under
+AUTO that lands on `optimalCamber` (plus `fwdReduction` on a FWD front) unless a clamp or a
+nudge moved the static value; under MANUAL it shows what the typed camber gives at that roll.
 
 | Build | optimalCamber |
 |---|---|
