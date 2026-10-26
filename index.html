@@ -9772,7 +9772,7 @@ function App(){
                       onClick={()=>_man
                         ?switchToTarget({rearHzMode:'mech'},'Hz MODE MECH')
                         :switchToTarget({arbBalMode:'mech'},'MECH')}>
-                      {_man?'UNLOCK · SET Hz MODE TO MECH':'UNLOCK · SET ARB BALANCE MODE TO MECH'}
+                      {_man?'UNLOCK · Hz MODE → MECH':'UNLOCK · ARB BALANCE → MECH'}
                     </button>
                     <div style={{fontSize:10,color:'#64748b',marginTop:4}}>
                       Moves mech balance from {tune.mechBalance.toFixed(3)} to the target, {_to.toFixed(3)} ({_to>tune.mechBalance?'toward oversteer':'toward understeer'}). Undo with ↩.
