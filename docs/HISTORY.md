@@ -21,7 +21,8 @@ every width. Its RESPONSE rows ran 2 px wider than their scroll box, clipping th
 box gained 4 px side padding. VISUALS groups now open one at a time under a vh cap, replacing
 the measured `visCaps` cap that let the open card take about half the sidebar. On a phone the
 footer header shows the headline value and verdict (label shortened to BALANCE, PRO's FIT? /
-MECH chips wrap to a second line); before, the chips pushed the headline off a 375 px screen.
+MECH chips wrap to a second line whenever the row is too narrow); before, the chips pushed the
+headline off a 375 px screen and clipped its verdict at 800 px with the sidebar open.
 Forza's output column is capped at `OUT_MAX_W` and centred, so on a wide monitor a value no
 longer sits ~1200 px from its label; BeamNG's two-column grid keeps the full width.
 

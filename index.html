@@ -12483,13 +12483,14 @@ function App(){
                    }
                  }}
                  style={{padding:isPhone?'10px 8px':'10px 14px',cursor:'pointer'}}>
-              {/* Phone: the headline (value + verdict) never gives way. The label shortens to
-                  BALANCE, and the PRO FIT? / MECH chips wrap to a second line rather than push the
-                  headline off the card (on one line they overflowed a 375 px screen). */}
+              {/* The headline (value + verdict) never gives way: when the row is too narrow, the
+                  PRO FIT? / MECH chips wrap to a second line rather than push it off the card (on
+                  one line they overflowed a 375 px phone, and an 800 px window with the sidebar
+                  open). On a phone the label also shortens to BALANCE. */}
               <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,
-                                                ...(isPhone?{flexWrap:'wrap',rowGap:4}:{})}}>
+                                                flexWrap:'wrap',rowGap:4}}>
                 <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,minWidth:0,overflow:'hidden',
-                             flex:isPhone?'1 0 auto':1}}>
+                             flex:'1 0 auto'}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>
                     {isPhone?'BALANCE':'HANDLING BALANCE'}</span>
                   <Hint text={phase
