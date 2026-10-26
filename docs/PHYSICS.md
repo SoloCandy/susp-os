@@ -438,11 +438,14 @@ arm to the power of 2,"* alongside a warning that the motion ratio means real-li
 values don't transfer. `k = 2·rs/track²` implicitly assumes the arm **is** the full
 track — i.e. that the bar acts at the wheels. A real bar attaches inboard, so its
 arm is shorter and the required N/m is higher by `(track/arm)²`. This is why the
-output measures 4–6× soft against a stock vehicle; the intended fix is an ARB motion
-ratio input mirroring the spring one, `k = 2·rs/(track²·mr²)`. Two things remain
-unknown and are not guessed at: the exact coefficient (`k·arm²` vs `2·k·arm²`) and
-any given vehicle's arm length. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full
-derivation, the eliminated hypotheses, and the deferred fix.
+output measures 4–6× soft against a stock vehicle. The fix is the PRO ARB Motion Ratio
+F / R input, `k = 2·rs/(track²·mr²)`, defaulting to 1.0. While an axle stays at 1.0 its
+Anti-Roll row also prints a `≈` figure, the same rate at `ARB_MR_TYPICAL = 0.45` (≈4.9× on
+the default chassis), so BEG and INT, which have no ratio field, still see a usable number.
+It is display only and not a default: nothing solves on it, and saves and share codes are
+untouched. Two things remain unknown and are not guessed at: the exact coefficient
+(`k·arm²` vs `2·k·arm²`) and any given vehicle's arm length. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full derivation and the eliminated hypotheses.
 
 **Snapping to BeamNG's slider increments.** Confirmed in-game (not guessed):
 Spring Rate snaps to the nearest 500 N/m, Anti-Roll Spring Rate to the nearest

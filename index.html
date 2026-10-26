@@ -3071,6 +3071,12 @@ const dampOut=(v,lim,mr=1)=>lim.damping==null
 const arbOut=(v,lim,track=1.55,mr=1)=>lim.arb==null
   ? {value:roundTo(2*v/(track*track*mrDiv(mr)),1000),unit:'N/m',decimals:0}
   : {value:v,unit:`/ ${lim.arb}`,decimals:1};
+// A typical inboard drop link (arm ÷ track). While an axle's ARB Motion Ratio is still 1.0 the
+// BeamNG Anti-Roll row prints its rate at this ratio too, as a ≈ figure beside the at-the-wheel
+// one. Display only, like the ratio itself: it is not a default (DEF_CH stays 1.0, so saves and
+// share codes read as before) and nothing solves on it. 0.45 gives ≈4.9× on the default
+// chassis, inside the 4–6× gap one sampled vehicle showed (docs/KNOWN_ISSUES.md).
+const ARB_MR_TYPICAL=0.45;
 const warnOver=(v,ceiling)=>ceiling==null?false:v>ceiling*0.88;
 // An ARB row's meta: its share of the axle's roll stiffness, and of both bars together. With no
 // bars at all (BeamNG floors at 0) the second is 0/0 — "—" rather than NaN, or an invented split.
@@ -3705,7 +3711,7 @@ const HIDE_ITEMS=[
   {id:'out.card.diffF',          sec:'output'},
   {id:'out.card.diffR',          sec:'output'},
   {id:'out.card.center',         sec:'output'},
-  {id:'out.summary',             sec:'output'},
+  {id:'out.summary',             sec:'output', tiers:['intermediate','pro']},
   {id:'out.camberF',             sec:'output'},
   {id:'out.camberR',             sec:'output'},
   {id:'out.toeF',                sec:'output'},
@@ -3953,7 +3959,10 @@ const DNA_MODE_FIELDS=[
   ['fe','bumpBalMode','BUMP BALANCE'],['dr','diffManual','DIFF MANUAL'],
 ];
 
-const Hint=({text,term=null})=>{
+// above: open upward when there is room, for a hint whose subject sits right below its ⓘ (the
+// BeamNG suspension cards), so the tooltip does not cover the rows it explains. It anchors by its
+// bottom edge, so the height estimate below does not leave a gap.
+const Hint=({text,term=null,above=false})=>{
   const[pos,setPos]=useState(null);
   const ref=useRef(null);
   const tipRef=useRef(null);
@@ -3980,6 +3989,8 @@ const Hint=({text,term=null})=>{
     // Centre on icon, then clamp to viewport edges
     const iconCx=(r.left+r.right)/2;
     const left=Math.max(PAD,Math.min(iconCx-TW/2,window.innerWidth-TW-PAD));
+    const room=r.top-GAP-PAD;
+    if(above&&room>=140)return{bottom:window.innerHeight-r.top+GAP,maxHeight:room,left,width:TW};
     return{top,left,width:TW};
   };
 
@@ -4077,7 +4088,8 @@ const Hint=({text,term=null})=>{
           onClick={onClick} aria-describedby={pos?tipId:undefined} data-term={term||undefined}>
       <span style={{fontSize:12,color:'#94a3b8'}}>ⓘ</span>
       {pos&&ReactDOM.createPortal(
-        <div style={{position:'fixed',top:pos.top,left:pos.left,zIndex:1000,width:pos.width??220,
+        <div style={{position:'fixed',top:pos.top,bottom:pos.bottom,maxHeight:pos.maxHeight,overflowY:pos.maxHeight?'auto':undefined,
+                     left:pos.left,zIndex:1000,width:pos.width??220,
                      background:'#0f172a',border:'1px solid #e2e8f011',borderRadius:2,
                      padding:'7px 9px',fontSize:11,color:'#94a3b8',lineHeight:1.6,
                      pointerEvents:term?'auto':'none',boxShadow:'0 4px 16px #00000088'}}
@@ -4721,7 +4733,7 @@ const OutWarn=({color='#f59e0b',children})=>(
   <div style={{fontSize:11,color,lineHeight:1.6,marginTop:8,padding:'6px 8px',
        background:'#020617',borderRadius:2,border:`1px solid ${color}33`}}>{children}</div>
 );
-const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null})=>{
+const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null,hintAbove=false})=>{
   const L=React.useContext(LayoutCtx);
   const off=hid!=null&&L.isHidden(hid);
   if(off&&!L.edit){
@@ -4736,7 +4748,7 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
       <div className="ch" style={{...(accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}),
                                   ...(editing?{position:'relative'}:{}),...(editing&&off?{opacity:0.35}:{})}}>
         <span style={accent?{color:'#9ca3af'}:{}}>{title}</span>
-        {hint&&<Hint text={hint} term={hintTerm}/>}
+        {hint&&<Hint text={hint} term={hintTerm} above={hintAbove}/>}
         {headerRight&&<span style={{marginLeft:'auto',fontSize:10,color:'#64748b',
                                      letterSpacing:0,textTransform:'none',fontFamily:'var(--font-mono)'}}>
           {headerRight}
@@ -4758,27 +4770,94 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
 // axle instead of one card per subsystem (ARB+Spring+Damper merge into
 // SuspensionCard; Caster is front-only on AlignCard, matching BeamNG's actual
 // menu — there is no rear caster slider).
-const SuspensionCard=({hid=null,side,arbRow,springRow,dampRebRow,dampBumpRow,arbCaveat,hint,hintTerm=null})=>(
-  <Card hid={hid} title={`${side} SUSPENSION`} accent hint={hint} hintTerm={hintTerm}>
-    <RowGroup><OutRow {...arbRow}/></RowGroup>
-    {arbCaveat&&<div style={{fontSize:10,color:'#f59e0b',lineHeight:1.6,margin:'-2px 0 6px'}}>{arbCaveat}</div>}
-    <RowGroup><OutRow {...springRow}/></RowGroup>
-    <RowGroup style={{marginBottom:0}}>
+// Each card's sections are Pair blocks, which BeamngGrid holds level with the same section in
+// the other column. The hint opens upward: below, it would cover the Anti-Roll row it explains.
+const Pair=({k,children})=><div data-pair={k} style={{display:'flow-root'}}>{children}</div>;
+const SuspensionCard=({hid=null,side,arbRow,springRow,dampRebRow,dampBumpRow,hint,hintTerm=null})=>(
+  <Card hid={hid} title={`${side} SUSPENSION`} accent hint={hint} hintTerm={hintTerm} hintAbove>
+    <Pair k="susp-arb"><RowGroup><OutRow {...arbRow}/></RowGroup></Pair>
+    <Pair k="susp-spring"><RowGroup><OutRow {...springRow}/></RowGroup></Pair>
+    <Pair k="susp-damp"><RowGroup style={{marginBottom:0}}>
       <OutRow {...dampRebRow}/>
       <OutRow {...dampBumpRow}/>
-    </RowGroup>
+    </RowGroup></Pair>
   </Card>
 );
 const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null,camberMeta=[],toeMeta=[]})=>(
   <Card hid={hid} title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm}>
-    <RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°" meta={camberMeta}/></RowGroup>
-    <RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°" meta={toeMeta}/></RowGroup>
+    <Pair k="align-camber"><RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°" meta={camberMeta}/></RowGroup></Pair>
+    <Pair k="align-toe"><RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°" meta={toeMeta}/></RowGroup></Pair>
     {caster!=null&&<RowGroup style={{marginBottom:0}}><OutRow hid="out.caster" label="Caster" value={caster} unit="°"/></RowGroup>}
   </Card>
 );
-const DiffCard=({hid=null,title,rows})=>(
-  <Card hid={hid} title={title}><RowGroup style={{marginBottom:0}}>{rows}</RowGroup></Card>
+// The RECOMMENDED diff-type box, in both layouts' DIFFERENTIAL output: the type Build Type
+// suggests (recommendedDiffType) and why, with → USE to apply it.
+const DIFF_REC_REASON={
+  race:'sharpest, most predictable lock — best for grip driving',
+  sport:'accel-only lock — clean exit traction without decel snap',
+  rally:'softer lock curve — suited to mixed-surface transitions',
+  offroad:'most compliant — low-traction stability and forgiveness',
+  drift:'most aggressive engagement — maximises rotation and wheelspin',
+};
+const DiffTypeRec=({cur,rec,buildType,onUse,style})=>{
+  const match=cur===rec;
+  const label={race:'Race',sport:'Sport',rally:'Rally',offroad:'Offroad',drift:'Drift'}[rec];
+  const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[buildType??'track']??'TRACK';
+  return(
+    <div style={style}>
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:match?0:4}}>
+        <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>RECOMMENDED</span>
+        <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
+          color:match?'#22c55e':'#f59e0b',marginLeft:'auto'}}>
+          {label.toUpperCase()}
+        </span>
+        {!match&&<button className="tbtn" style={{fontSize:9,color:'#60a5fa',padding:'2px 6px'}}
+          onClick={()=>onUse(rec)}>
+          → USE {rec.toUpperCase()}
+        </button>}
+      </div>
+      <div style={{fontSize:10,color:match?'#334155':'#475569',lineHeight:1.5}}>
+        {buildLabel} build → {label}: {DIFF_REC_REASON[rec]}.
+      </div>
+    </div>
+  );
+};
+// children: the RECOMMENDED diff-type box, on the card that carries it (see the BeamNG layout).
+const DiffCard=({hid=null,title,rows,hint=null,hintTerm=null,headerRight=null,children})=>(
+  <Card hid={hid} title={title} hint={hint} hintTerm={hintTerm} headerRight={headerRight}>
+    <Pair k="diff-rows"><RowGroup style={{marginBottom:0}}>{rows}</RowGroup></Pair>
+    {children}
+  </Card>
 );
+// The BeamNG output grid. Front and rear cards sit side by side, so a section that grows on one
+// side only (a meta that wraps, a note under one axle's row) would push every row below it out
+// of line with its partner. After each render this sets every [data-pair] block to the height of
+// the tallest block sharing its key; in one column there is nothing to line up, so it clears them.
+const BeamngGrid=({children})=>{
+  const ref=useRef(null);
+  React.useLayoutEffect(()=>{
+    const el=ref.current;
+    if(!el)return;
+    const sync=()=>{
+      const blocks=[...el.querySelectorAll('[data-pair]')];
+      blocks.forEach(b=>{b.style.minHeight='';});
+      if(getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length<2)return;
+      const byKey={};
+      blocks.forEach(b=>{(byKey[b.dataset.pair]=byKey[b.dataset.pair]||[]).push(b);});
+      Object.values(byKey).forEach(g=>{
+        if(g.length<2)return;
+        const h=Math.max(...g.map(b=>b.getBoundingClientRect().height));
+        g.forEach(b=>{b.style.minHeight=`${h}px`;});
+      });
+    };
+    sync();
+    // Width changes (sidebar, window) rewrap the meta without a render.
+    const ro=new ResizeObserver(sync);
+    ro.observe(el);
+    return()=>ro.disconnect();
+  });
+  return <div ref={ref} className="beamng-grid">{children}</div>;
+};
 
 // scale: the value at which the bar fills its half. dead: below this it reads as nothing. The
 // defaults are the BEG/INT points; PhaseVerdict passes grip-margin percent figures. muted greys a
@@ -6941,7 +7020,7 @@ const GLOSSARY=[
   {group:'Differential',terms:[
     {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MED below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
     {id:'decel-lock',term:'Decel Lock',tier:'beginner',def:"Locking under lift-off and braking. More decel lock resists rotation on corner entry, so the car is steadier on lift-off but understeers more on entry. Less lock lets the car rotate more freely into the corner and under trail-braking. On a rear-drive axle that includes more lift-off oversteer. On a front-drive axle, less means less entry understeer. On AWD the automatic front decel stays at 0, because any front decel strongly adds entry understeer.\n\nA SPORT diff has no decel lock, so its decel rows read N/A. The Handling Balance DIFF row counts decel lock on either axle toward understeer.\n\n[INT] AUTO sets it from the ENTRY slider plus a little with rear weight; on FWD and RWD also from build type and diff type. The limits are 0–30% on RWD, 0–15% on FWD and 0–20% on the AWD rear.\n\n[PRO] MANUAL takes 0–100%. Typical decel is 8–25% for Race, 11–33% for Rally, 15–48% for Offroad and 0–8% for Drift.",see:['accel-lock','entry-bias','diff-type']},
-    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. A Race suggestion becomes Sport when the Handling Balance total is above +8. BeamNG has no diff-type recommendation.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock.",see:['accel-lock','decel-lock','diff-mode','build-type']},
+    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. A Race suggestion becomes Sport when the Handling Balance total is above +8. BeamNG shows the same box (on CENTER SPLIT for AWD), since the type scales its locks too.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock.",see:['accel-lock','decel-lock','diff-mode','build-type']},
     {id:'diff-mode',term:'Differential Mode (AUTO / MANUAL)',tier:'pro',short:'Diff mode',def:"Chooses whether the differential's locks are calculated or typed in. AUTO, the default, works out every lock value from layout, build type, weight bias, diff type and the EXIT, ENTRY and POWER SPLIT sliders. MANUAL hides those sliders and shows each lock % instead. FWD and RWD get Accel Lock and Decel Lock. AWD gets Front and Rear Accel and Decel, plus Center Split. The diff type's typical range sits under each field.\n\nSwitching to MANUAL copies in the current AUTO values, so nothing jumps. MATCH CHASSIS has no effect in MANUAL. Leaving PRO returns the diff to AUTO, because MANUAL's fields exist only in PRO. A share code or garage load can still bring MANUAL in below PRO; the locks it carries stay in use, and DRIVETRAIN lists them.",see:['accel-lock','decel-lock','match-chassis','diff-type']},
     {id:'exit-bias',term:'EXIT (Diff Slider)',tier:'intermediate',short:'Diff EXIT',def:"The automatic differential's on-throttle intent, from GRIP (left) to ROTATE (right), −50 to +50, default 0. Right means more rotation on every layout, but the lock moves differently. On RWD and AWD, ROTATE adds rear accel lock for more power oversteer, and GRIP removes it for cleaner exit traction. On FWD, GRIP adds front accel lock for exit traction at the cost of push. ROTATE removes it for a freer pivot and less understeer. On AWD, ROTATE also trims front accel lock.\n\nAWD adds a second EXIT under FRONT AXLE, from PUSH to NEUTRAL. Toward PUSH adds front accel lock, for more front pull and exit understeer. It suits AWD cars with strong rear rotation. Each slider shows the resulting lock %, and the Handling Balance DIFF row moves with it.\n\n[PRO] MATCH CHASSIS can add a further offset from your Mech Balance Target.",see:['accel-lock','entry-bias','match-chassis','power-split']},
     {id:'entry-bias',term:'ENTRY (Diff Slider)',tier:'intermediate',short:'Diff ENTRY',def:"The automatic differential's lift-off and trail-braking intent, from STABLE (left) to LOOSE (right), −50 to +50, default 0. Toward STABLE raises decel lock. On RWD and AWD that resists lift-off oversteer; on FWD it adds entry understeer. Toward LOOSE lowers it for freer rotation into the corner. It moves the rear decel lock on RWD and AWD and the front decel on FWD. AWD front decel stays at 0. It is hidden for a SPORT diff, which has no decel lock.\n\n[PRO] MATCH CHASSIS adds half its offset here.",see:['decel-lock','exit-bias','match-chassis']},
@@ -6968,7 +7047,7 @@ const GLOSSARY=[
     {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows eff, the lock × the type's scale.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Center Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MED below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTER SPLIT recommends a rear % with the build's reason and its own → USE.\n\n[PRO] CENTER SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
-    {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Center Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings, and there is no RECOMMENDED diff type (a Forza concept). The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever, so treat it as a direction unless you know the geometry.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
+    {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Center Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings. The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever. While an axle's ARB Motion Ratio is 1.0 its row adds a ≈ figure, the rate at a typical 0.45 arm ratio, which is the closer starting point.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
     {id:'ride-roll-damping',term:'RIDE · ROLL · DAMPING',tier:'intermediate',def:"The first VISUALS group; collapsed it reads R (rear % of roll stiffness), × (rear ÷ front Hz) and body roll. ROLL SPLIT is the car's front/rear share of roll stiffness as the game's Mech Balance counts it, each end shaded springs (solid) vs ARBs (light). The grey tick is NAT, the natural balance: a divide right of it means more front roll stiffness (toward understeer), left toward oversteer. Below: body roll at 1 g (plus your Roll Target in ROLL ° mode) and the springs / ARBs share of total roll stiffness.\n\nRIDE Hz puts front and rear on one SOFT to RACE scale (0.8–5.5 Hz), R/F × in the header, amber when the derived axle hit a limit. ARB runs 0 to the game's ceiling, bands at 50, 75 and 90%, amber past 88% (BeamNG: N/m, scaled to the stiffer bar, no bands). DAMPING ζ shows rebound (filled) and bump (hollow) on 10–200%, zoned UNDER below 40, →BW to 70, BWORTH+ to 100, OVER beyond; the header gives bump as a % of rebound, amber if bump exceeds rebound. Hollow grey rings on the derived axle (the one Ride Reference does not fix) show where it would sit for springs alone, or bars alone, to carry natural balance. Green ticks and rings mark the Balance Target (set in PRO's BALANCE section; 0.60 until set) when it differs from NAT.\n\n[PRO] The divide sits where the MECH BALANCE strip's CUR does.",see:['roll-stiffness','mech-balance','hz','zeta']},
     {id:'dynamics-chart',term:'DYNAMICS Chart',tier:'intermediate',def:"A VISUALS chart of each axle's damped step response: the trace starts displaced, as after one bump or corner, and settles to ride height (front blue, rear orange). The shaded strip is ±10% of that initial displacement. The dashed line is settle time, the last moment the trace leaves the strip, measured off the drawn curve, so it reflects the bump/rebound split, not just rebound ζ. The ring is the first ride-height crossing, a rise-speed marker. Both read out below.\n\nTwo correct results look wrong: past roughly 60% ζ the dashed line can land before the ring, because the trace enters the strip on the way down and stays; and it falls in steps as rebound ζ rises, each step one overshoot peak dropping inside the strip. The quickest settle is not at critical damping.\n\nThe DAMPERS rows quote a quick estimate from rebound ζ and Hz alone, blind to bump damping: long below about 79% ζ, short above (about 40% at 100%). SETTLE TIME mode back-solves against it, so the two differ on purpose. RIDE / ROLL switches to roll response: the ARB adds stiffness without damping, so roll ζ = ζ × √(spring share) and roll Hz = Hz ÷ √(spring share); a comparison that ignores roll centres and chassis coupling.",see:['settle-time','zeta','rebound-mode','bump']},
     {id:'sag-vs-load',term:'SAG vs LOAD',tier:'intermediate',def:"A VISUALS chart of suspension compression against load, per axle, shown only with the RIDE HEIGHT CG source and both tyre sizes valid. The solid line is static sag times load factor (compression scales linearly with vertical wheel load; mass cancels out of the spring/frequency relation), with a ring at the static 1 g point. The dashed line is your ride height: where the solid line reaches it (filled dot, bottoms ≈ g) is the vertical load that bottoms that axle.\n\nThe faint short-dashed line adds the outside wheel's compression from cornering load transfer (the balance figures' model); its hollow ring gives the lateral g that bottoms that wheel from roll alone. FRONT and REAR tags rate static sag against ride height: LOW below 50%, MED from 50%, HIGH from 80%, BOTTOMED at 100%.\n\nThe shaded top 12% of travel is a reminder that real springs stiffen near the bump stop, so near the top this linear line reads softer than the real spring. It does not combine cornering with braking or bump load, and treats the axles independently.",see:['sag','bottoming','load-transfer','ride-ref']},
@@ -7002,26 +7081,36 @@ const HINT_LAYOUT='Which wheels the engine drives. It changes the differential a
 const HINT_BUILD_TYPE='The car\'s intended use. It shifts the alignment, differential and brake recommendations.';
 
 // Shared by the UNITS modal and the beginner tutorial's units step.
-const UnitsPicker=({units,setUnits})=>(<>
-  <div style={{display:'flex',gap:4,marginBottom:12}}>
+// physical: a physical-unit game mode (BeamNG), whose output ignores the spring choice. Its
+// buttons are disabled there rather than left lit with no effect, and since every output is
+// metric, the modal points at ALL METRIC while any input unit is still imperial.
+const UnitsPicker=({units,setUnits,physical=false})=>{
+  const mixed=physical&&['mass','length','speed'].some(k=>units[k]===UNITS_IMP[k]);
+  return(<>
+  <div style={{display:'flex',gap:4,marginBottom:mixed?4:12}}>
     <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_IMP)}>ALL IMPERIAL</button>
-    <button className="tbtn" style={{fontSize:10,flex:1}} onClick={()=>setUnits(UNITS_MET)}>ALL METRIC</button>
+    <button className="tbtn" style={{fontSize:10,flex:1,...(mixed?{color:'#60a5fa'}:{})}} onClick={()=>setUnits(UNITS_MET)}>ALL METRIC</button>
   </div>
-  {UNIT_GROUPS.map(g=>(
+  {mixed&&<div style={{fontSize:9,color:'#475569',marginBottom:12,lineHeight:1.4}}>
+    BeamNG's output is metric; ALL METRIC puts the inputs in kg, cm and km/h to match.</div>}
+  {UNIT_GROUPS.map(g=>{
+    const off=physical&&g.k==='spring';
+    return(
     <div key={g.k} style={{marginBottom:10}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
-        <span style={{fontSize:11,color:'#cbd5e1'}}>{g.label}</span>
+        <span style={{fontSize:11,color:off?'#64748b':'#cbd5e1'}}>{g.label}</span>
         <div style={{display:'flex',gap:3}}>
           {g.opts.map(([v,lbl])=>(
-            <button key={v} className={`tbtn${units[g.k]===v?' on':''}`} style={{fontSize:11,minWidth:48}}
-              onClick={()=>setUnits({...units,[g.k]:v})}>{lbl}</button>
+            <button key={v} className={`tbtn${!off&&units[g.k]===v?' on':''}`} style={{fontSize:11,minWidth:48}}
+              disabled={off} onClick={()=>setUnits({...units,[g.k]:v})}>{lbl}</button>
           ))}
         </div>
       </div>
-      {g.note&&<div style={{fontSize:9,color:'#475569',marginTop:3,lineHeight:1.4}}>{g.note} <TermLink id="units"/></div>}
+      {g.note&&<div style={{fontSize:9,color:'#475569',marginTop:3,lineHeight:1.4}}>
+        {off?'BeamNG always uses N/m; this applies in Horizon and Motorsport.':g.note} <TermLink id="units"/></div>}
     </div>
-  ))}
-</>);
+  );})}
+</>);};
 
 const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice})=>{
   const steps=tutSteps(mode,quick);
@@ -7663,6 +7752,13 @@ function App(){
     document.addEventListener('keydown',onKey);
     return()=>document.removeEventListener('keydown',onKey);
   },[editing]);
+  // Esc closes the UNITS modal, as its ✕ and backdrop do.
+  useEffect(()=>{
+    if(!showUnits)return;
+    const onKey=e=>{if(e.key==='Escape')setShowUnits(false);};
+    document.addEventListener('keydown',onKey);
+    return()=>document.removeEventListener('keydown',onKey);
+  },[showUnits]);
   useEffect(()=>{
     if(!tutSeen[uiMode]){
       setTutSeen(p=>({...p,[uiMode]:true}));
@@ -8577,7 +8673,11 @@ function App(){
       const cause=over
         ?(ceil.length?`The ${ceil.join(' and ')} bar${ceil.length>1?'s are':' is'} at the ${lim.arb}-click ceiling. Stiffer springs would reduce roll further, or raise Target Roll Angle toward ${got}°.`
           :`Bars are maxed. Stiffer springs would reduce roll further, or raise Target Roll Angle toward ${got}°.`)
-        :`Springs alone already exceed the target; softer springs give the bars room, or lower Target Roll Angle toward ${got}°. Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.`;
+        :`Springs alone already exceed the target; softer springs give the bars room, or lower Target Roll Angle toward ${got}°. `
+          // BeamNG's floor is no bar at all, so both rows read 0 and there is no split to describe.
+          +(physMode&&tune.arbF<=0&&tune.arbR<=0
+            ?'Until then both bars sit at 0 N/m, so ARB Bias has nothing to split.'
+            :'Until then the bars sit at their floor, split to hold the balance, so ARB Bias has little or nothing to move.');
       return <>Target {tune.rollTarget.toFixed(2)}° couldn't be reached{lim.arb!=null?` within the 1–${lim.arb} range`:''} —
         achieved {got}°. {cause} <TermLink id="output-warnings"/></>;
     })();
@@ -8847,7 +8947,7 @@ function App(){
                 cursor:'pointer',fontSize:14}}>✕</button>
             </div>
             <div style={{padding:'10px 14px 14px',flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain'}}>
-              <UnitsPicker units={units} setUnits={setUnits}/>
+              <UnitsPicker units={units} setUnits={setUnits} physical={physMode}/>
             </div>
           </div>
         </div>
@@ -9336,6 +9436,17 @@ function App(){
                   <option key={m} value={m}>{GAME_MODE_LABEL[m]}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* BeamNG indicator: the sidebar's controls are the same in every game mode, so this is
+              the one place it says the output is in BeamNG's physical units. */}
+          {physMode&&(
+            <div style={{display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap',padding:'6px 12px',
+                         borderBottom:'1px solid #0f172a',fontSize:10,color:'#64748b',fontFamily:'var(--font-mono)'}}>
+              <span style={{color:'#cbd5e1',letterSpacing:1}}>BEAMNG</span>
+              <span>output in N/m and N/m/s, no click limits</span>
+              <TermLink id="beamng-output"/>
             </div>
           )}
 
@@ -10280,7 +10391,8 @@ function App(){
                     :isChassis
                     ?"Moves the ARB split off the car's calibrated natural balance, which centre matches. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."
                     :"Moves the ARB split off the car's weight balance, which centre matches. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."}
-                  readout={`F ${100-splitPct}% / R ${splitPct}%`} hintTerm="arb-bias"/></Hide>
+                  // BeamNG floors both bars at 0 N/m, and a split of nothing is not a split.
+                  readout={physMode&&tune.arbF<=0&&tune.arbR<=0?'NO BARS':`F ${100-splitPct}% / R ${splitPct}%`} hintTerm="arb-bias"/></Hide>
               </>);
             })()}
           </Sec></div>
@@ -11798,17 +11910,6 @@ function App(){
                 was removed: the same information is already in the footer's Handling Balance
                 contributions breakdown (SPR/ARB/DIFF/BRK), so it was duplicated, not lost. */}
             {(()=>{
-              const curType=dr.diffType??'race';
-              const recType=recommendedDiffType;
-              const recMatch=curType===recType;
-              const recLabel={race:'Race',sport:'Sport',rally:'Rally',offroad:'Offroad',drift:'Drift'}[recType];
-              const recReason={
-                race:'sharpest, most predictable lock — best for grip driving',
-                sport:'accel-only lock — clean exit traction without decel snap',
-                rally:'softer lock curve — suited to mixed-surface transitions',
-                offroad:'most compliant — low-traction stability and forgiveness',
-                drift:'most aggressive engagement — maximises rotation and wheelspin',
-              }[recType];
               const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'track']??'TRACK';
               const isAWD=diff.layout==='AWD';
               const curCenter=dr.diffCenter??65;
@@ -11823,22 +11924,10 @@ function App(){
               if(uiMode==='beginner')return null;
               return(
                 <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6}}>
-                  <Hide id="out.diff.rec" style={{flex:'1 1 240px',minWidth:0}}><div style={box}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:recMatch?0:4}}>
-                      <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>RECOMMENDED</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
-                        color:recMatch?'#22c55e':'#f59e0b',marginLeft:'auto'}}>
-                        {recLabel.toUpperCase()}
-                      </span>
-                      {!recMatch&&<button className="tbtn" style={{fontSize:9,color:'#60a5fa',padding:'2px 6px'}}
-                        onClick={()=>setDr(p=>({...p,diffType:recType}))}>
-                        → USE {recType.toUpperCase()}
-                      </button>}
-                    </div>
-                    <div style={{fontSize:10,color:recMatch?'#334155':'#475569',lineHeight:1.5}}>
-                      {buildLabel} build → {recLabel}: {recReason}.
-                    </div>
-                  </div></Hide>
+                  <Hide id="out.diff.rec" style={{flex:'1 1 240px',minWidth:0}}>
+                    <DiffTypeRec cur={dr.diffType??'race'} rec={recommendedDiffType} buildType={dr.buildType}
+                      onUse={t=>setDr(p=>({...p,diffType:t}))} style={box}/>
+                  </Hide>
                   {showSplit&&<Hide id="out.diff.recCenter" style={{flex:'1 1 240px',minWidth:0}}><div style={box}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>CENTER SPLIT</span>
@@ -11883,10 +11972,15 @@ function App(){
             // cards above call, just assembled into row-prop objects instead of inline OutRows,
             // since SuspensionCard merges three subsystems into one. Note and meta come from
             // arbView/springView/dampView, as on the Forza cards.
+            // An axle whose ARB Motion Ratio is still 1.0 prints the rate at the wheel, which reads
+            // soft in BeamNG; its row adds the rate at ARB_MR_TYPICAL as a ≈ figure. A bar at 0
+            // has nothing to scale.
+            const arbSoft=(v,arbMr)=>(arbMr??1)===1&&v>0;
             const buildArbRow=(side,v,track,arbMr,{note,meta})=>{
               const o=arbOut(v,lim,track,arbMr);
+              const typ=arbSoft(v,arbMr)?[{text:`≈${arbOut(v,lim,track,ARB_MR_TYPICAL).value}`,on:true}]:[];
               return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
-                note,meta};
+                note,meta:[...meta,...typ]};
             };
             const buildSpringRow=(side,spring,mr,{note,noteColor,meta})=>{
               const o=springOut(spring,fe.gameMode,mSpring,mr);
@@ -11898,19 +11992,21 @@ function App(){
               return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping),unit:o.unit,note,meta};
             };
 
-            const suspHint="Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers. Anti-Roll reads soft; see the note under that row.";
-            const arbCaveat=(ch.arbMotionRatioF??1)===1&&(ch.arbMotionRatioR??1)===1
-              ?(uiMode==='pro'
-                ?"Reads ~4–6× soft at ARB Motion Ratio 1.0. Set the ratio in CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry."
-                :"Reads ~4–6× soft: BeamNG rates the bar at its own lever, so treat it as a direction.")
-              :null;
+            // The soft-ARB note, written once, full width under both suspension cards (inside one
+            // card it would hold the other card's rows open beside it), naming the axle when only
+            // one is soft (PRO set the other's ratio).
+            const softF=arbSoft(tune.arbF,ch.arbMotionRatioF),softR=arbSoft(tune.arbR,ch.arbMotionRatioR);
+            const arbCaveat=!softF&&!softR?null
+              :`${softF&&softR?'Anti-Roll':softF?'Front Anti-Roll':'Rear Anti-Roll'} is the rate at the wheel; BeamNG rates the bar at its own lever, so the game's number runs ~4–6× higher. ≈ is the rate at a typical ${ARB_MR_TYPICAL} arm ratio, the closer starting point.`
+                +(uiMode==='pro'?` Set ARB Motion Ratio ${softF&&softR?'F and R':softF?'F':'R'} in CHASSIS (arm ÷ track) if you know the geometry.`:'');
+            const suspHint=soft=>`Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers.${soft?' Anti-Roll reads soft; see the ≈ figure and the note under the suspension cards.':''}`;
 
-            const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint} arbCaveat={arbCaveat}
+            const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint(softF)}
               arbRow={buildArbRow('front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front)}
               springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,springView.front)}
               dampRebRow={buildDampRow('Rebound',tune.rebF,ch.motionRatioF,dampView.front.reb,'out.rebF')}
               dampBumpRow={buildDampRow('Bump',tune.bumpF,ch.motionRatioF,dampView.front.bump,'out.bumpF')} hintTerm="beamng-output"/>;
-            const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint} arbCaveat={arbCaveat}
+            const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint(softR)}
               arbRow={buildArbRow('rear',tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear)}
               springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,springView.rear)}
               dampRebRow={buildDampRow('Rebound',tune.rebR,ch.motionRatioR,dampView.rear.reb,'out.rebR')}
@@ -11943,27 +12039,39 @@ function App(){
               return <OutRow key={label} hid={hid} label={label} value={v} unit={unit} decimals={0}
                 note={c?c[0]:null} noteColor={c?c[1]:undefined} meta={unit==='%'?diffView.meta(v):[]}/>;
             };
-            const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL"
+            // Header and hint as on Forza's DIFFERENTIAL card: the diff type scales the locks and
+            // makes SPORT's decel N/A here too (docs/KNOWN_ISSUES.md, DIFF TYPE in BEAMNG), so the
+            // card names it, and the RECOMMENDED type box sits on the one card that covers the whole
+            // drivetrain: the single diff on FWD/RWD, CENTER SPLIT on AWD.
+            const recBox={padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'};
+            const diffRec=uiMode!=='beginner'&&<Hide id="out.diff.rec"><DiffTypeRec cur={dr.diffType??'race'} rec={recommendedDiffType}
+              buildType={dr.buildType} onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...recBox,marginTop:isAWD?0:6,marginBottom:isAWD?5:0}}/></Hide>;
+            const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL" headerRight={diffView.header} hintTerm="diff-output"
+              hint={isAWD?'Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; more front accel lock pulls the nose out of the corner.'
+                :'Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.'}
               rows={isAWD?[lock('Accel',diff.frontAccel,'%','out.diff.frontAccel'),lock('Decel',diff.frontDecel,'%','out.diff.frontDecel')]
-                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}/>;
-            const rearDiff=(isAWD||isRWD)&&<DiffCard hid="out.card.diffR" title="REAR DIFFERENTIAL"
+                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}>{!isAWD&&diffRec}</DiffCard>;
+            const rearDiff=(isAWD||isRWD)&&<DiffCard hid="out.card.diffR" title="REAR DIFFERENTIAL" headerRight={diffView.header} hintTerm="diff-output"
+              hint={isAWD?'Starting point; fine-tune in 1% steps. Keep rear decel low for rotation; more rear accel lock adds exit rotation.'
+                :'Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.'}
               rows={isAWD?[lock('Accel',diff.rearAccel,'%','out.diff.rearAccel'),lock('Decel',diff.rearDecel,'%','out.diff.rearDecel')]
-                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}/>;
+                :[lock('Accel',diff.accel,'%','out.diff.accel'),lock('Decel',diff.decel,'%','out.diff.decel')]}>{!isAWD&&diffRec}</DiffCard>;
 
-            // Center split — combines diff.center with its recommendation call-out, AWD only.
-            // No RECOMMENDED-diff-type box here: that race/sport/rally/offroad/drift system is
-            // a Forza concept and doesn't apply to BeamNG (Forza's DIFFERENTIAL card keeps it).
+            // Center split — combines diff.center with its recommendation call-out, AWD only, and
+            // carries the RECOMMENDED diff type for all three diffs.
             const centerSplit=isAWD&&(()=>{
               const curCenter=dr.diffCenter??65;
               const centerMatch=curCenter===recommendedCenter;
               const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'track']??'TRACK';
               const centerReasons={street:'mild rear bias — comfortable AWD character',track:'rear-weighted for rotation and exit drive',drift:'very rear-heavy — maximises rotation and wheelspin',rally:'more neutral — front traction on mixed surfaces',offroad:'slight front bias — stability on loose and uneven ground',drag:'rear-heavy for straight-line launch traction'};
               return (
-                <Card hid="out.card.center" title="CENTER SPLIT">
+                <Card hid="out.card.center" title="CENTER SPLIT" headerRight={diffView.header} hintTerm="diff-output"
+                  hint={`Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.`}>
                   <RowGroup style={{marginBottom:uiMode==='beginner'?0:6}}>
                     {lock('Base Torque Split',diff.center,'% rear','out.diff.center')}
                   </RowGroup>
-                  {uiMode!=='beginner'&&<Hide id="out.diff.recCenter"><div style={{padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'}}>
+                  {diffRec}
+                  {uiMode!=='beginner'&&<Hide id="out.diff.recCenter"><div style={recBox}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
                       <span style={{fontSize:10,color:'#475569',letterSpacing:1}}>RECOMMENDED</span>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
@@ -11994,35 +12102,43 @@ function App(){
               </Card>
             );
 
+            // The mode strip stands in for the Forza cards' headers. Each item is one unbreakable
+            // unit with its subsystem named brighter, so a narrow panel wraps between items, never
+            // inside one. BEG has no mode controls to read it against, so it shows only warnings.
+            const showSummary=uiMode!=='beginner'&&(layoutCtx.edit||!layoutCtx.isHidden('out.summary'));
+            const modeItem=(k,label,text)=><span key={k} style={{whiteSpace:'nowrap'}}>
+              <span style={{color:'#94a3b8'}}>{label}</span> {text}</span>;
             return (<>
-              {(layoutCtx.edit||!layoutCtx.isHidden('out.summary')||warnings.length>0)&&
+              {(showSummary||warnings.length>0)&&
               <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',
                            padding:'6px 8px',background:'#0f172a',border:'1px solid #1e293b',
                            borderRadius:2,marginBottom:10,fontSize:10,color:'#64748b',
                            fontFamily:'var(--font-mono)'}}>
-                <Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',gap:12}}>
-                <span>ARB {arbView.header}</span>
-                <span>SPRINGS {springView.header}</span>
-                <span>{dampView.header}</span>
-                <span>ALIGN {alignView.header}</span>
-                <span>DIFF {diffView.header}</span>
-                </Hide>
+                {showSummary&&<Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',columnGap:16,rowGap:4}}>
+                {modeItem('arb','ARB',arbView.header)}
+                {modeItem('springs','SPRINGS',springView.header)}
+                {modeItem('damp','DAMPERS',dampView.header)}
+                {modeItem('align','ALIGN',alignView.header)}
+                {modeItem('diff','DIFF',diffView.header)}
+                </Hide>}
                 {warnings.length>0&&<div style={{flexBasis:'100%'}}>{warnings}</div>}
               </div>}
-              {/* Fixed 4-row × 2-column grid (Brakes/Center, Front/Rear Diff, Front/Rear
-                  Suspension, Front/Rear Alignment). DOM order is row-major, so collapsing to
-                  one column at narrow widths (auto-fit) reproduces the PDF's own top-to-bottom
-                  order for free — no separate mobile branch needed. */}
-              <div className="beamng-grid">
+              {/* 2-column grid, front axle left and rear right: Brakes beside the one diff (FWD
+                  diff left, RWD diff right) or, on AWD, Brakes/Center then Front/Rear Diff; then
+                  Front/Rear Suspension and Front/Rear Alignment. No placeholder cells, so no row
+                  is left with a hole. DOM order is row-major, so collapsing to one column at
+                  narrow widths keeps the same top-to-bottom order with no separate mobile branch. */}
+              <BeamngGrid>
+                {isFWD&&frontDiff}
                 {brakesCard}
-                {centerSplit||<div/>}
-                {frontDiff||<div/>}
-                {rearDiff||<div/>}
+                {isRWD&&rearDiff}
+                {isAWD&&<>{centerSplit}{frontDiff}{rearDiff}</>}
                 {frontSuspension}
                 {rearSuspension}
+                {arbCaveat&&<div style={{gridColumn:'1/-1',fontSize:10,color:'#f59e0b',lineHeight:1.6,marginTop:-4}}>{arbCaveat}</div>}
                 {frontAlign}
                 {rearAlign}
-              </div>
+              </BeamngGrid>
             </>);
           })()}
 
