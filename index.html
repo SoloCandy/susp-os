@@ -44,7 +44,7 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
      -webkit-text-size-adjust:100%;height:100%;height:-webkit-fill-available;height:100dvh;}
 @media(max-width:768px){
   body{overflow:auto}
-  .tog{padding:9px 0;min-height:40px}
+  .tog{padding:9px 4px;min-height:40px}
   .tbtn{padding:11px 14px;min-height:40px}
 }
 @media(max-width:480px){
@@ -67,6 +67,9 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:#0a0f1a}
 ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:2px}
+/* stable: the gutter is reserved before the scrollbar appears, so opening a section no longer
+   shifts the whole sidebar sideways and rewraps its selectors. */
+.sidebar-scroll{scrollbar-gutter:stable}
 .sidebar-scroll::-webkit-scrollbar{width:12px}
 .sidebar-scroll::-webkit-scrollbar-track{background:#0a0f1a;border-left:1px solid #0f172a}
 .sidebar-scroll::-webkit-scrollbar-thumb{background:#1e293b;border-radius:2px;border:3px solid #0a0f1a}
@@ -88,10 +91,17 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .sli::-webkit-slider-thumb:hover{transform:scale(1.2)}
 .sli::-moz-range-thumb{width:14px;height:14px;background:#e2e8f0;border-radius:50%;border:none;
   cursor:pointer;box-shadow:0 0 0 2px #02061799}
-.tog{flex:1;padding:3px 0;border:1px solid #1e293b;background:#0a0f1a;color:#6b7280;
+.tog{flex:1;padding:3px 4px;border:1px solid #1e293b;background:#0a0f1a;color:#9ca3af;
      border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px;
-     letter-spacing:1px;transition:all .12s;-webkit-tap-highlight-color:transparent}
-.tog.on{border-color:#e2e8f033;background:#0f172a;color:#e2e8f0}
+     letter-spacing:1px;transition:all .12s;-webkit-tap-highlight-color:transparent;
+     min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Unselected options read as live choices (they used to share the disabled grey); the selected
+   one is set apart by its fill and border instead. */
+.tog:hover{border-color:#334155;color:#cbd5e1}
+.tog.on{border-color:#e2e8f055;background:#1e293b;color:#e2e8f0}
+/* Option selector (OptionSeg): equal columns, one row while the labels fit, otherwise balanced rows.
+   OptionSeg picks the column count; see its comment. */
+.seg{display:grid;gap:3px;width:100%}
 .tbtn{padding:4px 10px;border:1px solid #1e293b;background:transparent;color:#6b7280;
       border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px;
       letter-spacing:1px;transition:all .12s;-webkit-tap-highlight-color:transparent}
@@ -131,14 +141,17 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .stog-open{color:#9ca3af}
 /* Layout edit view (Hide): the part sits under a full-cover button, inert, so a click toggles
    it instead of moving a slider. A hidden part is faded and dashed. */
-.hz{position:relative;border-radius:2px;outline:1px dashed transparent;outline-offset:1px}
+.hz{position:relative;border-radius:2px;outline:1px dashed #818cf855;outline-offset:1px}
 .hz-inline{display:inline-block}
 .hz-body{transition:opacity .12s}
 .hz-off .hz-body{opacity:.28}
 .hz-off{outline-color:#475569}
 .hz-btn{position:absolute;inset:0;width:100%;height:100%;padding:0;margin:0;border:none;
         background:transparent;cursor:pointer;z-index:2;border-radius:2px}
-.hz-btn:hover{background:#818cf814;outline:1px solid #818cf866}
+.hz-btn:hover{background:#818cf814;outline:1px solid #818cf8aa}
+/* The edit view's frame: a persistent border on every panel it applies to, so it can't be
+   mistaken for the regular view on touch, where nothing hovers. */
+.layout-editing{box-shadow:inset 0 0 0 2px #818cf8}
 .hz-btn:focus-visible{outline:1px solid #818cf8}
 .card{background:#020617;border:1px solid #1e293b;border-radius:2px;overflow:hidden;margin-bottom:10px}
 .ch{padding:3px 8px;background:#0a0f1a;border-bottom:1px solid #1e293b;
@@ -3976,10 +3989,12 @@ const DNA_MODE_FIELDS=[
   ['fe','bumpBalMode','BUMP BALANCE'],['dr','diffManual','DIFF MANUAL'],
 ];
 
+// pad: a 4px lead, for an ⓘ that follows its label's text directly rather than sitting in a
+// flex row whose gap already spaces it.
 // above: open upward when there is room, for a hint whose subject sits right below its ⓘ (the
 // BeamNG suspension cards), so the tooltip does not cover the rows it explains. It anchors by its
 // bottom edge, so the height estimate below does not leave a gap.
-const Hint=({text,term=null,above=false})=>{
+const Hint=({text,term=null,pad=false,above=false})=>{
   const[pos,setPos]=useState(null);
   const ref=useRef(null);
   const tipRef=useRef(null);
@@ -4000,6 +4015,14 @@ const Hint=({text,term=null,above=false})=>{
     const PAD=8,GAP=6;
     const TW=Math.min(260,window.innerWidth-PAD*2);
     const TH=240; // generous estimate — ensures correct above/below decision for long tooltips
+    // An ⓘ in the sidebar opens beside the sidebar when the window has room, level with the
+    // ⓘ, so the tip covers the output panel instead of the inputs and labels round the ⓘ.
+    const side=ref.current.closest('.sidebar-scroll');
+    if(side){
+      const sr=side.getBoundingClientRect();
+      if(sr.right+GAP+TW+PAD<=window.innerWidth)
+        return{top:Math.max(PAD,Math.min(r.top-8,window.innerHeight-TH-PAD)),left:sr.right+GAP,width:TW,aside:true};
+    }
     // Prefer below; fall back to above. Clamp both so tooltip never leaves viewport.
     const showBelow=r.bottom+GAP+TH<=window.innerHeight;
     const top=Math.max(PAD,showBelow?r.bottom+GAP:r.top-TH-GAP);
@@ -4015,8 +4038,9 @@ const Hint=({text,term=null,above=false})=>{
   const close=()=>{ clearClose(); setPos(null); };
   const open=()=>{ clearClose(); openedAt.current=performance.now(); setPos(p=>p||calcPos()); };
   const toggle=()=>{ clearClose(); openedAt.current=performance.now(); setPos(p=>p?null:calcPos()); };
-  // Mouse hover closes on a short delay so the pointer can cross the gap onto a TERMS link.
-  const scheduleClose=()=>{ clearClose(); closeT.current=setTimeout(()=>{closeT.current=null;setPos(null);},150); };
+  // Mouse hover closes on a short delay so the pointer can cross the gap onto a TERMS link —
+  // longer for a tip beside the sidebar, which the pointer has further to travel to.
+  const scheduleClose=()=>{ clearClose(); closeT.current=setTimeout(()=>{closeT.current=null;setPos(null);},pos?.aside?400:150); };
   useEffect(()=>()=>clearClose(),[]);
 
   const openGlossary=keyboard=>{
@@ -4098,7 +4122,7 @@ const Hint=({text,term=null,above=false})=>{
 
   return(
     <span ref={ref} role="button" tabIndex={0} aria-label="Help"
-          style={{display:'inline-block',cursor:'help',WebkitTapHighlightColor:'transparent'}}
+          style={{display:'inline-block',cursor:'help',WebkitTapHighlightColor:'transparent',marginLeft:pad?4:undefined}}
           onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave} onPointerDown={onPointerDown}
           onFocus={onFocus} onBlur={onBlur}
           onKeyDown={onKeyDown}
@@ -4154,7 +4178,14 @@ let hintIdSeq=0; // Hint's tooltip-id fallback when React.useId is missing
 
 // The unit label beside a `.num` box. Field and every readout that embeds a `.num` share it, so
 // all typed-entry boxes read the same: CHASSIS's weight, the Hz fields, BOTTOM G, FeelSlider's.
-const NUM_UNIT_STYLE={fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'};
+// minWidth holds two characters even when empty, so boxes with "lb", "%" or no unit at all end
+// at the same right edge down the sidebar; only a longer unit ("% rear") pushes its box in.
+const NUM_UNIT_STYLE={fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)',whiteSpace:'nowrap',minWidth:'2ch'};
+// Field's slider ends: the range in the box's own unit and step, e.g. 30% / 70%.
+const fieldEnd=(v,step,unit)=>{
+  const dp=Math.min(6,(String(step).split('.')[1]||'').length);
+  return`${v.toFixed(dp)}${!unit||/^[%°×÷]/.test(unit)?'':' '}${unit}`;
+};
 const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false,hintTerm=null})=>{
   const mid=logMid??Math.sqrt(min*max);
   const valToT=v=>{
@@ -4216,7 +4247,7 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
                          :{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
         <span style={{fontSize:12,color:'#9ca3af',minWidth:0,maxWidth:'100%',overflow:'hidden',
                       textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:6}}>
-          {label}{hint&&<Hint text={hint} term={hintTerm}/>}
+          {label}{hint&&<Hint pad text={hint} term={hintTerm}/>}
         </span>
         <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
           <input ref={numRef} type="number" className="num" min={min} max={max} step={logScale?1:step}
@@ -4225,7 +4256,7 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
             onChange={e=>setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={e=>{if(e.key==='Enter')e.target.blur();}}/>
-          {unit&&<span style={NUM_UNIT_STYLE}>{unit}</span>}
+          <span style={NUM_UNIT_STYLE}>{unit}</span>
         </div>
       </div>
       {!noSlider&&<input ref={sliRef} type="range" className="sli" min={0} max={1} step={0.0001}
@@ -4235,6 +4266,7 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
         onChange={e=>onChange(logScale
           ?Math.round(clamp(tToVal(parseFloat(e.target.value))))
           :parseFloat(e.target.value))}/>}
+      {!noSlider&&<SliderEnds left={fieldEnd(min,step,unit)} right={fieldEnd(max,step,unit)}/>}
     </div>
   );
 };
@@ -4277,10 +4309,23 @@ const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder
           if(e.key==='Enter')e.target.blur();
           else if(e.key==='Escape'){cancelRef.current=true;e.target.blur();}
         }}/>
-      {unit&&<span style={NUM_UNIT_STYLE}>{unit}</span>}
+      <span style={NUM_UNIT_STYLE}>{unit}</span>
     </span>
   );
 };
+
+// A position along a .sli track, as a CSS left: the thumb's centre runs from 7px in at one end
+// to 7px in at the other (its 14px width), so a tick or label at value v lines up with the thumb.
+const sliderPosOf=pct=>`calc(${pct*100}% + ${(0.5-pct)*14}px)`;
+// The words or numbers under a slider's two ends. Every slider has them: words where the slider
+// moves between two named extremes (UNDERSTEER / OVERSTEER), the range with its unit where it
+// sets a quantity (Field passes those).
+const SliderEnds=({left,right})=>(left==null&&right==null)?null:(
+  <div style={{display:'flex',justifyContent:'space-between',gap:8,marginTop:2}}>
+    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>{left}</span>
+    <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,textAlign:'right'}}>{right}</span>
+  </div>
+);
 
 // Every FeelSlider carries Field's number box (NumBox) beside its label, as CHASSIS does, so any
 // slider can be typed. `box` configures it: `unit`, and `value`/`onCommit`/`min`/`max`/`dp`
@@ -4308,10 +4353,10 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
     return()=>{w&&w.removeEventListener('wheel',onWheel);};
   },[min,max,step]);
   return(
-    <div ref={wrapRef} style={{marginBottom:markers&&markers.some(m=>m.label)?18:10,opacity:locked?0.38:1,transition:'opacity .15s'}}>
+    <div ref={wrapRef} style={{marginBottom:10,opacity:locked?0.38:1,transition:'opacity .15s'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
         <span style={{fontSize:12,color:'#9ca3af',minWidth:0,overflow:'hidden',
-                      textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:6}}>{label}{hint&&<Hint text={hint} term={hintTerm}/>}</span>
+                      textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:6}}>{label}{hint&&<Hint pad text={hint} term={hintTerm}/>}</span>
         <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
           {locked&&<span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MANUAL</span>}
           {readout&&(typeof readout==='string'
@@ -4326,30 +4371,33 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
         <input type="range" className="sli" min={min} max={max} step={step} value={value}
           style={{background:bg,cursor:locked?'not-allowed':'pointer',pointerEvents:locked?'none':'auto'}}
           onChange={e=>!locked&&onChange(parseFloat(e.target.value))}/>
+        {/* Ticks only, centred on the track. Their labels sit in the row below, clear of the
+            thumb's path: on the track they hid under the thumb exactly where it rests. */}
         {markers&&markers.map(m=>{
           const pct=(m.value-min)/(max-min);
-          const left=`calc(${pct*100}% + ${(0.5-pct)*14}px)`;
           const active=m.lessThan?value<m.value:value>=m.value;
           return(
-            <div key={m.value} style={{position:'absolute',left,top:'50%',
+            <div key={m.value} style={{position:'absolute',left:sliderPosOf(pct),top:'50%',
                 transform:'translate(-50%,-50%)',pointerEvents:'none',
-                display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-              <div style={{width:1.5,height:8,borderRadius:1,
-                           background:active?m.color:'#1e293b',
-                           transition:'background .15s'}}/>
-              {m.label&&<span style={{fontSize:10,color:active?m.color:'#94a3b8',
-                                      letterSpacing:0.5,whiteSpace:'nowrap',
-                                      transition:'color .15s',marginTop:2}}>
-                {m.label}
-              </span>}
-            </div>
+                width:1.5,height:8,borderRadius:1,
+                background:active?m.color:'#1e293b',transition:'background .15s'}}/>
           );
         })}
       </div>
-      <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
-        <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>{leftLabel}</span>
-        <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>{rightLabel}</span>
-      </div></>}
+      {markers&&markers.some(m=>m.label)&&<div style={{position:'relative',height:12,marginTop:1}} aria-hidden="true">
+        {markers.filter(m=>m.label).map(m=>{
+          const pct=(m.value-min)/(max-min);
+          const active=m.lessThan?value<m.value:value>=m.value;
+          return(
+            <span key={m.value} style={{position:'absolute',left:sliderPosOf(pct),top:0,
+                transform:'translateX(-50%)',fontSize:10,lineHeight:'12px',letterSpacing:0.5,
+                whiteSpace:'nowrap',color:active?m.color:'#94a3b8',transition:'color .15s'}}>
+              {m.label}
+            </span>
+          );
+        })}
+      </div>}
+      <SliderEnds left={leftLabel} right={rightLabel}/></>}
     </div>
   );
 };
@@ -4509,13 +4557,46 @@ const VisSuspTracks=({tune,physics,natBal,target,arbLimit,physical,dispF,dispR,h
 };
 
 
+// Every option selector in the sidebar: a row of .tog buttons in equal columns. One row while
+// the longest label fits its column; otherwise the fewest rows that do, balanced (six → 3 + 3,
+// five → 3 + 2), never a 5 + 1 wrap or a label squeezed under its neighbour. The width comes
+// from a ResizeObserver, so it follows the sidebar's own width rather than the viewport's.
+// SEG_CH is one character of .tog's 11px mono plus its 1px tracking; SEG_PAD its padding and border.
+const SEG_CH=7.6,SEG_PAD=12,SEG_GAP=3;
+const segText=c=>typeof c==='string'||typeof c==='number'?String(c)
+  :Array.isArray(c)?c.map(segText).join(''):c&&c.props?segText(c.props.children):'';
+const OptionSeg=({children,label=null,style=null})=>{
+  const items=React.Children.toArray(children);
+  const n=Math.max(1,items.length);
+  const longest=Math.max(1,...items.map(c=>segText(c.props?.children).trim().length));
+  const ref=useRef(null);
+  const[w,setW]=useState(0);
+  useLayoutEffect(()=>{
+    const el=ref.current;
+    if(!el)return;
+    setW(el.clientWidth);
+    if(typeof ResizeObserver==='undefined')return;
+    const ro=new ResizeObserver(()=>setW(el.clientWidth));
+    ro.observe(el);
+    return()=>ro.disconnect();
+  },[]);
+  const fit=w>0?Math.max(1,Math.floor((w+SEG_GAP)/(longest*SEG_CH+SEG_PAD+SEG_GAP))):n;
+  const cols=Math.ceil(n/Math.ceil(n/Math.min(n,fit)));
+  return(
+    <div ref={ref} className="seg" role="group" aria-label={label||undefined}
+         style={{gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,...style}}>
+      {items}
+    </div>
+  );
+};
+// A labelled selector: the label (and ⓘ) on its own line, the OptionSeg under it.
 const Toggle=({label,value,onChange,options,hint,hintTerm=null})=>(
   <div style={{marginBottom:9}}>
     {label&&<span style={{fontSize:12,color:'#9ca3af',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>{label}{hint&&<Hint text={hint} term={hintTerm}/>}</span>}
-    <div style={{display:'flex',gap:3}}>
+    <OptionSeg label={typeof label==='string'?label:null}>
       {options.map(o=><button key={o.value} className={`tog${value===o.value?' on':''}`}
         onClick={()=>onChange(o.value)}>{o.label}</button>)}
-    </div>
+    </OptionSeg>
   </div>
 );
 
@@ -4570,7 +4651,7 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
   const handleReset=e=>{
     e.stopPropagation();
     if(pending){clearTimeout(timer.current);setPending(false);onReset();}
-    else{setPending(true);timer.current=setTimeout(()=>setPending(false),2000);}
+    else{setPending(true);timer.current=setTimeout(()=>setPending(false),5000);}
   };
   useEffect(()=>()=>clearTimeout(timer.current),[]);
   // Edit view (after the hooks, so their order never changes): the header still collapses and
@@ -4594,7 +4675,7 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
             <button type="button" className="sec-hide" aria-pressed={off}
               title={off?'Hidden: show this section again':'Hide this whole section'}
               onClick={e=>{e.stopPropagation();L.toggle(hid);}} onKeyDown={e=>e.stopPropagation()}
-              style={{fontSize:10,padding:'1px 5px',borderRadius:2,background:'none',fontFamily:'inherit',lineHeight:1.4,
+              style={{fontSize:10,letterSpacing:1,padding:'0 8px',minWidth:64,minHeight:26,borderRadius:2,background:'none',fontFamily:'inherit',lineHeight:1.4,
                       cursor:'pointer',userSelect:'none',color:off?'#e2e8f0':'#818cf8',
                       border:`1px solid ${off?'#475569':'#818cf855'}`}}>{off?'SHOW':'HIDE'}</button>
             <span style={{fontSize:11,color:isOpen?'#e2e8f0':'#94a3b8',opacity:off?0.35:1}}>
@@ -4625,13 +4706,17 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
           <span>{title}</span>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
+          {/* RESET asks once: the second click within 5s resets. A target of at least 64×26
+              (it was 42×18), and the confirm state is filled amber, so it can't be missed. */}
           {onReset&&<button type="button"
             onClick={handleReset}
-            title={pending?'Click again to confirm':'Reset to defaults'}
-            style={{fontSize:10,color:pending?'#f59e0b':'#94a3b8',padding:'1px 5px',borderRadius:2,
-                    background:'none',fontFamily:'inherit',
-                    border:`1px solid ${pending?'#f59e0b44':'#1e293b'}`,lineHeight:1.4,cursor:'pointer',
-                    transition:'color .12s,border-color .12s',userSelect:'none'}}>
+            title={pending?'Click again to reset this section':'Reset to defaults'}
+            aria-label={pending?`Confirm reset of ${title}`:`Reset ${title} to defaults`}
+            style={{fontSize:10,letterSpacing:1,color:pending?'#020617':'#94a3b8',padding:'0 8px',borderRadius:2,
+                    minWidth:64,minHeight:26,fontWeight:pending?700:400,
+                    background:pending?'#f59e0b':'none',fontFamily:'inherit',
+                    border:`1px solid ${pending?'#f59e0b':'#334155'}`,lineHeight:1.4,cursor:'pointer',
+                    transition:'color .12s,border-color .12s,background .12s',userSelect:'none'}}>
             {pending?'SURE?':'RESET'}
           </button>}
           <span style={{fontSize:11,color:open?'#e2e8f0':'#94a3b8',transition:'color .12s'}}>
@@ -5328,7 +5413,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,setFe,onImportDna,initialMode})=
               onClick={()=>setCkMode('decode')}>DECODE</button>
             <button className="tbtn" style={{fontSize:9,color:ckMode==='probe'?'#60a5fa':'#475569'}}
               onClick={()=>setCkMode('probe')}>MEASURE</button>
-            <button onClick={onClose} style={{background:'none',border:'none',color:'#94a3b8',
+            <button onClick={onClose} aria-label="Close Tune Check" style={{background:'none',border:'none',color:'#94a3b8',
                                              cursor:'pointer',fontSize:17,lineHeight:1}}>✕</button>
           </div>
         </div>
@@ -7783,7 +7868,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
           <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>{mLabel} GUIDE  ·  {at+1} / {total}</span>
           <div style={{fontSize:13,color:'#e2e8f0',fontWeight:700,marginTop:3,letterSpacing:0.5}}>{t.title}</div>
         </div>
-        <button onClick={onClose} style={{...btnStyle,padding:'3px 8px',marginTop:2,color:'#94a3b8'}}>✕</button>
+        <button onClick={onClose} aria-label="Close guide" style={{...btnStyle,padding:'3px 8px',marginTop:2,color:'#94a3b8'}}>✕</button>
       </div>
       {/* progress bar */}
       <div style={{display:'flex',gap:3,marginBottom:10}}>
@@ -9730,7 +9815,7 @@ function App(){
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
                      padding:'0 14px',height:42}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <button onClick={()=>setSidebarOpen(p=>!p)}
+            <button onClick={()=>setSidebarOpen(p=>!p)} aria-label={sidebarOpen?'Close sidebar':'Open sidebar'}
               style={{background:'none',border:'1px solid #1e293b',borderRadius:2,
                       color:sidebarOpen?'#e2e8f0':'#94a3b8',cursor:'pointer',
                       padding:isMobile?'7px 10px':'3px 7px',fontSize:13,lineHeight:1,
@@ -9884,7 +9969,7 @@ function App(){
           </div>
         </div>
 
-        <div className="sidebar-scroll" style={{WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',
+        <div className={`sidebar-scroll${editing?' layout-editing':''}`} style={{WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',
           flex:1,minHeight:0,overflowY:'auto'
         }}>
 
@@ -10035,9 +10120,23 @@ function App(){
             <button className="tbtn" style={{fontSize:10}}
               onClick={()=>setOpen(p=>({...p,...Object.fromEntries(SECTION_KEYS.map(k=>[k,true]))}))}>+</button>
           </div>}
+          {/* The edit view's title row is sticky, so the view stays labelled (and DONE in reach)
+              however far down it scrolls; with the .layout-editing frame it can't pass for the
+              regular view. The help text and PERSIST scroll away under it. */}
+          {editing&&<div data-layout-edit-bar style={{display:'flex',alignItems:'center',gap:3,padding:'6px 12px',
+                       position:'sticky',top:0,zIndex:5,background:'#1e1b4b',borderBottom:'1px solid #818cf8'}}>
+            <span style={{fontSize:10,color:'#c7d2fe',letterSpacing:1,flex:1,fontWeight:700}}>✎ EDITING LAYOUT
+              <span style={{color:'#a5b4fc',fontWeight:400}}> · {TIER_LABEL[uiMode]}{hiddenHere.length>0?` · ${hiddenHere.length} HIDDEN`:''}</span></span>
+            <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.length}
+              onClick={()=>setHiddenSecs(p=>({...p,[uiMode]:[]}))}>SHOW ALL</button>
+            <button className="tbtn" style={{fontSize:10,color:'#c7d2fe',borderColor:'#818cf8'}} onClick={()=>setLayoutEdit(false)}>DONE</button>
+          </div>}
           {editing&&<div data-layout-banner style={{padding:'6px 12px 7px',borderBottom:'1px solid #312e81',background:'#0f0e2a'}}>
-            {/* PERSIST, above the edit banner: one switch for INT and PRO */}
-            <div data-persist style={{paddingBottom:6,marginBottom:6,borderBottom:'1px solid #1e1b4b'}}>
+            <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginBottom:6}}>
+              Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
+            </div>
+            {/* PERSIST: one switch for INT and PRO */}
+            <div data-persist style={{paddingTop:6,borderTop:'1px solid #1e1b4b'}}>
               <div style={{display:'flex',alignItems:'center',gap:3}}>
                 <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>PERSIST HIDDEN SETTINGS</span>
                 <div style={{display:'flex',gap:3,width:96}}>
@@ -10048,16 +10147,6 @@ function App(){
               <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginTop:4}}>
                 On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
               </div>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:3}}>
-              <span style={{fontSize:10,color:'#818cf8',letterSpacing:1,flex:1}}>EDITING LAYOUT
-                <span style={{color:'#64748b'}}> · {TIER_LABEL[uiMode]}{hiddenHere.length>0?` · ${hiddenHere.length} HIDDEN`:''}</span></span>
-              <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.length}
-                onClick={()=>setHiddenSecs(p=>({...p,[uiMode]:[]}))}>SHOW ALL</button>
-              <button className="tbtn" style={{fontSize:10,color:'#818cf8'}} onClick={()=>setLayoutEdit(false)}>DONE</button>
-            </div>
-            <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginTop:4}}>
-              Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
             </div>
           </div>}
 
@@ -10075,7 +10164,7 @@ function App(){
             <span style={{color:dnaLink.drifted?'#f59e0b':'#475569'}}>
               {dnaLink.drifted?`· ${dnaLink.drifted} drifted`:'· as applied'}</span>
             <span style={{flex:1}}/>
-            <button onClick={()=>commit('remove DNA link',dnaUnlink)} title="Remove the DNA link (the tune stays as it is)"
+            <button onClick={()=>commit('remove DNA link',dnaUnlink)} aria-label="Remove DNA link" title="Remove the DNA link (the tune stays as it is)"
               style={{background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
           </div>}
           <div id="zone-chassis" style={dim('chassis')}><Sec title="CHASSIS" open={open.chassis} onToggle={tog('chassis')} {...secProps('chassis')}
@@ -10103,7 +10192,8 @@ function App(){
                 const parsed=parseTyre(val);
                 return(
                   <div style={{flex:1}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                    {/* Fixed height: REAR's = FRONT button would otherwise sit its input lower than FRONT's. */}
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,height:18}}>
                       <div style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>{label}</div>
                       {onCopyFront&&
                         <button type="button" onClick={onCopyFront}
@@ -10126,8 +10216,9 @@ function App(){
                           ?parsed.diameter!=null
                             ?<>
                               <span style={{fontSize:9,color:'#64748b'}}>Ø {parsed.diameter.toFixed(0)} mm</span>
-                              <div style={{fontSize:16,fontWeight:700,color:'#e2e8f0',lineHeight:1.3}}>
-                                r {parsed.radius.toFixed(1)}<span style={{fontSize:10,fontWeight:400,color:'#94a3b8'}}> mm</span>
+                              {/* Derived, so no louder than the input it comes from. */}
+                              <div style={{fontSize:12,color:'#cbd5e1',lineHeight:1.4}}>
+                                r {parsed.radius.toFixed(1)}<span style={{fontSize:10,color:'#94a3b8'}}> mm</span>
                               </div>
                             </>
                             :<span style={{fontSize:10,color:'#94a3b8'}}>{parsed.width} mm wide</span>
@@ -10159,15 +10250,15 @@ function App(){
                 })()}
               </>);
             })()}</Hide>
-            <Hide id="chassis.cgSource"><div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:8,flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'#94a3b8'}}>CG Height Source</span>
-              <Hint text="RIDE HEIGHT estimates CG height from Forza's ride heights plus tyre radius. MANUAL lets you type CG height if you have a better source." term="cg-source"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
+            <Hide id="chassis.cgSource"><div style={{marginTop:4,marginBottom:9}}>
+              <span style={{fontSize:12,color:'#9ca3af',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>CG Height Source
+                <Hint text="RIDE HEIGHT estimates CG height from Forza's ride heights plus tyre radius. MANUAL lets you type CG height if you have a better source." term="cg-source"/></span>
+              <OptionSeg label="CG Height Source">
                 <button className={`tog${ch.useRideHeightCG?' on':''}`}
                   onClick={()=>setCh(p=>({...p,useRideHeightCG:true}))}>RIDE HEIGHT</button>
                 <button className={`tog${!ch.useRideHeightCG?' on':''}`}
                   onClick={()=>setCh(p=>({...p,useRideHeightCG:false}))}>MANUAL</button>
-              </div>
+              </OptionSeg>
             </div></Hide>
             {ch.useRideHeightCG?(()=>{
               const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
@@ -10212,7 +10303,7 @@ function App(){
               <Hint text="Reads natural balance from the game instead of predicting it from the track widths below, which it then hides. Opens Tune Check's MEASURE step; the reading shows here and ✕ clears it." term="measure-nat-bal"/>
               {ch.useMeasuredNatBal&&<>
                 <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:natBalStale(ch)?'#f59e0b':'#60a5fa',marginLeft:'auto',flexShrink:0}}>{(ch.measuredNatBal??chassisAnalysis.natBal).toFixed(2)}</span>
-                <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}}
+                <button className="tbtn" style={{fontSize:11,color:'#6b7280',flexShrink:0,padding:'2px 6px'}} aria-label="Clear the measured natural balance"
                   onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>✕</button>
               </>}
             </div></Hide>
@@ -10315,11 +10406,11 @@ function App(){
                     ...(m==='range'||m==='grip'||m==='phase'?{arbBalDelta:DEF_FE.arbBalDelta}:{}),
                     ...(m==='abs'?{arbBalAbs:clampBalTarget(roundBalStep(_cur))}:{})}));
                   return(
-                    <div style={{display:'flex',gap:3,marginBottom:6}}>
+                    <OptionSeg label="Balance Target" style={{marginBottom:6}}>
                       {[['natural','NATURAL'],['range','RANGE'],['grip','GRIP'],['phase','PHASE'],['abs','MANUAL']].map(([v,l])=>(
-                        <button key={v} className={`tog${_m===v?' on':''}`} style={{flex:1}} onClick={()=>_pick(v)}>{l}</button>
+                        <button key={v} className={`tog${_m===v?' on':''}`} onClick={()=>_pick(v)}>{l}</button>
                       ))}
-                    </div>
+                    </OptionSeg>
                   );
                 })()}</Hide>
                 {(()=>{
@@ -10620,29 +10711,29 @@ function App(){
 
           {uiMode==='pro'&&<div id="zone-alignment" style={dim('alignment')}><Sec title="ALIGNMENT" open={open.alignment} onToggle={tog('alignment')} {...secProps('alignment')}
             onReset={()=>setAl(sectionDefaults('alignment'))}>
-            <Hide id="align.mode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:6}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>ALIGNMENT MODE</span>
+            <Hide id="align.mode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+              <span style={{fontSize:12,color:'#9ca3af'}}>Alignment Mode</span>
               <Hint text="AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values." term="align-mode"/>
             </div>
-            <div style={{display:'flex',gap:3,marginBottom:10,flexWrap:'wrap'}}>
+            <OptionSeg label="Alignment Mode" style={{marginBottom:10}}>
               <button className={`tog${alignMode!=='manual'?' on':''}`}
                 onClick={()=>setAl(p=>({...p,mode:'build'}))}>AUTO</button>
               <button className={`tog${alignMode==='manual'?' on':''}`}
                 onClick={()=>setAl(p=>({...p,mode:'manual'}))}>MANUAL</button>
-            </div></Hide>
+            </OptionSeg></Hide>
             {alignMode!=='manual'&&<div style={{marginBottom:10}}>
-              <Hide id="align.nudge"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                <span style={{fontSize:12,color:'#94a3b8'}}>Nudge</span>
+              <Hide id="align.nudge"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+                <span style={{fontSize:12,color:'#9ca3af'}}>Nudge</span>
                 <Hint text="OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged." term="nudge"/>
               </div>
-              <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+              <OptionSeg label="Nudge">
                 {['build','mech','grip'].map(m=>(
                   <button key={m} className={`tog${alignMode===m?' on':''}`}
                     // MECH reads the Balance Target, so it is a no-op (dimmed) while nothing solves toward it.
                     style={m==='mech'&&!hasBalTargetSolve(feEffective)?{opacity:0.45}:undefined}
                     onClick={()=>setAl(p=>({...p,mode:m}))}>{m==='build'?'OFF':m.toUpperCase()}</button>
                 ))}
-              </div></Hide>
+              </OptionSeg></Hide>
               {(alignMode==='mech'||alignMode==='grip')&&
                 <div style={{marginTop:8}}>
                 <Hide id="align.nudgeStrength"><FeelSlider label="Nudge Strength" value={al.nudgeStrength??50}
@@ -10654,13 +10745,13 @@ function App(){
             </div>}
             {alignMode==='manual'&&<>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                <Hide id="align.camberF"><Field noSlider label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
+                <Hide id="align.camberF"><Field noSlider stacked label="Camber F" value={al.camberF} onChange={pAl('camberF')} min={-4.0} max={0.0} step={0.1} unit="°"
                   hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
-                <Hide id="align.camberR"><Field noSlider label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
+                <Hide id="align.camberR"><Field noSlider stacked label="Camber R" value={al.camberR} onChange={pAl('camberR')} min={-3.5} max={0.0} step={0.1} unit="°"
                   hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
-                <Hide id="align.toeF"><Field noSlider label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
+                <Hide id="align.toeF"><Field noSlider stacked label="Toe F" value={al.toeF} onChange={pAl('toeF')} min={-0.20} max={0.15} step={0.1} unit="°"
                   hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/></Hide>
-                <Hide id="align.toeR"><Field noSlider label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
+                <Hide id="align.toeR"><Field noSlider stacked label="Toe R" value={al.toeR} onChange={pAl('toeR')} min={0.0} max={0.25} step={0.1} unit="°"
                   hint="Rear toe. Positive = toe-in." hintTerm="toe"/></Hide>
               </div>
               <Hide id="align.caster"><Field noSlider label="Caster" value={al.caster} onChange={pAl('caster')} min={4.0} max={7.5} step={0.1} unit="°"
@@ -10670,10 +10761,10 @@ function App(){
 
           <div id="zone-arb" style={dim('arb')}><Sec title="ANTI-ROLL BARS" open={open.arb} onToggle={tog('arb')} {...secProps('arb')}
             onReset={()=>setFe(p=>({...p,...sectionDefaults('arb')}))}>
-            <Hide id="arb.mode"><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-              <span style={{fontSize:12,color:'#94a3b8'}}>Stiffness Mode</span>
-              <Hint text={`Total ARB stiffness. AUTO: from the car's roll tendency.${physMode?'':' BASIC: a direct level.'} ROLL °: a target roll angle. SHARE %: a fraction of roll stiffness. MAN: ${physMode?'rates in N/m':'clicks'} entered directly, so Balance Mode hides.`} term="stiffness-mode"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
+            <Hide id="arb.mode"><div style={{marginBottom:10}}>
+              <span style={{fontSize:12,color:'#9ca3af',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Stiffness Mode
+              <Hint text={`Total ARB stiffness. AUTO: from the car's roll tendency.${physMode?'':' BASIC: a direct level.'} ROLL °: a target roll angle. SHARE %: a fraction of roll stiffness. MAN: ${physMode?'rates in N/m':'clicks'} entered directly, so Balance Mode hides.`} term="stiffness-mode"/></span>
+              <OptionSeg label="Stiffness Mode">
                 <button className={`tog${arbMode==='auto'?' on':''}`}
                   onClick={()=>pFe('arbMode')('auto')}>AUTO</button>
                 {/* BASIC maps 0–100% onto 1..lim.arb clicks, so it is meaningless without a
@@ -10707,7 +10798,7 @@ function App(){
                     const arbR=Math.round(tune.arbR*10)/10;
                     setFe(p=>({...p,arbMode:'man',arbManF:arbF,arbManR:arbR}));
                   }}>MAN</button>
-              </div>
+              </OptionSeg>
             </div></Hide>
             {arbMode==='basic'&&!physMode&&
               <Hide id="arb.basic"><Field label="ARB Stiffness" value={fe.arbBasicMan??50} onChange={pFe('arbBasicMan')}
@@ -10753,7 +10844,7 @@ function App(){
                 Balance Mode
                 <Hint text={`Splits the bars front/rear. WEIGHT: by weight. NEUTRAL: from the springs (CANCEL offsets them, EQUAL ROLL matches them).${uiMode==='pro'?' CHASSIS: by natural balance. MECH, CO-SOLVE: solve to the Mech Balance Target.':''}`} term="balance-mode"/>
               </span>
-              <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+              <OptionSeg label="Balance Mode">
                 <button className={`tog${arbBalMode==='weight'?' on':''}`}
                   onClick={()=>pFe('arbBalMode')('weight')}>WEIGHT</button>
                 {uiMode==='pro'&&
@@ -10761,15 +10852,15 @@ function App(){
                   onClick={()=>pFe('arbBalMode')('chassis')}>CHASSIS</button>}
                 <button className={`tog${arbBalMode==='neutral'?' on':''}`}
                   onClick={()=>setFe(p=>dropHzMech({...p,arbBalMode:'neutral'}))}>NEUTRAL</button>
-                {uiMode==='pro'&&<>
+                {uiMode==='pro'&&
                 <button className={`tog${arbBalMode==='mech'?' on':''}`}
                   title={`Solves the bars to the Mech Balance Target (${feEffective.arbBalTarget.toFixed(3)}); mech balance is ${tune.mechBalance.toFixed(3)} now.`}
-                  onClick={()=>switchToTarget({arbBalMode:'mech'},'MECH')}>MECH</button>
+                  onClick={()=>switchToTarget({arbBalMode:'mech'},'MECH')}>MECH</button>}
+                {uiMode==='pro'&&
                 <button className={`tog${arbBalMode==='coSolve'?' on':''}`}
                   title={`Solves bars and rear springs to the Mech Balance Target (${feEffective.arbBalTarget.toFixed(3)}); mech balance is ${tune.mechBalance.toFixed(3)} now.`}
-                  onClick={()=>switchToTarget({arbBalMode:'coSolve'},'CO-SOLVE')}>CO-SOLVE</button>
-                </>}
-              </div></Hide>
+                  onClick={()=>switchToTarget({arbBalMode:'coSolve'},'CO-SOLVE')}>CO-SOLVE</button>}
+              </OptionSeg></Hide>
               {uiMode==='pro'&&(balSwitchBanner||mechReachBanner)&&<div style={{marginTop:8}}>{balSwitchBanner}{mechReachBanner}</div>}
               {(arbBalMode==='weight'||arbBalMode==='chassis')&&
                 <Hide id="arb.splitDir"><div style={{marginTop:8}}>
@@ -10777,12 +10868,12 @@ function App(){
                     Split Direction
                     <Hint text="SAME (default) follows the reference balance: a front-heavy car gets a front-heavy ARB split. OPPOSITE mirrors it around 50/50 so the bars counteract that tendency." term="split-direction"/>
                   </span>
-                  <div style={{display:'flex',gap:3}}>
+                  <OptionSeg label="Split Direction">
                     <button className={`tog${!fe.arbSplitOpposite?' on':''}`}
                       onClick={()=>pFe('arbSplitOpposite')(false)}>SAME</button>
                     <button className={`tog${fe.arbSplitOpposite?' on':''}`}
                       onClick={()=>pFe('arbSplitOpposite')(true)}>OPPOSITE</button>
-                  </div>
+                  </OptionSeg>
                 </div></Hide>}
               {arbBalMode==='neutral'&&
                 <Hide id="arb.neutralMethod"><div style={{marginTop:8}}>
@@ -10790,12 +10881,12 @@ function App(){
                     Neutral Method
                     <Hint text="CANCEL (default) splits the bars against the springs so the balance bar returns to neutral. EQUAL ROLL splits them in the springs' own proportion, adding stiffness without moving the springs' balance." term="bal-neutral"/>
                   </span>
-                  <div style={{display:'flex',gap:3}}>
+                  <OptionSeg label="Neutral Method">
                     <button className={`tog${!fe.arbNeutralEqual?' on':''}`}
                       onClick={()=>setFe(p=>dropHzMech({...p,arbNeutralEqual:false}))}>CANCEL</button>
                     <button className={`tog${fe.arbNeutralEqual?' on':''}`}
                       onClick={()=>pFe('arbNeutralEqual')(true)}>EQUAL ROLL</button>
-                  </div>
+                  </OptionSeg>
                 </div></Hide>}
             </div>}
             {arbMode!=='man'&&arbBalMode==='mech'&&<>
@@ -10846,8 +10937,9 @@ function App(){
                 </div>
               </div></Hide>}
               <Hide id="arb.springShare"><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPRING SHARE</span>
-                <button className={`tog${(fe.springShareAuto!==false)?' on':''}`}
+                <span style={{fontSize:12,color:'#9ca3af',flex:1}}>Spring Share</span>
+                <button className={`tog${(fe.springShareAuto!==false)?' on':''}`} style={{flex:'0 0 64px'}}
+                  aria-pressed={fe.springShareAuto!==false}
                   onClick={()=>setFe(p=>{const auto=p.springShareAuto!==false;
                     // The slider reads coSolveAutoS under AUTO and fe.springShare under MAN, so
                     // leaving AUTO without seeding visibly jumped the handle. Hand the resolved
@@ -10954,19 +11046,23 @@ function App(){
               const switchRef=to=>setFe(p=>rideRefSwitch(ch,feEffective,p,to,physics,tune));
               return(<>
                 {/* Ride reference toggle — always visible, works in CO-SOLVE via Hz inversion */}
-                <Hide id="ride.ref"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                  <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>RIDE REF.<Hint text="Which axle the stiffness slider sets. FRONT or REAR: that axle, the other is derived. SHARED: the average, with the mode below setting the ratio. Switching never changes the actual Hz." term="ride-ref"/></span>
-                  <button className={`tog${rRef==='front'?' on':''}`} onClick={()=>switchRef('front')}>FRONT</button>
-                  <button className={`tog${rRef==='shared'?' on':''}`} onClick={()=>switchRef('shared')}>SHARED</button>
-                  <button className={`tog${rRef==='rear'?' on':''}`} onClick={()=>switchRef('rear')}>REAR</button>
+                <Hide id="ride.ref"><div style={{marginBottom:8}}>
+                  <span style={{fontSize:12,color:'#9ca3af',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Ride Ref.<Hint text="Which axle the stiffness slider sets. FRONT or REAR: that axle, the other is derived. SHARED: the average, with the mode below setting the ratio. Switching never changes the actual Hz." term="ride-ref"/></span>
+                  <OptionSeg label="Ride Ref.">
+                    <button className={`tog${rRef==='front'?' on':''}`} onClick={()=>switchRef('front')}>FRONT</button>
+                    <button className={`tog${rRef==='shared'?' on':''}`} onClick={()=>switchRef('shared')}>SHARED</button>
+                    <button className={`tog${rRef==='rear'?' on':''}`} onClick={()=>switchRef('rear')}>REAR</button>
+                  </OptionSeg>
                 </div></Hide>
                 {(()=>{
                   const effStiffMode=(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?'bottomG':'hz';
-                  return ch.useRideHeightCG&&<Hide id="ride.stiffMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                  <span style={{flex:1,fontSize:10,color:'#94a3b8',letterSpacing:1}}>STIFFNESS<Hint text="What the stiffness slider below sets. HZ: spring frequency. BOTTOM G's: the vertical load at which the RIDE REF. axle bottoms out. Shown only with RIDE HEIGHT → CG on (CHASSIS section)." term="bottom-g"/></span>
-                  <button className={`tog${effStiffMode==='hz'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'hz',
-                    ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>HZ</button>
-                  <button className={`tog${effStiffMode==='bottomG'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'bottomG',rideBottomG:primaryBottomG}))}>BOTTOM G's</button>
+                  return ch.useRideHeightCG&&<Hide id="ride.stiffMode"><div style={{marginBottom:8}}>
+                  <span style={{fontSize:12,color:'#9ca3af',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Stiffness<Hint text="What the stiffness slider below sets. HZ: spring frequency. BOTTOM G's: the vertical load at which the RIDE REF. axle bottoms out. Shown only with RIDE HEIGHT → CG on (CHASSIS section)." term="bottom-g"/></span>
+                  <OptionSeg label="Stiffness">
+                    <button className={`tog${effStiffMode==='hz'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'hz',
+                      ...(p.rearHzMode==='shared'?holdHzRatio:{})}))}>HZ</button>
+                    <button className={`tog${effStiffMode==='bottomG'?' on':''}`} onClick={()=>setFe(p=>({...p,rideStiffMode:'bottomG',rideBottomG:primaryBottomG}))}>BOTTOM G's</button>
+                  </OptionSeg>
                 </div></Hide>;
                 })()}
                 <Hide id="ride.stiffness">{(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG?
@@ -10974,8 +11070,10 @@ function App(){
                   label={rRef==='rear'?'Rear Bottom-Out':rRef==='shared'?'Avg Bottom-Out':'Front Bottom-Out'}
                   value={shownBottomG}
                   onChange={v=>setFe(p=>({...p,rideStiffness:hzToRs(bottomGToHz(v)),rideBottomG:v}))}
-                  min={bottomGLo} max={bottomGHi} step={0.01} leftLabel={bottomGLo.toFixed(2)} rightLabel={bottomGHi.toFixed(2)}
-                  markers={null}
+                  min={bottomGLo} max={bottomGHi} step={0.01} leftLabel={`${bottomGLo.toFixed(2)} g`} rightLabel={`${bottomGHi.toFixed(2)} g`}
+                  // The Ride Stiffness bands, carried into g at this ride height, so both forms of
+                  // the slider say ROAD / FIRM / RACE at the same spring rates.
+                  markers={HZ_MARKERS.map(m=>({...m,value:hzToBottomG(m.value)}))}
                   // The box shows the g to 0.001, as the Hz grid does; the slider and the stored
                   // target keep full precision, so this changes only what is printed.
                   box={{unit:'g',value:Math.round(shownBottomG*1000)/1000}}
@@ -10985,7 +11083,7 @@ function App(){
                   label={<>{dnaDot('platformHz',rRef!=='front')}{rRef==='rear'?'Rear Stiffness':rRef==='shared'?'Avg Stiffness':'Ride Stiffness'}</>}
                   value={primaryHz}
                   onChange={v=>pFe('rideStiffness')(hzToRs(v))}
-                  min={HZ_MIN} max={HZ_MAX} step={0.01} leftLabel={HZ_MIN.toFixed(2)} rightLabel={HZ_MAX.toFixed(2)}
+                  min={HZ_MIN} max={HZ_MAX} step={0.01} leftLabel={`${HZ_MIN.toFixed(2)} Hz`} rightLabel={`${HZ_MAX.toFixed(2)} Hz`}
                   markers={HZ_MARKERS}
                   box={{unit:'Hz'}}
                   hint={rRef==='rear'
@@ -11002,12 +11100,11 @@ function App(){
               // that's only exposed while STIFFNESS is BOTTOM G's (RIDE HEIGHT → CG required for it).
               const showSharedG=isShared&&(fe.rideStiffMode??'hz')==='bottomG'&&ch.useRideHeightCG;
               const showHzMech=uiMode==='pro'&&!cancelOn; // see neutralCancelOf
-              const btnCount=2+(showHzMech?1:0)+(!isShared?1:0)+(showSharedG?1:0);
               return<>
-                <Hide id="ride.hzMode"><div style={{display:'flex',alignItems:'center',marginBottom:3,marginTop:-2}}>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>Hz MODE<Hint text={`Derives the other axle's Hz. MULTIPLIER: fixed ratio. FLAT RIDE: less pitch bounce at Target Speed. INDEPENDENT: by hand. SHARED: same bottom-out g.${uiMode==='pro'?' MECH: from Mech Balance Target, not under NEUTRAL CANCEL. Hidden in CO-SOLVE.':''}`} term="hz-mode"/></span>
+                <Hide id="ride.hzMode"><div style={{display:'flex',alignItems:'center',marginBottom:3}}>
+                  <span style={{fontSize:12,color:'#9ca3af',flex:1}}>Hz Mode<Hint pad text={`Derives the other axle's Hz. MULTIPLIER: fixed ratio. FLAT RIDE: less pitch bounce at Target Speed. INDEPENDENT: by hand. SHARED: same bottom-out g.${uiMode==='pro'?' MECH: from Mech Balance Target, not under NEUTRAL CANCEL. Hidden in CO-SOLVE.':''}`} term="hz-mode"/></span>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:`repeat(${btnCount},1fr)`,gap:3,marginBottom:10}}>
+                <OptionSeg label="Hz Mode" style={{marginBottom:10}}>
                   <button className={`tog${rearHzMode==='multiplier'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'multiplier',
                       rearHzMult:holdHzMult(physics.frontHz>0?physics.rearHz/physics.frontHz:1.2)}))}>MULTIPLIER</button>
@@ -11020,7 +11117,7 @@ function App(){
                       rearHzMan:hzToRs(physics.rideRef==='rear'?physics.frontHz:physics.rearHz)}))}>INDEPENDENT</button>}
                   {showSharedG&&<button className={`tog${rearHzMode==='shared'?' on':''}`}
                     onClick={()=>setFe(p=>({...p,rearHzMode:'shared'}))}>SHARED</button>}
-                </div></Hide>
+                </OptionSeg></Hide>
               </>;
             })()}
             {!coSolveOn&&(()=>{
@@ -11181,7 +11278,7 @@ function App(){
             {/* damping character mode toggle — INT/PRO only */}
             {uiMode!=='beginner'&&<>
               <Hide id="dampers.reboundMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
-                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>REBOUND MODE</span>
+                <span style={{fontSize:12,color:'#9ca3af'}}>Rebound Mode</span>
                 <Hint text={dampCharMode==='settle'
                   ?"SETTLE TIME: set a target settle time and the app back-solves the rebound ζ that hits it on the ride-reference axle. DAMPING BALANCE MODE below sets how the other axle follows."
                   :"CHARACTER: type rebound ζ directly on the slider below; nothing is back-solved."} term="rebound-mode"/>
@@ -11203,12 +11300,12 @@ function App(){
                 // (see rateToZeta) and this app prefers the underdamped one.
                 const carriedSettle=Math.max(0.10,Math.min(1.50,settleTimeFromZeta(physics.baseZeta,refHz)));
                 const carriedZeta=Math.round(Math.max(10,Math.min(200,physics.baseZeta))*10)/10;
-                return <div style={{display:'flex',gap:3,marginBottom:8}}>
+                return <OptionSeg label="Rebound Mode" style={{marginBottom:8}}>
                 <button className={`tog${dampCharMode==='zeta'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampCharMode:'zeta',reboundZeta:carriedZeta}))}>CHARACTER</button>
                 <button className={`tog${dampCharMode==='settle'?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampCharMode:'settle',settleTarget:Math.round(carriedSettle*100)/100}))}>SETTLE TIME</button>
-              </div>;
+              </OptionSeg>;
               })()}</Hide>
             </>}
             {dampCharMode==='settle'
@@ -11244,16 +11341,16 @@ function App(){
                     return null;
                   })()} hintTerm="zeta"/></Hide> }
             <Hide id="dampers.balMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:8}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>DAMPING BALANCE MODE{bumpBalMode?' · REBOUND':''}</span>
+              <span style={{fontSize:12,color:'#9ca3af'}}>Damping Balance Mode{bumpBalMode?' · Rebound':''}</span>
               <Hint text={`How the anchor ζ becomes a front/rear split. STANDARD: bias by percentage. TIME SYNC: equal settle time. EQUAL FORCE: equal damping force. HYBRID: halfway between those two.${bumpBalMode?' BUMP BALANCE is set below, so this splits rebound only.':' Bump follows it unless BUMP BALANCE below says otherwise.'}`} term="damping-balance-mode"/>
             </div>
             {/* One row of four — was STANDARD/SYNC plus a SYNC METHOD sub-row. Ids unchanged
                 (codec indices are permanent). */}
-            <div style={{display:'flex',gap:3,marginBottom:8,flexWrap:'wrap'}}>
+            <OptionSeg label="Damping Balance Mode" style={{marginBottom:8}}>
               {[['standard','STANDARD'],['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE']].map(([k,l])=>
                 <button key={k} className={`tog${dampBalMode===k?' on':''}`}
                   onClick={()=>setFe(p=>({...p,dampBalMode:k}))}>{l}</button>)}
-            </div></Hide>
+            </OptionSeg></Hide>
             {(()=>{
               const anchor=dampCharMode==='settle'?'the Settle Target':'Rebound ζ';
               const hint=dampBalMode==='sync'
@@ -11275,14 +11372,14 @@ function App(){
             {/* BUMP MODE: how the bump anchor is set. Below Damping Balance Mode so the rebound
                 controls come first, then the bump ones with BUMP BALANCE. */}
             <Hide id="dampers.bumpMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP MODE</span>
+              <span style={{fontSize:12,color:'#9ca3af'}}>Bump Mode</span>
               <Hint text={dampingMode==='independent'
                 ?"INDEPENDENT: set bump ζ directly, decoupled from rebound, e.g. soft bump with firm rebound."
                 :dampingMode==='landing'
                 ?"LANDING: set a drop height as a % of ride height and the app solves the softest bump ζ that absorbs it without bottoming, from the RIDE REF. axle's Hz and ride height. For rally, baja and trophy-truck builds."
                 :"BUMP RATIO: set bump damping as a percentage of rebound ζ, so the two strokes stay linked."} term="bump-mode"/>
             </div>
-            <div style={{display:'flex',gap:3,marginBottom:10}}>
+            <OptionSeg label="Bump Mode" style={{marginBottom:10}}>
               <button className={`tog${dampingMode==='ratio'?' on':''}`}
                 onClick={()=>setFe(p=>({...p,dampingMode:'ratio',
                   // Mirror of the INDEPENDENT seed below: express the bump anchor currently in
@@ -11324,7 +11421,7 @@ function App(){
                   return{...p,dampingMode:'landing',
                     landingPct:clampLandingPct(r.rh>0?landingCatchDrop(z,r.hz,r.rh)/r.rh*100:0)};
                 })}>LANDING</button>}
-            </div></Hide>
+            </OptionSeg></Hide>
             {dampingMode==='landing'
               ? (()=>{
                   // Stored as % of the ride-reference axle's ride height; the readout adds the
@@ -11401,17 +11498,17 @@ function App(){
                 (bump split with rebound's mode and Damping Bias). Leaving SAME seeds Bump Bias from
                 Damping Bias, so the first click changes only the mode. */}
             <Hide id="dampers.bumpBalMode"><div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,marginTop:2}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>BUMP BALANCE</span>
+              <span style={{fontSize:12,color:'#9ca3af'}}>Bump Balance</span>
               <Hint text="How the bump anchor becomes a front/rear split. SAME: as rebound, with the same Damping Bias. Any other choice gives bump its own mode and Bump Bias. EQUAL CATCH (LANDING only): each axle absorbs the same drop." term="bump-balance"/>
             </div>
-            <div style={{display:'flex',gap:3,marginBottom:8,flexWrap:'wrap'}}>
+            <OptionSeg label="Bump Balance" style={{marginBottom:8}}>
               {/* EQUAL CATCH only exists under LANDING — it needs LANDING's drop height. */}
               {[['same','SAME'],['standard','STANDARD'],['sync','TIME SYNC'],['hybrid','HYBRID'],['neutral','EQUAL FORCE'],
                 ...(dampingMode==='landing'?[['catch','EQUAL CATCH']]:[])].map(([k,l])=>
                 <button key={k} className={`tog${(bumpBalMode??'same')===k?' on':''}`}
                   onClick={()=>setFe(p=>({...p,bumpBalMode:k,
                     ...(k!=='same'&&!ownBumpBalMode(p.bumpBalMode,p.dampingMode)?{bumpDampingBias:p.dampingBias??0}:{})}))}>{l}</button>)}
-            </div></Hide>
+            </OptionSeg></Hide>
             {bumpBalMode&&(()=>{
               const anchor=dampingMode==='ratio'?'Bump Ratio':dampingMode==='landing'?'the LANDING drop':'Bump ζ';
               const hint=bumpBalMode==='catch'
@@ -11613,24 +11710,22 @@ function App(){
 
           <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} {...secProps('drivetrain')}
             onReset={()=>setDr(p=>({...p,...sectionDefaults('drivetrain')}))}>
-            {uiMode!=='beginner'&&<Hide id="drive.diffType"><div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
-              <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
-              <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
-              {/* Full width on its own line: squeezed beside the label, the flex:1 buttons shrank
-                  to their text with no side padding. */}
-              <div style={{display:'flex',gap:3,width:'100%',marginTop:2}}>
+            {uiMode!=='beginner'&&<Hide id="drive.diffType"><div style={{marginTop:4,marginBottom:9}}>
+              <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Diff Type
+              <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/></span>
+              <OptionSeg label="Diff Type">
                 {['race','sport','rally','offroad','drift'].map(t=>(
                   <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`} style={{minHeight:28}}
                     onClick={()=>setDr(p=>({...p,diffType:t}))}>
                     {t.toUpperCase()}
                   </button>
                 ))}
-              </div>
+              </OptionSeg>
             </div></Hide>}
-            {uiMode==='pro'&&<Hide id="drive.diffMode"><div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'#94a3b8'}}>Differential Mode</span>
-              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you set each lock % directly." term="diff-mode"/>
-              <div style={{display:'flex',gap:3,width:'100%',marginTop:2}}>
+            {uiMode==='pro'&&<Hide id="drive.diffMode"><div style={{marginBottom:10}}>
+              <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Differential Mode
+              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you set each lock % directly." term="diff-mode"/></span>
+              <OptionSeg label="Differential Mode">
                 <button className={`tog${!dr.diffManual?' on':''}`} style={{minHeight:28}}
                   onClick={()=>pDr('diffManual')(false)}>AUTO</button>
                 <button className={`tog${dr.diffManual?' on':''}`} style={{minHeight:28}}
@@ -11643,7 +11738,7 @@ function App(){
                           diffCenter:d.center}
                         :{diffAccel:d.accel,diffDecel:d.decel})}));
                   }}>MANUAL</button>
-              </div>
+              </OptionSeg>
             </div></Hide>}
             {!dr.diffManual&&(()=>{
               const groupHdr={fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:3,marginTop:6};
@@ -11660,7 +11755,7 @@ function App(){
                 {ch.layout==='AWD'&&uiMode!=='beginner'&&<>
                   <div style={groupHdr}>FRONT AXLE</div>
                   <Hide id="drive.frontExit"><FeelSlider
-                    label="EXIT"
+                    label="Exit"
                     value={-(dr.diffFrontExitBias??0)}
                     onChange={v=>pDr('diffFrontExitBias')(-v)}
                     min={-50} max={50}
@@ -11682,7 +11777,7 @@ function App(){
                   <Hint text="Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL." term="match-chassis"/>
                 </div></Hide>}
                 <Hide id="drive.exit"><FeelSlider
-                  label={<>{dnaDot('diffExit')}EXIT</>}
+                  label={<>{dnaDot('diffExit')}Exit</>}
                   // NOTE: this FWD-only sign flip is the fix for FWD's inverted lock polarity —
                   // do NOT also flip the sign inside computeDiff's FWD accel formula (the
                   // `+effBiasExit*0.15` term). That formula is intentionally
@@ -11705,7 +11800,7 @@ function App(){
                     ?`R.Accel ${diff.rearAccel}%`
                     :`Accel ${diff.accel}%`} hintTerm="exit-bias"/></Hide>
                 {dt!=='sport'&&<Hide id="drive.entry"><FeelSlider
-                  label={<>{dnaDot('diffEntry')}ENTRY</>}
+                  label={<>{dnaDot('diffEntry')}Entry</>}
                   value={-(dr.diffBiasEntry??0)}
                   onChange={v=>pDr('diffBiasEntry')(-v)}
                   min={-50} max={50}
@@ -11724,13 +11819,13 @@ function App(){
                 {ch.layout==='AWD'&&uiMode!=='beginner'&&dt!=='sport'&&<>
                   <div style={groupHdr}>CENTER</div>
                   <Hide id="drive.powerSplit"><FeelSlider
-                    label="POWER SPLIT"
+                    label="Power Split"
                     value={(dr.diffCenter??65)-50}
                     onChange={v=>pDr('diffCenter')(Math.round(v+50))}
                     min={-30} max={AWD_CENTER_MAX-50}
                     leftLabel="FRONT"
                     rightLabel="REAR"
-                    markers={[{value:0,color:'#475569'}]}
+                    markers={[{value:0,color:'#475569',label:'50/50'}]}
                     hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
                     // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
                     box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
@@ -12285,7 +12380,7 @@ function App(){
         <div style={{flex:1,display:'flex',flexDirection:'column',background:'#020617',minHeight:0}}>
 
           {/* cards — scrollable */}
-          <div id="zone-output" ref={outMeasureRef} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
+          <div id="zone-output" ref={outMeasureRef} className={editing?'layout-editing':undefined} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
           {/* Forza's single column of label … value rows is capped and centred: full width on a
               wide monitor put the label ~1200 px from its value, too far to read across. BeamNG's
               two-column grid already halves each row, so it keeps the full width.
@@ -13676,7 +13771,7 @@ function App(){
               <span style={{fontSize:11,letterSpacing:2,color:'#9ca3af'}}>GARAGE</span>
               <span style={{fontSize:10,color:'#475569'}}>{entries.length}</span>
               <span style={{flex:1}}/>
-              <button onClick={()=>setGaragePanelOpen(false)}
+              <button onClick={()=>setGaragePanelOpen(false)} aria-label="Close garage"
                 style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',
                         fontSize:16,lineHeight:1,padding:0}}>✕</button>
             </div>

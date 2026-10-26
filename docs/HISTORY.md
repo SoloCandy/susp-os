@@ -11,6 +11,31 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — sidebar controls: selectors, slider labels, edit view, RESET
+
+A visual review found the sidebar's controls fighting their own layout. Slider tick labels
+(NEUTRAL, MATCH, BWORTH, FIRM, EQUAL, PLANTED) were drawn on the track, so at the default value
+the thumb sat on top of the label naming it; they now sit in a row below the track
+(`FeelSlider`, `SliderEnds`). Slider ends were words on some, numbers on others and absent on
+`Field` sliders (Front Weight Bias, ARB Share); every slider now labels both ends, words for a
+direction and the range with its unit for a quantity. Bottom-Out g gained the ROAD / FIRM /
+RACE ticks Ride Stiffness has, and Power Split's centre tick reads 50/50.
+
+Option selectors were twenty hand-built flex rows: five or six buttons wrapped 5 + 1 or crammed
+("CO-SOLVE", "ROLL °", MAN at 26 px on a phone), some sat beside their label and some under it,
+and the unselected state was the disabled grey. They are all `OptionSeg` now, label above,
+balanced rows, with a brighter unselected state and a filled selected one. A scrollbar appearing
+used to shift the whole sidebar about 13 px and rewrap Diff Type; the gutter is now reserved.
+
+The layout edit view looked like the regular one until hovered, which touch never does: it now
+frames both panels, outlines every hideable part, and pins its title bar. RESET grew from
+42 × 18 px to at least 64 × 26, and its SURE? fills amber and waits 5 s instead of 2. Number
+boxes share one right edge (the unit slot keeps two characters), the tyre inputs line up, and the
+derived tyre radius is no longer bolder than the input. Control labels are Title Case (Exit,
+Power Split, Alignment Mode, Bump Balance; group headings stay capitals), MANUAL alignment labels
+no longer cut to "Camber …", and a sidebar ⓘ opens its tip beside the sidebar instead of over
+the next control.
+
 ## Changed — BeamNG output: grid holes, floor-ARB text, soft-ARB figure, units dialog
 
 A visual review of BEAMNG mode found:
