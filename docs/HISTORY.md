@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — BeamNG spring tag disagreed with the slider; output warnings overprinted figures
+
+From a visual review of BeamNG mode.
+
+- **2.50 Hz read FIRM in the output and RACE on the slider.** `springView` tagged each row from
+  `tune.fHz`/`rHz`, which BeamNG re-derives from the spring snapped to 500 N/m. 2.50 Hz
+  snapped to 2.497 Hz: printed as `2.50 Hz`, tagged FIRM. Horizon, which does not snap,
+  read RACE. The tag now reads the pre-snap Hz (`physics.frontHz`, `tune.rHzTarget`), the
+  same pair the RIDE REF. switch uses for the same reason; see [PHYSICS.md](PHYSICS.md).
+- **"⚠ UNDERDAMPED" painted over "0.40s settle" on the BeamNG suspension cards.** In
+  `OutRowBody` the note sat outside the box the figures wrap in, and could not wrap itself.
+  On the narrow two-column cards the figures overflowed under it. The note now sits in the
+  same box, pushed right with `marginLeft:auto`, so it drops onto its own line when there
+  is no room. Wide cards look as before. The spring tag wraps the same way.
+
 ## Fixed — three code-review findings: preset game mode, track width, MECH Δ colours
 
 From a full review of `index.html` on 2026-09-18. A fourth finding, the BeamNG Ride Stiffness
