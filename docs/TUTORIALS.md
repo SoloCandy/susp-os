@@ -336,7 +336,7 @@ the Welcome card and live in the glossary.
 | 8 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
 | 9 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
 | 10 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
-| 11 | AWD Center Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTER SPLIT recommendation and → USE, FRONT AXLE EXIT. On FWD / RWD nothing here renders and the zones are lit instead. |
+| 11 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. On FWD / RWD nothing here renders and the zones are lit instead. |
 | 12 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
 | 13 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | NET: the CAR tick, SPR and ARB, the NET tick; tap for the rows. |
 | 14 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off NET, outside the headline. |
@@ -361,7 +361,7 @@ the Welcome card and live in the glossary.
 | 8 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
 | 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | `ride.hzMode`, `balance.targetMode`, `visuals.ride` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
 | 10 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY: Decel, Entry vs MID (trail braking), ENTRY BRK. |
-| 11 | Manual Differential | `drivetrain` | `drive.diffMode` / `.matchChassis` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds Center Split) with typical-range hints; MATCH CHASSIS in AUTO. |
+| 11 | Manual Differential | `drivetrain` | `drive.diffMode` / `.matchChassis` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds Centre Split) with typical-range hints; MATCH CHASSIS in AUTO. |
 | 12 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
 | 13 | Mech Balance & Response | `balance-bar` | `bar.mechHead` / `.mechStrip` / `.response` | | The MECH BALANCE strip (NAT, CUR, TGT on the game's scale) and RESPONSE. |
 | 14 | Load Transfer | `visuals` | `visuals.load` / `.grip` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
@@ -505,9 +505,9 @@ TRY IT task (ticks when the check passes):
 
 > EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
 
-#### 11. AWD Center Diff
+#### 11. AWD Centre Diff
 
-> AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
+> AWD adds POWER SPLIT under CENTRE (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTRE SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
 
 #### 12. VISUALS Card
 
@@ -589,7 +589,7 @@ TRY IT task (ticks when the check passes):
 
 #### 11. Manual Differential
 
-> MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
+> MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Centre Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
 
 #### 12. Handling Balance Expanded
 

@@ -11,6 +11,35 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — one colour per meaning, 10 px text floor, brighter secondary text
+
+A visual review found colours meaning different things in different places. Balance used red for
+oversteer, so a large `SPRINGS +6.8` looked like a fault while the tip called the car well
+balanced. RESPONSE used green for its negative (PLANTED) side. Spring tags reused red and amber
+(RACE red, FIRM amber), diff lock HIGH was amber, and DIFF EXIT's "toward OS ▶" and the VISUALS
+damping and ARB bands were dark red. About a hundred labels were 9 px or smaller: VISUALS band
+labels were 6.5 px and the ENTRY/EXIT lanes about 7 px. Hints, units and VISUALS headers sat at
+2–2.7:1 contrast, and the white slider fill was the loudest thing on the page.
+
+The meanings are now named constants under `── colour meanings ──` (listed in
+[VISUALS.md](VISUALS.md)). `C_OS` is orange `#f97316` and `C_US` is blue `#60a5fa`, matching
+the MECH Δ colours. Balance keeps its sign convention; only the colours changed. Red is now only
+`C_ERR`, for errors. Ordered categories with no good or bad end (spring Hz bands, damping and
+settle zones, diff lock amount) use the grey `CAT_RAMP`, and so do RESPONSE and the Balance
+Guide's stability label: those are character axes, and RESPONSE's own hint says it is separate
+from understeer and oversteer. The diff's lane colour moved from warning amber to yellow
+(`LANE_DIFF`).
+
+Every 8 and 9 px size is now 10 px. The TOTAL and ENTRY/EXIT lanes grew to 12 px to hold their
+labels. SVG text is sized to reach 10 px at phone scale, so the roll-split footer became two lines
+and SAG vs LOAD's left pad grew so its two axis values no longer collide. Text greys darker than
+`#64748b` are gone; secondary text uses `T_MUTED` `#7c8aa0`, at least 5:1 on every panel
+background. The slider fill is slate `#64748b`, so the white thumb carries the eye.
+
+Two smaller fixes: a contribution that rounds to zero prints `0.0`, not `-0.0` (`fmtSigned`,
+also used by PRO's percentages), and the UI spells *centre* throughout, as it already spelled
+*tyre*. Before, CENTER SPLIT and Center Split sat beside the brakes' centre.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,

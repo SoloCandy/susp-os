@@ -70,6 +70,11 @@ Two consequences worth knowing when editing:
 
 The source runs top to bottom in this order:
 
+0. **Colour meanings** — first in `#app-source`, under the `── colour meanings ──` banner:
+   `C_OS`, `C_US`, `C_WARN`, `C_ERR`, `C_GOOD`, `C_TAG`, `CAT_RAMP`, `LANE_DIFF`, `T_MUTED`,
+   `T_FAINT`, `SLI_FILL`. They come first because module-scope tables below them
+   (`HZ_BAND_COLS`, `diffCtx`) read them at load. What each means is in
+   [VISUALS.md](VISUALS.md); colour a value by its meaning through these, not a hex.
 1. **Calibration constants and limits** — `DAMPING_CALIBRATION`,
    `TIRE_LOAD_SENS`, `MECH_BAL_GAIN`, `WIDTH_GRIP_EXP`, `TIRE_MECH_SCALE`,
    `MECH_BALANCE_TARGET`, `ARB_RS_SCALE`, `HZ_MIN`/`HZ_MAX`, `GAME_LIMITS`,
@@ -284,7 +289,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `arbView`, `springView` (App, not components) | the ANTI-ROLL BARS and SPRINGS output built once for both layouts, like `dampView`. `arbView`: header = stiffness mode · balance mode · achieved roll, read from `physics` (so MAN's CO-SOLVE-to-WEIGHT override shows as MAN); rows mark `% roll` (EQUAL ROLL) or `% ARB` (WEIGHT, CHASSIS), note FLOOR/CEILING from its `pin`, which the roll warning reuses. `springView`: header = Hz mode with its setting (CO-SOLVE's Spring Share in its place) · ride reference; SHARED quotes the g the solve ran on, from Ride Stiffness, not the stored `rideBottomG`. Rows add bottom-out g under BOTTOM G's or SHARED, and flag CLAMPED (an axle at the Hz band edge while `rearHzClamped`) over LIFT RISK over the Hz band. The Forza cards, the BeamNG `SuspensionCard` rows and the summary strip read them |
 | `alignView`, `brakeView`, `diffView` (App) | ALIGNMENT, BRAKES and DIFFERENTIAL output for both layouts. `alignView`: header (AUTO · build · nudge, or MANUAL), camber rows' `dyn` (from `camberGainOf`, the gain `computeAlignment` uses) and each nudged row's offset from `autoAlign`. `brakeView`: header (the Centre, or STOCK), the row's centre and shift or ENTRY BRK (`phase.entry.brk`), and LIMIT when the 40–68% clamp moved a REC/GRIP bias. `diffView`: header (AUTO/MANUAL · type · MATCH CHASSIS) and `meta(v)`, the effective lock on non-Race types. BeamNG's per-axle cards read the alignment and diff headers in the summary strip, and its single BRAKES card carries its own. `HINT_BRAKES_OUT` is the BRAKES hint both layouts share |
 | `outWarns` (App), `OutWarn` | every output-panel warning, written once: `outWarns` is `{arb, springs, dampers}`, each a list of `{key, color, text}` (roll target, mech balance, Hz clamp, wheel lift, then `dampView`'s two). Each Forza card renders its own list in a `<Keep>`; BeamNG renders all three, in that order, under its summary strip. `OutWarn` is the box both draw. The text used to live in both layouts, so a fix had to be made twice |
-| `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a generic per-axle differential card. The BeamNG layout itself (summary strip, CENTER SPLIT card, the fixed 2-column `.beamng-grid`) is inline JSX in `App`, not a separate component — see the `physMode` branch in the output panel |
+| `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a generic per-axle differential card. The BeamNG layout itself (summary strip, CENTRE SPLIT card, the fixed 2-column `.beamng-grid`) is inline JSX in `App`, not a separate component — see the `physMode` branch in the output panel |
 | `Readout`, `Stat` | Tune Check and sidebar readouts — **not** the output panel any more (it moved to `OutRow` so each value is one scannable line to transcribe into a tuning menu) |
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH). `digits` sets the value's decimals (1; PRO's `Seg` passes 2). `tick` draws a position instead of a fill and drops the share column — the CAR STARTS row, the chassis lean the tuning rows move from |
 | `DirSeg` | a contributor with a direction but no calibrated size — PRO's diff lock and damping rows. Shows toward OS / toward US / — and a NO SIZE label |
@@ -408,11 +413,11 @@ note in DRIVETRAIN listing the locks in use instead of a blank diff section.
 
 ### Tier differences that look like gaps but aren't
 
-- **FRONT AXLE EXIT shows for a SPORT diff** (AWD, INT+) while ENTRY and CENTER POWER SPLIT hide.
+- **FRONT AXLE EXIT shows for a SPORT diff** (AWD, INT+) while ENTRY and CENTRE POWER SPLIT hide.
   EXIT drives front *accel* lock, which a Sport diff has (the card shows a live Front Accel);
   ENTRY drives decel lock and POWER SPLIT the centre lock, which Sport lacks (N/A on the card).
   Hiding FRONT EXIT would leave `diffFrontExitBias` moving an output with no control.
-- **The DIFFERENTIAL card's RECOMMENDED and CENTER SPLIT boxes return null at BEG.** BEG has no
+- **The DIFFERENTIAL card's RECOMMENDED and CENTRE SPLIT boxes return null at BEG.** BEG has no
   DIFF TYPE row and no POWER SPLIT slider, so it could not see what `→ USE` changed or change it
   back. The glossary tags both boxes `[INT]`.
 

@@ -205,12 +205,12 @@ Added while MATCH CHASSIS is on — in PRO, then in INT (the same INT sentence a
 
 ### MANUAL fields (PRO)
 
-Every lock field (not Center Split) shows the selected diff type's typical range on a
+Every lock field (not Centre Split) shows the selected diff type's typical range on a
 line of its own underneath (`RangeHint`); AWD Front Decel's always reads 0–0:
 
 > typical: {lo}–{hi}%
 
-AWD, **Front Accel / Front Decel / Rear Accel / Rear Decel / Center Split:**
+AWD, **Front Accel / Front Decel / Rear Accel / Rear Decel / Centre Split:**
 
 > Front lock under power. Higher = more front pull on exit, but more understeer.
 
@@ -624,7 +624,7 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 
 > Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.
 
-> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Center {rear %}% rear.
+> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Centre {rear %}% rear.
 
 ## Results panel — BeamNG cards
 

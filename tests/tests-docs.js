@@ -645,7 +645,8 @@ const zetaSliderEdges = label => {
 const ZETA_ZONES = (() => {
   const m = /const ZETA_ZONES=\[([^;]*)\];/.exec(SRC_NC);
   if (!m) throw new Error('cannot find ZETA_ZONES in index.html');
-  return [...m[1].matchAll(/\[(\d+),(\d+),'[^']*','([^']*)'\]/g)].map(z => [+z[1], +z[2], z[3]]);
+  // The colour is any expression (a literal or a palette constant such as CAT_RAMP[2]).
+  return [...m[1].matchAll(/\[(\d+),(\d+),(?:'[^']*'|\w+(?:\[\d+\])?),'([^']*)'\]/g)].map(z => [+z[1], +z[2], z[3]]);
 })();
 
 check('DAMPING ζ track zones match the Rebound ζ and Bump ζ slider markers', () => {
@@ -678,7 +679,7 @@ check('VISUALS.md states the ζ zones, the settle band and the ARB bands the cod
   const env = /const SETTLE_ENV=([\d.]+)/.exec(SRC_NC);
   if (!env) problems.push('cannot find SETTLE_ENV');
   else if (!md.includes(`±${Math.round(+env[1] * 100)}%`)) problems.push(`settle band ±${+env[1] * 100}%`);
-  const arb = /const ARB_ZONES=physical\?\[\]:\[\[Lim\*([\d.]+),Lim\*([\d.]+),[^\]]*\],\[Lim\*[\d.]+,Lim\*([\d.]+)/.exec(SRC_NC);
+  const arb = /const ARB_ZONES=physical\?\[\]:\[\[Lim\*([\d.]+),Lim\*([\d.]+),(?:[^\[\]]|\[\d+\])*\],\[Lim\*[\d.]+,Lim\*([\d.]+)/.exec(SRC_NC);
   const warn = /warnF=!physical&&arbF>arbLimit\*([\d.]+)/.exec(SRC_NC);
   if (!arb || !warn) problems.push('cannot parse ARB_ZONES / the ARB warn threshold');
   else {
