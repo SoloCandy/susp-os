@@ -106,6 +106,20 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .gmsel:hover{border-color:#e2e8f044}
 .gmsel option{background:#0a0f1a;color:#e2e8f0}
 @media(max-width:768px){.gmsel{padding:11px 8px;min-height:40px}}
+/* GlossaryModal: chips, close button, search field and the strip / hit-count row, sized up for
+   touch below 768px. .gl-q stays 16px there — under 16px iOS zooms on focus. */
+.gl-chip{padding:3px 9px;line-height:1.4}
+.gl-see{padding:1px 6px;line-height:1.4}
+.gl-x{width:32px;height:32px;flex-shrink:0}
+.gl-q{font-size:13px}
+.gl-nav{height:38px}
+@media(max-width:768px){
+  .gl-chip{padding:9px 11px}
+  .gl-see{padding:6px 8px}
+  .gl-x{width:44px;height:44px}
+  .gl-q{font-size:16px}
+  .gl-nav{height:50px}
+}
 .collapsible-hdr{transition:background .12s;-webkit-tap-highlight-color:transparent}
 .collapsible-hdr:hover{background:#0a0f1a}
 .stog{width:100%;display:flex;align-items:center;justify-content:space-between;
@@ -5591,19 +5605,30 @@ const TierRule=({tier,label})=>(
 );
 
 // focus: a GLOSSARY id to scroll to and flash on open (App re-keys the modal per focus).
-// uiMode only marks the viewer's own tier chip; the filter always starts at ALL.
+// uiMode marks the viewer's own tier chip, and is the tier ONLY / UP TO pick when pressed
+// under ALL; the filter always starts at ALL.
 // Within a group, entries are shown tier by tier (BEGINNER, then INTERMEDIATE, then PRO) under
-// a TierRule, in GLOSSARY's own order inside each tier.
+// a TierRule, in GLOSSARY's own order inside each tier. Group headers stick to the top of the
+// scroller, and the section strip above it jumps between them.
 // A tier chip has two scopes. ONLY: that tier's own entries, then the paragraphs that tier adds
 // to lower-tier entries ("ADDED AT INT"), shown alone. UP TO: every entry at or below the tier,
 // with paragraphs above it hidden — what a reader at that tier can see.
+// A search drops the groups for one ranked list: name hits (prefix before substring), then text
+// hits (summary before body, then most occurrences), GLOSSARY order on a tie.
+// SEE chips and ADDED-AT titles push the view onto a Back stack. With the stack empty, BACK on a
+// modal opened at an entry closes it, which returns to the link that opened it.
+// The box has a fixed height so the search field never moves as results change.
 const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
   const[q,setQ]=useState('');
   const[filter,setFilter]=useState('all');      // 'all' | a tier
   const[scope,setScope]=useState('only');       // 'only' | 'upto': how a tier chip filters
-  const[pending,setPending]=useState(null);     // {id,n}: a jump waiting for the next commit
+  const[pending,setPending]=useState(null);     // {id,n} a jump, or {top,from,see,n} a Back, waiting for the next commit
   const[flash,setFlash]=useState(null);         // {id,n}: the entry highlighted after a jump
+  const[hist,setHist]=useState([]);             // Back stack: [{top,filter,scope,q,from,to}]
+  const[active,setActive]=useState(null);       // group whose header is pinned (lit in the strip)
   const scrollRef=useRef(null);
+  const stripRef=useRef(null);
+  const backRef=useRef(null);
   const closeRef=useRef(onClose);
   closeRef.current=onClose;
   const entries=useMemo(()=>GLOSSARY.map(g=>({group:g.group,
@@ -5614,8 +5639,10 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
   const tierOk=(t,f,sc)=>f==='all'?true:sc==='only'?t.tier===f:TIER_RANK[t.tier]<=rankOf(f);
   const visParas=(paras,f)=>paras.filter(p=>!p.tier||TIER_RANK[p.tier]<=rankOf(f));
   const addParas=(paras,f)=>paras.filter(p=>p.tier===f);
+  const sumOf=t=>GLOSSARY_SUM[t.id]||'';
   const textHit=(e,paras,qq)=>!qq||e.t.term.toLowerCase().includes(qq)
     ||(e.t.short||'').toLowerCase().includes(qq)
+    ||sumOf(e.t).toLowerCase().includes(qq)
     ||paras.some(p=>p.text.toLowerCase().includes(qq));
   const matches=(e,f,qq)=>textHit(e,visParas(e.paras,f),qq);
   // Per group: sections of {key, tier, label?, items:[{e, paras, add}]}, empty ones dropped.
@@ -5637,28 +5664,96 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
       .filter(s=>s.items.length);
     return{group:g.group,sections};
   }).filter(g=>g.sections.length);
-  const jump=id=>{
+  // Search view: one flat list, name hits first: whole name, then prefix, then anywhere in it.
+  const nameRank=t=>{
+    const n=t.term.toLowerCase(),s=(t.short||'').toLowerCase();
+    return n.replace(/\s*\([^)]*\)$/,'')===query||s===query?0
+      :n.startsWith(query)||s.startsWith(query)?1:n.includes(query)||s.includes(query)?2:-1;
+  };
+  const countIn=(s,qq)=>{let n=0;for(let i=s.indexOf(qq);i>=0;i=s.indexOf(qq,i+qq.length))n++;return n;};
+  const ranked=query?(()=>{
+    let k=0;
+    const flat=filtered.flatMap(g=>g.sections.flatMap(s=>s.items.map(x=>({...x,group:g.group,k:k++}))));
+    const byName=[],byText=[];
+    for(const x of flat){
+      const r=nameRank(x.e.t);
+      if(r>=0)byName.push({...x,r});
+      else byText.push({...x,r:sumOf(x.e.t).toLowerCase().includes(query)?0:1,
+        c:x.paras.reduce((a,p)=>a+countIn(p.text.toLowerCase(),query),0)});
+    }
+    byName.sort((a,b)=>a.r-b.r||a.k-b.k);
+    byText.sort((a,b)=>a.r-b.r||b.c-a.c||a.k-b.k);
+    return{byName,byText};
+  })():null;
+  const hits=ranked?ranked.byName.length+ranked.byText.length:0;
+  // Matches are wrapped in <mark>; split() with a capture group puts them at the odd indices.
+  const hlRe=useMemo(()=>query?new RegExp('('+query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'):null,[query]);
+  const hl=s=>!hlRe||!s?s:s.split(hlRe).map((part,i)=>i%2
+    ?<mark key={i} style={{background:'#fbbf2433',color:'#fde68a',borderRadius:1,padding:0}}>{part}</mark>:part);
+  // push: record where the reader was, for BACK. from: the entry whose SEE chip was used.
+  const jump=(id,{push=false,from=null}={})=>{
     const t=GLOSSARY_BY_ID[id];
     if(!t)return;
+    if(push){
+      const sc=scrollRef.current;
+      setHist(h=>[...h.slice(-49),{top:sc?sc.scrollTop:0,filter,scope,q,from,to:id}]);
+    }
     const f=tierOk(t,filter,scope)?filter:'all';
     if(f!==filter)setFilter(f);
     const e=entries.flatMap(g=>g.terms).find(x=>x.t.id===id);
     if(query&&e&&!matches(e,f,query))setQ('');
     setPending({id,n:Date.now()});
   };
+  const back=()=>{
+    if(!hist.length){if(focus)onClose();return;}
+    const b=hist[hist.length-1];
+    setHist(hist.slice(0,-1));
+    setFilter(b.filter);setScope(b.scope);setQ(b.q);setFlash(null);
+    setPending({top:b.top,from:b.from,see:b.to,n:Date.now()});
+  };
+  backRef.current=hist.length||focus?back:null;
   // Scroll by offsetTop inside the scroller (position:relative), never scrollIntoView,
-  // which can drag the page behind the modal on mobile.
+  // which can drag the page behind the modal on mobile. A jump lands below the pinned group
+  // header, so the entry is read under its own section name.
   useEffect(()=>{
     if(!pending)return;
     const sc=scrollRef.current;
-    const el=sc&&sc.querySelector(`[data-glossary-entry="${pending.id}"]`);
-    if(el){
-      sc.scrollTop=Math.max(0,el.offsetTop-28);
-      try{el.focus({preventScroll:true});}catch(err){}
+    if(sc&&pending.top!=null){
+      sc.scrollTop=pending.top;
+      const chip=pending.from&&sc.querySelector(
+        `[data-glossary-entry="${pending.from}"] [data-glossary-see="${pending.see}"]`);
+      if(chip)try{chip.focus({preventScroll:true});}catch(err){}
+    }else{
+      const el=sc&&sc.querySelector(`[data-glossary-entry="${pending.id}"]`);
+      if(el){
+        const hdr=sc.querySelector('[data-glossary-group-hdr]');
+        sc.scrollTop=Math.max(0,el.offsetTop-(hdr?hdr.offsetHeight:0)-8);
+        try{el.focus({preventScroll:true});}catch(err){}
+      }
+      setFlash(pending);
     }
-    setFlash(pending);
     setPending(null);
   },[pending]);
+  // Which group's header is pinned: the last one whose top has scrolled past.
+  const onScroll=()=>{
+    const sc=scrollRef.current;
+    if(!sc||query)return;
+    let cur=null;
+    for(const el of sc.querySelectorAll('[data-glossary-group]')){
+      if(cur===null||el.offsetTop<=sc.scrollTop+4)cur=el.dataset.glossaryGroup;else break;
+    }
+    if(cur!==active)setActive(cur);
+  };
+  useEffect(onScroll); // eslint-disable-line
+  useEffect(()=>{
+    const st=stripRef.current,ch=st&&active&&st.querySelector(`[data-glossary-goto="${active}"]`);
+    if(ch&&(ch.offsetLeft<st.scrollLeft||ch.offsetLeft+ch.offsetWidth>st.scrollLeft+st.clientWidth))
+      st.scrollLeft=Math.max(0,ch.offsetLeft-24);
+  },[active]);
+  const gotoGroup=g=>{
+    const sc=scrollRef.current,el=sc&&sc.querySelector(`[data-glossary-group="${g}"]`);
+    if(el){sc.scrollTop=el.offsetTop;setActive(g);}
+  };
   useEffect(()=>{
     if(!flash)return;
     const tm=setTimeout(()=>setFlash(null),2500);
@@ -5666,42 +5761,63 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
   },[flash]);
   useEffect(()=>{if(focus&&GLOSSARY_BY_ID[focus])jump(focus);},[]); // eslint-disable-line
   // Capture phase on document: the glossary sits above every other modal and tooltip, so
-  // Escape closes it alone and never reaches a Hint or anything underneath.
+  // Escape closes it alone and never reaches a Hint or anything underneath. Backspace (outside
+  // a text field) and Alt+← are BACK, when there is somewhere to go back to.
   useEffect(()=>{
     const onKey=e=>{
-      if(e.key!=='Escape'||e.isComposing)return;
-      e.stopPropagation();
-      closeRef.current();
+      if(e.isComposing)return;
+      if(e.key==='Escape'){
+        e.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||'');
+      if(backRef.current&&((e.key==='Backspace'&&!typing)||(e.altKey&&e.key==='ArrowLeft'))){
+        e.preventDefault();
+        e.stopPropagation();
+        backRef.current();
+      }
     };
     document.addEventListener('keydown',onKey,true);
     return()=>document.removeEventListener('keydown',onKey,true);
   },[]);
   const chipCol=k=>k==='all'?'#e2e8f0':TIER_COLOR[k];
-  const entryView=({e:{t},paras,add})=>{
+  // Titles share one look: the name as the app prints it, bold, then a trailing "(…)" qualifier
+  // in small grey, so "TIME SYNC (Damping Balance Mode)" and "Layout (FWD / RWD / AWD)" read alike.
+  const titleParts=term=>{const m=/^(.*\S)\s+(\([^()]*\))$/.exec(term);return m?[m[1],m[2]]:[term,null];};
+  // group: set in the search view, where entries from every group share one list.
+  const entryView=({e:{t},paras,add,group})=>{
     const lit=!add&&flash&&flash.id===t.id;
+    const[main,qual]=titleParts(t.term);
+    const sum=!add&&sumOf(t);
     return(
-      <div key={t.id} {...(add?{'data-glossary-add':t.id}:{id:'gl-'+t.id,'data-glossary-entry':t.id,tabIndex:-1})}
-           style={{marginBottom:10,paddingLeft:8,outline:'none',
+      <div key={(add?'add-':'')+t.id} {...(add?{'data-glossary-add':t.id}:{id:'gl-'+t.id,'data-glossary-entry':t.id,tabIndex:-1})}
+           style={{marginBottom:12,paddingLeft:8,outline:'none',
                    borderLeft:'2px solid '+(lit?'#818cf8':'transparent'),
                    background:lit?'#818cf811':'transparent',
                    transition:'background .4s,border-color .4s'}}>
-        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:2}}>
+        <div style={{display:'flex',alignItems:'baseline',flexWrap:'wrap',gap:'2px 8px',marginBottom:2}}>
           {add
-            ?<button type="button" onClick={()=>jump(t.id)}
+            ?<button type="button" onClick={()=>jump(t.id,{push:true})}
                 title="Show the whole entry"
                 style={{background:'none',border:'none',padding:0,cursor:'pointer',fontSize:12,
-                        fontWeight:700,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>{t.term} ›</button>
-            :<span style={{fontSize:13,fontWeight:700,color:'#e2e8f0',
-                           fontFamily:'var(--font-mono)'}}>{t.term}</span>}
+                        fontWeight:700,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>{hl(t.term)} ›</button>
+            :<span data-glossary-title style={{fontSize:13,fontWeight:700,color:'#e2e8f0',
+                           fontFamily:'var(--font-mono)'}}>
+               {hl(main)}
+               {qual&&<span style={{fontSize:11,fontWeight:400,color:'#64748b',marginLeft:6}}>{hl(qual)}</span>}
+             </span>}
           <TierBadge tier={t.tier}/>
+          {group&&<span style={{fontSize:9,color:'#64748b',letterSpacing:1}}>{group.toUpperCase()}</span>}
         </div>
+        {sum&&<div data-glossary-sum style={{fontSize:12,color:'#cbd5e1',lineHeight:1.45,marginBottom:6}}>{hl(sum)}</div>}
         {paras.map((p,j)=>{
           const tagged=p.tier&&!add;
           return(
             <div key={p.i} data-glossary-para-tier={p.tier||undefined}
                  style={{fontSize:12,color:'#94a3b8',lineHeight:1.5,whiteSpace:'pre-line',marginTop:j?6:0,
                          ...(tagged?{borderLeft:'2px solid '+TIER_COLOR[p.tier]+'66',paddingLeft:8}:null)}}>
-              {tagged&&<><TierBadge tier={p.tier} para/>{' '}</>}{p.text}
+              {tagged&&<><TierBadge tier={p.tier} para/>{' '}</>}{hl(p.text)}
             </div>
           );
         })}
@@ -5709,72 +5825,115 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
           <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'4px 6px',marginTop:6}}>
             <span style={{fontSize:9,color:'#64748b',letterSpacing:1}}>SEE</span>
             {t.see.map(s=>(
-              <button key={s} type="button" data-glossary-see={s} onClick={()=>jump(s)}
+              <button key={s} type="button" className="gl-see" data-glossary-see={s}
+                onClick={()=>jump(s,{push:true,from:t.id})}
                 style={{background:'none',border:'1px solid #312e81',borderRadius:2,color:'#818cf8',
-                        fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
-                        padding:'1px 6px',cursor:'pointer'}}>{glossaryLabel(s)}</button>
+                        fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,cursor:'pointer'}}>{glossaryLabel(s)}</button>
             ))}
           </div>}
       </div>
     );
   };
+  // Never disabled: under ALL there is no tier to scope, so pressing one picks the reader's own.
   const scopeBtn=(k,label,title)=>{
-    const on=scope===k,dis=filter==='all';
+    const on=scope===k&&filter!=='all';
     return(
-      <button key={k} type="button" data-glossary-scope={k} aria-pressed={on} disabled={dis} title={title}
-        onClick={()=>setScope(k)}
-        style={{background:on&&!dis?'#0f172a':'none',border:'1px solid '+(on&&!dis?'#64748b':'#1e293b'),
-                borderRadius:2,color:dis?'#334155':on?'#e2e8f0':'#94a3b8',fontFamily:'var(--font-mono)',
-                fontSize:10,letterSpacing:1,padding:'3px 7px',cursor:dis?'default':'pointer',lineHeight:1.4}}>
+      <button key={k} type="button" className="gl-chip" data-glossary-scope={k} aria-pressed={on} title={title}
+        onClick={()=>{setScope(k);if(filter==='all')setFilter(uiMode);}}
+        style={{background:on?'#0f172a':'none',border:'1px solid '+(on?'#64748b':'#1e293b'),
+                borderRadius:2,color:on?'#e2e8f0':'#94a3b8',fontFamily:'var(--font-mono)',
+                fontSize:10,letterSpacing:1,cursor:'pointer'}}>
         {label}
       </button>
     );
   };
+  const hdrStyle={position:'sticky',top:0,zIndex:1,background:'#020617',margin:'0 -14px 2px',
+                  padding:'7px 14px 5px',fontSize:10,color:'#94a3b8',letterSpacing:2,
+                  borderBottom:'1px solid #0f172a'};
   return(
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:1100,
                  display:'flex',alignItems:'center',justifyContent:'center'}}
          onClick={onClose}>
       <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,
-                   width:560,maxWidth:'calc(100vw - 20px)',maxHeight:'88vh',
+                   width:560,maxWidth:'calc(100vw - 20px)',height:'88vh',
                    display:'flex',flexDirection:'column'}}
            onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                     padding:'8px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,
+                     padding:'4px 6px 4px 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
           <span style={{fontSize:12,color:'#9ca3af',letterSpacing:2}}>GLOSSARY</span>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'#94a3b8',
-                   fontSize:16,cursor:'pointer',lineHeight:1,padding:2}}>✕</button>
+          {backRef.current&&
+            <button type="button" className="gl-chip" data-glossary-back onClick={back}
+              title={hist.length
+                ?(hist[hist.length-1].from?`Back to ${glossaryLabel(hist[hist.length-1].from)}`:'Back to where you were')
+                :'Back to the app'}
+              style={{background:'none',border:'1px solid #312e81',borderRadius:2,color:'#818cf8',
+                      fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,cursor:'pointer'}}>
+              ‹ BACK
+            </button>}
+          <span style={{flex:1}}/>
+          <button type="button" className="gl-x" aria-label="Close glossary" onClick={onClose}
+            style={{background:'none',border:'none',color:'#94a3b8',fontSize:16,cursor:'pointer',
+                    lineHeight:1,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
         </div>
         <div role="group" aria-label="Filter by tier"
              style={{display:'flex',flexWrap:'wrap',gap:4,padding:'8px 14px 0',flexShrink:0}}>
           {['all','beginner','intermediate','pro'].map(k=>{
             const on=filter===k,mine=k===uiMode,col=chipCol(k);
             return(
-              <button key={k} type="button" data-glossary-filter={k} aria-pressed={on}
+              <button key={k} type="button" className="gl-chip" data-glossary-filter={k} aria-pressed={on}
                 aria-label={mine?`${TIER_LABEL[k]}, your tier`:undefined}
                 onClick={()=>setFilter(k)}
                 style={{background:on?'#0f172a':'none',border:'1px solid '+(on?col:'#1e293b'),
                         borderRadius:2,color:on?col:'#94a3b8',fontFamily:'var(--font-mono)',
-                        fontSize:10,letterSpacing:1,padding:'3px 9px',cursor:'pointer',lineHeight:1.4}}>
+                        fontSize:10,letterSpacing:1,cursor:'pointer'}}>
                 {k==='all'?'ALL':TIER_LABEL[k]}
-                {mine&&<span title="Your tier" style={{color:col,marginLeft:4}}>•</span>}
+                {mine&&<span aria-hidden="true" style={{color:col,marginLeft:4}}>•</span>}
               </button>
             );
           })}
           <span style={{flex:1}}/>
           <div role="group" aria-label="Tier scope" style={{display:'flex',gap:4}}>
-            {scopeBtn('only','ONLY','Only what this tier introduces')}
-            {scopeBtn('upto','UP TO','Everything visible at this tier')}
+            {scopeBtn('only','ONLY',`Only what a tier adds (on ALL: your tier, ${TIER_LABEL[uiMode]})`)}
+            {scopeBtn('upto','UP TO',`Everything a tier can see (on ALL: your tier, ${TIER_LABEL[uiMode]})`)}
           </div>
         </div>
-        <div style={{padding:'8px 14px 10px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
-          <input type="text" value={q} onChange={e=>setQ(e.target.value)}
-            placeholder="Search terms — e.g. zeta, ARB, camber…" autoFocus={!focus}
+        <div data-glossary-legend style={{fontSize:10,color:'#64748b',padding:'4px 14px 0',lineHeight:1.4,flexShrink:0}}>
+          <span style={{color:chipCol(uiMode)}}>•</span> your tier · ONLY: what a tier adds · UP TO: all it can see
+        </div>
+        <div style={{padding:'8px 14px 0',flexShrink:0}}>
+          <input type="text" className="gl-q" value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="Search: zeta, ARB, camber…" autoFocus={!focus} aria-label="Search the glossary"
             style={{width:'100%',boxSizing:'border-box',background:'#0a0f1a',
                     border:'1px solid #1e293b',borderRadius:2,color:'#e2e8f0',
-                    fontFamily:'var(--font-mono)',fontSize:13,padding:'7px 9px',outline:'none'}}/>
+                    fontFamily:'var(--font-mono)',padding:'7px 9px',outline:'none'}}/>
         </div>
-        <div ref={scrollRef}
-             style={{overflow:'auto',padding:'10px 14px 16px',flex:1,minHeight:0,overscrollBehavior:'contain',
+        {/* One fixed-height row: the section strip, or the hit count while searching. */}
+        <div className="gl-nav" aria-live="polite"
+             style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid #1e293b',flexShrink:0}}>
+          {query
+            ?<span data-glossary-hits style={{fontSize:10,letterSpacing:1,color:hits?'#94a3b8':'#475569'}}>
+               {hits?`${hits} ${hits===1?'TERM':'TERMS'} · ${ranked.byName.length} BY NAME · ${ranked.byText.length} IN TEXT`:'NO MATCHES'}
+             </span>
+            :<div ref={stripRef} role="navigation" aria-label="Glossary sections"
+                  style={{display:'flex',gap:4,overflowX:'auto',position:'relative',width:'100%',
+                          scrollbarWidth:'none'}}>
+               {GLOSSARY.map(({group})=>{
+                 const has=filtered.some(f=>f.group===group),on=has&&active===group;
+                 return(
+                   <button key={group} type="button" className="gl-chip" data-glossary-goto={group}
+                     disabled={!has} aria-current={on?'location':undefined} onClick={()=>gotoGroup(group)}
+                     style={{flexShrink:0,whiteSpace:'nowrap',background:on?'#0f172a':'none',
+                             border:'1px solid '+(on?'#64748b':'#1e293b'),borderRadius:2,
+                             color:!has?'#334155':on?'#e2e8f0':'#94a3b8',fontFamily:'var(--font-mono)',
+                             fontSize:10,letterSpacing:1,cursor:has?'pointer':'default'}}>
+                     {group.toUpperCase()}
+                   </button>
+                 );
+               })}
+             </div>}
+        </div>
+        <div ref={scrollRef} onScroll={onScroll}
+             style={{overflow:'auto',padding:'0 14px 16px',flex:1,minHeight:0,overscrollBehavior:'contain',
                      position:'relative'}}>
           {filtered.length===0&&
             <div style={{fontSize:12,color:'#475569',textAlign:'center',padding:'20px 0'}}>
@@ -5784,19 +5943,26 @@ const GlossaryModal=({onClose,focus=null,uiMode='beginner'})=>{
                   ?<>No {TIER_LABEL[filter]} terms match{query?<> "{q}"</>:null}. Try UP TO or ALL.</>
                   :<>No {TIER_LABEL[filter]}-and-below terms match "{q}". Try ALL.</>}
             </div>}
-          {filtered.map(g=>(
-            <div key={g.group} data-glossary-group={g.group} style={{marginBottom:16}}>
-              <div style={{fontSize:10,color:'#64748b',letterSpacing:2,marginBottom:2}}>
-                {g.group.toUpperCase()}
-              </div>
-              {g.sections.map(s=>(
-                <div key={s.key} data-glossary-section={s.key}>
-                  <TierRule tier={s.tier} label={s.label}/>
-                  {s.items.map(entryView)}
+          {ranked
+            ?[['name','MATCHES IN THE NAME',ranked.byName],['text','MATCHES IN THE TEXT',ranked.byText]]
+              .filter(([,,list])=>list.length).map(([k,label,list])=>(
+                <div key={k} data-glossary-rank={k} style={{marginBottom:16}}>
+                  <div data-glossary-group-hdr style={hdrStyle}>{label} · {list.length}</div>
+                  <div style={{height:6}}/>
+                  {list.map(entryView)}
                 </div>
-              ))}
-            </div>
-          ))}
+              ))
+            :filtered.map(g=>(
+              <div key={g.group} data-glossary-group={g.group} style={{marginBottom:16}}>
+                <div data-glossary-group-hdr style={hdrStyle}>{g.group.toUpperCase()}</div>
+                {g.sections.map(s=>(
+                  <div key={s.key} data-glossary-section={s.key}>
+                    <TierRule tier={s.tier} label={s.label}/>
+                    {s.items.map(entryView)}
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
       </div>
     </div>
@@ -6877,10 +7043,10 @@ const GLOSSARY=[
   {group:'Roll & Anti-Roll Bars',terms:[
     {id:'roll-stiffness',term:'Roll Stiffness',tier:'beginner',def:"Total resistance to body lean in a corner, from springs and ARBs together. The front/rear split, not the total, sets understeer or oversteer tendency. The axle with the larger share takes more of the cornering load transfer, and because tyre grip falls off with load, that axle lets go first. The total sets how far the body leans. The ANTI-ROLL BARS card header gives body roll at 1 g.\n\nAn axle's spring roll stiffness grows with ride frequency squared, corner mass and track width squared. ARBs add to it without stiffening the ride. What it resists is the roll moment: body mass times CG height above the roll centre. Heavier or taller cars need more.\n\n[INT] In the ANTI-ROLL BARS section, ROLL ° solves the bars for a target roll angle and SHARE % sets the ARB fraction of the total. VISUALS draws the front/rear split.",see:['arb','mech-balance','load-transfer','stiffness-mode']},
     {id:'arb',term:'ARB (Anti-Roll Bar)',tier:'beginner',def:"A bar linking the left and right wheels on one axle. It resists body roll without stiffening the ride vertically, because it only engages when one side compresses relative to the other. Stiffer bars mean less roll, but less compliance when one wheel hits a bump. The front/rear ARB split is the main lever for mechanical handling balance. A stiffer front gives more understeer and a stiffer rear more oversteer. In BEG the Balance slider moves it.\n\nIn Forza the card gives clicks from 1 up to the game's limit: 65 in Horizon, 40 in Motorsport. Values above 88% of the limit turn amber, and FLOOR or CEILING marks a bar pinned at 1 click or the limit. Each row also shows the bar's % of that axle's roll stiffness and the axle's % of total ARB. BeamNG gives Anti-Roll Spring Rate in N/m instead.\n\n[INT] In the ANTI-ROLL BARS section, Stiffness Mode sets the total and Balance Mode the split. MAN takes clicks directly.",see:['roll-stiffness','arb-scale','stiffness-mode','balance-mode']},
-    {id:'mech-balance',term:'Mech(anical) Balance',tier:'beginner',short:'Mech Balance',def:"The rear axle's share of total roll stiffness (springs + ARBs), on a 0–1 scale where 0.50 is an even split. Higher means more rear roll resistance and more oversteer tendency; lower means more front and more understeer. Forza displays it as Mech Balance, and Tune Check's MEASURE steps ask you to type it in.\n\nForza's reading also counts each tyre flexing in series with the suspension, plus a small tyre-width term. So it moves less than the raw spring and bar split, and the app reports it the same way. It describes roll stiffness, not grip.\n\n[INT] The VISUALS roll split puts its divide where this reading sits.\n\n[PRO] GRIP BIAS is the separate at-the-limit grip tendency. The MECH chip shows Mech Balance with its Δ from natural: blue is more rear-biased than natural, amber more front-biased. The Mech Balance Target, MECH, CO-SOLVE and Hz MECH all aim at the displayed figure.",see:['natural-balance','tyre-compliance','mech-balance-target','grip-bias']},
+    {id:'mech-balance',term:'Mech Balance (Mechanical Balance)',tier:'beginner',short:'Mech Balance',def:"The rear axle's share of total roll stiffness (springs + ARBs), on a 0–1 scale where 0.50 is an even split. Higher means more rear roll resistance and more oversteer tendency; lower means more front and more understeer. Forza displays it as Mech Balance, and Tune Check's MEASURE steps ask you to type it in.\n\nForza's reading also counts each tyre flexing in series with the suspension, plus a small tyre-width term. So it moves less than the raw spring and bar split, and the app reports it the same way. It describes roll stiffness, not grip.\n\n[INT] The VISUALS roll split puts its divide where this reading sits.\n\n[PRO] GRIP BIAS is the separate at-the-limit grip tendency. The MECH chip shows Mech Balance with its Δ from natural: blue is more rear-biased than natural, amber more front-biased. The Mech Balance Target, MECH, CO-SOLVE and Hz MECH all aim at the displayed figure.",see:['natural-balance','balance-slider','tyre-compliance','mech-balance-target','grip-bias']},
     {id:'tyre-compliance',term:'Tyre Compliance',tier:'pro',def:"The tyre's own flex, acting like a spring. In Forza it adds to the suspension's the way two springs stacked end to end do, so an axle reads K·Kt/(K+Kt). The stiffer an axle's springs and bars, the more the tyre limits it, which compresses front/rear differences. Doubling a spring rate therefore moves Forza's Mech Balance less than you'd expect. The app models the tyre as a 3.94 Hz spring on a 269 kg corner, stiffening with the square root of load. That was fitted to 33 in-game readings on three cars, and tyre width showed no measurable effect. BeamNG stays suspension-only.\n\nThe FIT? badge on the Handling Balance bar shows where figures are extrapolated rather than wrong: spring Hz outside 2.5–3.5, corner mass outside 269–476 kg, or tyre width outside 215–335 mm. LIFT means an inside wheel unloads at 1 g, so more bar on that end stops moving the balance. CG (amber) means the ride-height CG estimate is clamped. Every reading holds only at the tyre pressures it was taken at.",see:['mech-balance','natural-balance','arb-scale']},
     {id:'arb-scale',term:'ARB Scale',tier:'beginner',def:"How much roll stiffness one ARB click is worth. Forza scales its ARB slider differently on every car. Unless you measure yours, the app uses a shared default of 540 (N·m/rad per click per m² of track). The scale turns solved roll stiffness into clicks, so a measured scale moves the ARB outputs.\n\nMeasure it with STEP 2 · ARB SCALE SETUP in Tune Check's MEASURE tab. It is Forza only and comes after step 1. Keep step 1's springs, ride height and tyres. Take four readings: front 1 and rear at the game limit, the reverse, both at the limit, and both at half. Type the Mech Balance shown each time. If one scale (150–1500) explains all four within Forza's rounding, both axles share it; if not, the front and rear get their own scales. MEASURED on SCALE IN USE applies it, and DEFAULT returns to 540. It saves with the chassis; scales from before the tyre-model update were cleared.\n\nIt turns RE-MEASURE when the natural balance reading changes or is cleared.\n\n[PRO] The BALANCE section then also shows ARB SCALE: RE-MEASURE.",see:['arb','natural-balance','tune-check']},
-    {id:'natural-balance',term:'Natural (Mech) Balance',tier:'beginner',short:'Natural balance',def:"The Mech Balance a car shows on equal front/rear ride frequency with the ARBs backed off: the chassis's own lean, and the baseline for everything else. Unmeasured, the app predicts it at 2.2 Hz springs from track widths, corner masses and tyres. A MEASURE NAT BAL reading, taken at your chosen Hz, replaces that.\n\nTo measure, open STEP 1 · NAT BAL SETUP in Tune Check's MEASURE tab. Set the listed springs for Measure Hz (1.0–3.5, default 2.20; softer pins it more precisely), with ARBs at 1. Then type the Mech Balance shown (0.30–0.90). It saves with its Hz, and CLEAR returns to the prediction. It turns RE-MEASURE once chassis edits move the prediction by 0.01 or more. A reading shifts the Handling Balance bar's CHAS contributor.\n\n[INT] VISUALS marks it as the NAT tick, and it trims the AWD CENTER SPLIT recommendation.\n\n[PRO] It is the Balance Guide's NATURAL row and anchors NATURAL target mode, CHASSIS balance mode and MATCH CHASSIS; GRIP BIAS is read there. A reading hides the track widths; wheelbase stays.",see:['mech-balance','arb-scale','bal-chassis','balance-guide']},
+    {id:'natural-balance',term:'Natural Balance (Natural Mech Balance)',tier:'beginner',short:'Natural balance',def:"The Mech Balance a car shows on equal front/rear ride frequency with the ARBs backed off: the chassis's own lean, and the baseline for everything else. Unmeasured, the app predicts it at 2.2 Hz springs from track widths, corner masses and tyres. A MEASURE NAT BAL reading, taken at your chosen Hz, replaces that.\n\nTo measure, open STEP 1 · NAT BAL SETUP in Tune Check's MEASURE tab. Set the listed springs for Measure Hz (1.0–3.5, default 2.20; softer pins it more precisely), with ARBs at 1. Then type the Mech Balance shown (0.30–0.90). It saves with its Hz, and CLEAR returns to the prediction. It turns RE-MEASURE once chassis edits move the prediction by 0.01 or more. A reading shifts the Handling Balance bar's CHAS contributor.\n\n[INT] VISUALS marks it as the NAT tick, and it trims the AWD CENTER SPLIT recommendation.\n\n[PRO] It is the Balance Guide's NATURAL row and anchors NATURAL target mode, CHASSIS balance mode and MATCH CHASSIS; GRIP BIAS is read there. A reading hides the track widths; wheelbase stays.",see:['mech-balance','balance-slider','arb-scale','bal-chassis','balance-guide']},
   ]},
   {group:'ARB Modes',terms:[
     {id:'stiffness-mode',term:'Stiffness Mode',tier:'intermediate',def:"Stiffness Mode sets how much total anti-roll bar stiffness the solver hands out, before Balance Mode splits it front to rear. AUTO sizes the bars from how far the car would roll on its springs alone at 1g: about 7% ARB share per degree, kept between 5% and 50% of total roll stiffness, so a taller CG, a narrower track or softer springs get more bar. Weight alone does not change it, since spring rates already scale with corner mass. BASIC sets an overall level, SHARE % a fixed fraction of roll stiffness, ROLL ° a target body roll. Switching modes starts the new control from the car as it stands, so the bars do not jump.\n\nMAN takes front and rear values directly and bypasses the budget and the split, which is why Balance Mode and ARB Bias are hidden while it is on. It takes clicks up to the game mode's limit (65 in Horizon, 40 in Motorsport); in BeamNG it takes the anti-roll spring rate in N/m with no ceiling, stored as roll stiffness, so a track-width or ARB Motion Ratio change moves the number shown.",see:['balance-mode','arb-share','target-roll','arb-basic','arb-motion-ratio']},
@@ -6896,7 +7062,7 @@ const GLOSSARY=[
     {id:'bal-cosolve',term:'CO-SOLVE (Balance Mode)',tier:'pro',def:"CO-SOLVE moves rear spring Hz and the anti-roll bar split together to reach the Mech Balance Target as Forza displays it, so neither has to travel as far alone. Spring Share sets how much of the correction each carries. Readouts show ARB SPLIT, SOLVED REAR Hz, and the spring and bar corrections, SPR CORR and ARB CORR.\n\nBecause it solves rear Hz itself, Hz MODE is hidden; RIDE REF. still works, with the stiffness slider inverted so it keeps controlling the axle you chose. If the solve leaves the rear springs well stiffer than the front, the SPRINGS card warns of inside-rear wheel lift. A target still out of reach is flagged on the ANTI-ROLL BARS card, which suggests raising Spring Share, turning AUTO off first if it is on, to move more of the correction into the springs.",see:['spring-share','bal-mech','mech-balance-target','ride-ref']},
     {id:'spring-share',term:'Spring Share',tier:'pro',def:"Spring Share, in CO-SOLVE, is how much of the balance correction comes from rear spring stiffness rather than the anti-roll bar split, from ARB ONLY (0%) to SPRING ONLY (100%); the readout gives the bars' part. Higher puts more of the work on the springs, leaving the bar split less to correct; lower does the reverse.\n\nAUTO, the default and the right choice for most builds, searches for the share at which the springs and the bars are equally close to their limits, counting a bar that would need less than the game's 1-click minimum as strained too. Turning AUTO off starts the manual slider at the share AUTO had found, so nothing jumps.",see:['bal-cosolve','mech-balance-target']},
     {id:'arb-bias',term:'ARB Bias',tier:'intermediate',def:"ARB Bias nudges the front/rear anti-roll bar split away from the point Balance Mode picks. FRONT HEAVY (left) adds front bar stiffness for more understeer; REAR HEAVY (right) adds rear bar stiffness for more oversteer and rotation. Centre leaves the mode's own split: the weight balance under WEIGHT, the springs-cancelling point under NEUTRAL CANCEL, the springs' own proportion under NEUTRAL EQUAL ROLL. The readout shows the resulting F / R split.\n\nIts reach depends on the mode: up to 20 points at the ends under WEIGHT, but up to 50 under NEUTRAL, where the extremes can reach a front-only or rear-only split. It is hidden while Stiffness Mode is MAN. In Beginner the Balance slider drives it.\n\n[PRO] Under CHASSIS, centre matches the calibrated natural mech balance (geometry, or your MEASURE NAT BAL reading) and the reach is 20 points, as in WEIGHT. MECH and CO-SOLVE set the split themselves and do not show it.",see:['balance-mode','balance-slider','understeer','oversteer']},
-    {id:'balance-slider',term:'Balance Slider',tier:'beginner',def:"The Balance slider shifts overall handling balance in Beginner. Right (OVERSTEER) stiffens the rear for more rotation and a freer rear end; left (UNDERSTEER) stiffens the front for stability on corner entry. Within 10 either side of centre the readout says NEUTRAL. Centre is neutral for your weight distribution and suits most builds; drift builds usually want more right, street and GT builds mild left, and track builds vary with layout and taste.\n\nIt nudges rather than resets: it moves the front/rear anti-roll bar split by up to 20 points at its ends and the rear-to-front spring frequency ratio by up to 4%, starting from whatever ratio is already set, such as a loaded preset's.\n\n[INT] Beginner always runs ARB Balance Mode WEIGHT and Hz MODE MULTIPLIER; this slider is WEIGHT's ARB Bias plus a nudge to the MULTIPLIER ratio.",see:['understeer','oversteer','arb-bias','bal-weight']},
+    {id:'balance-slider',term:'Balance Slider',tier:'beginner',def:"The Balance slider shifts overall handling balance in Beginner. Right (OVERSTEER) stiffens the rear for more rotation and a freer rear end; left (UNDERSTEER) stiffens the front for stability on corner entry. Within 10 either side of centre the readout says NEUTRAL. Centre is neutral for your weight distribution and suits most builds; drift builds usually want more right, street and GT builds mild left, and track builds vary with layout and taste.\n\nIt nudges rather than resets: it moves the front/rear anti-roll bar split by up to 20 points at its ends and the rear-to-front spring frequency ratio by up to 4%, starting from whatever ratio is already set, such as a loaded preset's.\n\n[INT] Beginner always runs ARB Balance Mode WEIGHT and Hz MODE MULTIPLIER; this slider is WEIGHT's ARB Bias plus a nudge to the MULTIPLIER ratio.",see:['mech-balance','natural-balance','understeer','oversteer','arb-bias','bal-weight']},
   ]},
   {group:'Ride & Springs',terms:[
     {id:'hz',term:'Hz (Ride Frequency)',tier:'beginner',def:"Ride frequency, in Hz, is how many times per second a corner would bounce if pushed down and released — spring stiffness measured against the weight it carries. Higher Hz means a stiffer spring, faster response and more body control, at the cost of compliance over bumps. Working in Hz rather than spring rate means the same number gives the same feel on a light or a heavy car. Street cars usually run 1.0–1.8 Hz (the app's SOFT and ROAD bands); track cars 1.8–2.6 Hz (FIRM into RACE). The bands split at 1.2, 1.8 and 2.5 Hz, and the app works between 0.8 and 5.5 Hz.\n\n[INT] Each axle has its own Hz: RIDE REF. picks the axle the stiffness slider sets and Hz MODE derives the other. A higher rear-to-front ratio adds rear roll stiffness and leans toward oversteer; a lower one leans toward understeer.",see:['ride-stiffness','spring-rate','corner-mass','hz-mode']},
@@ -6925,11 +7091,11 @@ const GLOSSARY=[
     {id:'character',term:'Character (Stable / Agile)',tier:'beginner',short:'Character',def:"Character sets damping feel in Beginner — how quickly the suspension settles after a bump or weight transfer — by moving rebound ζ and Bump Ratio together. STABLE (left) raises rebound ζ and lowers the bump ratio: more damped, settles quickly, planted and predictable. AGILE (right) lowers rebound ζ and raises the bump ratio: lighter, livelier and quicker to change direction. Centre is the defaults, 70% rebound ζ and a 56% bump ratio; start there and match it to your driving style.\n\nIt covers only part of the rebound ζ range, so a tune with very light or very heavy rebound damping shows the handle pinned at an end; moving it then overwrites both values.\n\n[INT] It is the Rebound ζ and Bump Ratio sliders in one. Beginner always runs CHARACTER rebound mode, STANDARD damping balance and zero Damping Bias.",see:['zeta','bump-ratio','rebound','settle-time']},
     {id:'rebound-mode',term:'Rebound Mode (CHARACTER / SETTLE TIME)',tier:'intermediate',short:'Rebound Mode',def:"REBOUND MODE decides how the anchor rebound ζ is obtained. CHARACTER: you type it on the Rebound ζ slider and nothing is back-solved. SETTLE TIME: you set a target settle time in seconds and the app back-solves the ζ that hits it on the ride-reference axle. Switching carries the value across — the time you were holding becomes the equivalent ζ and vice versa — so the car does not jump; above 100% ζ the round trip lands on the underdamped ζ with the same settle time, since time alone cannot tell the two apart.\n\nIt is independent of Damping Balance Mode, which decides how the anchor becomes a front/rear pair. Under SETTLE TIME only the anchored axle is guaranteed to hit the target: TIME SYNC matches the other axle to the same time at 0 Damping Bias, while STANDARD, HYBRID and EQUAL FORCE split differently, and the damper table shows the other axle's real time.",see:['settle-time','zeta','damping-balance-mode']},
     {id:'bump-mode',term:'Bump Mode (BUMP RATIO / INDEPENDENT / LANDING)',tier:'intermediate',short:'Bump Mode',def:"BUMP MODE sets how bump damping is chosen. BUMP RATIO, the default, sets it as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. INDEPENDENT sets a bump ζ directly, decoupled from rebound, for combinations the ratio cannot express, such as soft bump with firm rebound. LANDING solves bump ζ from a drop height, as a % of ride height, that the car should absorb without bottoming; it needs RIDE HEIGHT → CG on in CHASSIS. Switching seeds the new control from the bump damping already in force (the ride-reference axle's, or the midpoint under SHARED), clamped to the new slider's range, so the tune does not jump; a crossed tune (bump above rebound) moves when switched to BUMP RATIO, which cannot express it. In every mode, Damping Balance Mode splits the bump stroke front/rear as well as rebound.",see:['bump','bump-ratio','landing','damping-balance-mode']},
-    {id:'landing',term:'LANDING (bump mode)',tier:'intermediate',short:'LANDING',def:"LANDING sets bump damping from a drop height instead of a ratio. The drop is a percentage of the RIDE REF. axle's ride height (100% = a drop as tall as the ride height), and the app solves the softest bump ζ that absorbs that drop without bottoming. It is meant for rally, baja and trophy-truck builds, where the job of bump damping is catching big hits. It needs RIDE HEIGHT → CG on in CHASSIS, and the drop is saved with the build and share code, so bump re-solves on whatever chassis it lands on.\n\nThe solve uses the RIDE REF. axle's Hz and ride height, the same sag model as BOTTOM G's: travel left at rest is ride height minus 1g sag, less the top 12% kept clear for the bump stops (the band the SAG chart shades), and a hit at the landing speed √(2g·drop) compresses the suspension by (speed ÷ ωn) × a factor that falls with ζ. Because the drop scales with ride height, ride height cancels out of the solve: the ζ depends only on BOTTOM G's and the %, so the same % means the same severity on a lowered rally car and a long-travel truck. Damping Balance Mode then splits the result front/rear like any bump anchor, and the DAMPERS table's Catch row shows what each axle really absorbs. If a front/rear split would push one axle under the 10% floor, both axles rise together so the split survives.\n\nDamping does less than you might expect: across the whole 10–115% range it changes peak compression by only about 2.6×. When even 115% bottoms, the readout says ⚠ MAX with the largest % it can catch, and the fix is stiffer springs or more ride height. In the results, a Bump row reads ⚠ SHORT, and a box under the card says why, for any axle that falls short. FLOOR means even 10% catches the drop.\n\n[PRO] Forza has one bump coefficient, not separate low- and high-speed settings, so the bump that catches a landing also firms up small chatter; that is why the solve picks the softest ζ that works. The model is linear and ignores tyre flex and how progressive the bump stops are, so treat the figure as a starting point, like BOTTOM G's. The Catch row's tooltip gives peak bump force per corner at the target drop, in model kN rather than game clicks.",see:['bump-mode','bottom-g','bottoming','bump']},
+    {id:'landing',term:'LANDING (Bump Mode)',tier:'intermediate',short:'LANDING',def:"LANDING sets bump damping from a drop height instead of a ratio. The drop is a percentage of the RIDE REF. axle's ride height (100% = a drop as tall as the ride height), and the app solves the softest bump ζ that absorbs that drop without bottoming. It is meant for rally, baja and trophy-truck builds, where the job of bump damping is catching big hits. It needs RIDE HEIGHT → CG on in CHASSIS, and the drop is saved with the build and share code, so bump re-solves on whatever chassis it lands on.\n\nThe solve uses the RIDE REF. axle's Hz and ride height, the same sag model as BOTTOM G's: travel left at rest is ride height minus 1g sag, less the top 12% kept clear for the bump stops (the band the SAG chart shades), and a hit at the landing speed √(2g·drop) compresses the suspension by (speed ÷ ωn) × a factor that falls with ζ. Because the drop scales with ride height, ride height cancels out of the solve: the ζ depends only on BOTTOM G's and the %, so the same % means the same severity on a lowered rally car and a long-travel truck. Damping Balance Mode then splits the result front/rear like any bump anchor, and the DAMPERS table's Catch row shows what each axle really absorbs. If a front/rear split would push one axle under the 10% floor, both axles rise together so the split survives.\n\nDamping does less than you might expect: across the whole 10–115% range it changes peak compression by only about 2.6×. When even 115% bottoms, the readout says ⚠ MAX with the largest % it can catch, and the fix is stiffer springs or more ride height. In the results, a Bump row reads ⚠ SHORT, and a box under the card says why, for any axle that falls short. FLOOR means even 10% catches the drop.\n\n[PRO] Forza has one bump coefficient, not separate low- and high-speed settings, so the bump that catches a landing also firms up small chatter; that is why the solve picks the softest ζ that works. The model is linear and ignores tyre flex and how progressive the bump stops are, so treat the figure as a starting point, like BOTTOM G's. The Catch row's tooltip gives peak bump force per corner at the target drop, in model kN rather than game clicks.",see:['bump-mode','bottom-g','bottoming','bump']},
     {id:'damping-balance-mode',term:'Damping Balance Mode',tier:'intermediate',def:"Damping Balance Mode decides how the single anchor ζ becomes a front/rear pair; it is independent of REBOUND MODE, which only decides how the anchor is obtained. It has four modes. STANDARD holds the anchor on the ride-reference axle and lets Damping Bias raise or lower the other by a percentage — simplest, and blind to any front/rear Hz difference. TIME SYNC gives both axles equal settle time from their own Hz and ignores mass. EQUAL FORCE gives equal damping force, scaled by corner mass × Hz. HYBRID sits halfway between TIME SYNC and EQUAL FORCE on each axle.\n\nWith BUMP BALANCE on SAME, all four split the bump stroke as well as rebound, under any BUMP MODE; any other BUMP BALANCE gives bump a mode of its own. The damper table highlights the row the mode equalises: Rebound ζ, Settle, Force, or both Settle and Force for HYBRID. The Damping Bias slider works in every mode and never resets on a switch; only the formula reading it changes. Under SETTLE TIME only the anchored axle is guaranteed to hit the target time.",see:['time-sync','equal-force','hybrid','damping-bias','bump-balance']},
-    {id:'time-sync',term:'TIME SYNC',tier:'intermediate',def:"TIME SYNC, one of four Damping Balance Modes, solves the front/rear damping split so both axles finish settling at the same time. It holds your ζ on the ride-reference axle and derives the other from its own spring frequency, so the stiffer axle gets proportionally less ζ; corner mass is ignored. It solves in settle-rate terms, so it stays exact past 100% ζ, and if the other axle's Hz is too low to ever match, that axle stops at 100% (critical damping).\n\nDamping Bias skews the timing: left (FRONT) makes the front settle faster, right (REAR) the rear, reaching a 2× ratio at ±50. Under SETTLE TIME it carries the target time to both axles. The damper table highlights its Settle row. Paired with FLAT RIDE it gives the lowest pitch in the app's model.",see:['damping-balance-mode','equal-force','hybrid','flat-ride-time-sync']},
-    {id:'hybrid',term:'HYBRID',tier:'intermediate',def:"HYBRID, one of four Damping Balance Modes, gives each axle a ζ halfway between the TIME SYNC and EQUAL FORCE solutions — close to equal settle time and close to equal damping force, without fully committing to either. Both of those hold the ride-reference axle at your ζ, so HYBRID does too. Damping Bias firms the front (left) or the rear (right), reaching a 2× skew at ±50. The damper table highlights both its Settle and Force rows.",see:['time-sync','equal-force','damping-balance-mode']},
-    {id:'equal-force',term:'EQUAL FORCE',tier:'intermediate',def:"EQUAL FORCE, one of four Damping Balance Modes, solves the front/rear damping split so both axles push the same actual damping force. Force scales with ζ × corner mass × Hz, so unlike TIME SYNC it accounts for corner mass as well as spring frequency — useful when TIME SYNC's equal timing still leaves one end feeling harsher. It holds your ζ on the ride-reference axle and derives the other. Damping Bias shifts force toward the front (left) or the rear (right), reaching a 2× skew at ±50. The damper table's Force row, highlighted in this mode, reads 50/50 at centre.",see:['time-sync','hybrid','corner-mass','damping-balance-mode']},
+    {id:'time-sync',term:'TIME SYNC (Damping Balance Mode)',tier:'intermediate',def:"TIME SYNC, one of four Damping Balance Modes, solves the front/rear damping split so both axles finish settling at the same time. It holds your ζ on the ride-reference axle and derives the other from its own spring frequency, so the stiffer axle gets proportionally less ζ; corner mass is ignored. It solves in settle-rate terms, so it stays exact past 100% ζ, and if the other axle's Hz is too low to ever match, that axle stops at 100% (critical damping).\n\nDamping Bias skews the timing: left (FRONT) makes the front settle faster, right (REAR) the rear, reaching a 2× ratio at ±50. Under SETTLE TIME it carries the target time to both axles. The damper table highlights its Settle row. Paired with FLAT RIDE it gives the lowest pitch in the app's model.",see:['damping-balance-mode','equal-force','hybrid','flat-ride-time-sync']},
+    {id:'hybrid',term:'HYBRID (Damping Balance Mode)',tier:'intermediate',def:"HYBRID, one of four Damping Balance Modes, gives each axle a ζ halfway between the TIME SYNC and EQUAL FORCE solutions — close to equal settle time and close to equal damping force, without fully committing to either. Both of those hold the ride-reference axle at your ζ, so HYBRID does too. Damping Bias firms the front (left) or the rear (right), reaching a 2× skew at ±50. The damper table highlights both its Settle and Force rows.",see:['time-sync','equal-force','damping-balance-mode']},
+    {id:'equal-force',term:'EQUAL FORCE (Damping Balance Mode)',tier:'intermediate',def:"EQUAL FORCE, one of four Damping Balance Modes, solves the front/rear damping split so both axles push the same actual damping force. Force scales with ζ × corner mass × Hz, so unlike TIME SYNC it accounts for corner mass as well as spring frequency — useful when TIME SYNC's equal timing still leaves one end feeling harsher. It holds your ζ on the ride-reference axle and derives the other. Damping Bias shifts force toward the front (left) or the rear (right), reaching a 2× skew at ±50. The damper table's Force row, highlighted in this mode, reads 50/50 at centre.",see:['time-sync','hybrid','corner-mass','damping-balance-mode']},
     {id:'flat-ride-time-sync',term:'FLAT RIDE + TIME SYNC',tier:'intermediate',def:"FLAT RIDE + TIME SYNC is the lowest-pitch pairing in the app's model: FLAT RIDE times the rear Hz so the rear axle's bounce lines up with the front's at your Target Speed, and TIME SYNC makes both axles finish settling together. It was checked against every other damping split and against a FLAT RIDE that matches damped rather than undamped periods; neither beat it by more than about 1%, and the damped version pitched more in every case.",see:['flat-ride','time-sync','target-speed']},
     {id:'bump-balance',term:'Bump Balance',tier:'intermediate',def:"BUMP BALANCE picks the front/rear split for the bump stroke separately from rebound. SAME, the default, splits bump with the rebound's Damping Balance Mode and Damping Bias, so one choice covers both strokes. STANDARD, TIME SYNC, HYBRID and EQUAL FORCE work as they do for rebound, but on the bump anchor (Bump Ratio's bump ζ, Bump ζ, or the LANDING solve), with a Bump Bias slider of its own. That lets rebound run equal settle time while bump shares force, or any other pairing. Under BUMP MODE LANDING there is a sixth choice, EQUAL CATCH: instead of solving only the RIDE REF. axle for the drop, each axle solves its own bump ζ from its own Hz and ride height so both absorb the same drop, and the Catch row reads equal. Bump Bias then makes one axle catch a bigger drop than the other, up to 2× at ±50. Under any other BUMP MODE it acts as SAME until LANDING is back.\n\nLeaving SAME copies Damping Bias into Bump Bias, so the first click changes only the mode. The DAMP row of the handling balance reads rebound only, so Bump Bias does not move it. The damper table marks the Bump ζ row while bump has its own mode.",see:['damping-balance-mode','damping-bias','bump']},
     {id:'damping-bias',term:'Damping Bias',tier:'intermediate',def:"Damping Bias shifts damping between front and rear. Whichever axle ends up relatively firmer pushes the balance: a firmer front leans understeer and a planted entry, a firmer rear leans oversteer and easier direction changes, shown in the DAMP row of the handling balance. Left (FRONT) always leaves the front relatively firmer and right (REAR) the rear; the reference axle is held and the other moves. The anchor is Rebound ζ under CHARACTER and the Settle Target under SETTLE TIME.\n\nWhat it moves depends on Damping Balance Mode. STANDARD: the other axle swings up to 50% at ±50, firmer one way and softer the other; with a SHARED reference both axles share the swing. TIME SYNC skews settle time, EQUAL FORCE skews force and HYBRID skews both, each reaching a 2× ratio at ±50. The slider never resets when you change mode. The DAMP row reads the rebound ζ difference between the axles whatever caused it, so a TIME SYNC or EQUAL FORCE split can move it even at 0 bias.",see:['damping-balance-mode','damper-table','understeer','oversteer']},
@@ -6989,6 +7155,130 @@ const GLOSSARY=[
     {id:'units',term:'Units',tier:'beginner',def:"UNITS sets display units per category: weight (lb or kg), spring rate (lb/in, N/mm or kgf/mm), ride height (in or cm) and speed (mph or km/h). Pick the spring unit your Forza tuning screen uses so values can be typed straight in: Forza's N/mm and kgf/mm are both 10× the true unit, as the game shows them, and ALL METRIC picks kgf/mm because that is Forza's own metric default. BeamNG output ignores the spring choice and always uses BeamNG's own units: N/m for springs and bars, N/m/s for dampers.",see:['output-cards','game-mode']},
   ]},
 ];
+// One-line summary per GLOSSARY id, shown above the entry's paragraphs and searched with them.
+// Kept apart from GLOSSARY so a def edit and a summary edit never touch the same line. Like an
+// untagged paragraph, a summary must hold for the entry's own tier: name nothing a reader at
+// that tier cannot see. Every id has one (tests-docs.js checks both ways).
+const GLOSSARY_SUM={
+  'layout':"Which wheels the engine drives; it steers the diff, alignment and brake recommendations.",
+  'build-type':"What the car is for (STREET, TRACK, DRIFT…); it shifts alignment, diff locks and brake balance.",
+  'weight':"Total weight from the stat screen. It scales every spring, damper and bar rate, but not the Hz.",
+  'front-weight-bias':"Share of weight on the front axle; it sets each axle's corner mass and the brake recommendation.",
+  'cg-source':"Where CG height comes from: estimated from ride height and tyres, or typed in by hand.",
+  'ride-height':"Ride height as Forza shows it; it feeds the CG estimate and the travel left before bottoming.",
+  'cg-height':"How high the car's mass sits. Higher means more body roll and more weight thrown forward under braking.",
+  'tyre-size':"Sidewall size such as 265/35R18; it gives tyre radius, and width adds a small term to Mech Balance.",
+  'wheelbase':"Axle-to-axle distance from the spec sheet; it times FLAT RIDE and sets weight transfer under braking.",
+  'track-width':"Left-to-right wheel distance per axle; a wider end resists roll more and moves natural balance.",
+  'motion-ratio':"BeamNG only: spring travel per unit of wheel travel. It rescales spring and damper outputs, not handling.",
+  'arb-motion-ratio':"BeamNG only: where the anti-roll bar's link sits. It rescales the printed ARB rate, not handling.",
+  'mech-balance-target':"The Mech Balance the PRO solvers aim for; its target mode sets what it is measured from.",
+  'target-range':"Target mode that aims at the middle of the recommended band for your layout and build.",
+  'target-grip':"Target mode that aims where the grip model reads neutral mid-corner, plus Balance Offset.",
+  'balance-offset':"How far the target sits from the RANGE, GRIP or PHASE anchor; + leans oversteer, − understeer.",
+  'target-phase':"Target mode that spreads ENTRY, MID and EXIT balance evenly about neutral.",
+  'balance-guide':"PRO strip comparing your mech balance with natural, grip-neutral and the recommended band.",
+  'grip-gap':"Panel suggesting tyre-width or track changes that bring the target within reach.",
+  'camber':"Wheel tilt seen from the front; negative keeps the tyre flat on the road as the body rolls.",
+  'toe':"Wheel angle seen from above; toe-in steadies the car, toe-out sharpens turn-in.",
+  'caster':"Fore-aft tilt of the steering axis; more adds self-centring and camber gain but weighs the steering.",
+  'align-mode':"Decides where the ALIGNMENT card's camber, toe and caster come from; AUTO recommends them.",
+  'nudge':"How far a MECH or GRIP nudge moves camber and toe away from the AUTO values.",
+  'roll-stiffness':"Total resistance to body lean; its front/rear split sets understeer or oversteer tendency.",
+  'arb':"A bar tying the left and right wheels together; it resists roll without stiffening the ride over bumps.",
+  'mech-balance':"The reading itself: the rear share of roll stiffness, as Forza's Mech Balance shows it (0.50 is even). Natural Balance is where it starts; the Balance Slider moves it.",
+  'tyre-compliance':"Tyre flex acting as a spring in series, which is why Mech Balance moves less than the raw split.",
+  'arb-scale':"How much roll stiffness one ARB click is worth on this car: measured, or a shared default.",
+  'natural-balance':"Mech Balance before any tuning (equal Hz, bars backed off): the chassis's own lean, and the baseline the rest is measured from.",
+  'stiffness-mode':"How much total anti-roll bar stiffness the solver hands out, before Balance Mode splits it.",
+  'arb-basic':"Stiffness Mode BASIC: one overall anti-roll bar level, 0–100%, set directly.",
+  'arb-share':"Stiffness Mode SHARE %: the fraction of total roll stiffness the bars supply.",
+  'target-roll':"Stiffness Mode ROLL °: the body roll at 1 g that the bars are solved to allow.",
+  'balance-mode':"How the anti-roll bar stiffness is split front to rear, the most direct handling-balance lever.",
+  'bal-weight':"Splits the bars by the car's weight distribution; ARB Bias moves it from there.",
+  'split-direction':"Whether the bar split follows the reference balance (SAME) or mirrors it (OPPOSITE).",
+  'bal-neutral':"Splits the bars against the springs instead of the weight, by default cancelling their effect.",
+  'bal-chassis':"WEIGHT's split anchored on natural balance; it carries a MEASURE NAT BAL reading into the tune.",
+  'bal-mech':"Solves the bar split alone to hit the Mech Balance Target exactly.",
+  'bal-cosolve':"Moves rear spring Hz and the bar split together to reach the Mech Balance Target.",
+  'spring-share':"In CO-SOLVE, how much of the correction comes from the rear springs rather than the bars.",
+  'arb-bias':"Nudges the bar split off Balance Mode's point: left for more understeer, right for more oversteer.",
+  'balance-slider':"BEG's balance control: it moves the bar split and Hz ratio, and with them the Mech Balance, toward understeer or oversteer.",
+  'hz':"How many times a second a corner bounces: the app's stiffness unit, the same on any weight of car.",
+  'spring-rate':"The number for the game's spring menu, worked out from Hz and corner mass; you never set it directly.",
+  'corner-mass':"The weight on one wheel; it turns Hz into a spring rate and ζ into a damper value.",
+  'sag':"How far the suspension compresses at rest; in this model it depends on Hz alone.",
+  'bottoming':"Running out of suspension travel, so the chassis takes the hit; more ride height or spring helps.",
+  'ride-stiffness':"The main stiffness control: ride frequency in Hz, from SOFT to RACE.",
+  'ride-ref':"Which axle the stiffness slider sets: front, rear, or the average of both.",
+  'bottom-g':"Whether the stiffness slider sets Hz directly or the load, in g, at which the car bottoms out.",
+  'hz-mode':"How the second axle's Hz is worked out from the one the stiffness slider sets.",
+  'hz-multiplier':"Hz Mode that holds a fixed ratio between front and rear Hz.",
+  'flat-ride':"Hz Mode that times the rear to the front, so the body stays level over bumps at a set speed.",
+  'target-speed':"The speed FLAT RIDE is timed for; a lower speed means a bigger front/rear Hz gap.",
+  'zeta':"How quickly a bounce dies out, as a % of critical damping: the app's damping unit.",
+  'critical-damping':"The damping that stops a bounce fastest with no overshoot: ζ = 100%.",
+  'butterworth':"ζ of about 70%: the flattest response with no resonant peak, and the rebound default.",
+  'rebound':"Damping as the suspension extends; it controls how fast the wheel comes back after a bump.",
+  'bump':"Damping as the suspension compresses; usually softer than rebound, to absorb sharp hits.",
+  'bump-ratio':"Bump damping as a percentage of rebound ζ, so the two strokes stay linked.",
+  'settle-time':"Seconds until a bounce stays within ±10%; short feels planted, long more compliant.",
+  'character':"BEG's damping feel control: STABLE settles quickly, AGILE is lighter and livelier.",
+  'rebound-mode':"Whether you set rebound ζ directly (CHARACTER) or set a settle time it is solved from.",
+  'bump-mode':"Whether bump is a ratio of rebound, set on its own, or solved from a landing drop.",
+  'landing':"Bump Mode that solves the softest bump ζ that absorbs a drop without bottoming.",
+  'damping-balance-mode':"How one anchor ζ becomes a front/rear pair: STANDARD, TIME SYNC, HYBRID or EQUAL FORCE.",
+  'time-sync':"Damping Balance Mode that makes both axles finish settling at the same time.",
+  'hybrid':"Damping Balance Mode halfway between TIME SYNC and EQUAL FORCE.",
+  'equal-force':"Damping Balance Mode that makes both axles push the same damping force.",
+  'flat-ride-time-sync':"FLAT RIDE with TIME SYNC: the lowest-pitch pairing in the app's model.",
+  'bump-balance':"The front/rear split for the bump stroke: the SAME as rebound's, or a mode of its own.",
+  'damping-bias':"Shifts damping front or rear; a firmer front leans understeer, a firmer rear oversteer.",
+  'damper-table':"Front against rear on five damping rows, with the row the current mode equalises lit.",
+  'brake-balance':"Share of braking force on the front axle; more front steadies corner entry.",
+  'accel-lock':"How much the diff locks under throttle; on a driven rear axle more lock means more power-on oversteer.",
+  'decel-lock':"How much the diff locks off throttle and under braking; more is steadier on lift-off but pushes on entry.",
+  'diff-type':"The diff fitted: Race, Sport, Rally, Offroad or Drift, each with its own lock curve.",
+  'diff-mode':"Whether the diff locks are calculated (AUTO) or typed in (MANUAL).",
+  'exit-bias':"Diff slider for on-throttle intent: GRIP for traction, ROTATE for more rotation.",
+  'entry-bias':"Diff slider for lift-off intent: STABLE raises decel lock, LOOSE lowers it.",
+  'power-split':"On AWD, the share of drive sent to the rear axle; more rear leans toward oversteer.",
+  'match-chassis':"Leans the automatic diff the same way your Mech Balance Target leans from natural.",
+  'understeer':"The fronts let go first and the car runs wide; shown negative and blue.",
+  'oversteer':"The rears let go first and the car turns more than asked; shown positive and red.",
+  'grip-bias':"The car's own at-the-limit grip balance before tuning; above 0.5 the rear lets go first.",
+  'load-transfer':"Weight moving between tyres as the car corners, brakes or accelerates.",
+  'grip-use':"VISUALS group showing how much of each axle's grip is in use at the limit.",
+  'grip-neutral':"The mech balance at which the grip model reads exactly neutral: GRIP TARGET.",
+  'response':"A separate bar for how fast the car reacts, PLANTED to REACTIVE, not which end lets go.",
+  'balance-bar':"The pinned bar showing net steady-state balance: + toward oversteer, − toward understeer.",
+  'balance-contributors':"The rows behind the BEG and INT balance bar: how far each part of the car and tune pushes it.",
+  'handling-verdict':"The one-line tip atop the expanded balance panel: what to move, and which way.",
+  'phase-verdict':"PRO's balance by corner phase (ENTRY, MID and EXIT) in grip-margin percent.",
+  'mech-balance-strip':"PRO readout of mech balance as the game shows it, with natural and the target marked.",
+  'fit-badge':"Flags a tune outside what the balance model was calibrated on: extrapolated, not wrong.",
+  'response-factors':"The rows behind the Response bar: which factor makes the car planted or reactive.",
+  'output-cards':"The values to type into the game's tuning menu, card by card.",
+  'output-warnings':"Amber boxes saying where the solver could not deliver what the inputs asked.",
+  'diff-output':"The diff lock percentages to enter, each tagged from OFF to MAX.",
+  'beamng-output':"BeamNG results in physical units, grouped like BeamNG's own tuning menu.",
+  'ride-roll-damping':"The first VISUALS group: roll split, then front and rear Hz, bars and ζ on shared tracks.",
+  'dynamics-chart':"VISUALS chart of each axle settling after a bump, with settle time marked.",
+  'sag-vs-load':"VISUALS chart of suspension compression against load, per axle, against the travel available.",
+  'dna-match':"After APPLY, shows which Vehicle DNA targets the tune still holds.",
+  'tune-check':"The CHECK button: reads an existing tune back into the app, and measures this car in-game.",
+  'measure-nat-bal':"Tune Check step 1: read this car's natural balance in-game to replace the prediction.",
+  'measure-arb-scale':"Tune Check step 2, Forza only: measure what one ARB click is worth on this car.",
+  'dna':"A set of handling targets turned into a full tune for the current car; building one is PRO.",
+  'dna-priority':"Which Vehicle DNA axes give way first when the game's limits block hitting them all.",
+  'share-code':"A compact text code or link that carries the tune, or the parts of it you pick.",
+  'backup':"Downloads or restores your garage as a file, to move it or keep a copy.",
+  'garage':"The drawer where you save and load chassis, builds and cars.",
+  'factory-presets':"Six read-only starting tunes in the garage; ★ marks the ones for your build.",
+  'undo-reset':"↩ and ↪ step back and forward through tune changes, each load counting as one step.",
+  'game-mode':"Which game the tune is for (HORIZON, MOTORSPORT or BEAMNG); it sets limits and units.",
+  'units':"Display units per category; match your Forza tuning screen so values type straight in.",
+};
 // Lookup + link plumbing for the glossary. GLOSSARY_BY_ID resolves a hint's term id;
 // glossaryLabel is the text of its "TERMS: … ›" link; App sets glossaryBridge.open.
 const GLOSSARY_BY_ID=Object.fromEntries(GLOSSARY.flatMap(g=>g.terms.map(t=>[t.id,t])));

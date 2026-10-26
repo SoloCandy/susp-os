@@ -11,6 +11,20 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+
+## Changed — glossary navigation, search, Back and one-line summaries
+
+A review found the TERMS glossary hard to move around: about 58 screens with no index,
+section headers that scrolled away, search results in document order with no count and a
+box that resized as they changed, SEE jumps with no way back, and scope chips that looked
+disabled under ALL. `GlossaryModal` now has a section strip, sticky group headers, a fixed
+height, a ranked search view (name hits first) with a hit count and highlighted matches, a
+BACK button and stack, scope chips that pick your own tier under ALL, a legend for the
+your-tier dot, and touch-sized controls below 768px. Every entry opens with a one-line
+summary from `GLOSSARY_SUM`. TIME SYNC, HYBRID, EQUAL FORCE, LANDING, Mech Balance and
+Natural Balance titles follow one style, and Mech Balance, Natural Balance and the Balance
+Slider now link to each other.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,
