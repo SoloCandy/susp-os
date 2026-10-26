@@ -152,7 +152,7 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 **Differential Mode** (PRO):
 
-> AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly.
+> AUTO (default) works out every lock from your car and the sliders below. MANUAL has you set each lock % directly.
 
 ### AUTO sliders
 
@@ -683,9 +683,9 @@ On ENTRY and EXIT:
 
 **HANDLING BALANCE** — PRO, then BEG/INT:
 
-> Mid-corner grip margin: how much more grip the front has left than the rear. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% is NEUTRAL. Tap for ENTRY and EXIT.
+> Mid-corner grip margin, %: how much more grip the front has left than the rear. + = rear lets go first (oversteer), − = front does; NEUTRAL within ±1%. BEG/INT use points. Tap for ENTRY and EXIT.
 
-> NET: the car's own lean plus springs and bars. + = oversteer, − = understeer. Brakes, diff and damping show as ENTRY / EXIT lanes. Tap for the breakdown and a tip.
+> NET in points: the car's own lean plus springs and bars. + = oversteer, − = understeer, NEUTRAL within ±3. PRO uses a grip margin in % instead. Tap for the breakdown and a tip.
 
 **FIT?** badge (PRO, only while a figure is outside the fitted set). Its hint takes one
 of three forms. Only extrapolated (soft) flags — with one flag its detail, with more
@@ -724,7 +724,7 @@ where `{wheels}` is one of:
 
 **MECH** readout (PRO):
 
-> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased.
+> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: orange = more rear-biased (oversteer), blue = more front-biased (understeer).
 
 **Segment legend** — PRO, then BEG, then INT:
 

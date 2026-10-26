@@ -4677,6 +4677,8 @@ const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,su
 // Deliberately no per-value hint icon and no boxed context badge: section-level
 // hints live on Card, and ctx reads as inline text here instead.
 // hid (a HIDE_ITEMS id) makes the row hideable from the edit view; RowGroup reads the same prop.
+// OUT_MAX_W caps the Forza column (px) so the value stays within reading distance of its label.
+const OUT_MAX_W=680;
 const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<OutRowBody {...p}/>;
 const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor='#f59e0b'})=>(
   <div style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 10px'}}>
@@ -4684,14 +4686,16 @@ const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,note
     {/* A meta entry is a string, or {text,on}: on = a figure the active mode sets, drawn
         brighter (mirroring the sidebar DAMPERS table's highlighted rows). The figures share one
         box that wraps and takes the spare width, so on a phone they fold onto a second line
-        instead of pushing the value, the one thing to transcribe, off the card. */}
+        instead of pushing the value, the one thing to transcribe, off the card. The note shares that
+        box, pushed right by marginLeft:auto: outside it, it could not wrap, and on the narrow
+        BeamNG suspension cards it painted over "0.40s settle". */}
     <span style={{flex:1,minWidth:0,display:'flex',flexWrap:'wrap',columnGap:10,rowGap:2,alignItems:'baseline'}}>
       {(Array.isArray(meta)?meta:[meta]).filter(Boolean).map((m,i)=>(
         <span key={i} style={{fontSize:10,color:m?.on?'#cbd5e1':'#64748b',fontFamily:'var(--font-mono)',
                               whiteSpace:'nowrap'}}>{m?.text??m}</span>
       ))}
+      {note&&<span style={{fontSize:10,color:noteColor,whiteSpace:'nowrap',marginLeft:'auto'}}>{note}</span>}
     </span>
-    {note&&<span style={{fontSize:10,color:noteColor,whiteSpace:'nowrap'}}>{note}</span>}
     <span style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,
                   color:warn?'#f59e0b':'#e2e8f0',whiteSpace:'nowrap'}}>
       {typeof value==='number'?value.toFixed(decimals):value}
@@ -6419,8 +6423,9 @@ const sanitizeTune=({ch,fe,dr})=>{
       frontBias:    cl(ch?.frontBias,      30,   70,   DEF_CH.frontBias),
       wheelbase:    cl(ch?.wheelbase,      0.4,  4.0,  DEF_CH.wheelbase),
       cgHeight:     cl(ch?.cgHeight,       0.2,  1.5,  DEF_CH.cgHeight),
-      trackF:       cl(ch?.trackF,         1.0,  2.2,  DEF_CH.trackF),
-      trackR:       cl(ch?.trackR,         1.0,  2.2,  DEF_CH.trackR),
+      // Bounds mirror the Track Width F/R Field inputs (1000–2600 mm); 2.2 cut wider builds.
+      trackF:       cl(ch?.trackF,         1.0,  2.6,  DEF_CH.trackF),
+      trackR:       cl(ch?.trackR,         1.0,  2.6,  DEF_CH.trackR),
       // Bounds mirror the Ride Height F/R Field inputs' min/max (0.5in/48in imperial,
       // 1.3cm/122cm metric) — see docs/CODEC.md ids 65/66.
       rideHeightF:  cl(ch?.rideHeightF,    0.0127, 1.22, DEF_CH.rideHeightF),
@@ -7025,12 +7030,12 @@ const GLOSSARY=[
     {id:'arb-motion-ratio',term:'ARB Motion Ratio',tier:'pro',def:"The anti-roll bar's arm as a fraction of track: where the drop link attaches, not where the spring does. It is BeamNG only and separate from Motion Ratio. The range is 0.2–1.5 and the default is 1.0. At 1.0 the app assumes the bar acts at the wheels, so the printed N/m reads low, roughly 4–6× soft on a sampled vehicle. A typical inboard link is about 0.4–0.5 (arm ÷ track), which raises the printed rate by (1/ratio)².\n\nIt affects only ARB display and MAN entry. The roll stiffness the app solves, the balance bar and Hz are unchanged.",see:['motion-ratio','arb']},
   ]},
   {group:'Balance Target',terms:[
-    {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE, GRIP and PHASE add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. Switching to NATURAL, RANGE, GRIP or PHASE starts at a 0 offset, on that mode's own anchor; switching to MANUAL keeps the target where it is. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip','target-phase']},
+    {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE, GRIP and PHASE add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. A fresh build is in NATURAL but stores no offset, so it aims at 0.60 itself: the box shows that as its offset from natural (+0.125 on the default car), and it stays at 0.60 until you set an offset. Picking NATURAL from another mode, or RANGE, GRIP or PHASE, starts at a 0 offset, on that mode's own anchor; switching to MANUAL keeps the target where it is. Switching ARB Balance Mode to MECH or CO-SOLVE moves the car to the target, so the switch says from where to where, and an orange box in BALANCE and ANTI-ROLL BARS says when a bar on its floor or ceiling stops the target, or anything beyond it, being reached. MATCH CHASSIS and the alignment MECH nudge also read it.",see:['mech-balance','balance-offset','target-range','target-grip','target-phase']},
     {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build. It is set as a fraction of the gap from NATURAL toward GRIP TARGET, not as a flat offset. So the further a chassis sits from grip-neutral, the further its band sits from natural. TRACK, for example, uses 0.55–0.95 of that gap on FWD and RWD, and 0.45–0.80 on AWD.\n\nDRIFT (0.90–1.55, AWD 0.75–1.30) and RWD DRAG (0.60–1.05) deliberately go past grip-neutral toward oversteer. The band is at least 0.03 wide and stays inside 0.05–0.95. On most mid- and rear-engined cars, grip-neutral sits below natural. The RANGE row shows the band, with its edges as deltas from NAT.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
     {id:'target-grip',term:'GRIP (Balance Target Mode)',tier:'pro',short:'GRIP target',def:"A Balance Target mode that aims at GRIP TARGET plus Balance Offset. GRIP TARGET is the mech balance at which the grip model reads exactly neutral for this chassis. At 0 offset the suspension cancels the chassis's own understeer or oversteer tendency instead of reinforcing it. GRIP TARGET is not GRIP BIAS mirrored about 0.50. The two use different units, and the model isn't symmetric enough for a mirror to land on neutral.\n\nIn Forza modes each tyre flexes in series with its axle, so GRIP TARGET shifts slightly with total roll stiffness. The solver uses the value at the tune's own stiffness. When GRIP TARGET falls outside the RANGE band, GRIP GAP appears.",see:['grip-neutral','grip-bias','balance-offset','grip-gap']},
     {id:'balance-offset',term:'Balance Offset',tier:'pro',def:"In RANGE, GRIP and PHASE target modes, how far the Mech Balance Target sits from that mode's anchor: −0.20 to +0.20 in 0.005 steps, default 0. Positive means more rear roll stiffness (oversteer tendency), and negative more front (understeer tendency). At 0 it is the middle of the recommended band in RANGE, grip-neutral in GRIP, or PHASE TARGET in PHASE.\n\nThe three modes share one value. Switching to one of them resets it to 0, so the target starts on the new mode's own anchor. The Balance Guide shows the resulting target.",see:['target-range','target-grip','target-phase','mech-balance-target']},
     {id:'target-phase',term:'PHASE (Balance Target Mode)',tier:'pro',short:'PHASE target',def:"A Balance Target mode that aims at PHASE TARGET plus Balance Offset. GRIP is neutral mid-corner only. PHASE picks the mid-corner balance that spreads the three Handling Balance phases evenly about neutral: ENTRY (mid-corner plus the brake bias at 0.3 g braking), MID, and EXIT (mid-corner plus the drive split at the EXIT Load), so the worst of the three is as small as a roll-stiffness split can make it.\n\nIn practice it is GRIP moved by half the brakes' and drivetrain's own lean. RWD puts the power through the rear, so EXIT leans loose and PHASE sets mid-corner a little tight; FWD the reverse; AWD by its centre split. It counts the brake bias and power split as you set them, so moving either moves the bars. Diff lock and damping are not counted: they have no calibrated size.\n\nEXIT Load (0.05–0.60 g, default 0.2) is how hard you drive out of a corner. More load makes the drive term larger and moves PHASE TARGET further from GRIP TARGET. While PHASE is solving, the Handling Balance EXIT row is read at this load too. Weight transfer from braking and accelerating (PITCH) is left out, as it is in the readout. Under BRAKES' ENTRY Centre, PHASE takes the ENTRY target as BRK.",see:['target-grip','phase-verdict','balance-offset','grip-neutral']},
-    {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip spans 0.05–0.95. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET, a violet diamond PHASE TARGET (PHASE mode only) and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
+    {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip zooms to fit its markers, at least 0.10 wide, since on most cars they all sit within a few hundredths of 0.50; SHOW FULL spans the whole 0.05–0.95 target range. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET, a violet diamond PHASE TARGET (PHASE mode only) and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GEOMETRY GAP, below, is a different distance: from NAT to the target, or to 0.50 when nothing solves, and it names both ends. GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
     {id:'grip-gap',term:'GRIP GAP / GEOMETRY GAP',tier:'pro',short:'Geometry gap',def:"A panel under the Balance Guide that suggests chassis changes toward the target. In GRIP target mode it is GRIP GAP. It appears when GRIP TARGET sits more than 0.005 outside the RANGE band. It gives the extra front or rear tyre width that brings it inside, in 5 mm steps up to 80 mm. A wider front lowers GRIP TARGET, and a wider rear raises it. Beyond that reach, use Balance Offset.\n\nIn the other modes it is GEOMETRY GAP. It appears when the target is more than 0.015 from natural balance; when nothing solves toward a target, 0.50 stands in. It suggests track changes within ±65 mm, in 5 mm steps. A wider rear track or narrower front raises rear roll stiffness, and the reverse raises the front's. Beyond that, use ARBs or tyre widths.",see:['target-grip','track-width','tyre-size','balance-offset']},
   ]},
   {group:'Alignment',terms:[
@@ -7131,7 +7136,7 @@ const GLOSSARY=[
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
     {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from +0.20° (planted) to −0.20° (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
-    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows eff, the lock × the type's scale.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
+    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows eff, the lock × the type's scale.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Center Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MED below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTER SPLIT recommends a rear % with the build's reason and its own → USE.\n\n[PRO] CENTER SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Center Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings, and there is no RECOMMENDED diff type (a Forza concept). The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever, so treat it as a direction unless you know the geometry.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
@@ -7997,33 +8002,35 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true,visLoad:true,visGrip:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:false,visRide:true,visDynamics:false,visSag:false,visLoad:false,visGrip:false});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
-  // VISUALS scroll box is capped to the RIDE · ROLL · DAMPING group's own height, so that
-  // group always fits whole and everything else scrolls. Measured live (ResizeObserver),
-  // since the group's height depends on sidebar width. null = not measured yet.
-  // VISUALS box height: each group that should always fit whole is measured live, and the box is
-  // capped at the tallest one that is open (see the box's maxHeight). RIDE · ROLL · DAMPING and,
-  // in PRO, LOAD TRANSFER. visMeasureRef(key) is a stable ref callback per key, so the observers
-  // are not rebuilt every render.
-  const[visCaps,setVisCaps]=useState({});
   // GRIP USE's phase view (MID / ENTRY / EXIT). Session-only UI state, deliberately not persisted.
   const[gripPhase,setGripPhase]=useState('mid');
-  const visROs=useRef({});
-  const visMeasureRef=useMemo(()=>{
-    const refs={};
-    return key=>refs[key]??=(el=>{
-      visROs.current[key]?.disconnect();visROs.current[key]=null;
-      if(!el){setVisCaps(c=>c[key]==null?c:{...c,[key]:null});return;}
-      const measure=()=>{
-        const h=Math.ceil(el.getBoundingClientRect().height);
-        setVisCaps(c=>c[key]===h?c:{...c,[key]:h});
-      };
-      measure();   // RO callbacks wait for a rendered frame; measure once up front too
-      const ro=new ResizeObserver(measure);
-      ro.observe(el);visROs.current[key]=ro;
-    });
+  // VISUALS groups open one at a time: opening one closes the rest, so the pinned box holds one
+  // group and its headers instead of every chart stacked behind an inner scroll. The opened
+  // group's header is scrolled to the top of the box, for the one case it still scrolls (a group
+  // taller than the box's vh cap).
+  const VIS_KEYS=['visDna','visRide','visDynamics','visSag','visLoad','visGrip'];
+  const visTog=key=>e=>{
+    const hdr=e.currentTarget,opening=!open[key];
+    setOpen(p=>({...p,...Object.fromEntries(VIS_KEYS.map(k=>[k,false])),[key]:!p[key]}));
+    if(opening)setTimeout(()=>{
+      const box=hdr.closest('[data-vis-box]');
+      if(box)box.scrollTop+=hdr.getBoundingClientRect().top-box.getBoundingClientRect().top;
+    },0);
+  };
+  // Height of the results scroll area, which the expanded Handling Balance drawer overlays and
+  // is capped against. Measured live: it moves with the footer's own height and the window.
+  const[outH,setOutH]=useState(null);
+  const outRO=useRef(null);
+  const outMeasureRef=useMemo(()=>el=>{
+    outRO.current?.disconnect();outRO.current=null;
+    if(!el)return;
+    const measure=()=>{const h=Math.round(el.getBoundingClientRect().height);setOutH(o=>o===h?o:h);};
+    measure();
+    outRO.current=new ResizeObserver(measure);
+    outRO.current.observe(el);
   },[]);
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
@@ -8589,6 +8596,20 @@ function App(){
   const physMode=isPhysical(fe.gameMode);
   const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
   const arbBalMode=fe.arbBalMode??'weight'; // ARB Balance Mode, likewise
+  // Switching onto a target solve (ARB MECH / CO-SOLVE, or BALANCE's unlock button) moves the car
+  // to the Mech Balance Target, 0.60 on a fresh build, not to where it sat. That default is meant
+  // (see MECH_BALANCE_TARGET), so the switch says so instead: balSwitchNote keeps the balance from
+  // before it, and the ARB and BALANCE sections print before → after. Session-only, and it goes
+  // once nothing solves toward the target any more.
+  const[balSwitchNote,setBalSwitchNote]=useState(null);
+  const[guideFull,setGuideFull]=useState(false); // Balance Guide strip: zoomed to its markers, or the full 0.05–0.95
+  const switchToTarget=(patch,label)=>{
+    if(!hasBalTargetSolve(fe))setBalSwitchNote({label,from:tune.mechBalance,hb:hbVal});
+    setFe(p=>({...p,...patch}));
+  };
+  useEffect(()=>{
+    if(balSwitchNote&&!hasBalTargetSolve(fe))setBalSwitchNote(null);
+  },[fe]); // eslint-disable-line
   // CO-SOLVE is live only outside MAN stiffness: MAN hides Balance Mode, and feelToPhysics ignores a
   // CO-SOLVE left over from before the switch, so its readouts and its hiding of Hz MODE go too.
   const coSolveOn=arbMode!=='man'&&arbBalMode==='coSolve';
@@ -8777,6 +8798,51 @@ function App(){
       meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR).map((text,i)=>({text,on:i===onIdx}))});
     return{header,pin,front:row(tune.arbF,tune.rsAbF,tune.rsSpF),rear:row(tune.arbR,tune.rsAbR,tune.rsSpR)};
   })();
+  // MECH / CO-SOLVE against the bars' own limits, for the BALANCE and ARB sections' banner.
+  // `missed` is mechBalClamped (the output card's warning). A target can also be met exactly with
+  // a bar pinned on its floor or ceiling, which is what a fresh build's 0.60 does on most cars:
+  // no warning fired, only the row's small FLOOR tag, though the bars then have nothing left
+  // in that direction. `higher` says which way is out of reach.
+  const mechReach=(()=>{
+    if(arbMode==='man'||!(arbBalMode==='mech'||arbBalMode==='coSolve'))return null;
+    const pins=[['front',tune.arbF],['rear',tune.arbR]].map(([s,v])=>({side:s,pin:arbView.pin(v)})).filter(x=>x.pin);
+    if(!tune.mechBalClamped&&!pins.length)return null;
+    const higher=pins.some(x=>(x.side==='front')===(x.pin==='FLOOR'));
+    return{missed:!!tune.mechBalClamped,pins,higher,target:feEffective.arbBalTarget,got:tune.mechBalance};
+  })();
+  const mechReachBanner=mechReach&&(()=>{
+    const{missed,pins,higher,target,got}=mechReach;
+    const bars=pins.map(x=>`${x.side} bar is at its ${x.pin==='FLOOR'?'floor':'ceiling'}`).join(' and the ');
+    const lever=arbBalMode==='coSolve'
+      ?(fe.springShareAuto!==false?'disable AUTO Spring Share and raise it':'raise Spring Share')
+      :`${higher?'stiffen':'soften'} the rear springs relative to the front (RIDE multiplier), or use CO-SOLVE`;
+    return(
+      <div role="alert" style={{border:'1px solid #f97316',background:'#f9731614',borderRadius:2,padding:'7px 9px',
+                                marginBottom:8,fontSize:11,lineHeight:1.45,color:'#fdba74'}}>
+        <div style={{fontWeight:700,letterSpacing:1,color:'#f97316',marginBottom:2}}>
+          {missed?'⚠ TARGET NOT REACHED':'⚠ BARS AT THEIR LIMIT'}
+        </div>
+        {missed
+          ?<>Asked {target.toFixed(3)}, got {got.toFixed(3)}.{mechReachNote({tune,target,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})}</>
+          :<>The {bars}. {target.toFixed(3)} is reached, but nothing {higher?'higher (more oversteer)':'lower (more understeer)'} can be: the bars have no room left that way. For more, {lever}.</>}
+      </div>
+    );
+  })();
+  const balSwitchBanner=balSwitchNote&&hasBalTargetSolve(fe)&&(()=>{
+    const{label,from,hb}=balSwitchNote,to=tune.mechBalance,d=to-from;
+    const dir=Math.abs(d)<0.005?'no change':d>0?'toward oversteer':'toward understeer';
+    return(
+      <div style={{border:'1px solid #334155',background:'#0f172a',borderRadius:2,padding:'7px 9px',marginBottom:8,
+                   fontSize:11,lineHeight:1.45,color:'#cbd5e1',display:'flex',gap:6,alignItems:'flex-start'}}>
+        <span style={{flex:1}}>
+          {label} now solves to the Mech Balance Target, {feEffective.arbBalTarget.toFixed(3)}, not to where the car was.
+          Mech balance {from.toFixed(3)} → {to.toFixed(3)} ({dir}); Handling Balance {phase?`MID ${fmtPct(hb)} → ${fmtPct(hbVal)}`:`${hb.toFixed(1)} → ${hbVal.toFixed(1)} pts`}.
+          Set the target in BALANCE, or undo with ↩.
+        </span>
+        <button className="tbtn" aria-label="Dismiss" style={{padding:'0 6px',flexShrink:0}} onClick={()=>setBalSwitchNote(null)}>×</button>
+      </div>
+    );
+  })();
   // SPRINGS output, likewise: the header names the Hz mode and the ride reference; rows mark the
   // figure that mode sets, and flag the axle the Hz band clamped or the CO-SOLVE lift risk.
   const springView=(()=>{
@@ -8797,16 +8863,19 @@ function App(){
     const hzOn=!co&&(hzMode==='multiplier'||hzMode==='flatRide'||hzMode==='independent');
     const gOn=!co&&hzMode==='shared';
     const atEdge=hz=>physics.rearHzClamped&&(hz<=HZ_MIN+1e-6||hz>=HZ_MAX-1e-6);
-    const row=(hz,physHz,rh,rsSp,rsAb,rear)=>{
-      const c=hzCtx(hz);
+    // The band tag reads the pre-snap Hz (tagHz), the one the Ride Stiffness slider tags: BeamNG
+    // snaps springs to PHYS_SNAP steps, which can drop 2.50 Hz to 2.497 and read FIRM beside a
+    // RACE slider. Identity in the Forza modes, where nothing snaps.
+    const row=(hz,tagHz,physHz,rh,rsSp,rsAb,rear)=>{
+      const c=hzCtx(tagHz);
       const flag=atEdge(physHz)?'CLAMPED':rear&&tune.coSolveLiftRisk?'LIFT RISK':null;
       return{note:flag??c[0],noteColor:flag?'#f59e0b':c[1],
         meta:[`${Math.round(rsSp/(rsSp+rsAb)*100)}% roll`,{text:`${hz.toFixed(2)} Hz`,on:hzOn},
           ...(gShown?[{text:`${(rh*1000*Math.pow(2*Math.PI*hz,2)/9810).toFixed(2)} g`,on:gOn}]:[])]};
     };
     return{header,
-      front:row(tune.fHz,physics.frontHz,ch.rideHeightF,tune.rsSpF,tune.rsAbF,false),
-      rear:row(tune.rHz,physics.rearHz,ch.rideHeightR,tune.rsSpR,tune.rsAbR,true)};
+      front:row(tune.fHz,physics.frontHz,physics.frontHz,ch.rideHeightF,tune.rsSpF,tune.rsAbF,false),
+      rear:row(tune.rHz,tune.rHzTarget??tune.rHz,physics.rearHz,ch.rideHeightR,tune.rsSpR,tune.rsAbR,true)};
   })();
   // ALIGNMENT output for both layouts: the header names the mode, the build type and any nudge;
   // camber rows carry the camber at the achieved roll (what AUTO aims at, so brighter there), and
@@ -8885,6 +8954,10 @@ function App(){
         ...W('mechbal',tune.mechBalClamped&&<>
           Mech balance target ({feEffective.arbBalTarget.toFixed(2)}) couldn't be reached —
           achieved {tune.mechBalance.toFixed(2)}.{mechReachNote({tune,target:feEffective.arbBalTarget,arbMode,arbBalMode,springShareAuto:fe.springShareAuto!==false,arbLim:physMode?null:lim.arb})} <TermLink id="output-warnings"/>
+        </>,'#f97316'),
+        // Met, but only with a bar pinned: say which way the bars have run out (see mechReach).
+        ...W('mechedge',mechReach&&!mechReach.missed&&<>
+          Mech balance target ({mechReach.target.toFixed(2)}) is reached with the {mechReach.pins.map(x=>`${x.side} bar at its ${x.pin==='FLOOR'?'floor':'ceiling'}`).join(' and ')}: a {mechReach.higher?'higher':'lower'} target can't be. <TermLink id="output-warnings"/>
         </>,'#f97316'),
       ],
       springs:[
@@ -8983,7 +9056,10 @@ function App(){
 
   const loadPreset=i=>{
     const s=PRESET_SAVES[i];if(!s)return;
-    let adjustedFe={...DEF_FE,...s.fe};
+    // Presets spread DEF_FE, so they carry gameMode:'horizon'. The game is the user's, not the
+    // preset's: keep the current one. No preset uses ARB MAN or BASIC, the only fe fields whose
+    // units depend on the game (crossArbUnits), so nothing else needs converting.
+    let adjustedFe={...DEF_FE,...s.fe,gameMode:fe.gameMode};
     // Hz is already weight-neutral (spring rate = Hz² × cornerMass), so no scaling needed.
     if(uiMode==='beginner'){
       // Match the Beginner Balance slider's own mechanism (WEIGHT ARB mode + rearHzMult
@@ -9981,13 +10057,34 @@ function App(){
             onReset={()=>setFe(p=>({...p,...sectionDefaults('balance')}))}>
             {(()=>{
               const _hasMechTarget=hasBalTargetSolve(fe);
-              if(!_hasMechTarget)return(
-                <div style={{fontSize:11,color:'#64748b',lineHeight:1.5,background:'#0a0f1a',
-                             border:'1px solid #1e293b',borderRadius:2,padding:'8px 10px',marginBottom:2}}>
-                  Balance Target applies only with MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH (set in ANTI-ROLL BARS / RIDE below); otherwise the BALANCE GUIDE shows your car's current balance. <TermLink id="mech-balance-target"/>
-                </div>
-              );
+              // Locked: nothing solves toward a target, so the target controls would do nothing.
+              // Say how to unlock them and offer the switch here, rather than only pointing at
+              // ANTI-ROLL BARS. Under MAN stiffness Balance Mode is hidden, so Hz MODE MECH is the way.
+              if(!_hasMechTarget){
+                const _man=arbMode==='man';
+                const _to=clampBalTarget(feEffective.arbBalTarget);
+                return(
+                  <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.5,background:'#0a0f1a',
+                               border:'1px dashed #334155',borderRadius:2,padding:'8px 10px',marginBottom:2}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                      <span style={{fontSize:10,letterSpacing:1.5,color:'#e2e8f0',border:'1px solid #475569',borderRadius:2,padding:'0 5px'}}>TARGET OFF</span>
+                      <span style={{fontSize:10,color:'#64748b'}}>read-only</span>
+                    </div>
+                    The Balance Target controls unlock when something solves toward the target: ARB Balance Mode MECH or CO-SOLVE (ANTI-ROLL BARS), or Hz MODE MECH (RIDE). Until then the BALANCE GUIDE shows your car's current balance. <TermLink id="mech-balance-target"/>
+                    <button className="tbtn" style={{width:'100%',marginTop:8,color:'#e2e8f0',borderColor:'#475569',letterSpacing:1}}
+                      onClick={()=>_man
+                        ?switchToTarget({rearHzMode:'mech'},'Hz MODE MECH')
+                        :switchToTarget({arbBalMode:'mech'},'MECH')}>
+                      {_man?'UNLOCK · Hz MODE → MECH':'UNLOCK · ARB BALANCE → MECH'}
+                    </button>
+                    <div style={{fontSize:10,color:'#64748b',marginTop:4}}>
+                      Moves mech balance from {tune.mechBalance.toFixed(3)} to the target, {_to.toFixed(3)} ({_to>tune.mechBalance?'toward oversteer':'toward understeer'}). Undo with ↩.
+                    </div>
+                  </div>
+                );
+              }
               return(<>
+                {balSwitchBanner}{mechReachBanner}
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6,marginTop:2}}>
                   <span style={{fontSize:13,color:'#94a3b8'}}>Balance Target</span>
                   <Hint text="What the target is measured from: NATURAL = offset from natural balance, RANGE = from the RANGE middle, GRIP = from GRIP TARGET, PHASE = from PHASE TARGET, MANUAL = a raw value (e.g. 0.60)." term="mech-balance-target"/>
@@ -10022,7 +10119,15 @@ function App(){
                     <Field label="Mech Balance Target" value={fe.arbBalTarget??roundBalStep(MECH_BALANCE_TARGET-natMechBalance)}
                       onChange={v=>pFe('arbBalTarget')(roundBalStep(v))}
                       min={roundBalStep(BAL_TARGET_MIN-natMechBalance)} max={roundBalStep(BAL_TARGET_MAX-natMechBalance)} step={BAL_TARGET_STEP} unit="from NAT"
-                      hint="Offset from natural balance: 0 = natural, positive = more rear bias (oversteer), negative = more front (understeer). The BALANCE GUIDE's RANGE is the recommended band." hintTerm="mech-balance-target"/></Hide>);
+                      hint="Offset from natural balance: 0 = natural, positive = more rear bias (oversteer), negative = more front (understeer). The BALANCE GUIDE's RANGE is the recommended band." hintTerm="mech-balance-target"/>
+                    {/* NATURAL names the anchor, not the target. A fresh build stores no offset
+                        (arbBalTarget null) and aims at MECH_BALANCE_TARGET itself, which the box
+                        shows as its offset from natural, rounded to the step; so spell out the sum,
+                        and say when it is that default rather than an offset someone set. */}
+                    <div style={{fontSize:10,color:'#64748b',fontFamily:'var(--font-mono)',marginTop:-6,marginBottom:8}}>
+                      {fe.arbBalTarget==null?'default ':''}target {feEffective.arbBalTarget.toFixed(3)} = NAT {natMechBalance.toFixed(3)} {(()=>{const o=feEffective.arbBalTarget-natMechBalance;return `${o>=0?'+':'−'} ${Math.abs(o).toFixed(3)}`;})()}
+                      {fe.arbBalTarget==null&&<div>fixed at {MECH_BALANCE_TARGET.toFixed(2)} until you set an offset</div>}
+                    </div></Hide>);
                   if(_m==='abs')return(<Hide id="balance.targetAbs">
                     <Field label="Mech Balance Target" value={fe.arbBalAbs??MECH_BALANCE_TARGET}
                       onChange={v=>pFe('arbBalAbs')(clampBalTarget(roundBalStep(v)))}
@@ -10059,12 +10164,32 @@ function App(){
               // Signed: _dlo/_dhi go negative whenever _gap does, and a hardcoded '+' in the
               // caption below rendered "Δ+-0.17 → +-0.10" on every rear-biased chassis.
               const _dfmt=v=>(v>=0?'+':'')+v.toFixed(2);
-              // Strip spans BAL_TARGET_MIN..MAX (0.05–0.95) — the controls' own range — so 0.50 (even roll
-              // stiffness) sits in the middle and nothing a control can set falls off the strip.
-              const _MIN=BAL_TARGET_MIN,_RNG=BAL_TARGET_MAX-BAL_TARGET_MIN;
-              const _pct=v=>Math.max(0,Math.min(100,(v-_MIN)/_RNG*100));
               const _hasMechTarget=hasBalTargetSolve(fe);
               const _cur=_hasMechTarget?(feEffective.arbBalTarget??natMechBalance):tune.mechBalance;
+              // ZOOM (default) fits the strip to the markers: on most cars NATURAL, GRIP BIAS, GRIP
+              // TARGET, RANGE and TARGET all sit within a few hundredths of 0.50, and on the full
+              // 0.05–0.95 strip they stacked on one spot. The window is at least 0.10 wide, padded,
+              // snapped to 0.01 and kept inside the controls' range. FULL shows BAL_TARGET_MIN..MAX.
+              const _marks=[natMechBalance,natGripBalance,gripNeutral,_lo,_hi,_cur,...(phaseNeutral!=null?[clampBalTarget(phaseNeutral)]:[])];
+              const[_MIN,_MAX]=(()=>{
+                if(guideFull)return[BAL_TARGET_MIN,BAL_TARGET_MAX];
+                let a=Math.min(..._marks),b=Math.max(..._marks);
+                const pad=Math.max(0.01,(b-a)*0.15);a-=pad;b+=pad;
+                if(b-a<0.10){const m=(a+b)/2;a=m-0.05;b=m+0.05;}
+                a=Math.floor(a*100)/100;b=Math.ceil(b*100)/100;
+                if(a<BAL_TARGET_MIN){b+=BAL_TARGET_MIN-a;a=BAL_TARGET_MIN;}
+                if(b>BAL_TARGET_MAX){a=Math.max(BAL_TARGET_MIN,a-(b-BAL_TARGET_MAX));b=BAL_TARGET_MAX;}
+                return[+a.toFixed(2),+b.toFixed(2)];
+              })();
+              const _RNG=_MAX-_MIN;
+              const _pct=v=>Math.max(0,Math.min(100,(v-_MIN)/_RNG*100));
+              // Ticks every 0.01 (majors 0.05) under 0.25 of span, else every 0.05 (majors 0.10).
+              const[_tMinor,_tMajor]=_RNG<0.25?[0.01,0.05]:[0.05,0.10];
+              const _ticks=[];
+              for(let v=Math.ceil(_MIN/_tMinor-1e-9)*_tMinor;v<=_MAX+1e-9;v+=_tMinor){
+                const r=+v.toFixed(2);if(r<=_MIN||r>=_MAX)continue;
+                _ticks.push({v:r,major:Math.abs(r/_tMajor-Math.round(r/_tMajor))<1e-6});
+              }
               const _curLabel=_hasMechTarget?'TARGET':'CURRENT';
               const _inRange=_cur>=_lo&&_cur<=_hi;
               const _tc=_inRange?'#4ade80':_cur>_hi?'#f97316':'#60a5fa';
@@ -10088,11 +10213,10 @@ function App(){
                     <div style={{position:'relative',height:22,marginBottom:3}}>
                       <div style={{position:'absolute',top:9,left:0,right:0,height:6,background:'#0f172a',borderRadius:3}}/>
                       <div style={{position:'absolute',top:9,left:`${_pct(_lo)}%`,width:`${_pct(_hi)-_pct(_lo)}%`,height:6,background:'#14532d',borderRadius:2}}/>
-                      {[0.15,0.25,0.35,0.45,0.55,0.65,0.75,0.85].map(v=>(
-                        <div key={v} style={{position:'absolute',top:9,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:6,background:'#2d5a72'}}/>
-                      ))}
-                      {[0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90].map(v=>(
-                        <div key={v} style={{position:'absolute',top:6,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:12,background:'#3a6b84'}}/>
+                      {_ticks.map(({v,major})=>(
+                        <div key={v} style={major
+                          ?{position:'absolute',top:6,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:12,background:v===0.5?'#64748b':'#3a6b84'}
+                          :{position:'absolute',top:9,left:`${_pct(v)}%`,transform:'translateX(-50%)',width:1,height:6,background:'#2d5a72'}}/>
                       ))}
                       <div style={{position:'absolute',top:4,left:`${_pct(natMechBalance)}%`,transform:'translateX(-50%)',width:3,height:14,background:'#94a3b8',borderRadius:1}}/>
                       <div style={{position:'absolute',bottom:1,left:`${_pct(natGripBalance)}%`,transform:'translateX(-50%)',
@@ -10105,10 +10229,12 @@ function App(){
                                    width:0,height:0,borderLeft:'7px solid transparent',borderRight:'7px solid transparent',borderTop:`10px solid ${_tc}`}}/>
                     </div>);
                   })()}
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',marginBottom:7}}>
-                    <span>{BAL_TARGET_MIN.toFixed(2)}</span>
-                    <span style={{color:'#64748b',letterSpacing:0.5}}>NAT {natMechBalance.toFixed(2)}</span>
-                    <span>{BAL_TARGET_MAX.toFixed(2)}</span>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#94a3b8',marginBottom:7}}>
+                    <span>{_MIN.toFixed(2)}</span>
+                    <button className="tbtn" style={{fontSize:9,padding:'0 6px',letterSpacing:1}}
+                      title={guideFull?'Zoom the strip to the markers':'Show the whole 0.05–0.95 target range'}
+                      onClick={()=>setGuideFull(v=>!v)}>{guideFull?'FULL · ZOOM IN':'ZOOMED · SHOW FULL'}</button>
+                    <span>{_MAX.toFixed(2)}</span>
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:'5px 0'}}>
                     <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
@@ -10171,7 +10297,7 @@ function App(){
                             {_cur.toFixed(3)}{_inRange?' ✓':_cur>_hi?' ↑':' ↓'}
                           </span>
                           <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:_dcol,letterSpacing:0.3}}>
-                            Δ{_dstr} {_ddir}
+                            Δ{_dstr} from NAT · {_ddir}
                           </span>
                         </span>
                       );
@@ -10257,7 +10383,12 @@ function App(){
                 <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'7px 8px',marginTop:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:(trackFfeas||trackRfeas)?5:4}}>
                     <span style={{fontSize:11,color:'#94a3b8',letterSpacing:2}}>GEOMETRY GAP</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#64748b'}}>{dSign}{gap.toFixed(2)}</span>
+                    {/* Not the CURRENT row's Δ: this one runs from NAT to what the geometry should
+                        reach, the target, or 0.50 when nothing solves, so name both ends. */}
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#64748b'}}>{dSign}{gap.toFixed(3)}</span>
+                  </div>
+                  <div style={{fontFamily:'var(--font-mono)',fontSize:10,color:'#64748b',marginBottom:5}}>
+                    from NAT {nm.toFixed(3)} to {hasBalTargetSolve(fe)?`TARGET ${targetBal.toFixed(3)}`:`${targetBal.toFixed(3)} (even; no target set)`}
                   </div>
                   {(trackFfeas||trackRfeas)&&<div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:4}}>
                     <span style={{fontSize:11,color:'#94a3b8',letterSpacing:1,width:42,flexShrink:0}}>TRACK</span>
@@ -10423,11 +10554,14 @@ function App(){
                   onClick={()=>setFe(p=>dropHzMech({...p,arbBalMode:'neutral'}))}>NEUTRAL</button>
                 {uiMode==='pro'&&<>
                 <button className={`tog${arbBalMode==='mech'?' on':''}`}
-                  onClick={()=>pFe('arbBalMode')('mech')}>MECH</button>
+                  title={`Solves the bars to the Mech Balance Target (${feEffective.arbBalTarget.toFixed(3)}); mech balance is ${tune.mechBalance.toFixed(3)} now.`}
+                  onClick={()=>switchToTarget({arbBalMode:'mech'},'MECH')}>MECH</button>
                 <button className={`tog${arbBalMode==='coSolve'?' on':''}`}
-                  onClick={()=>pFe('arbBalMode')('coSolve')}>CO-SOLVE</button>
+                  title={`Solves bars and rear springs to the Mech Balance Target (${feEffective.arbBalTarget.toFixed(3)}); mech balance is ${tune.mechBalance.toFixed(3)} now.`}
+                  onClick={()=>switchToTarget({arbBalMode:'coSolve'},'CO-SOLVE')}>CO-SOLVE</button>
                 </>}
               </div></Hide>
+              {uiMode==='pro'&&(balSwitchBanner||mechReachBanner)&&<div style={{marginTop:8}}>{balSwitchBanner}{mechReachBanner}</div>}
               {(arbBalMode==='weight'||arbBalMode==='chassis')&&
                 <Hide id="arb.splitDir"><div style={{marginTop:8}}>
                   <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
@@ -11272,9 +11406,11 @@ function App(){
             {uiMode!=='beginner'&&<Hide id="drive.diffType"><div style={{display:'flex',alignItems:'center',gap:4,marginTop:8,marginBottom:6,flexWrap:'wrap'}}>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginRight:2}}>DIFF TYPE</span>
               <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
+              {/* Full width on its own line: squeezed beside the label, the flex:1 buttons shrank
+                  to their text with no side padding. */}
+              <div style={{display:'flex',gap:3,width:'100%',marginTop:2}}>
                 {['race','sport','rally','offroad','drift'].map(t=>(
-                  <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`}
+                  <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`} style={{minHeight:28}}
                     onClick={()=>setDr(p=>({...p,diffType:t}))}>
                     {t.toUpperCase()}
                   </button>
@@ -11283,11 +11419,11 @@ function App(){
             </div></Hide>}
             {uiMode==='pro'&&<Hide id="drive.diffMode"><div style={{display:'flex',alignItems:'center',gap:6,marginTop:4,marginBottom:10,flexWrap:'wrap'}}>
               <span style={{fontSize:12,color:'#94a3b8'}}>Differential Mode</span>
-              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly." term="diff-mode"/>
-              <div style={{display:'flex',gap:3,marginLeft:'auto'}}>
-                <button className={`tog${!dr.diffManual?' on':''}`}
+              <Hint text="AUTO (default) works out every lock from your car and the sliders below. MANUAL has you set each lock % directly." term="diff-mode"/>
+              <div style={{display:'flex',gap:3,width:'100%',marginTop:2}}>
+                <button className={`tog${!dr.diffManual?' on':''}`} style={{minHeight:28}}
                   onClick={()=>pDr('diffManual')(false)}>AUTO</button>
-                <button className={`tog${dr.diffManual?' on':''}`}
+                <button className={`tog${dr.diffManual?' on':''}`} style={{minHeight:28}}
                   onClick={()=>{
                     const d=diff;
                     setDr(p=>({...p,diffManual:true,
@@ -11397,7 +11533,14 @@ function App(){
             {uiMode==='pro'&&dr.diffManual&&(()=>{
               const dt=dr.diffType??'race';
               const ranges=DIFF_TYPE_RANGES[dt];
-              const RangeHint=({r})=>r?<div style={{fontSize:10,color:'#475569',marginTop:1,marginBottom:4}}>typical: {r[0]}–{r[1]}%</div>:null;
+              // Each lock has a 0–100 slider; under it the diff type's typical range is drawn as a
+              // band on the same scale, so where the value sits against it reads at a glance.
+              const RangeHint=({r})=>r?<div style={{marginTop:-6,marginBottom:8}}>
+                <div style={{position:'relative',height:4,background:'#0f172a',borderRadius:2}}>
+                  <div style={{position:'absolute',top:0,bottom:0,left:`${r[0]}%`,width:`${Math.max(1,r[1]-r[0])}%`,background:'#166534',borderRadius:2}}/>
+                </div>
+                <div style={{fontSize:11,color:'#94a3b8',marginTop:3}}>typical: {r[0]}–{r[1]}%</div>
+              </div>:null;
               // Accel/decel sit side by side only when the sidebar is wide enough for two
               // Fields plus their "typical: n–n%" hints. Below that they stack, so the AWD
               // block reads front accel / front decel / rear accel / rear decel / center
@@ -11407,14 +11550,14 @@ function App(){
                 <>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                     <Hide id="drive.manFrontAccel"><div>
-                      <Field noSlider label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
+                      <Field label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Front lock under power. Higher = more front pull on exit, but more understeer." hintTerm="accel-lock"/>
                       <RangeHint r={ranges.frontAccel}/>
                     </div></Hide>
                     {dt!=='sport'&&
                     <Hide id="drive.manFrontDecel"><div>
-                      <Field noSlider label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
+                      <Field label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Front lock off throttle. Keep it at 0: any more strongly adds entry understeer." hintTerm="decel-lock"/>
                       <RangeHint r={[0,0]}/>
@@ -11422,27 +11565,27 @@ function App(){
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                     <Hide id="drive.manRearAccel"><div>
-                      <Field noSlider label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
+                      <Field label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Rear lock under power. Higher = more exit oversteer." hintTerm="accel-lock"/>
                       <RangeHint r={ranges.rearAccel}/>
                     </div></Hide>
                     {dt!=='sport'&&
                     <Hide id="drive.manRearDecel"><div>
-                      <Field noSlider label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
+                      <Field label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
                         min={0} max={100} step={1} unit="%"
                         hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
                       <RangeHint r={ranges.decel}/>
                     </div></Hide>}
                   </div>
-                  <Hide id="drive.manCenter"><Field noSlider label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
+                  <Hide id="drive.manCenter"><Field label="Center Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
                     min={0} max={100} step={1} unit="% rear"
                     hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/></Hide>
                 </>
               ):(
                 <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                   <Hide id="drive.manAccel"><div>
-                    <Field noSlider label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
+                    <Field label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
                       min={0} max={100} step={1} unit="%"
                       hint={ch.layout==='RWD'
                         ?'Rear lock under power. Higher = more exit oversteer.'
@@ -11451,7 +11594,7 @@ function App(){
                   </div></Hide>
                   {dt!=='sport'&&
                   <Hide id="drive.manDecel"><div>
-                    <Field noSlider label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
+                    <Field label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
                       min={0} max={100} step={1} unit="%"
                       hint={ch.layout==='RWD'
                         ?'Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry.'
@@ -11483,12 +11626,12 @@ function App(){
             to, so VISUALS stays hidden there. */}
         {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&secVis('visuals')!=='none'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} {...secProps('visuals')}>
-            <div style={{maxHeight:(()=>{
-              const cap=Math.max(open.visRide?visCaps.ride??0:0,uiMode==='pro'&&open.visLoad?visCaps.load??0:0,uiMode==='pro'&&open.visGrip?visCaps.grip??0:0);
-              return cap||(isPhone?'32vh':'50vh');
-            })(),overflowY:'auto',overscrollBehavior:'contain'}}>
+            {/* One group open at a time (visTog) keeps this box to one chart plus headers, which
+                fits under the cap; the cap only bites for a group taller than it, so the input
+                sections above always keep most of the sidebar. */}
+            <div data-vis-box style={{maxHeight:isPhone?'30vh':'38vh',overflowY:'auto',overscrollBehavior:'contain'}}>
               {dnaLink&&<Hide id="visuals.dna">
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
+              <div className="collapsible-hdr" onClick={visTog('visDna')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA MATCH</span>
                 <span style={{fontSize:9,color:'#818cf8'}}>{dnaLink.name}</span>
@@ -11522,8 +11665,8 @@ function App(){
                 // stiffness rear fraction so the card still draws.
                 const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
                 const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
-                return<Hide id="visuals.ride"><div ref={visMeasureRef('ride')}>
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRide:!p.visRide}))}
+                return<Hide id="visuals.ride"><div>
+              <div className="collapsible-hdr" onClick={visTog('visRide')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
                 {!open.visRide&&<span style={{fontSize:9,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
@@ -11550,7 +11693,7 @@ function App(){
               })()}
 
               <Hide id="visuals.dynamics">
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDynamics:!p.visDynamics}))}
+              <div className="collapsible-hdr" onClick={visTog('visDynamics')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DYNAMICS</span>
                 <Hint text="Each axle settling back to ride height after one bump. Strip = ±10% of the initial displacement; dashed line = settle time (last exit from the strip); ring = first ride-height crossing." term="dynamics-chart"/>
@@ -11687,7 +11830,7 @@ function App(){
                 const gEndOutR=Math.min(gMax,sagR+dSagR*gMax<=yMax||dSagR<=0?gMax:(yMax-sagR)/dSagR);
                 const xTicks=Array.from({length:Math.floor(gMax)+1},(_,i)=>i).filter(g_=>g_<=gMax);
                 return(<>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visSag:!p.visSag}))}
+                  <div className="collapsible-hdr" onClick={visTog('visSag')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,marginTop:6,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>SAG vs LOAD</span>
                     <Hint text="Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top." term="sag-vs-load"/>
@@ -11788,8 +11931,8 @@ function App(){
                 const d=lt.frontShare-lt.weightFront;
                 const shareCol=Math.abs(d)<1?'#e2e8f0':d>0?'#3b82f6':'#ef4444';
                 const anyLift=F.lifts||R.lifts;
-                return(<div ref={visMeasureRef('load')} style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visLoad:!p.visLoad}))}
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visLoad')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>LOAD TRANSFER</span>
                     <Hint text="Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer." term="load-transfer"/>
@@ -11879,8 +12022,8 @@ function App(){
                       {isLim?'LIMIT':`${pct(Math.max(0,1-ax.use))} SPARE`}
                     </span>
                   </div>);
-                return(<div ref={visMeasureRef('grip')} style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visGrip:!p.visGrip}))}
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visGrip')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>GRIP USE</span>
                     <Hint text="Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps." term="grip-use"/>
@@ -11932,13 +12075,14 @@ function App(){
         <div style={{flex:1,display:'flex',flexDirection:'column',background:'#020617',minHeight:0}}>
 
           {/* cards — scrollable */}
-          <div id="zone-output" style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
-          {/* No maxWidth cap: the output is now full-width rows rather than columns of
-              mini-cards, so a wide monitor should use the width instead of leaving dead
-              margin either side. containerType lets the BeamNG grid below query this div's
-              own rendered width (not the viewport's) to decide when to collapse to 1 column —
-              see the .beamng-grid rule in <style>. */}
-          <div style={{containerType:'inline-size'}}>
+          <div id="zone-output" ref={outMeasureRef} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
+          {/* Forza's single column of label … value rows is capped and centred: full width on a
+              wide monitor put the label ~1200 px from its value, too far to read across. BeamNG's
+              two-column grid already halves each row, so it keeps the full width.
+              containerType lets that grid query this div's own rendered width (not the
+              viewport's) to decide when to collapse to 1 column — see the .beamng-grid rule in
+              <style>. */}
+          <div style={{containerType:'inline-size',...(physMode?{}:{maxWidth:OUT_MAX_W,margin:'0 auto'})}}>
           {/* The edit view's own DONE, so it can be reached from this panel too (phones). */}
           {editing&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',marginBottom:8,
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
@@ -12322,11 +12466,9 @@ function App(){
             {hiddenOut} output part{hiddenOut>1?'s':''} hidden in this tier
             <button className="tbtn" style={{fontSize:9}} onClick={()=>setLayoutEdit(true)}>EDIT</button>
           </div>}
-          </div>{/* end maxWidth wrapper */}
-          </div>{/* end cards */}
-
-          {/* DISCLAIMER + FEEDBACK */}
-          <div style={{flexShrink:0,borderTop:'1px solid #0f172a',padding:'6px 12px'}}>
+          {/* DISCLAIMER + FEEDBACK — the last thing in the results scroll, not pinned under it:
+              pinned, its ~80 px came off every screen's results for text read once. */}
+          <div style={{borderTop:'1px solid #0f172a',padding:'8px 12px 2px',marginTop:10}}>
             <p style={{margin:0,fontSize:9,color:'#334155',lineHeight:1.5,textAlign:'center'}}>
               SUSP.OS is an independent tool not affiliated with, endorsed by, or associated with Microsoft Corporation or Turn 10 Studios. Forza Horizon and Forza Motorsport are registered trademarks of Microsoft Corporation.
             </p>
@@ -12344,6 +12486,9 @@ function App(){
                  style={{color:'#475569'}}>Tip jar</a>
             </p>
           </div>
+          </div>{/* end maxWidth wrapper */}
+          </div>{/* end cards */}
+
 
 
           {/* DATA MODAL — share / import / export */}
@@ -12745,8 +12890,9 @@ function App(){
             );
           })()}
 
-          {/* PINNED — HANDLING BALANCE */}
-          <div id="zone-balance-bar" style={{flexShrink:0,borderTop:'1px solid #1e293b',background:'#020617',
+          {/* PINNED — HANDLING BALANCE. position:relative anchors the expanded drawer, which opens
+              upward over the results instead of growing the footer into them. */}
+          <div id="zone-balance-bar" style={{flexShrink:0,position:'relative',borderTop:'1px solid #1e293b',background:'#020617',
                                              paddingBottom:'env(safe-area-inset-bottom,0px)',...dim('balance-bar')}}>
             {/* compact header row — tap to expand */}
             <div className="collapsible-hdr"
@@ -12766,24 +12912,34 @@ function App(){
                    }
                  }}
                  style={{padding:isPhone?'10px 8px':'10px 14px',cursor:'pointer'}}>
-              <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
-                <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,flex:1,minWidth:0,overflow:'hidden'}}>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>HANDLING BALANCE</span>
+              {/* The headline (value + verdict) never gives way: when the row is too narrow, the
+                  PRO FIT? / MECH chips wrap to a second line rather than push it off the card (on
+                  one line they overflowed a 375 px phone, and an 800 px window with the sidebar
+                  open). On a phone the label also shortens to BALANCE. */}
+              <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,
+                                                flexWrap:'wrap',rowGap:4}}>
+                <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,minWidth:0,overflow:'hidden',
+                             flex:'1 0 auto'}}>
+                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>
+                    {isPhone?'BALANCE':'HANDLING BALANCE'}</span>
                   <Hint text={phase
-                    ?'Mid-corner grip margin: how much more grip the front has left than the rear. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% is NEUTRAL. Tap for ENTRY and EXIT.'
-                    :'NET: the car\'s own lean plus springs and bars. + = oversteer, − = understeer. Brakes, diff and damping show as ENTRY / EXIT lanes. Tap for the breakdown and a tip.'} term="balance-bar"/>
+                    ?'Mid-corner grip margin, %: how much more grip the front has left than the rear. + = rear lets go first (oversteer), − = front does; NEUTRAL within ±1%. BEG/INT use points. Tap for ENTRY and EXIT.'
+                    :'NET in points: the car\'s own lean plus springs and bars. + = oversteer, − = understeer, NEUTRAL within ±3. PRO uses a grip margin in % instead. Tap for the breakdown and a tip.'} term="balance-bar"/>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flexShrink:0}}>·</span>
-                  {phase&&<span style={{fontSize:10,color:'#64748b',letterSpacing:1,flexShrink:0}}>MID</span>}
+                  {/* Two scales, both labelled: PRO's MID grip margin in %, BEG/INT's NET in points.
+                      They come from different models, so the same tune can read differently. */}
+                  <span style={{fontSize:10,color:'#64748b',letterSpacing:1,flexShrink:0}}>{phase?'MID':'NET'}</span>
                   <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:700,flexShrink:0,
                                 color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
                     {phase?fmtPct(hbVal):`${hbVal>=0?'+':''}${hbVal.toFixed(1)}`}
+                    {!phase&&<span style={{fontSize:10,fontWeight:400,marginLeft:2}}>pts</span>}
                   </span>
-                  {!isMobile&&<span style={{fontSize:11,letterSpacing:2,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                  <span style={{fontSize:11,letterSpacing:2,flexShrink:isPhone?0:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
                                 color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
                     {Math.abs(hbVal)<hbBand?'NEUTRAL':hbVal>0?'OVERSTEER':'UNDERSTEER'}
-                  </span>}
+                  </span>
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0,marginLeft:'auto'}}>
                   {/* Calibration-envelope badge. PRO only: every flag it raises concerns a figure
                       only PRO displays — the tyre-series fit feeds mechBalance and the target solves,
                       LIFT and CG feed the grip model behind GRIP BIAS and GRIP mode. It shipped
@@ -12816,9 +12972,9 @@ function App(){
                     <span>MECH {tune.mechBalance.toFixed(2)}
                     {(()=>{const _d=tune.mechBalance-natMechBalance;const _a=Math.abs(_d);
                       if(_a<0.01)return null;
-                      return <span style={{color:_d>0?'#60a5fa':'#f59e0b'}}>{(_d>=0?'+':'')+_d.toFixed(2)}</span>;
+                      return <span style={{color:_d>0?'#f97316':'#60a5fa'}}>{(_d>=0?'+':'')+_d.toFixed(2)}</span>;
                     })()}</span>
-                    <Hint text="Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased." term="mech-balance"/>
+                    <Hint text="Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: orange = more rear-biased (oversteer), blue = more front-biased (understeer)." term="mech-balance"/>
                   </span></Hide>}
                   <span style={{fontSize:10,color:'#94a3b8'}}>
                     {(isPhone?footerOpen:open.balanceExpanded)?'▲':'▼'}
@@ -13165,21 +13321,29 @@ function App(){
               </div>}
               </>}
             </div>
-            {/* expanded full verdict */}
+            {/* expanded full verdict — a drawer over the results, bottom edge on the footer's top.
+                Inline, it grew the footer until the results kept about one visible row (PRO: none).
+                Capped to most of the results area (outH) and scrolls inside, so the top of the
+                results stays in view and the footer's own bars stay where they were. */}
             {open.balanceExpanded&&
-              <div style={{padding:'0 14px 12px',borderTop:'1px solid #0f172a'}}>
-                <div style={{display:'flex',justifyContent:'flex-end',gap:4,padding:'6px 0 4px'}}>
+              <div style={{position:'absolute',left:0,right:0,bottom:'100%',zIndex:30,
+                           display:'flex',flexDirection:'column',
+                           maxHeight:outH?Math.round(outH*(isPhone?0.85:0.8)):(isPhone?'50vh':'60vh'),
+                           padding:'0 14px 10px',background:'#020617',borderTop:'1px solid #1e293b',
+                           boxShadow:'0 -10px 24px #000000aa'}}>
+                <div style={{display:'flex',justifyContent:'flex-end',gap:4,padding:'6px 0 4px',flexShrink:0}}>
                   {(()=>{
                     const bs={background:'none',border:'1px solid #1e293b',borderRadius:2,
                       fontFamily:'var(--font-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:1};
                     return(<>
                       <button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();openBalTut();}}>? GUIDE</button>
-                      {isPhone&&<button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();setOpen(p=>({...p,balanceExpanded:false}));}}>✕ CLOSE</button>}
+                      <button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();setOpen(p=>({...p,balanceExpanded:false}));}}>✕ CLOSE</button>
                     </>);
                   })()}
                 </div>
-                {/* cap expanded height on all devices — ensures LOAD TRANSFER is reachable on short screens */}
-                <div style={{maxHeight:isPhone?'42vh':'60vh',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
+                {/* The 4px side padding holds the dominant RESPONSE row's -4/-2px margins inside the
+                    box: without it the row ran 2px wider than the box and clipped the % column. */}
+                <div style={{flex:1,minHeight:0,padding:'0 4px',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
                 {phase?<PhaseVerdict phase={phase} diffLayout={diff.layout}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel} bDampBias={bDampBias}
                   brakeBias={brakeBias} brakeCentre={brakeEntry?'entry':brakeGrip?'grip':'rec'} gripBalance={tune.gripBalance}/>
