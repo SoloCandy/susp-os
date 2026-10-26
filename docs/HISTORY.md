@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — guides no longer chain, and their cards stay on screen
+
+Closing the BEG or INT guide opened the COMPLEXITY LEVEL popup at once. Its tier preview always
+highlighted BEG, so in INT it disagreed with the header, and PRO opened no popup at all. Then
+expanding the Handling Balance bar for the first time opened a third, six-step guide. Every tier
+guide now ends the same way: its last card carries a `TUT_END_NOTE` line (the tier it unlocked,
+or for PRO how to reopen it), and DONE or ✕ just closes it. The balance guide opens only from the
+expanded panel's ? GUIDE. The popup shows only for a stored `suspos_onboard_v1` of `false`, with
+the current tier highlighted.
+
+Steps now say when their controls are elsewhere. INT's AWD Center Diff showed on a RWD car with
+nothing lit; a step's `skip` now drops it there, and NEXT, PREV and the count step over it. PRO's
+Mech Balance Target, Balance Target Mode, Alignment Mode, ARB Balance Modes and Manual
+Differential steps described controls that only render in another mode. An `absent` note on the
+card now says how to reach them. PRO's copy is shorter (about half), its Hz MECH step spotlights
+only RIDE, and a Vehicle DNA step closes the guide.
+
+Placement: the card read its own height before the off-screen line was added and ran off the
+bottom (INT VISUALS, PRO Hz MECH and Load Transfer), so it now re-measures when its height
+changes and when a transition ends. The phone drawer's slide could outlast the last timed measure
+and leave the card anchored to where the drawer had been, which is probably the reported "BEG
+steps 6–8 anchored to the wrong control". Output steps scroll their spots to the top of the
+results, so Reading the Results no longer covers the cards it names. With no room on either side
+the card docks to an edge instead of centring, which had covered the expanded balance panel's
+header. Garage steps put the card left of the overlay, and the ring inside it, where it had
+lost its right edge off-screen. The ⟲ reported as left "pink-highlighted" after the PRO guide is
+its permanent colour, not a leftover ring.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,

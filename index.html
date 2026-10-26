@@ -3838,9 +3838,12 @@ const spotCss=(spot,zones)=>{
   // An outline, not a border, so nothing moves, and drawn outside the part so its own children
   // (the balance bar's segments) can't cover it; the tint is an inset shadow over its background.
   const ring=`:is(${on}){outline:1px solid #818cf8;outline-offset:1px;box-shadow:inset 0 0 0 999px #818cf80d;border-radius:2px}`;
+  // The GARAGE overlay is flush with the screen's right edge (and both edges on phones), so a ring
+  // drawn outside its rows lost its right side: inside there.
+  const edge=`#zone-garage :is(${on}){outline-offset:-2px}`;
   const dims=(zones??[]).map(z=>`#zone-${z}:has(${on}) ${part}:not(:is(${on})):not(:is(${on}) *)`
     +`:not(:has(${on})):not(${part}:not(:has(${on})) *){opacity:.3;pointer-events:none;transition:opacity .3s}`);
-  return[ring,...dims].join('\n');
+  return[ring,edge,...dims].join('\n');
 };
 
 // Every preset authors damping as rebound ζ (CHARACTER), never as a Settle Target. Beginner's
@@ -6608,7 +6611,7 @@ const TUTORIALS={
      glossary:['character']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],spot:['bar.head','bar.main'],sidebar:'close',
-     body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff.',
+     body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff; its ? GUIDE explains each part.',
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Results',
      focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],quick:true,
@@ -6670,6 +6673,8 @@ const TUTORIALS={
      glossary:['exit-bias','entry-bias']},
     {title:'AWD Center Diff',
      focus:['drivetrain','output'],spot:['drive.powerSplit','drive.frontExit','out.diff.recCenter','out.card.center'],sidebar:'open',
+     skip:st=>st.ch.layout!=='AWD',
+     absent:{ids:['drive.powerSplit'],text:'A Sport diff has no center control: pick another Diff Type to see POWER SPLIT and → USE.'},
      body:'AWD adds POWER SPLIT under CENTER (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card\'s CENTER SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
      glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
@@ -6712,64 +6717,73 @@ const TUTORIALS={
   pro:[
     {title:'Welcome — Pro Mode',
      focus:null,
-     body:'PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths), a brake bias Centre and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
+     body:'PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential and Vehicle DNA. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what\'s new.',
      glossary:['mech-balance-target','align-mode']},
     {title:'Chassis Geometry',
      focus:['chassis'],spot:['chassis.wheelbase','chassis.trackF','chassis.trackR','chassis.tyres'],
-     body:'CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, moving GRIP BIAS and its AGILE–PLANTED tag.',
+     body:'LOOK UP ONLINE in CHASSIS holds wheelbase and track widths, which Forza never shows; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, which moves GRIP BIAS.',
      glossary:['tyre-size','track-width','balance-guide']},
     {title:'Calibrating Natural Balance',
      focus:['chassis'],spot:['chassis.measureNatBal'],
-     body:'MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.',
+     body:'MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction; CLEAR, or ✕ beside it, drops it.',
      glossary:['measure-nat-bal','natural-balance']},
     {title:'Calibrating ARB Scale',
      focus:['balance-target'],
-     body:'ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each of the four readings lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE. When one scale cannot explain all four, the front and rear axles get their own.',
+     body:'ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours from four readings; pick MEASURED under SCALE IN USE to use it.',
      glossary:['measure-arb-scale','arb-scale']},
     {title:'Mech Balance Target',
      focus:['balance-target'],spot:['balance.targetNat','balance.guide'],
-     body:'How far to move Forza\'s Mech Balance from the car\'s natural balance (NAT): 0 stays natural, + adds rotation, − adds stability; start from the Balance Guide\'s range. It shows only while ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, solves toward it; CHASSIS anchors on natural balance instead.',
+     absent:{ids:['balance.targetMode'],text:'Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or Hz MODE to MECH in RIDE.'},
+     body:'How far to move Forza\'s Mech Balance from the car\'s natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide\'s range.',
      glossary:['mech-balance-target','balance-guide']},
     {title:'Balance Target Mode',
      focus:['balance-target'],spot:['balance.targetMode','balance.offset','balance.targetAbs','balance.exitLoad'],
-     body:'Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide\'s RANGE), GRIP (GRIP TARGET, the grip-neutral point), PHASE (PHASE TARGET, neutral across entry, mid-corner and exit) or MANUAL (a raw value, e.g. 0.60). In RANGE, GRIP and PHASE, Balance Offset shifts it toward oversteer (+) or understeer (−).',
+     absent:{ids:['balance.targetMode'],text:'Hidden now, like the target: it shows once MECH, CO-SOLVE or Hz MODE MECH is solving.'},
+     body:'What the target is measured from: NATURAL (offset from NAT), RANGE (the middle of the Balance Guide\'s range), GRIP (grip-neutral), PHASE (neutral across entry, mid-corner and exit) or MANUAL (a raw value). Balance Offset shifts RANGE, GRIP and PHASE.',
      glossary:['target-range','target-grip','target-phase','balance-offset']},
     {title:'Alignment Mode',
      focus:['alignment'],spot:['align.mode','align.nudge','align.nudgeStrength'],
-     body:'AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target\'s intent and GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.',
+     absent:{ids:['align.nudgeStrength'],text:'Nudge Strength appears once Nudge is MECH or GRIP.'},
+     body:'AUTO derives camber, toe and caster from your build and chassis; MANUAL takes exact values. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target, GRIP against the chassis\'s own grip tendency; Nudge Strength sets how far.',
      glossary:['align-mode','nudge']},
     {title:'PRO ARB Balance Modes',
      focus:['arb'],spot:['arb.balMode','arb.springShare','arb.mechSplit','arb.coSolveSplit','arb.coSolveCorr'],
-     body:'CHASSIS is WEIGHT anchored on the car\'s natural balance instead of raw weight %. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. A target the car can\'t reach within game limits is flagged.',
+     absent:{ids:['arb.mechSplit','arb.coSolveSplit'],text:'Pick MECH or CO-SOLVE under Balance Mode to see the split it solves.'},
+     body:'CHASSIS is WEIGHT anchored on the car\'s natural balance. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. An unreachable target is flagged.',
      glossary:['bal-chassis','bal-mech','bal-cosolve']},
-    {title:'Hz MECH & Balance Target Mode',
-     focus:['feel','balance-target','visuals'],spot:['ride.hzMode','balance.targetMode','visuals.ride'],
-     body:'Hz MODE MECH, in RIDE, derives the other axle\'s Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself, and NEUTRAL CANCEL, whose bars would undo it. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.',
-     glossary:['hz-mode','ride-roll-damping']},
+    {title:'Hz MODE MECH',
+     focus:['feel'],spot:['ride.hzMode'],
+     body:'Hz MODE MECH, in RIDE, derives the other axle\'s Hz from the Mech Balance Target. CO-SOLVE ignores it, since it solves rear Hz itself, and so does NEUTRAL CANCEL, whose bars would undo it.',
+     glossary:['hz-mode']},
     {title:'Brake Bias Centre',
      focus:['brakes'],spot:['brakes.centre','brakes.decel','brakes.entryTarget','brakes.entryBrk'],
-     body:'BRAKES adds Centre. REC shifts Brake Bias from the recommendation; GRIP from the bias where both axles hit their braking limit together at your Decel; ENTRY solves it for trail braking, from Entry vs MID. ENTRY BRK, under the toggle, shows what the bias does to corner entry.',
+     body:'Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK shows what the bias does to corner entry.',
      glossary:['brake-balance','phase-verdict']},
     {title:'Manual Differential',
      focus:['drivetrain'],spot:['drive.diffMode','drive.matchChassis','drive.manFrontAccel','drive.manFrontDecel','drive.manRearAccel','drive.manRearDecel','drive.manCenter','drive.manAccel','drive.manDecel'],
-     body:'MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Center Split, with your diff type\'s typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.',
+     absent:{ids:['drive.manFrontAccel','drive.manAccel'],text:'The lock fields show once the diff is set to MANUAL.'},
+     body:'MANUAL swaps the diff sliders for lock % fields, with your diff type\'s typical range under each; AWD adds front, rear and Center Split. In AUTO, MATCH CHASSIS biases the diff to reinforce your Mech Balance Target.',
      glossary:['diff-mode','match-chassis','power-split']},
     {title:'Handling Balance Expanded',
      focus:['balance-bar'],spot:['bal.tip','bal.rows','bar.phase'],
-     body:'Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.',
+     body:'Expanded, the Handling Balance bar breaks balance down by corner phase in grip-margin %, + meaning the rear lets go first. ENTRY adds brakes, MID holds chassis, springs and bars, EXIT the drive split; the tips name what to move.',
      glossary:['phase-verdict']},
     {title:'Mech Balance & Response',
      focus:['balance-bar'],spot:['bar.mechHead','bar.mechStrip','bar.response'],
-     body:'The MECH BALANCE strip reads balance on the game\'s 0–1 scale: NAT is the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE, apart from understeer and oversteer.',
+     body:'MECH BALANCE reads balance on the game\'s 0–1 scale: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.',
      glossary:['mech-balance-strip','response','response-factors']},
     {title:'Load Transfer',
      focus:['visuals'],spot:['visuals.load','visuals.grip'],
-     body:'LOAD TRANSFER in VISUALS shows the loads at 1 g cornering. FRONT TAKES is the front\'s share of the transfer against the weight split; springs and bars move it. GRIP USE below it predicts which axle runs out of grip first, mid-corner, on entry and on exit.',
+     body:'LOAD TRANSFER in VISUALS shows the loads at 1 g cornering: FRONT TAKES is the front\'s share of the transfer against the weight split. GRIP USE below it predicts which axle runs out of grip first on entry, mid-corner and exit.',
      glossary:['load-transfer','grip-use']},
     {title:'Output Panel & Tune Check',
      focus:['toolbar'],spot:['tbCheck','tb.share','tb.reset'],
-     body:'The results cards work as in the lower tiers. CHECK opens Tune Check: DECODE reads back an existing tune\'s frequencies and damping, and MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land; RESET never touches saves, and a tune RESET is one ↩ from undone.',
+     body:'CHECK opens Tune Check: DECODE reads back an existing tune\'s frequencies and damping, MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land. RESET never touches saves.',
      glossary:['tune-check','share-code','undo-reset']},
+    {title:'Vehicle DNA',
+     focus:['toolbar'],spot:['tbDna'],
+     body:'DNA describes how a car should drive as handling targets: platform, pitch, bar share, balance, damping and diff. APPLY solves the tune that hits them on the loaded chassis, once, and ↩ undoes it. MY DNA saves one to reuse on any car.',
+     glossary:['dna','dna-priority','dna-match']},
   ],
   balance:[
     {title:'Handling Balance',
@@ -6802,6 +6816,13 @@ const TUTORIALS={
 // The path a guide is running: the whole array, or only its quick:true steps (QUICK START on a
 // pathChoice card). A filtered view, not a second array — reordering or trimming steps in
 // TUTORIALS reshapes the quick path with no other edit.
+// The line on each tier guide's last card, so every tour ends the same way: DONE closes it,
+// with no popup after.
+const TUT_END_NOTE={
+  beginner:'🔓 INT is unlocked: switch with INT in the header for more controls.',
+  intermediate:'🔓 PRO is unlocked: switch with PRO in the header for every control.',
+  pro:'That\'s everything PRO adds. Reopen this guide any time with ? in the header.',
+};
 const tutSteps=(mode,quick)=>{const all=TUTORIALS[mode]??[];return quick?all.filter(x=>x.quick):all;};
 
 // Where each tier guide was left, for RESUME. suspos_tutorial_step_v1 held bare step indices,
@@ -7023,10 +7044,16 @@ const UnitsPicker=({units,setUnits})=>(<>
   ))}
 </>);
 
-const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice})=>{
+const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice,shown,endNote})=>{
   const steps=tutSteps(mode,quick);
-  const total=steps.length;
   const t=steps[step];
+  // shown: which steps this car and tier run (a step's skip); App's NEXT / PREV step over the
+  // rest, so the count, the progress bar and DONE go by the shown ones alone.
+  const live=steps.map((_,i)=>shown?shown[i]!==false:true);
+  const liveIdx=steps.map((_,i)=>i).filter(i=>live[i]||i===step);
+  const total=liveIdx.length;
+  const at=liveIdx.indexOf(step);
+  const isLast=at===total-1;
   // Optional step task: snapshot appState when the step opens so "changed" means
   // changed during this step, then latch done once check(appState,snap) passes.
   // Never gates NEXT — it's a nudge, not a lock.
@@ -7049,6 +7076,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
   const[pos,setPos]=useState(null);
   const cardRef=useRef(null);
   const bodyRef=useRef(null);
+  const measureRef=useRef(null);
   const[showMore,setShowMore]=useState(false);
   const checkOverflow=()=>{
     const el=bodyRef.current;
@@ -7075,6 +7103,15 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
   // cards and ALIGNMENT below them — so the card says what is out of view rather than
   // scrolling one part away to show another.
   const[spotOff,setSpotOff]=useState({above:0,below:0});
+  // absent: a step whose controls only render in another mode says how to reach them, when none
+  // of absent.ids is on the page. Re-read as the tune changes, since the reader may switch now.
+  const[absentOn,setAbsentOn]=useState(false);
+  useEffect(()=>{
+    const ids=t?.absent?.ids??t?.spot??[];
+    if(!t?.absent){setAbsentOn(false);return;}
+    const tid=setTimeout(()=>setAbsentOn(!ids.some(id=>spotElsOf(id).length)),320);
+    return()=>clearTimeout(tid);
+  },[mode,step,appState]); // eslint-disable-line
   useEffect(()=>{
     const vh=()=>(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
     const count=()=>{
@@ -7110,7 +7147,14 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       const p=scrollerOf(s);
       if(!p)return;
       const pr=p.getBoundingClientRect(),sr=s.getBoundingClientRect();
-      if(sr.top<pr.top+40||sr.bottom>pr.bottom-40)
+      // Outside the sidebar, and in it on phones (no room beside it), the card goes above or
+      // below the spots, so start them at the top of their scroller: mid-panel they left room on
+      // neither side and the card docked over them.
+      const beside=p.classList.contains('sidebar-scroll')
+        &&(pr.right+10*zoom+CARD_W*zoom<=window.innerWidth-8*zoom);
+      if(!beside){
+        if(Math.abs(sr.top-pr.top-8)>2)p.scrollTo({top:Math.max(0,sr.top-pr.top+p.scrollTop-8),behavior:'auto'});
+      }else if(sr.top<pr.top+40||sr.bottom>pr.bottom-40)
         p.scrollTo({top:Math.max(0,sr.top-pr.top+p.scrollTop-80),behavior:'auto'});
     };
     // Scroll sidebar so element is visible — use direct scrollTop rather than
@@ -7138,14 +7182,22 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       // the card over the second one.
       const spots=spotEls();
       const keys=mode==='balance'?['balance-bar']:(t?.focus??[focusKey]);
-      const rects=spots.length?spots.map(e=>e.getBoundingClientRect())
+      // Only the part of a spot its scroller and the screen show: one running on below the fold
+      // (the card says so) mustn't take the room the card needs.
+      const vhRaw=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+      const clip=e=>{
+        const r=e.getBoundingClientRect(),b=scrollerOf(e)?.getBoundingClientRect();
+        const top=Math.max(r.top,b?b.top:0,0),bottom=Math.min(r.bottom,b?b.bottom:vhRaw,vhRaw);
+        return bottom>top?{top,bottom,left:r.left,right:r.right,width:r.width,height:bottom-top}:null;
+      };
+      const seen=spots.map(clip).filter(Boolean);
+      const rects=seen.length?seen
         :keys.map(k=>document.getElementById('zone-'+k)?.getBoundingClientRect())
         .filter(b=>b&&(b.width||b.height)&&b.right>0);
       // Hidden element (sidebar collapsed on desktop, or the mobile drawer parked off-screen
       // at translateX(-100%) — it stays mounted there so it can slide) → centre card
       if(!rects.length){setPos(null);return;}
-      // Placed against `rects`; retry, if given, is a smaller set to try when there's no room.
-      const placeAt=(rects,retry)=>{
+      const placeAt=rects=>{
         const raw={top:Math.min(...rects.map(b=>b.top)),bottom:Math.max(...rects.map(b=>b.bottom)),
           left:Math.min(...rects.map(b=>b.left)),right:Math.max(...rects.map(b=>b.right))};
         // getBoundingClientRect() returns visual (viewport) pixels, but position:fixed
@@ -7164,7 +7216,18 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         // A sidebar target ends at or before the sidebar's right edge. Not "left of centre": with
         // the sidebar closed, a full-width part of the results (the bar's lanes) sits there too.
         const inSidebar=r.right<=sbRight+2;
-        if(inSidebar&&sbRight+10+CARD_W<=vw-8){
+        // The GARAGE overlay sits on the right edge: a card below its rows covers the list they
+        // describe, so on a wide screen it goes left of the overlay instead.
+        const gEl=t?.focus?.includes('garage')?document.getElementById('zone-garage'):null;
+        const gLeft=gEl?gEl.getBoundingClientRect().left/zoom:null;
+        if(gLeft!=null&&r.left>=gLeft-2&&gLeft-10-CARD_W>=8){
+          const maxH=Math.max(140,vh-16);
+          const rawCardH=cardRef.current?.getBoundingClientRect().height;
+          const cardH=Math.min(rawCardH?rawCardH/zoom:maxH,maxH);
+          const top=Math.max(8,Math.min(vh-cardH-8,midY-cardH/2));
+          const arrowOff=Math.max(16,Math.min(cardH-16,midY-top));
+          setPos({top,left:gLeft-10-CARD_W,arrowDir:'right',arrowOff,maxH});
+        } else if(inSidebar&&sbRight+10+CARD_W<=vw-8){
           // LEFT panel: float card just past the sidebar's right edge, sized to its
           // actual content rather than a fixed offset from the target's midpoint —
           // a target sitting low in a long sidebar section (e.g. a tall BALANCE
@@ -7214,18 +7277,19 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
           if(availH<MIN_USABLE||availH<need){
             // Spots spread over the whole panel (the expanded balance panel): point at the
             // step's first spot alone before giving up and centring.
-            if(retry&&!inSidebar){placeAt(retry,null);return;}
-            // A sidebar section taller than the screen (phones): no side is free, and
-            // centring covers the middle of it. Pin to the bottom edge instead so the
-            // section header and its first controls — where the sidebar scroll put
-            // them — stay in view.
-            if(inSidebar){
-              const maxH=Math.max(140,vh-24);
-              const cardH=Math.min(naturalH??maxH,maxH);
-              setPos({top:vh-cardH-8,left:Math.max(8,(vw-CARD_W)/2),arrowDir:'none',maxH});
-              return;
-            }
-            setPos(null); return;
+            // No side is free. Dock to the bottom edge with no arrow (centred, or under the
+            // first spot alone, it covered the spots after it, and the expanded balance panel's
+            // header), or to the top when that covers less of the first spot: a step lists its
+            // most important first. A sidebar section taller than the screen (phones) so keeps
+            // its header and first controls in view.
+            const maxH=Math.max(140,vh-24);
+            const cardH=Math.min(naturalH??maxH,maxH);
+            const over=(a,y0,y1)=>Math.max(0,Math.min(a.bottom,y1)-Math.max(a.top,y0));
+            const f=rects[0],f0={top:f.top/zoom,bottom:f.bottom/zoom};
+            const dT=over(f0,8,8+cardH)-over(f0,vh-cardH-8,vh-8);
+            const top=dT<0?8:vh-cardH-8;
+            setPos({top,left:Math.max(8,(vw-CARD_W)/2),arrowDir:'none',maxH});
+            return;
           }
           const maxH=Math.max(140,Math.min(availH,vh-24));
           const cardH=Math.min(naturalH??maxH,maxH);
@@ -7235,18 +7299,38 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
           setPos({top,left,arrowDir:below?'up':'down',arrowOff,maxH});
         }
       };
-      placeAt(rects,spots.length>1?[rects[0]]:null);
+      placeAt(rects);
     };
     // Slight delay lets the accordion open/collapse reflow settle before we measure. Spots are
     // scrolled first, in the same tick, so the measure reads where they end up.
     const tid=setTimeout(()=>{scrollSpot();measure();},60);
     // Again once the mobile drawer's .2s slide has finished — at 60ms it is still moving.
     const tid2=setTimeout(()=>{scrollSpot();measure();},260);
+    // And whenever the card's own height changes (its note or the off-screen line appears, the
+    // body settles) or a transition ends (the drawer's slide, a section opening): measure()
+    // places the card from its height, so a stale read leaves it running off the bottom, and a
+    // slide slower than 260ms left it anchored to where the drawer was.
+    // A timer, not requestAnimationFrame: that never fires in a hidden or background tab.
+    measureRef.current=measure;
+    let raf=0;
+    const again=()=>{if(!raf)raf=setTimeout(()=>{raf=0;measure();},16);};
+    const ro=window.ResizeObserver&&cardRef.current?new ResizeObserver(again):null;
+    if(ro)ro.observe(cardRef.current);
+    document.addEventListener('transitionend',again,true);
     window.addEventListener('resize',measure);
     if(window.visualViewport)window.visualViewport.addEventListener('resize',measure);
-    return()=>{clearTimeout(tid);clearTimeout(tid2);window.removeEventListener('resize',measure);
+    return()=>{clearTimeout(tid);clearTimeout(tid2);clearTimeout(raf);if(ro)ro.disconnect();
+      document.removeEventListener('transitionend',again,true);
+      window.removeEventListener('resize',measure);
       if(window.visualViewport)window.visualViewport.removeEventListener('resize',measure);};
   },[focusKey,step]); // eslint-disable-line
+
+  // The lines this card adds after it is placed change its height: place it again. The
+  // ResizeObserver above covers this too, but only where the page is rendering frames.
+  useEffect(()=>{
+    const tid=setTimeout(()=>measureRef.current?.(),0);
+    return()=>clearTimeout(tid);
+  },[spotOff.above>0,spotOff.below>0,absentOn]); // eslint-disable-line
 
   // Detect body text overflowing its scrollable area (can happen when the target sits
   // low enough that maxH gets clamped small) so we can show a "more below" affordance —
@@ -7287,6 +7371,12 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       <div style={{...base,left:-6,top:pos.arrowOff-7,
         borderTop:'7px solid transparent',borderBottom:'7px solid transparent',borderRight:'7px solid #0f172a'}}/>
     </>);
+    if(pos.arrowDir==='right') return(<>
+      <div style={{...base,right:-8,top:pos.arrowOff-8,
+        borderTop:'8px solid transparent',borderBottom:'8px solid transparent',borderLeft:'8px solid #334155'}}/>
+      <div style={{...base,right:-6,top:pos.arrowOff-7,
+        borderTop:'7px solid transparent',borderBottom:'7px solid transparent',borderLeft:'7px solid #0f172a'}}/>
+    </>);
     if(pos.arrowDir==='up') return(<>
       <div style={{...base,top:-8,left:pos.arrowOff-8,
         borderLeft:'8px solid transparent',borderRight:'8px solid transparent',borderBottom:'8px solid #334155'}}/>
@@ -7306,16 +7396,16 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
       {arrow}
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:6}}>
         <div>
-          <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>{mLabel} GUIDE  ·  {step+1} / {total}</span>
+          <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2}}>{mLabel} GUIDE  ·  {at+1} / {total}</span>
           <div style={{fontSize:13,color:'#e2e8f0',fontWeight:700,marginTop:3,letterSpacing:0.5}}>{t.title}</div>
         </div>
         <button onClick={onClose} style={{...btnStyle,padding:'3px 8px',marginTop:2,color:'#94a3b8'}}>✕</button>
       </div>
       {/* progress bar */}
       <div style={{display:'flex',gap:3,marginBottom:10}}>
-        {steps.map((_,i)=>(
+        {liveIdx.map((i,k)=>(
           <div key={i} style={{height:2,flex:1,borderRadius:1,transition:'background .2s',
-            background:i<step?'#334155':i===step?'#6366f1':'#1e293b'}}/>
+            background:k<at?'#334155':k===at?'#6366f1':'#1e293b'}}/>
         ))}
       </div>
       <div style={{position:'relative',flex:1,minHeight:0,display:'flex',flexDirection:'column'}}>
@@ -7328,7 +7418,10 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
                  overflowY:'auto',flex:1,minHeight:0,
                  WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',whiteSpace:'pre-line'}} data-tut-body>
           {t.body}
-          {quick&&step===total-1&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap ? in the header any time to replay the full tour.</div>}
+          {quick&&isLast&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap ? in the header any time to replay the full tour.</div>}
+          {isLast&&endNote&&<div data-tut-end style={{marginTop:10,color:'#4ade80'}}>{endNote}</div>}
+          {absentOn&&t.absent&&<div data-tut-absent style={{marginTop:10,padding:'6px 8px',border:'1px solid #78350f',
+               borderRadius:2,color:'#fbbf24',background:'#1c1206'}}>{t.absent.text}</div>}
           {t.units&&units&&<div style={{marginTop:10}}><UnitsPicker units={units} setUnits={setUnits}/></div>}
           {task&&<div data-tut-task={taskDone?'done':'pending'}
                style={{marginTop:10,padding:'6px 8px',border:'1px solid '+(taskDone?'#166534':'#312e81'),
@@ -7361,11 +7454,11 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         {spotOff.below>0&&<div>▼ {spotOff.below} more highlighted below — scroll to see</div>}
       </div>}
       <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-        {step>0&&<button style={btnStyle} onClick={onPrev}>← PREV</button>}
+        {at>0&&<button style={btnStyle} onClick={onPrev}>← PREV</button>}
         {t.pathChoice&&!quick&&onQuick
           ?<><button style={btnStyle} onClick={onQuick}>QUICK START</button>
              <button style={{...btnStyle,borderColor:'#4f46e5',color:'#818cf8'}} onClick={onNext}>FULL TOUR →</button></>
-          :step<total-1
+          :!isLast
           ?<button style={{...btnStyle,borderColor:'#4f46e5',color:'#818cf8'}} onClick={onNext}>NEXT →</button>
           :<button style={{...btnStyle,borderColor:'#16a34a',color:'#4ade80'}} onClick={onDone??onClose}>DONE ✓</button>}
       </div>
@@ -7433,7 +7526,9 @@ function App(){
   const[tutProgress,setTutProgress]=usePersist('suspos_tutorial_step_v2',legacyTutProgress(),repairTutProgress);
   const[balTutOpen,setBalTutOpen]=useState(false);
   const[balTutStep,setBalTutStep]=useState(0);
-  const openBalTut=()=>{setBalTutStep(0);setBalTutOpen(true);};
+  // Opt-in: only the expanded panel's ? GUIDE opens it. It used to open itself on the bar's first
+  // expand, chaining a third guide onto the end of a tier tour.
+  const openBalTut=()=>{setBalTutStep(0);setBalTutOpen(true);setBalTutSeen(true);};
   const closeBalTut=()=>setBalTutOpen(false);
   const[onboardSeen,setOnboardSeen]=usePersist('suspos_onboard_v1',true);
   // LEGACY — still read by the saves_v9 migration below and by the Beginner builds drawer.
@@ -7534,8 +7629,7 @@ function App(){
       });
     }
   },[]); // eslint-disable-line
-  const[showComplexity,setShowComplexity]=useState(false);
-  const closeOnboard=()=>{setOnboardSeen(true);setShowComplexity(false);};
+  const closeOnboard=()=>setOnboardSeen(true);
   const[tutMode,setTutMode]=useState(null);
   const[tutStep,setTutStep]=useState(0);
   const[tutQuick,setTutQuick]=useState(false); // QUICK START chosen on a pathChoice card — see tutSteps
@@ -7563,14 +7657,22 @@ function App(){
   const[tutNotice,setTutNotice]=useState(null);
   // A tour ending on a garage step would otherwise leave the full-height overlay open
   const closeTut=()=>{if(tutFocus?.includes('garage'))setGaragePanelOpen(false);setTutMode(null);setTutNotice(null);};
-  // DONE on the last step or ✕ on any step: BEG/INT then point at the tier buttons (PRO has no next tier).
-  // showComplexity holds the tier that guide unlocks, so the popup can name it.
-  const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:null}));closeTutEnd();};
-  const closeTutEnd=()=>{
-    if(tutMode==='beginner')setShowComplexity('intermediate');
-    else if(tutMode==='intermediate')setShowComplexity('pro');
-    closeTut();
-  };
+  // DONE on the last step clears the resume point; ✕ keeps it. Either just closes, in every tier:
+  // the tier a guide unlocks is named on its last card (TUT_END_NOTE), not in a popup after it.
+  const finishTut=()=>{const m=tutMode;setTutProgress(p=>({...p,[m]:null}));closeTut();};
+  // The steps this car runs: a step's skip(st) drops it (INT's AWD Center Diff off AWD). NEXT and
+  // PREV step over the rest, and a guide opened or resumed on one moves on to the next shown.
+  const tutShown=tutMode?tutSteps(tutMode,tutQuick).map(x=>{try{return!x.skip?.({ch,fe,dr,al});}catch(e){return true;}}):[];
+  const tutMove=dir=>setTutStep(s=>{
+    for(let i=s+dir;i>=0&&i<tutShown.length;i+=dir)if(tutShown[i])return i;
+    return s;
+  });
+  useEffect(()=>{
+    if(!tutMode||tutShown[tutStep]!==false)return;
+    const n=tutShown.findIndex((v,i)=>v&&i>tutStep);
+    const pv=tutShown.map((v,i)=>v&&i<tutStep?i:-1).filter(i=>i>=0).pop();
+    setTutStep(n>=0?n:pv??0);
+  },[tutMode,tutStep,tutShown.join()]); // eslint-disable-line
   // Gating: INT requires BEG completion, PRO requires INT completion
   const canAccessMode=m=>{
     if(m==='beginner')return true;
@@ -9105,10 +9207,11 @@ function App(){
       )}
       {tutMode&&<TutorialPanel mode={tutMode} step={tutStep} quick={tutQuick}
         onQuick={()=>{setTutQuick(true);setTutStep(0);}}
-        onNext={()=>setTutStep(s=>Math.min(s+1,tutSteps(tutMode,tutQuick).length-1))}
-        onPrev={()=>setTutStep(s=>Math.max(s-1,0))}
-        onClose={closeTutEnd}
+        onNext={()=>tutMove(1)}
+        onPrev={()=>tutMove(-1)}
+        onClose={closeTut}
         onDone={finishTut}
+        shown={tutShown} endNote={TUT_END_NOTE[tutMode]}
         zoom={effZoom} units={units} setUnits={setUnits} appState={fe} notice={tutNotice}/>}
       {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
@@ -9117,7 +9220,7 @@ function App(){
         zoom={effZoom}/>}
 
       {/* ONBOARDING POPUP */}
-      {(!onboardSeen||showComplexity)&&(
+      {!onboardSeen&&(
         <div onClick={closeOnboard}
           style={{position:'fixed',inset:0,zIndex:800,background:'rgba(0,0,0,0.72)'}}>
           <div onClick={e=>e.stopPropagation()}
@@ -9134,7 +9237,7 @@ function App(){
             <div style={{fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:10}}>COMPLEXITY LEVEL</div>
             {/* preview of the header buttons */}
             <div style={{display:'flex',gap:4,alignItems:'center',marginBottom:12}}>
-              {[['BEG',true],['INT',false],['PRO',false]].map(([lbl,active])=>(
+              {[['BEG','beginner'],['INT','intermediate'],['PRO','pro']].map(([lbl,m])=>[lbl,m===uiMode]).map(([lbl,active])=>(
                 <span key={lbl} style={{padding:'3px 9px',border:`1px solid ${active?'#e2e8f0':'#1e293b'}`,
                   borderRadius:2,fontSize:11,color:active?'#e2e8f0':'#94a3b8',fontFamily:'var(--font-mono)'}}>{lbl}</span>
               ))}
@@ -9142,11 +9245,6 @@ function App(){
               <span style={{padding:'3px 8px',border:'1px solid #1e293b',borderRadius:2,
                 fontSize:11,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>?</span>
             </div>
-            {typeof showComplexity==='string'&&(
-              <div style={{fontSize:11,color:'#4ade80',lineHeight:1.6,marginBottom:10}}>
-                🔓 {TIER_LABEL[showComplexity]} unlocked — {showComplexity==='pro'?'every control is now available':'more controls are now available'}.
-              </div>
-            )}
             <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.7,marginBottom:14}}>
               Choose how much of the app to show. <span style={{color:'#e2e8f0'}}>BEG</span> is the best starting point — fewer controls, guided outputs.
               Press <span style={{color:'#e2e8f0',fontFamily:'var(--font-mono)'}}>?</span> at any time to open a step-by-step tutorial.
@@ -12465,12 +12563,10 @@ function App(){
                      // On phones the tap reveals/hides the full bar stack (the summary line stays).
                      const next=!footerOpen;
                      setFooterOpen(next);
-                     if(next){ if(!balTutSeen){setBalTutSeen(true);openBalTut();} }
-                     else { setOpen(p=>({...p,balanceExpanded:false})); } // collapsing also hides the detail panel
+                     if(!next){ setOpen(p=>({...p,balanceExpanded:false})); } // collapsing also hides the detail panel
                    } else {
                      setOpen(p=>{
                        const next=!p.balanceExpanded;
-                       if(next&&!balTutSeen){setBalTutSeen(true);openBalTut();}
                        return{...p,balanceExpanded:next};
                      });
                    }
