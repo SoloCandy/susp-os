@@ -472,13 +472,17 @@ input is fine-grained enough that the pre-snap Hz *is* the Hz you get, so
 spring snap runs before the damper solve and before `rsSpF`/`rsSpR`, so a single
 forward pass leaves everything downstream consistent with no second solve.
 
-Two things deliberately do **not** snap:
+Three things deliberately do **not** snap:
 
 - **ARB `MAN`.** It is a value the user typed rather than one the solver chose,
   and Forza's `MAN` likewise bypasses `clk()`'s own 0.1-click rounding.
 - **`warnOver` and `arbView`'s FLOOR/CEILING.** Both read the raw pre-conversion `v`,
   not `o.value`, so ceiling warnings and the pinned-bar badge key off the
   unrounded number.
+- **The SPRINGS band tag.** `springView` tags each row from the pre-snap Hz
+  (`physics.frontHz`, `tune.rHzTarget`), the Hz the Ride Stiffness slider tags.
+  The snapped Hz can sit just under a band edge: 2.50 Hz snaps to 2.497, prints
+  as `2.50 Hz` and read FIRM beside a RACE slider. The printed Hz stays snapped.
 
 The rounding in `springOut`/`dampOut`/`arbOut` remains in place and is now
 normally a no-op re-application of a snap already performed upstream. It is kept
