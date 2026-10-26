@@ -11,6 +11,24 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+
+## Changed — PRO balance UX: MECH switch notice, reach warning, unlock, zoomed guide, labelled deltas and units
+
+- Switching ARB Balance Mode to MECH or CO-SOLVE (or BALANCE's new UNLOCK button) now prints
+  `balSwitchNote`: the target, mech balance before → after, and the Handling Balance before → after.
+  The 0.60 default (`MECH_BALANCE_TARGET`) is unchanged.
+- `mechReach` drives an orange `⚠ TARGET NOT REACHED` / `⚠ BARS AT THEIR LIMIT` box in BALANCE and
+  ANTI-ROLL BARS, and a `mechedge` output warning. A target met only with a bar pinned on its floor
+  or ceiling (a fresh build's 0.60 on the default car) used to show nothing but the row's FLOOR tag.
+- Read-only BALANCE shows a TARGET OFF panel with an UNLOCK button (Hz MODE MECH under MAN stiffness).
+- The Balance Guide strip zooms to its markers by default (`guideFull` toggles the full 0.05–0.95).
+- CURRENT/TARGET Δ reads "from NAT"; GEOMETRY GAP names both its ends (NAT → target, or → 0.50).
+- NATURAL shows `target = NAT + offset`, marked `default` while no offset is stored. The glossary
+  said a fresh build's NATURAL starts at 0 offset; the code aims at 0.60, so the text was fixed.
+- Headline labels its scale: NET … pts below PRO, MID … % in PRO; both hints say they differ.
+- Manual diff locks have sliders and a typical-range band; Diff Type and Diff Mode buttons are
+  full width and taller.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,

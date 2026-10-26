@@ -153,7 +153,7 @@ solve and the per-axle Catch figure; `BUMP_STOP_ZONE` is the travel kept clear, 
 chart's shading — see PHYSICS.md "LANDING bump mode"), `cornerMasses`,
 `rollCenterHeight`, `axleRollStiffness` (one axle's spring roll stiffness from
 its Hz — unrelated to `hzToRs`, the legacy Ride Stiffness slider mapping),
-`rollMomentOf`, `clampBalTarget` (the Balance Target's stored `BAL_TARGET_MIN..BAL_TARGET_MAX` band, 0.05..0.95, which the Balance Guide strip also spans; its controls step and round by `BAL_TARGET_STEP`, 0.005, through `roundBalStep`;
+`rollMomentOf`, `clampBalTarget` (the Balance Target's stored `BAL_TARGET_MIN..BAL_TARGET_MAX` band, 0.05..0.95, which the Balance Guide strip spans under SHOW FULL — by default it zooms to its markers, see `guideFull`; its controls step and round by `BAL_TARGET_STEP`, 0.005, through `roundBalStep`;
 `sanitizeTune` clamps the stored DELTA instead), `clampHz` (the HZ_MIN..HZ_MAX band — callers that also
 REPORT a clamp still test their own raw value), `wheelStepOf` (one FeelSlider wheel
 notch — it steps from the slider's bound value, which is why every slider binds the value
