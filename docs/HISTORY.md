@@ -11,6 +11,46 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — DNA window, output wording and toolbar dialogs after a visual review
+
+A visual review found the output and toolbar readable only to someone who already knew the
+app's shorthand, and the DNA window a dead end below PRO.
+
+- **DNA.** INT showed an indigo DNA button that opened a window saying only "switch to PRO",
+  with no way to do so there. The button is now slate with a PRO tag below PRO, and the window
+  explains what a DNA is and offers SWITCH TO PRO through the normal tier gate. In PRO, SAVE
+  moved below the sliders it saves, APPLY is pinned under the scrolling body (it sat after nine
+  sliders, PRIORITY and ON THIS CHASSIS), sliders show their range and unit at each end,
+  ACCEPT ± is explained once and the setting axes say they always land instead of showing no
+  box, BALANCE reads in points (−0.75 pt, not −0.0075; storage unchanged) and the mode switches
+  are one per line instead of one amber sentence.
+- **Output headers and rows (Forza).** `AUTO · MECH 0.60 · 1.90°` and `MULTIPLIER ×1.20 · FRONT REF`
+  needed the glossary to read; each view now also returns a worded `head`. ARB rows printed
+  `19% roll · 52% ARB`, two percentages of different things side by side, now "of axle roll"
+  and "of both bars"; `eff 28%` became "acts like 28% RACE", MED became MEDIUM, and the BRAKES
+  header says "centred on the recommended bias" instead of REC. BeamNG keeps the short forms,
+  which its narrower per-axle cards and summary strip need.
+- **RECOMMENDED** was a near-invisible box repeating the current value when it matched. It is a
+  readable box only while it disagrees, and a single ✓ line once it matches (kept, so the INT
+  guide's spotlight still lands).
+- **Changed values and warnings.** Nothing showed which numbers an edit moved, so every value had
+  to be re-read against the game. Rows the last change moved now carry a blue edge until the
+  next change. Warnings lived only at the foot of their card, often off screen; a summary above
+  the cards lists them with a link to each.
+- **ⓘ in the output panel** centred on the icon and clamped only to the viewport, so near the
+  panel's left edge it covered the sidebar and the row labels. It is now held inside the panel
+  and starts at the icon.
+- **PRO's expanded balance panel** labelled every direction-only row NO SIZE, and drew ±15–20%
+  PITCH bars at the scale of single-figure settings, full width. The label is gone and PITCH is
+  drawn at a quarter of the scale.
+- **CHECK.** Step 2 said WAITING while step 1 visibly held numbers, which read as a bug; it now
+  says the numbers are stock examples and offers to decode them anyway. Corner masses were in kg
+  beside a Weight in lb. The unselected tab was the same grey as disabled text, so MEASURE looked
+  switched off.
+- **SHARE.** The mode `<select>` truncated its own options in a 280px card and its three buttons
+  wrapped with no sign which mattered. It is four tabs in a 340px card, with the primary action
+  (COPY CODE, APPLY SELECTED) full width on its own row.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,

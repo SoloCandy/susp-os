@@ -635,17 +635,18 @@ The link only drives read-outs. What happens to it:
 ## UI (PRO)
 
 - **DNA modal** (`showDnaModal`), opened by the DNA button in the sidebar toolbar, left of
-  CHECK. Below PRO it shows only a note to switch to PRO.
+  CHECK. It opens on a short paragraph saying what a DNA is, in every tier. Below PRO the toolbar
+  button is slate with a PRO tag rather than indigo, and the modal offers SWITCH TO PRO, which
+  closes it and runs `requestMode('pro')` (the same tier gate as the header). In PRO, top to bottom:
   - archetype buttons, which load a draft; they do not apply;
-  - **CODE**: this draft as a `DNA-` share code with COPY, and a box to paste one in. LOAD
-    replaces the draft; it does not apply;
-  - **MY DNA** (`dnaSavedOpen`), a drawer laid out like the GARAGE saved list: a name
-    field and SAVE DNA, then an `EntryCard` per saved DNA — rename, date, ↺ REWRITE WITH
-    EDITOR DNA, delete, summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and
-    does not apply. No filter, sort or search;
-  - EDITING / EDITED FROM … with REVERT;
-  - one `FeelSlider` per axis over the full `DNA_AXES` range, with an **ACCEPT ±** box under each
-    outcome axis for its [slack](#slack-how-much-of-a-target-the-personality-needs);
+  - EDITING / EDITED FROM … with REVERT, then one line explaining ACCEPT ±;
+  - one `FeelSlider` per axis over the full `DNA_AXES` range. Its ends read the axis value
+    there with its unit (`dnaFmt`), plus the direction on a signed axis (`DNA_AXIS_UI.ends`).
+    Under each outcome axis an **ACCEPT ±** box for its
+    [slack](#slack-how-much-of-a-target-the-personality-needs); under a setting axis
+    "ACCEPT ± — always lands", since those are written verbatim. BALANCE is displayed in points
+    of mech balance (`DNA_AXIS_UI.scale` 100: −0.0075 reads −0.75 pt); storage, codes and the
+    solver keep the fraction;
   - **PRIORITY**, the draft's `keep` order: the five `DNA_YIELDABLE` axes, most protected
     first, each with ▲/▼ to swap with its neighbour. A row reads *gave way* or *missed*
     when the live preview says so, so the effect of a reorder is visible without applying.
@@ -655,8 +656,16 @@ The link only drives read-outs. What happens to it:
     The setting axes and `bumpRatio` are not listed, because they never trade;
   - **ON THIS CHASSIS**: `applyDNA` on the draft, per axis ✓, moved (and what for),
     missed (and why), or not expressible. Solved only while the modal is open;
-  - **SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change;
-  - **APPLY**, one undo step like any load; ↩ also removes the link, ↪ restores both.
+  - **APPLY ALSO SWITCHES**: the modes in `DNA_MODE_FIELDS` that APPLY would change, one per line;
+  - **MY DNA** (`dnaSavedOpen`), below the sliders it saves: a name field and SAVE DNA on one row,
+    then an `EntryCard` per saved DNA — rename, date, ↺ REWRITE WITH EDITOR DNA, delete,
+    summary, tags, notes, LOAD DNA. LOAD DNA fills the editor and does not apply. No filter,
+    sort or search;
+  - **CODE**: this draft as a `DNA-` share code with COPY, and a box to paste one in. LOAD
+    replaces the draft; it does not apply;
+  - **APPLY**, pinned under the scrolling body so it is reachable without scrolling, with a
+    count of missed axes beside "undo with ↩". One undo step like any load; ↩ also removes the
+    link, ↪ restores both.
 - **TUNE CHECK → DECODE → IMPORT AS DNA** (`CheckerModal`, `onImportDna`). Next to
   IMPORT TUNE, and the other half of the same decision: IMPORT TUNE keeps the *numbers*
   — it overwrites RIDE, DAMPERS and ANTI-ROLL BARS — while IMPORT AS DNA keeps the

@@ -616,7 +616,7 @@ camber target and `{roll}` the tune's roll angle:
 
 > Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the brighter figure is the one it sets.
 
-It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on STOCK (INT+) the header and the Balance row both read `STOCK`.
+It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on STOCK (INT+) the Balance row reads `STOCK`.
 
 **DIFFERENTIAL** — FWD, RWD, then AWD (`{rear %}` is the centre split):
 
@@ -625,6 +625,50 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 > Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.
 
 > Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Center {rear %}% rear.
+
+**Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
+summary strip keeps the short `header`. By card:
+
+- ALIGNMENT: `AUTO for a {BUILD} build` (plus `NUDGE …`), or `MANUAL values`.
+- ANTI-ROLL BARS: the stiffness (`AUTO stiffness`, `BASIC {n}% stiffness`, `ROLL target {deg}°`,
+  `bars {n}% of roll stiffness`, `MANUAL bars`) · the balance (`split by WEIGHT` / `CHASSIS`,
+  `, reversed` with Split Direction, `NEUTRAL: equal roll` / `NEUTRAL: cancels the chassis`,
+  `MECH balance → {t}`, `CO-SOLVE balance → {t}`) · `{deg}° roll`.
+- SPRINGS: how the rear is set (`rear = front × {m}`, `FLAT RIDE at {speed}`, `rear set to {hz} Hz`,
+  `rear solved for MECH {t}`, `both bottom out at {g} g`, `CO-SOLVED with the bars`) ·
+  `{FRONT | REAR | AVERAGE} axle reference`.
+- DAMPERS: `{mode} front/rear balance · bump {n}% of rebound` (or `bump catches a {n}% LANDING`,
+  `bump set to {n}% ζ`), plus `bump balanced by {mode}` under an own BUMP BALANCE.
+- BRAKES: `centred on the recommended bias`, `centred on GRIP at {g} g`,
+  `solved for ENTRY {t}% vs mid-corner`, or `STOCK — leave the game value`.
+- DIFFERENTIAL: `{AUTO | MANUAL} locks · {TYPE} diff`, plus `MATCH CHASSIS` (or `MATCH CHASSIS idle`).
+
+**Row figures** — Forza spells out what the BeamNG cards abbreviate: ARB rows read
+`{n}% of axle roll` and `{n}% of both bars` (`% roll` / `% ARB` on BeamNG), SPRINGS rows
+`{n}% of axle roll`, and a non-Race diff's lock rows `acts like {n}% RACE` (BeamNG: `eff {n}%`).
+Lock tags are OFF, LOW, MEDIUM, HIGH and MAX.
+
+**RECOMMENDED / CENTER SPLIT** (INT+) — while the diff type or centre split differs from the
+recommendation, a box with the recommended value, the reason and → USE; once it matches, one line after a green ✓:
+
+> {TYPE} is the recommended diff for a {BUILD} build.
+
+> CENTER SPLIT {n}% rear is the recommended split for a {BUILD} build.
+
+**Warning summary** — above the cards, whenever any card carries a warning: a count, then one
+line per warning naming its card, clicking through to it. Titles by warning: Roll target not
+reached, Mech balance target not reached, Hz clamped to the band, Inside rear wheel can lift,
+Short of the landing drop, Dampers scaled to fit the clicks.
+
+> ⚠ {n} WARNING{S} — details at the foot of each card
+
+**Changed values** — every output row whose printed value moved with the last edit, load or
+undo gets a blue left edge until the next one; its title reads:
+
+> Changed by your last edit (was {old})
+
+An ⓘ inside the output panel opens its tooltip within the panel, starting at the icon, so it
+neither covers the sidebar nor the row labels to its left.
 
 ## Results panel — BeamNG cards
 
@@ -918,11 +962,11 @@ on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT
 
 > Brake bias vs the entry-load ideal at {entry g} g braking ({ideal front %}% front on this car). + = the rear brakes more than its share (toward oversteer).
 
-> Load moving forward at {entry g} g braking adds front grip and takes rear grip. Not tunable, so it is left out of the ENTRY figure.
+> Load moving forward at {entry g} g braking adds front grip and takes rear grip. Not tunable, so it is left out of the ENTRY figure. Its bar is drawn at a quarter of the others' scale.
 
 > The drive split vs the load-proportional one at {exit g} g of drive ({ideal rear %}% rear on this car). + = the rear carries more than its share (toward oversteer).
 
-> Load moving rearward at {exit g} g of drive. Not tunable, so it is left out of the EXIT figure.
+> Load moving rearward at {exit g} g of drive. Not tunable, so it is left out of the EXIT figure. Its bar is drawn at a quarter of the others' scale.
 
 > Off-throttle lock resists the car rotating on entry. Direction only: nothing has calibrated how much.
 
@@ -1036,7 +1080,16 @@ available (PRO), then without it:
 
 > IMPORT TUNE writes these numbers onto this car. IMPORT AS DNA needs PRO.
 
-**STEP 2 · DECODED TUNE:**
+**STEP 2 · DECODED TUNE** — until a step 1 value is typed, the chip reads NEEDS STEP 1 and the card says
+(with a DECODE THE EXAMPLE NUMBERS button under it):
+
+> The numbers in step 1 are stock examples, not a tune, so nothing is decoded yet. Overwrite the springs, dampers or bars with your tune's values and the decode appears here.
+
+Corner masses show in the Weight field's unit (lb or kg). The DECODE and MEASURE tabs carry titles:
+*Read back a tune you already have, from its in-game numbers* and *Calibrate this car from balance
+readings taken in the game*.
+
+Its ⓘ:
 
 > The tune read back as Hz and damping ratios. Rebound and bump each get their own front/rear split; a split wider than ±50 bias lands close rather than exact.
 
@@ -1048,7 +1101,9 @@ available (PRO), then without it:
 
 ## SHARE dialog
 
-The description under the mode picker — SHARE, LOAD, BACKUP, RESTORE:
+The mode picker is four tabs (COPY CODE, LOAD CODE, BACKUP, RESTORE); the primary button of COPY
+CODE and LOAD CODE gets the full width, with the others in a row below. The description under the
+tabs — SHARE, LOAD, BACKUP, RESTORE:
 
 > A code for the current tune. COPY LINK puts the same code in a URL that opens SUSP.OS ready to load. Garage entries are not included.
 
@@ -1097,3 +1152,27 @@ settings, not controls:
 The note at the foot of the output panel while any card, row or balance-bar part is hidden:
 
 > {n} output part{s} hidden in this tier
+
+---
+
+## Vehicle DNA window
+
+Opening paragraph, every tier:
+
+> A DNA is a handling character as targets — ride frequency, pitch, roll share, balance, damping and diff — that APPLY turns into a full tune for this car. Save it and apply it to another car to get the same feel there.
+
+Below PRO, in place of the editor, over a SWITCH TO PRO button (it runs the same tier gate as the
+header):
+
+> Building and applying a DNA is a PRO tool. Your tune is kept when you switch.
+
+Above the sliders (PRO):
+
+> ACCEPT ± is how far an axis may land from its target and still count as met; 0 means exactly. DAMP BIAS and the DIFF axes are written as set, so they always land and need none.
+
+Each slider's ends read the axis value there with its unit, and the direction on a signed axis
+(BALANCE US / OS, DAMP BIAS FRONT / REAR, DIFF EXIT GRIP / ROTATE, DIFF ENTRY STABLE / LOOSE).
+BALANCE is shown in points (the stored fraction × 100). The setting axes show `ACCEPT ± — always lands`.
+Mode changes APPLY would make are listed one per line under `APPLY ALSO SWITCHES {n} MODES`.
+The pinned footer under APPLY reads `Overwrites the tune once · undo with ↩`, adding
+`· {n} axis targets missed` when the preview misses any.
