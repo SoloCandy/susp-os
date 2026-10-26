@@ -1060,14 +1060,15 @@ The description under the mode picker — SHARE, LOAD, BACKUP, RESTORE:
 
 ## Layout edit view (INT / PRO)
 
-EDIT in the sidebar's SECTIONS row turns it into a banner. Above it, the PERSIST switch
-(PERSIST HIDDEN SETTINGS, OFF / ON, one switch for INT and PRO) and its note:
-
-> On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
-
-The banner's explanation:
+EDIT in the sidebar's SECTIONS row turns it into a banner, under a bar pinned to the top of the
+sidebar (✎ EDITING LAYOUT, the tier and hidden count, SHOW ALL, DONE). The banner's explanation:
 
 > Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
+
+Under it, the PERSIST switch (PERSIST HIDDEN SETTINGS, OFF / ON, one switch for INT and PRO) and
+its note:
+
+> On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
 
 The strip at the top of the output panel, which carries a second DONE (on a phone the sidebar's
 banner is off screen):
