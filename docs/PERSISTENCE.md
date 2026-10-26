@@ -40,7 +40,7 @@ each other, and an effect also runs too late to protect the first render. See
 | `suspos_tutorial_seen_v1` | Which tier guides have been dismissed | `{beginner:false, intermediate:false, pro:false}` |
 | `suspos_tutorial_step_v2` | Last step reached in each tier guide, so `?` can offer RESUME: `{title, step}` per tier, or `null` = nothing to resume. RESUME opens the step with that title wherever it now is, else `step` clamped to the guide (`tutResumeStep`). Cleared when that guide hits DONE and by RESET (Tutorials); `repairTutProgress` drops malformed entries | `{beginner:null, intermediate:null, pro:null}`, or converted from `suspos_tutorial_step_v1` |
 | `suspos_tutorial_step_v1` | Legacy bare step indices (0-based) — **read-only**, seeds the `_v2` default once (`tutProgressFromV1`). Its indices count each guide without the steps in `TUT_ADDED_SINCE_V1`, which is frozen | `{beginner:0, intermediate:0, pro:0}` |
-| `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been seen | `false` |
+| `suspos_baltut_seen_v1` | Whether the Handling Balance bar's own guide has been opened (from its ? GUIDE button). Written, but nothing reads it to open the guide any more: it opened itself on the bar's first expand while this was `false` | `false` |
 | `suspos_onboard_v1` | Whether the first-run onboarding has been seen | `true` |
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
 | `suspos_dna_v1` | Vehicle DNA: the DNA modal's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |

@@ -40,6 +40,209 @@ Two smaller fixes: a contribution that rounds to zero prints `0.0`, not `-0.0` (
 also used by PRO's percentages), and the UI spells *centre* throughout, as it already spelled
 *tyre*. Before, CENTER SPLIT and Center Split sat beside the brakes' centre.
 
+## Changed — DNA window, output wording and toolbar dialogs after a visual review
+
+A visual review found the output and toolbar readable only to someone who already knew the
+app's shorthand, and the DNA window a dead end below PRO.
+
+- **DNA.** INT showed an indigo DNA button that opened a window saying only "switch to PRO",
+  with no way to do so there. The button is now slate with a PRO tag below PRO, and the window
+  explains what a DNA is and offers SWITCH TO PRO through the normal tier gate. In PRO, SAVE
+  moved below the sliders it saves, APPLY is pinned under the scrolling body (it sat after nine
+  sliders, PRIORITY and ON THIS CHASSIS), sliders show their range and unit at each end,
+  ACCEPT ± is explained once and the setting axes say they always land instead of showing no
+  box, BALANCE reads in points (−0.75 pt, not −0.0075; storage unchanged) and the mode switches
+  are one per line instead of one amber sentence.
+- **Output headers and rows (Forza).** `AUTO · MECH 0.60 · 1.90°` and `MULTIPLIER ×1.20 · FRONT REF`
+  needed the glossary to read; each view now also returns a worded `head`. ARB rows printed
+  `19% roll · 52% ARB`, two percentages of different things side by side, now "of axle roll"
+  and "of both bars"; `eff 28%` became "acts like 28% RACE", MED became MEDIUM, and the BRAKES
+  header says "centred on the recommended bias" instead of REC. BeamNG keeps the short forms,
+  which its narrower per-axle cards and summary strip need.
+- **RECOMMENDED** was a near-invisible box repeating the current value when it matched. It is a
+  readable box only while it disagrees, and a single ✓ line once it matches (kept, so the INT
+  guide's spotlight still lands).
+- **Changed values and warnings.** Nothing showed which numbers an edit moved, so every value had
+  to be re-read against the game. Rows the last change moved now carry a blue edge until the
+  next change. Warnings lived only at the foot of their card, often off screen; a summary above
+  the cards lists them with a link to each.
+- **ⓘ in the output panel** centred on the icon and clamped only to the viewport, so near the
+  panel's left edge it covered the sidebar and the row labels. It is now held inside the panel
+  and starts at the icon.
+- **PRO's expanded balance panel** labelled every direction-only row NO SIZE, and drew ±15–20%
+  PITCH bars at the scale of single-figure settings, full width. The label is gone and PITCH is
+  drawn at a quarter of the scale.
+- **CHECK.** Step 2 said WAITING while step 1 visibly held numbers, which read as a bug; it now
+  says the numbers are stock examples and offers to decode them anyway. Corner masses were in kg
+  beside a Weight in lb. The unselected tab was the same grey as disabled text, so MEASURE looked
+  switched off.
+- **SHARE.** The mode `<select>` truncated its own options in a 280px card and its three buttons
+  wrapped with no sign which mattered. It is four tabs in a 340px card, with the primary action
+  (COPY CODE, APPLY SELECTED) full width on its own row.
+
+## Changed — sidebar controls: selectors, slider labels, edit view, RESET
+
+A visual review found the sidebar's controls fighting their own layout. Slider tick labels
+(NEUTRAL, MATCH, BWORTH, FIRM, EQUAL, PLANTED) were drawn on the track, so at the default value
+the thumb sat on top of the label naming it; they now sit in a row below the track
+(`FeelSlider`, `SliderEnds`). Slider ends were words on some, numbers on others and absent on
+`Field` sliders (Front Weight Bias, ARB Share); every slider now labels both ends, words for a
+direction and the range with its unit for a quantity. Bottom-Out g gained the ROAD / FIRM /
+RACE ticks Ride Stiffness has, and Power Split's centre tick reads 50/50.
+
+Option selectors were twenty hand-built flex rows: five or six buttons wrapped 5 + 1 or crammed
+("CO-SOLVE", "ROLL °", MAN at 26 px on a phone), some sat beside their label and some under it,
+and the unselected state was the disabled grey. They are all `OptionSeg` now, label above,
+balanced rows, with a brighter unselected state and a filled selected one. A scrollbar appearing
+used to shift the whole sidebar about 13 px and rewrap Diff Type; the gutter is now reserved.
+
+The layout edit view looked like the regular one until hovered, which touch never does: it now
+frames both panels, outlines every hideable part, and pins its title bar. RESET grew from
+42 × 18 px to at least 64 × 26, and its SURE? fills amber and waits 5 s instead of 2. Number
+boxes share one right edge (the unit slot keeps two characters), the tyre inputs line up, and the
+derived tyre radius is no longer bolder than the input. Control labels are Title Case (Exit,
+Power Split, Alignment Mode, Bump Balance; group headings stay capitals), MANUAL alignment labels
+no longer cut to "Camber …", and a sidebar ⓘ opens its tip beside the sidebar instead of over
+the next control.
+
+## Changed — BeamNG output: grid holes, floor-ARB text, soft-ARB figure, units dialog
+
+A visual review of BEAMNG mode found:
+
+- **Grid holes.** RWD and FWD have one diff, but the 2-column grid kept a `<div/>` placeholder for
+  the missing card, so Brakes sat alone on one row and the diff dropped into the next with blank
+  space beside both. The grid now puts the single diff beside Brakes (FWD's left, RWD's right) and
+  has no placeholders. Front/rear rows also drifted apart whenever one side's meta wrapped;
+  `BeamngGrid` now holds each `Pair` section level with its partner.
+- **ARB at the floor.** ROLL ° at BeamNG's floor printed 0 N/m on both axles while the warning said
+  the bars were "split to hold the balance" and the ARB Bias readout showed F 52% / R 48%. With
+  both bars at 0 the warning now says so, and the readout says NO BARS.
+- **Soft ARB.** The note told BEG/INT users to "treat it as a direction", which they could not fix,
+  since ARB Motion Ratio is PRO only. It was also shown on both cards, shown at 0 N/m, and dropped
+  from both cards as soon as either axle's ratio moved off 1.0, although the other still read at
+  1.0. Each soft axle's row now adds a `≈` rate at `ARB_MR_TYPICAL` (0.45), and one note under
+  both cards names the soft axle(s). The default was deliberately not changed to 0.45:
+  `encodeTune` omits ids 68/69 at the default, so every share code written at 1.0 would have
+  decoded at 0.45, while saved tunes (which store 1.0) would not have moved.
+- **Mode strip.** It wrapped mid-phrase and showed in BEG. Each item is now one unbreakable unit
+  with its subsystem named (DAMPERS gained a label), and BEG shows only the warnings.
+- **Diff cards** gained the Forza card's ⓘ, the `diffView` header (mode and type) and the
+  RECOMMENDED type box, now the shared `DiffTypeRec`, since the type scales BeamNG's locks too.
+- **Front Suspension ⓘ** covered the Anti-Roll row it explains; it now opens upward (`Hint`'s
+  `above`) when there is room.
+- **No sign of the mode** in the sidebar: a BEAMNG line now heads it.
+- **UNITS dialog**: the spring-rate buttons stay selectable in BeamNG, where they do nothing, and
+  Esc did not close the dialog. The buttons are now disabled there, Esc closes it, and ALL METRIC is
+  pointed out while inputs are still imperial.
+
+## Changed — guides no longer chain, and their cards stay on screen
+
+Closing the BEG or INT guide opened the COMPLEXITY LEVEL popup at once. Its tier preview always
+highlighted BEG, so in INT it disagreed with the header, and PRO opened no popup at all. Then
+expanding the Handling Balance bar for the first time opened a third, six-step guide. Every tier
+guide now ends the same way: its last card carries a `TUT_END_NOTE` line (the tier it unlocked,
+or for PRO how to reopen it), and DONE or ✕ just closes it. The balance guide opens only from the
+expanded panel's ? GUIDE. The popup shows only for a stored `suspos_onboard_v1` of `false`, with
+the current tier highlighted.
+
+Steps now say when their controls are elsewhere. INT's AWD Center Diff showed on a RWD car with
+nothing lit; a step's `skip` now drops it there, and NEXT, PREV and the count step over it. PRO's
+Mech Balance Target, Balance Target Mode, Alignment Mode, ARB Balance Modes and Manual
+Differential steps described controls that only render in another mode. An `absent` note on the
+card now says how to reach them. PRO's copy is shorter (about half), its Hz MECH step spotlights
+only RIDE, and a Vehicle DNA step closes the guide.
+
+Placement: the card read its own height before the off-screen line was added and ran off the
+bottom (INT VISUALS, PRO Hz MECH and Load Transfer), so it now re-measures when its height
+changes and when a transition ends. The phone drawer's slide could outlast the last timed measure
+and leave the card anchored to where the drawer had been, which is probably the reported "BEG
+steps 6–8 anchored to the wrong control". Output steps scroll their spots to the top of the
+results, so Reading the Results no longer covers the cards it names. With no room on either side
+the card docks to an edge instead of centring, which had covered the expanded balance panel's
+header. Garage steps put the card left of the overlay, and the ring inside it, where it had
+lost its right edge off-screen. The ⟲ reported as left "pink-highlighted" after the PRO guide is
+its permanent colour, not a leftover ring.
+
+
+## Changed — glossary navigation, search, Back and one-line summaries
+
+A review found the TERMS glossary hard to move around: about 58 screens with no index,
+section headers that scrolled away, search results in document order with no count and a
+box that resized as they changed, SEE jumps with no way back, and scope chips that looked
+disabled under ALL. `GlossaryModal` now has a section strip, sticky group headers, a fixed
+height, a ranked search view (name hits first) with a hit count and highlighted matches, a
+BACK button and stack, scope chips that pick your own tier under ALL, a legend for the
+your-tier dot, and touch-sized controls below 768px. Every entry opens with a one-line
+summary from `GLOSSARY_SUM`. TIME SYNC, HYBRID, EQUAL FORCE, LANDING, Mech Balance and
+Natural Balance titles follow one style, and Mech Balance, Natural Balance and the Balance
+Slider now link to each other.
+
+## Changed — PRO balance UX: MECH switch notice, reach warning, unlock, zoomed guide, labelled deltas and units
+
+- Switching ARB Balance Mode to MECH or CO-SOLVE (or BALANCE's new UNLOCK button) now prints
+  `balSwitchNote`: the target, mech balance before → after, and the Handling Balance before → after.
+  The 0.60 default (`MECH_BALANCE_TARGET`) is unchanged.
+- `mechReach` drives an orange `⚠ TARGET NOT REACHED` / `⚠ BARS AT THEIR LIMIT` box in BALANCE and
+  ANTI-ROLL BARS, and a `mechedge` output warning. A target met only with a bar pinned on its floor
+  or ceiling (a fresh build's 0.60 on the default car) used to show nothing but the row's FLOOR tag.
+- Read-only BALANCE shows a TARGET OFF panel with an UNLOCK button (Hz MODE MECH under MAN stiffness).
+- The Balance Guide strip zooms to its markers by default (`guideFull` toggles the full 0.05–0.95).
+- CURRENT/TARGET Δ reads "from NAT"; GEOMETRY GAP names both its ends (NAT → target, or → 0.50).
+- NATURAL shows `target = NAT + offset`, marked `default` while no offset is stored. The glossary
+  said a fresh build's NATURAL starts at 0 offset; the code aims at 0.60, so the text was fixed.
+- Headline labels its scale: NET … pts below PRO, MID … % in PRO; both hints say they differ.
+- Manual diff locks have sliders and a typical-range band; Diff Type and Diff Mode buttons are
+  full width and taller.
+
+## Changed — pinned UI gives the results their screen back
+
+The disclaimer was pinned under the results; it is now the last thing in the results scroll.
+The expanded Handling Balance panel grew the footer until the results kept about one row (PRO:
+none); it is now a drawer over the results, anchored on the footer's top edge, capped at 80%
+(phone 85%) of the results area (`outH`, measured live) and scrolling inside, with ✕ CLOSE at
+every width. Its RESPONSE rows ran 2 px wider than their scroll box, clipping the % column; the
+box gained 4 px side padding. VISUALS groups now open one at a time under a vh cap, replacing
+the measured `visCaps` cap that let the open card take about half the sidebar. On a phone the
+footer header shows the headline value and verdict (label shortened to BALANCE, PRO's FIT? /
+MECH chips wrap to a second line whenever the row is too narrow); before, the chips pushed the
+headline off a 375 px screen and clipped its verdict at 800 px with the sidebar open.
+Forza's output column is capped at `OUT_MAX_W` and centred, so on a wide monitor a value no
+longer sits ~1200 px from its label; BeamNG's two-column grid keeps the full width.
+
+## Fixed — BeamNG spring tag disagreed with the slider; output warnings overprinted figures
+
+From a visual review of BeamNG mode.
+
+- **2.50 Hz read FIRM in the output and RACE on the slider.** `springView` tagged each row from
+  `tune.fHz`/`rHz`, which BeamNG re-derives from the spring snapped to 500 N/m. 2.50 Hz
+  snapped to 2.497 Hz: printed as `2.50 Hz`, tagged FIRM. Horizon, which does not snap,
+  read RACE. The tag now reads the pre-snap Hz (`physics.frontHz`, `tune.rHzTarget`), the
+  same pair the RIDE REF. switch uses for the same reason; see [PHYSICS.md](PHYSICS.md).
+- **"⚠ UNDERDAMPED" painted over "0.40s settle" on the BeamNG suspension cards.** In
+  `OutRowBody` the note sat outside the box the figures wrap in, and could not wrap itself.
+  On the narrow two-column cards the figures overflowed under it. The note now sits in the
+  same box, pushed right with `marginLeft:auto`, so it drops onto its own line when there
+  is no room. Wide cards look as before. The spring tag wraps the same way.
+
+## Fixed — three code-review findings: preset game mode, track width, MECH Δ colours
+
+From a full review of `index.html` on 2026-09-18. A fourth finding, the BeamNG Ride Stiffness
+wheel stall, had already been fixed (see "the scroll wheel stalled on Ride Stiffness in
+BeamNG" below) but was still listed as open.
+
+- **Loading a factory preset switched the game to HORIZON.** `PRESET_SAVES` spread `DEF_FE`,
+  so every preset carried `gameMode:'horizon'`, and `loadPreset` wrote it over the user's
+  game. `loadPreset` now keeps the current `fe.gameMode`. Nothing else needs converting:
+  no preset uses ARB MAN or BASIC, the only fields whose units depend on the game
+  (`crossArbUnits`).
+- **Track widths above 2.2 m were cut on reload and in share codes.** The Track Width F/R
+  fields accept 1000–2600 mm, but `sanitizeTune` clamped `trackF`/`trackR` to 1.0–2.2 m.
+  The clamp is now 1.0–2.6 m, matching the fields. Ids 5/6 are raw numbers, so the codec is
+  unchanged; an older app reading a code with a track wider than 2.2 m still cuts it.
+- **The PRO footer's MECH Δ used the old colours.** Rear-biased read blue and front-biased
+  amber, the reverse of the Balance Guide's orange = oversteer side, blue = understeer side.
+  The delta and its hint now use the Balance Guide's colours.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,

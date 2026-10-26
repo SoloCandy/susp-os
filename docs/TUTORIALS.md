@@ -19,16 +19,16 @@ when a step's text in the code and here stop matching.
 | `beginner` | `BEG GUIDE` | First visit to BEG, or `?` while in BEG | The whole app, from zero |
 | `intermediate` | `INT GUIDE` | First visit to INT, or `?` while in INT | Only what INT adds over BEG |
 | `pro` | `PRO GUIDE` | First visit to PRO, or `?` while in PRO | Only what PRO adds over INT |
-| `balance` | `HANDLING GUIDE` | First time the Handling Balance bar is expanded | The expanded Handling Balance breakdown |
+| `balance` | `HANDLING GUIDE` | The **? GUIDE** button in the expanded Handling Balance panel | The expanded Handling Balance breakdown |
 
 The balance guide is labelled `HANDLING`, not `BALANCE`, on purpose: the PRO
 sidebar has its own BALANCE section with an unrelated BALANCE GUIDE widget, and
 "BALANCE GUIDE" on the card would collide with it.
 
-There is also a one-card **complexity popup** (the `ONBOARDING POPUP` block) —
-not a `TUTORIALS` guide, but part of the same flow. It points at the header's
-BEG / INT / PRO and `?` buttons and is dismissed with GOT IT or a backdrop click.
-See [Onboarding popup](#onboarding-popup) below.
+Guides never chain: closing one opens nothing else. There is also a one-card
+**complexity popup** (the `ONBOARDING POPUP` block), not a `TUTORIALS` guide, which
+today shows only for a stored `suspos_onboard_v1` of `false`. See
+[Onboarding popup](#onboarding-popup) below.
 
 The TERMS glossary (`GlossaryModal`) is a separate, non-sequential reference with its
 own doc coverage in CODE_MAP; tutorials link into it rather than repeating it. A step's
@@ -55,7 +55,13 @@ so the step body stays short and the depth lives in one place.
   always resets `tutQuick`, so `?` opens the full tour (or offers RESUME for it). The
   quick path doesn't write `suspos_tutorial_step_v2` — its step index counts the
   filtered path, so saving it would resume the full tour at the wrong step. Both paths close through
-  `closeTutEnd`, so the complexity popup and `tutSeen` behave the same.
+  `closeTut` and end on the same last-card line (below).
+- **Every tier ends the same way.** The last card of each tier guide, full or quick,
+  carries a green line from `TUT_END_NOTE` (`data-tut-end`): BEG and INT name the tier
+  they unlocked and where to switch to it, PRO says the guide is done and how to reopen
+  it. DONE ✓ (or ✕) then just closes the card. Nothing opens after it: the complexity
+  popup used to open on closing BEG or INT (and not PRO), and highlighted BEG whatever
+  the tier, and the balance guide used to open itself on the bar's first expand.
 
 ### Tier gating
 
@@ -81,27 +87,25 @@ Leaving PRO while a Vehicle DNA is applied first asks for confirmation
 
 ### Balance guide
 
-Opened automatically by `openBalTut()` from the Handling Balance bar's header tap
-— only on the tap that *expands* it, and only while `balTutSeen` is false. On
-desktop that is expanding the detail panel; on phones it is the tap that reveals
-the full bar stack. It can be replayed at any time from the **? GUIDE** button in
-the expanded panel. The header `?` never opens it. It runs alongside a tier guide's state rather
-than replacing it (`balTutOpen` / `balTutStep` are separate from `tutMode` /
-`tutStep`). It does not dim the page; its steps' spots dim only the rest of the bar (see
+Opt-in. Only the **? GUIDE** button in the expanded Handling Balance panel opens it
+(`openBalTut()`), on desktop and phones alike (phones: tap the bar, then CONTRIBUTIONS).
+Expanding the bar opens nothing: it used to open the guide on the first expand while
+`balTutSeen` was false, which chained a third guide onto a tier tour whose last steps
+point at the bar. `openBalTut` still marks `balTutSeen`, so the key records that it has
+been opened. The BEG guide's Handling Balance Bar step names the ? GUIDE. The header `?`
+never opens it. It runs alongside a tier guide's state rather than replacing it
+(`balTutOpen` / `balTutStep` are separate from `tutMode` / `tutStep`). It does not dim
+the page; its steps' spots dim only the rest of the bar (see
 [Spots](#spots-single-controls-cards-and-bar-parts)). A step pointing into the expanded
-panel opens it, and nothing closes it again: the user opened the guide from that panel or
-the bar.
+panel opens it, and nothing closes it again: the user opened the guide from that panel.
 
 ### Onboarding popup
 
-Rendered when `!onboardSeen || showComplexity`. `suspos_onboard_v1` defaults to
-`true`, so in practice it appears through `showComplexity`: `closeTutEnd` sets it
-whenever the **beginner or intermediate** guide is closed — DONE ✓ on the last step
-or ✕ on any step. Not after PRO (there is no next tier) and not after the balance
-guide. The point is to send the user to the tier buttons as they leave a tour.
-`showComplexity` holds the tier the closed guide unlocks (`'intermediate'` after
-BEG, `'pro'` after INT), and the popup opens with a green "🔓 INT unlocked" / "🔓 PRO
-unlocked" line naming it. `closeOnboard` resets it to `false`.
+Rendered when `!onboardSeen`. `suspos_onboard_v1` defaults to `true`, so it shows
+only for a stored `false`; GOT IT or a backdrop click (`closeOnboard`) sets it `true`.
+Its preview of the tier buttons highlights the tier you are on. It used to open through
+`showComplexity` whenever the BEG or INT guide closed, naming the tier just unlocked;
+that line now sits on the guide's last card instead (`TUT_END_NOTE`).
 
 ---
 
@@ -109,13 +113,15 @@ unlocked" line naming it. `closeOnboard` resets it to `false`.
 
 Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
 tier guides only — `quick` / `onQuick` for the QUICK START path, `units` /
-`setUnits` for the units step, `appState` (the live `fe`) for step tasks, and `notice` for the locked-tier redirect message
-(step 0 only; see Tier gating).
+`setUnits` for the units step, `appState` (the live `fe`) for step tasks and `absent`
+notes, `notice` for the locked-tier redirect message (step 0 only; see Tier gating),
+`shown` (which steps this car runs) and `endNote` (the last card's `TUT_END_NOTE` line).
 
 - **Header**: `{label} GUIDE · n / total`, the step title, and ✕. For tier guides
-  ✕ is `closeTutEnd` and DONE ✓ is `finishTut`, which clears the saved step and then
-  calls `closeTutEnd`, so closing early has the same popup and garage side-effects as
-  finishing.
+  ✕ is `closeTut` and DONE ✓ is `finishTut`, which clears the saved step and then
+  calls `closeTut`, so closing early has the same garage side-effect as finishing.
+  `n / total` and the progress bar count only the steps this car runs (the `shown`
+  prop; see `skip` under [Step schema](#step-schema)).
 - **Progress bar**: one segment per step — done, current (indigo), upcoming.
 - **Body**: the step's `body` string, in a `data-tut-body` element styled
   `white-space: pre-line`, so a `\n\n` in the string renders as a paragraph break.
@@ -133,7 +139,11 @@ tier guides only — `quick` / `onQuick` for the QUICK START path, `units` /
   which opens `GlossaryModal` scrolled to and flashing that entry. The glossary sits
   above the card (z-index 1100 vs 700), so the tour is still there when it closes,
   and focus returns to the chip when it was opened from the keyboard.
-- **Buttons**: ← PREV from step 2 on; NEXT → until the last step, then DONE ✓.
+- **Absent note**: a step with `absent` shows its `text` in an amber box when none of
+  `absent.ids` is on the page, so a step about a control that only renders in another
+  mode says how to reach it. Re-checked as the tune changes, so it clears once the
+  reader switches that mode.
+- **Buttons**: ← PREV from the first shown step on; NEXT → until the last shown step, then DONE ✓.
   DONE calls `onDone` if given (tier guides: `finishTut`), otherwise `onClose`
   (balance guide).
 - **Overflow**: if the body scrolls, a `▼ SCROLL FOR MORE` fade appears; it is
@@ -145,40 +155,45 @@ tier guides only — `quick` / `onQuick` for the QUICK START path, `units` /
 ### Positioning
 
 The card anchors to the bounding box of the step's spotted parts that are on screen
-(see [Spots](#spots-single-controls-cards-and-bar-parts)). With no `spot`, or none of them
-rendered, it anchors to every zone in `focus` together (the balance guide to
-`zone-balance-bar`), so a step spotlighting two stacked controls doesn't get its card
-placed over the second one. When the spotted parts leave no room above or below (the
-expanded balance panel fills the screen), it tries the step's first spot alone before
-centring, so a step lists its most important part first. Measurements are divided by
-the app's CSS zoom, and use `visualViewport` height so the iOS toolbar doesn't push it
-off-screen.
+(see [Spots](#spots-single-controls-cards-and-bar-parts)), each cut to what its scroller
+and the screen show, so a spot running on below the fold doesn't take the room the card
+needs. With no `spot`, or none of them rendered, it anchors to every zone in `focus`
+together (the balance guide to `zone-balance-bar`). Measurements are divided by the app's
+CSS zoom, and use `visualViewport` height so the iOS toolbar doesn't push it off-screen.
 
-Scrolling: the sidebar is scrolled to `focus[0]`'s zone at once, then, when the step's
-section has opened, the topmost spotted part is scrolled into view inside its own
-scroller (the sidebar, the results panel, the expanded balance panel or the garage list).
-Topmost, not first-listed: a spot list names both games' output cards, so list order is
-not page order.
+Scrolling: the sidebar is scrolled to `focus[0]`'s zone at once; then, when the step's
+section has opened, the topmost spotted part is scrolled inside its own scroller (the
+sidebar, the results panel, the expanded balance panel or the garage list). Wherever the
+card goes above or below the spots (everywhere but the sidebar on a wide screen), the
+topmost spot is brought to the top of its scroller, since mid-panel the spotted results
+cards left room on neither side. In the sidebar on a wide screen it is only scrolled into
+view. Topmost, not first-listed: a spot list names both games' output cards, so list
+order is not page order.
 
 A **sidebar target** is one whose right edge is at or before the sidebar's. It used to be
 "left of centre", which caught the full-width bar lanes whenever the sidebar was closed and
 dropped the card on top of them.
 
-- **Sidebar target, with room beside the sidebar**: the sidebar
-  is first scrolled so the target is visible (instant, not smooth — a smooth scroll
-  would still be moving when the card measures). The card floats just right of the
-  sidebar, vertically centred on the target and clamped on-screen, with a
-  left-pointing arrow. "Room" means the full `CARD_W` fits right of the sidebar.
-- **Any other target (results, balance bar, garage), or a sidebar target
+- **Garage target, with room left of the GARAGE overlay**: the card goes just left of
+  the overlay, vertically centred on the target and clamped on-screen, with a
+  right-pointing arrow. Below the garage rows it covered the list they describe.
+- **Sidebar target, with room beside the sidebar**: the card floats just right of the
+  sidebar, vertically centred on the target and clamped on-screen, with a left-pointing
+  arrow. "Room" means the full `CARD_W` fits right of the sidebar.
+- **Any other target (results, balance bar, garage on phones), or a sidebar target
   with no room beside the sidebar (phones)**: the card goes above or below the
   target, whichever has more room, with an up/down arrow. If neither side can fit
-  the card's natural height, a right-half target (e.g. `zone-output`, which fills
-  the panel) falls back to centred; a sidebar target (a section taller than the
-  screen) is pinned to the bottom edge with no arrow, so the section header and
-  first controls stay visible.
+  the card's natural height, it docks to the bottom edge with no arrow, or to the top
+  edge when that covers less of the step's first spot. Centring, or placing it under the
+  first spot alone, covered the spots after it and the expanded balance panel's header.
 - **No focus, or a zero-size target** (collapsed sidebar): centred, no arrow.
 
-Positioning re-runs on window and visual-viewport resize.
+Placement re-runs on window and visual-viewport resize, when the card's own height
+changes (a `ResizeObserver`, plus an explicit re-run when the off-screen line or absent
+note appears, since the observer only fires while the page renders frames), and when any
+transition ends (the phone drawer's slide, a section opening). Without those it read the
+card's height before those lines appeared and ran off the bottom, and a drawer slide
+slower than its last timed measure left the card anchored to where the drawer had been.
 
 ---
 
@@ -197,6 +212,8 @@ Each step is an object in its guide's array:
 | `units` | no | `true` embeds the units picker. |
 | `quick` | no | `true` puts the step on the QUICK START path. `tutSteps(mode, quick)` filters on it — the quick path is a view over the same array, never a copy. |
 | `pathChoice` | no | `true` swaps NEXT for QUICK START / FULL TOUR on this card. |
+| `skip` | no | `st => boolean`, with `st` = `{ch, fe, dr, al}`. True drops the step for this car: NEXT and PREV step over it, the count and progress bar leave it out, and a guide opened or resumed on it moves to the next shown step. INT's AWD Center Diff skips off AWD. |
+| `absent` | no | `{ids, text}`. When none of `ids` renders, the card shows `text` (the absent note) saying how to reach the control. For steps whose controls only render in another mode. |
 | `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Load a Preset, Ride Stiffness, Balance. |
 
 ### What a step does to the page
@@ -313,7 +330,7 @@ every step title of its guide, in order; `tests-sections.js` checks every spot i
 | 7 | Ride Stiffness | `ride-stiffness` | | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
 | 8 | Balance | `balance` | | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
 | 9 | Character | `character` | | | STABLE ↔ AGILE damping feel. | |
-| 10 | Handling Balance Bar | `balance-bar` | `bar.head`, `bar.main` | close | Sign; CAR tick, NET headline; tap to expand. | |
+| 10 | Handling Balance Bar | `balance-bar` | `bar.head`, `bar.main` | close | Sign; CAR tick, NET headline; tap to expand; its ? GUIDE. | |
 | 11 | Reading the Results | `output` | `out.card.arb` / `.springs` / `.dampers` / `.suspF` / `.suspR` | | The suspension cards first; amber = near a game limit. | ✓ |
 | 12 | Alignment, Brakes & Diff | `output` | `out.card.align` / `.brakes` / `.diff` / `.alignF` / `.alignR` / `.diffF` / `.diffR` / `.center` | | The other cards follow layout and build type; starting points to tune by feel. | |
 | 13 | Output Toolbar | `toolbar` | `tb.reset`, `tbDna`, `tbCheck`, `tb.share` | | RESET, DNA, CHECK, SHARE. | |
@@ -336,7 +353,7 @@ the Welcome card and live in the glossary.
 | 8 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
 | 9 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
 | 10 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
-| 11 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. On FWD / RWD nothing here renders and the zones are lit instead. |
+| 11 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
 | 12 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
 | 13 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | NET: the CAR tick, SPR and ARB, the NET tick; tap for the rows. |
 | 14 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off NET, outside the headline. |
@@ -351,21 +368,22 @@ the Welcome card and live in the glossary.
 
 | # | Title | Spotlight | Spots | Sidebar | Covers |
 |---|---|---|---|---|---|
-| 1 | Welcome — Pro Mode | — | | | What PRO adds; alignment stays AUTO unless set to MANUAL. |
-| 2 | Chassis Geometry | `chassis` | `chassis.wheelbase` / `.trackF` / `.trackR` / `.tyres` | | FROM THE GAME vs LOOK UP ONLINE; wheelbase, track widths, and what tyre width does; how they set the Balance Guide's NATURAL and GRIP BIAS. |
+| 1 | Welcome — Pro Mode | — | | | What PRO adds, DNA included; alignment stays AUTO unless set to MANUAL. |
+| 2 | Chassis Geometry | `chassis` | `chassis.wheelbase` / `.trackF` / `.trackR` / `.tyres` | | LOOK UP ONLINE wheelbase and track widths; how they and tyre width set the Balance Guide's NATURAL and GRIP BIAS. |
 | 3 | Calibrating Natural Balance | `chassis` | `chassis.measureNatBal` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
-| 4 | Calibrating ARB Scale | `balance-target` | | | Step 2 · ARB SCALE SETUP, four readings, one shared or a front/rear scale, SCALE IN USE toggle. Its controls are in the MEASURE tab, so no spots. |
-| 5 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start from the Balance Guide's range; shown only when MECH, CO-SOLVE or Hz MECH uses it. |
-| 6 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. |
-| 7 | Alignment Mode | `alignment` | `align.mode` / `.nudge` / `.nudgeStrength` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength under AUTO. |
-| 8 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. |
-| 9 | Hz MECH & Balance Target Mode | `feel`, `balance-target`, `visuals` | `ride.hzMode`, `balance.targetMode`, `visuals.ride` | | Hz MECH (ignored under CO-SOLVE); target mode applies to all three. |
-| 10 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY: Decel, Entry vs MID (trail braking), ENTRY BRK. |
-| 11 | Manual Differential | `drivetrain` | `drive.diffMode` / `.matchChassis` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds Centre Split) with typical-range hints; MATCH CHASSIS in AUTO. |
+| 4 | Calibrating ARB Scale | `balance-target` | | | Step 2 · ARB SCALE SETUP, four readings, SCALE IN USE. Its controls are in the MEASURE tab, so no spots. |
+| 5 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start inside the Balance Guide's range. Absent note while nothing solves toward the target. |
+| 6 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. Same absent condition as step 5. |
+| 7 | Alignment Mode | `alignment` | `align.mode` / `.nudge` / `.nudgeStrength` | | AUTO / MANUAL; Nudge MECH / GRIP and Nudge Strength. Absent note while Nudge is off. |
+| 8 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. Absent note until MECH or CO-SOLVE is picked. |
+| 9 | Hz MODE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
+| 10 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY; ENTRY BRK. |
+| 11 | Manual Differential | `drivetrain` | `drive.diffMode` / `.matchChassis` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); MATCH CHASSIS in AUTO. Absent note until the diff is MANUAL. |
 | 12 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
 | 13 | Mech Balance & Response | `balance-bar` | `bar.mechHead` / `.mechStrip` / `.response` | | The MECH BALANCE strip (NAT, CUR, TGT on the game's scale) and RESPONSE. |
 | 14 | Load Transfer | `visuals` | `visuals.load` / `.grip` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
 | 15 | Output Panel & Tune Check | `toolbar` | `tbCheck`, `tb.share`, `tb.reset` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
+| 16 | Vehicle DNA | `toolbar` | `tbDna` | | DNA's handling targets, APPLY (once, undoable), MY DNA. Last, so `_v1` saves still convert to the same steps. |
 
 ### Handling balance <!--@tutorial balance-->
 
@@ -445,7 +463,7 @@ TRY IT task (ticks when the check passes):
 
 #### 10. Handling Balance Bar
 
-> This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff.
+> This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff; its ? GUIDE explains each part.
 
 #### 11. Reading the Results
 
@@ -509,6 +527,10 @@ TRY IT task (ticks when the check passes):
 
 > AWD adds POWER SPLIT under CENTRE (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTRE SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
 
+Absent note (no POWER SPLIT on screen):
+
+> A Sport diff has no center control: pick another Diff Type to see POWER SPLIT and → USE.
+
 #### 12. VISUALS Card
 
 > VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.
@@ -549,63 +571,87 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Welcome — Pro Mode
 
-> PRO adds a Mech Balance Target, the CHASSIS, MECH and CO-SOLVE balance modes, Hz MODE MECH, chassis geometry (wheelbase, track widths), a brake bias Centre and a manual differential. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what's new.
+> PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential and Vehicle DNA. Alignment stays AUTO unless you switch ALIGNMENT to MANUAL. This guide covers only what's new.
 
 #### 2. Chassis Geometry
 
-> CHASSIS now splits by source. FROM THE GAME adds MEASURE NAT BAL; LOOK UP ONLINE holds wheelbase and track widths, which Forza never shows. The defaults suit most cars, so enter exact values if you have them. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, moving GRIP BIAS and its AGILE–PLANTED tag.
+> LOOK UP ONLINE in CHASSIS holds wheelbase and track widths, which Forza never shows; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, which moves GRIP BIAS.
 
 #### 3. Calibrating Natural Balance
 
-> MEASURE NAT BAL, at the end of the FROM THE GAME group in CHASSIS, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction everywhere and hides the track-width fields; CLEAR, or ✕ beside the reading, drops it.
+> MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction; CLEAR, or ✕ beside it, drops it.
 
 #### 4. Calibrating ARB Scale
 
-> ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours: set the bars each of the four readings lists, type the Mech Balance Forza shows, then pick MEASURED under SCALE IN USE. When one scale cannot explain all four, the front and rear axles get their own.
+> ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours from four readings; pick MEASURED under SCALE IN USE to use it.
 
 #### 5. Mech Balance Target
 
-> How far to move Forza's Mech Balance from the car's natural balance (NAT): 0 stays natural, + adds rotation, − adds stability; start from the Balance Guide's range. It shows only while ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, solves toward it; CHASSIS anchors on natural balance instead.
+> How far to move Forza's Mech Balance from the car's natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide's range.
+
+Absent note (shown while its controls are not on screen):
+
+> Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or Hz MODE to MECH in RIDE.
 
 #### 6. Balance Target Mode
 
-> Balance Target mode sets what the target is measured from: NATURAL (offset from natural balance), RANGE (the middle of the Balance Guide's RANGE), GRIP (GRIP TARGET, the grip-neutral point), PHASE (PHASE TARGET, neutral across entry, mid-corner and exit) or MANUAL (a raw value, e.g. 0.60). In RANGE, GRIP and PHASE, Balance Offset shifts it toward oversteer (+) or understeer (−).
+> What the target is measured from: NATURAL (offset from NAT), RANGE (the middle of the Balance Guide's range), GRIP (grip-neutral), PHASE (neutral across entry, mid-corner and exit) or MANUAL (a raw value). Balance Offset shifts RANGE, GRIP and PHASE.
+
+Absent note (shown while its controls are not on screen):
+
+> Hidden now, like the target: it shows once MECH, CO-SOLVE or Hz MODE MECH is solving.
 
 #### 7. Alignment Mode
 
-> AUTO (default) derives camber, toe and caster from your build and chassis; MANUAL takes exact values instead. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target's intent and GRIP against the chassis's own grip tendency; Nudge Strength sets how far, 0% giving pure AUTO values.
+> AUTO derives camber, toe and caster from your build and chassis; MANUAL takes exact values. Under AUTO, Nudge MECH tilts camber and toe toward your Mech Balance Target, GRIP against the chassis's own grip tendency; Nudge Strength sets how far.
+
+Absent note (shown while its controls are not on screen):
+
+> Nudge Strength appears once Nudge is MECH or GRIP.
 
 #### 8. PRO ARB Balance Modes
 
-> CHASSIS is WEIGHT anchored on the car's natural balance instead of raw weight %. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. A target the car can't reach within game limits is flagged.
+> CHASSIS is WEIGHT anchored on the car's natural balance. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. An unreachable target is flagged.
 
-#### 9. Hz MECH & Balance Target Mode
+Absent note (shown while its controls are not on screen):
 
-> Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target under any ARB balance mode but CO-SOLVE, which solves rear Hz itself, and NEUTRAL CANCEL, whose bars would undo it. The target mode applies alike to MECH, CO-SOLVE and Hz MECH. VISUALS at the bottom of the sidebar shows the resulting roll split and bar tracks.
+> Pick MECH or CO-SOLVE under Balance Mode to see the split it solves.
+
+#### 9. Hz MODE MECH
+
+> Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target. CO-SOLVE ignores it, since it solves rear Hz itself, and so does NEUTRAL CANCEL, whose bars would undo it.
 
 #### 10. Brake Bias Centre
 
-> BRAKES adds Centre. REC shifts Brake Bias from the recommendation; GRIP from the bias where both axles hit their braking limit together at your Decel; ENTRY solves it for trail braking, from Entry vs MID. ENTRY BRK, under the toggle, shows what the bias does to corner entry.
+> Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK shows what the bias does to corner entry.
 
 #### 11. Manual Differential
 
-> MANUAL swaps the diff sliders for lock % fields: Accel and Decel Lock, or on AWD Front/Rear Accel and Decel plus Centre Split, with your diff type's typical range under each lock. In AUTO, MATCH CHASSIS (above the EXIT and ENTRY sliders) biases the diff to reinforce your Mech Balance Target.
+> MANUAL swaps the diff sliders for lock % fields, with your diff type's typical range under each; AWD adds front, rear and Centre Split. In AUTO, MATCH CHASSIS biases the diff to reinforce your Mech Balance Target.
+
+Absent note (shown while its controls are not on screen):
+
+> The lock fields show once the diff is set to MANUAL.
 
 #### 12. Handling Balance Expanded
 
-> Expand the Handling Balance bar (on phones, tap it, then CONTRIBUTIONS) for a breakdown by corner phase in grip-margin percent, + meaning the rear lets go first. ENTRY adds brake bias, MID holds chassis, springs and ARBs, EXIT adds the drive split, and the tips at the top name what to move.
+> Expanded, the Handling Balance bar breaks balance down by corner phase in grip-margin %, + meaning the rear lets go first. ENTRY adds brakes, MID holds chassis, springs and bars, EXIT the drive split; the tips name what to move.
 
 #### 13. Mech Balance & Response
 
-> The MECH BALANCE strip reads balance on the game's 0–1 scale: NAT is the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE, apart from understeer and oversteer.
+> MECH BALANCE reads balance on the game's 0–1 scale: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.
 
 #### 14. Load Transfer
 
-> LOAD TRANSFER in VISUALS shows the loads at 1 g cornering. FRONT TAKES is the front's share of the transfer against the weight split; springs and bars move it. GRIP USE below it predicts which axle runs out of grip first, mid-corner, on entry and on exit.
+> LOAD TRANSFER in VISUALS shows the loads at 1 g cornering: FRONT TAKES is the front's share of the transfer against the weight split. GRIP USE below it predicts which axle runs out of grip first on entry, mid-corner and exit.
 
 #### 15. Output Panel & Tune Check
 
-> The results cards work as in the lower tiers. CHECK opens Tune Check: DECODE reads back an existing tune's frequencies and damping, and MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land; RESET never touches saves, and a tune RESET is one ↩ from undone.
+> CHECK opens Tune Check: DECODE reads back an existing tune's frequencies and damping, MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land. RESET never touches saves.
+
+#### 16. Vehicle DNA
+
+> DNA describes how a car should drive as handling targets: platform, pitch, bar share, balance, damping and diff. APPLY solves the tune that hits them on the loaded chassis, once, and ↩ undoes it. MY DNA saves one to reuse on any car.
 
 ### Handling balance <!--@steptext balance-->
 
@@ -670,21 +716,18 @@ START OVER and RESUME AT STEP {n}:
 
 > You left this guide at step {n} of {total}.
 
+**Last card of a tier guide** — a green line under the body of the DONE card
+(`TUT_END_NOTE`), on the full and quick paths alike:
+
+> 🔓 INT is unlocked: switch with INT in the header for more controls.
+
+> 🔓 PRO is unlocked: switch with PRO in the header for every control.
+
+> That's everything PRO adds. Reopen this guide any time with ? in the header.
+
 **Onboarding popup** — headed COMPLEXITY LEVEL, over a preview of the BEG / INT /
-PRO and `?` buttons, dismissed with GOT IT. When a guide has just unlocked a tier
-it opens with:
-
-> 🔓 {tier} unlocked — {change}.
-
-where `{tier}` is INT after the BEG guide, with `{change}`:
-
-> more controls are now available
-
-and PRO after the INT guide, with:
-
-> every control is now available
-
-Then, always:
+PRO and `?` buttons with the current tier highlighted, dismissed with GOT IT. Shown
+only for a stored `suspos_onboard_v1` of `false`:
 
 > Choose how much of the app to show. BEG is the best starting point — fewer controls, guided outputs. Press ? at any time to open a step-by-step tutorial.
 
@@ -697,7 +740,7 @@ Then, always:
 | `suspos_tutorial_seen_v1` | `{beginner, intermediate, pro}` — tier guides seen (also the tier gate) |
 | `suspos_tutorial_step_v2` | `{beginner, intermediate, pro}` — last step reached per tier guide, as `{title, step}` or `null` |
 | `suspos_tutorial_step_v1` | the same as bare indices — read-only, converted into `_v2` once |
-| `suspos_baltut_seen_v1` | Balance guide seen |
+| `suspos_baltut_seen_v1` | Balance guide opened at least once (nothing reads it to open the guide) |
 | `suspos_onboard_v1` | Onboarding popup dismissed (defaults `true`) |
 
 Full shapes are in [PERSISTENCE.md](PERSISTENCE.md). Which guide is open is session
@@ -722,8 +765,7 @@ RESET (⟲) with **Tutorials** ticked sets all three tier flags and
 prerequisite guides are opened again. It does not open a guide by itself, and
 does not move you out of the tier you're in: the auto-open effect runs on a
 *tier change*, so each tier guide reappears the next time you switch into its
-tier, and the balance guide the next time the Handling Balance bar is expanded
-(its **? GUIDE** button replays it without a reset).
+tier. The balance guide only ever opens from its **? GUIDE** button, reset or not.
 
 ---
 

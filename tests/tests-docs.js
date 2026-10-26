@@ -756,9 +756,26 @@ check('GLOSSARY [INT]/[PRO] paragraph labels sit above the entry\'s tier, never 
   return problems.length === 0 || problems.join('; ');
 });
 
+// GLOSSARY_SUM carries each entry's one-line summary outside GLOSSARY (so def and summary edits
+// never share a line). An entry without one renders with no summary, and a summary for a
+// retired id is dead text nobody sees, so the two key sets must match exactly.
+check('GLOSSARY_SUM has exactly one short summary per GLOSSARY id', () => {
+  if (GLOSSARY_ERR) return 'skipped: GLOSSARY does not evaluate (see the first glossary check)';
+  let sum;
+  try { sum = new Function(`return {${objectBody('GLOSSARY_SUM')}};`)(); }
+  catch (e) { return `GLOSSARY_SUM does not evaluate as plain data: ${e.message}`; }
+  const problems = [];
+  for (const t of GLOSSARY_ENTRIES) if (typeof sum[t.id] !== 'string' || !sum[t.id]) problems.push(`${t.id}: no summary`);
+  for (const k of Object.keys(sum)) {
+    if (!GLOSSARY_BY_ID.has(k)) problems.push(`${k}: summary for an id GLOSSARY does not have`);
+    else if (sum[k].length > 180) problems.push(`${k}: summary is ${sum[k].length} chars (keep it to one line, under 180)`);
+  }
+  return problems.length === 0 || problems.join('; ');
+});
+
 // Tier of the reader each guide can reach. beginner / intermediate / pro run as the tutorial for
-// that uiMode. balance is the Handling Balance guide: openBalTut fires from the bar's ? GUIDE
-// button and on the bar's first expand, with no uiMode gate, so a BEG reader sees it. A new
+// that uiMode. balance is the Handling Balance guide: openBalTut fires from the expanded bar's
+// ? GUIDE button, with no uiMode gate, so a BEG reader sees it. A new
 // guide key fails here until someone decides its tier.
 const GUIDE_TIER = { beginner: 'beginner', intermediate: 'intermediate', pro: 'pro', balance: 'beginner' };
 

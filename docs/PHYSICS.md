@@ -438,11 +438,14 @@ arm to the power of 2,"* alongside a warning that the motion ratio means real-li
 values don't transfer. `k = 2·rs/track²` implicitly assumes the arm **is** the full
 track — i.e. that the bar acts at the wheels. A real bar attaches inboard, so its
 arm is shorter and the required N/m is higher by `(track/arm)²`. This is why the
-output measures 4–6× soft against a stock vehicle; the intended fix is an ARB motion
-ratio input mirroring the spring one, `k = 2·rs/(track²·mr²)`. Two things remain
-unknown and are not guessed at: the exact coefficient (`k·arm²` vs `2·k·arm²`) and
-any given vehicle's arm length. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full
-derivation, the eliminated hypotheses, and the deferred fix.
+output measures 4–6× soft against a stock vehicle. The fix is the PRO ARB Motion Ratio
+F / R input, `k = 2·rs/(track²·mr²)`, defaulting to 1.0. While an axle stays at 1.0 its
+Anti-Roll row also prints a `≈` figure, the same rate at `ARB_MR_TYPICAL = 0.45` (≈4.9× on
+the default chassis), so BEG and INT, which have no ratio field, still see a usable number.
+It is display only and not a default: nothing solves on it, and saves and share codes are
+untouched. Two things remain unknown and are not guessed at: the exact coefficient
+(`k·arm²` vs `2·k·arm²`) and any given vehicle's arm length. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the full derivation and the eliminated hypotheses.
 
 **Snapping to BeamNG's slider increments.** Confirmed in-game (not guessed):
 Spring Rate snaps to the nearest 500 N/m, Anti-Roll Spring Rate to the nearest
@@ -472,13 +475,17 @@ input is fine-grained enough that the pre-snap Hz *is* the Hz you get, so
 spring snap runs before the damper solve and before `rsSpF`/`rsSpR`, so a single
 forward pass leaves everything downstream consistent with no second solve.
 
-Two things deliberately do **not** snap:
+Three things deliberately do **not** snap:
 
 - **ARB `MAN`.** It is a value the user typed rather than one the solver chose,
   and Forza's `MAN` likewise bypasses `clk()`'s own 0.1-click rounding.
 - **`warnOver` and `arbView`'s FLOOR/CEILING.** Both read the raw pre-conversion `v`,
   not `o.value`, so ceiling warnings and the pinned-bar badge key off the
   unrounded number.
+- **The SPRINGS band tag.** `springView` tags each row from the pre-snap Hz
+  (`physics.frontHz`, `tune.rHzTarget`), the Hz the Ride Stiffness slider tags.
+  The snapped Hz can sit just under a band edge: 2.50 Hz snaps to 2.497, prints
+  as `2.50 Hz` and read FIRM beside a RACE slider. The printed Hz stays snapped.
 
 The rounding in `springOut`/`dampOut`/`arbOut` remains in place and is now
 normally a no-op re-application of a snap already performed upstream. It is kept

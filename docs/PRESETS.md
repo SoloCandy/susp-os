@@ -17,6 +17,10 @@ separate concept with their own explicit LOAD CHASSIS / LOAD BUILD buttons — t
 *do* touch `ch`, which is the point of saving a car. See
 [PERSISTENCE.md](PERSISTENCE.md) for the entry model.
 
+Loading a preset also keeps the game mode. Presets spread `DEF_FE`, so each one carries
+`gameMode:'horizon'`; `loadPreset` writes the current `fe.gameMode` over it, so
+loading a preset in BeamNG or Motorsport stays in that game.
+
 Keeping presets out of the entry list also keeps them out of entry counts, search,
 sort and — most importantly — backup files, where six identical read-only entries
 would ride along in every export and multiply on every restore.

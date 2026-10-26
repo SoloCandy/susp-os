@@ -451,15 +451,23 @@ knows about them.
 
 A tutorial step's `spot` list names parts that only render in some modes, layouts or games:
 the Balance Target controls need MECH, CO-SOLVE or Hz MECH, the track widths disappear once
-NAT BAL is measured, the AWD Centre Diff step has nothing to point at on FWD or RWD, and
-Forza and BeamNG have different output cards. An absent spot is skipped, and with none left
-the step lights its whole zone as before spots, so the card never points at nothing, but
-the reader may be told about a control they can't see until they switch mode. Spots that
+NAT BAL is measured, and Forza and BeamNG have different output cards. An absent spot is
+skipped, and with none left the step lights its whole zone as before spots, so the card never
+points at nothing. A step whose controls hang on a mode carries an `absent` note saying how to
+reach them, and the AWD Centre Diff step is skipped off AWD (`skip`); a step without either
+can still describe a control the reader can't see until they switch mode. Spots that
 are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
 cards above and below the suspension cards. The card says so ("▼ 2 more highlighted
 below — scroll to see") and the line follows the scroll, but the reader has to scroll; no
 single scroll position shows them all on a short window, and the card does not move with
 them.
+
+On phones a card often has room on neither side of its target (a tall sidebar section, the
+expanded balance panel, the garage list): it then docks to the bottom or top edge, and covers
+part of the section. The sidebar and results are scrolled to put the spots at the top first,
+but a section near the end of the sidebar (ALIGNMENT) can't scroll that far. At 1440 the
+expanded PRO balance panel is taller than the window, which is the footer's layout, not the
+guide's; the card there docks over the middle of the rows' lower half.
 
 The fade inside a zone uses `:has()`, to dim only in a zone where a spot rendered and to
 leave a card holding a spotted row lit. A browser without it drops that rule and keeps the
@@ -772,8 +780,11 @@ so Hz, roll stiffness, mech balance and the handling-balance figures do not move
 when it is set. At 0.45 on the default chassis the front bar prints 49,000 N/m
 instead of 10,000 — a 4.9× correction, inside the 4–6× the sampled vehicle showed.
 
-The amber caveat under the ARB rows now appears **only while both ratios are 1.0**,
-and points at the input instead of telling the user to scale the number by hand.
+While an axle's ratio is 1.0 its Anti-Roll row also prints a `≈` figure, the rate at
+`ARB_MR_TYPICAL` (0.45), so BEG and INT, which cannot set the ratio, see a usable number.
+That is a display figure and not a new default: changing `DEF_CH` would have moved every
+share code that omits ids 68/69 (omitted because they sat at 1.0) while leaving every saved
+tune, which stores 1.0 explicitly, unchanged.
 
 **No fudge factor has been applied** — inventing a multiplier to close the gap is
 exactly what the physical-unit approach exists to avoid, and one sampled vehicle is
@@ -782,10 +793,10 @@ unscaled number and lets a user who knows their geometry supply the arm ratio. A
 second and third vehicle would confirm the arm-ratio range and settle the
 coefficient question (`K = k·arm²` vs `2·k·arm²`), which the input does not decide.
 
-**The in-app caveat now names the input.** The amber note under each suspension
-card's Anti-Roll row states the lever-arm assumption, names ARB Motion Ratio and
-suggests a typical 0.4–0.5, and disappears once either ratio is moved off 1.0. The
-card's hint points to it ("Anti-Roll reads soft — see the note under that row").
+**The in-app caveat is per axle and written once.** One amber note under both
+suspension cards states the lever-arm assumption and explains the `≈` figure, naming the
+axle when only one still reads soft; in PRO it names the ARB Motion Ratio field to set. It
+is absent when no axle reads soft: a ratio moved off 1.0, or a bar at 0 N/m.
 
 ---
 
@@ -995,8 +1006,8 @@ and nothing here says what that value is. It is the same gap as the Sport centre
 Sport's N/A rows apply in every mode, the BeamNG DIFFERENTIAL output included. Forza Motorsport's
 tuning needs a single adjustable, race-level diff, and no Rally, Off-Road or Drift diff was found
 there. BeamNG's diffs are a different set (open, LSD, locked, viscous) and map onto none of these.
-The `diff-type` glossary entry already says BeamNG has no diff-type recommendation; the picker and
-the scaling still apply there.
+Since the picker and the scaling apply there, the BeamNG diff cards name the type in their header
+and show the same RECOMMENDED box as Forza; the mapping question above is still open.
 
 ## Open — AUTO diff locks saturate at 100% on an Offroad diff
 
@@ -1106,22 +1117,6 @@ Related but separate: writing entries straight into `suspos_garage_v2` bypasses
 `parseBackup`'s `normalizeEntry` and crashes the garage cards. That one is
 expected — see [PERSISTENCE.md](PERSISTENCE.md) — and is a reason not to hand-edit
 the key, not a hole in rehydration.
-
-## Open — code review findings (2026-09-18)
-
-Found in a full review of `index.html`. Items marked *reproduced* were run against the
-real solver/codec in Node; the rest are from reading the code. None is fixed yet.
-
-- **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
-  so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
-- **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
-  to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
-  arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
-  oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
-  rear-biased and amber for front-biased.
-- **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
-  allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
 
 ## Accepted — the update notice watches `#app-source` only
 

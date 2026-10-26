@@ -22,13 +22,11 @@ zones, the settle band, and the ARB bands. The prose is not checked.
   focus (`isPhone&&sbTyping`). With the keyboard up, the pinned card would take
   most of what's left of the screen, so hiding it lets the scrolling controls keep
   their height.
-- **Height:** the body scrolls inside a box capped at the height of the tallest open
-  group among RIDE · ROLL · DAMPING and, in PRO, LOAD TRANSFER and GRIP USE (`visCaps`, each measured
-  live with a ResizeObserver through `visMeasureRef`), so either one always fits whole
-  and the rest scrolls. In PRO with LOAD TRANSFER open that is its height, about 430 px.
-  While neither is open or measured, the cap falls back to `32vh` on a phone and `50vh`
-  otherwise. It is still a cap, so the card cannot grow past it, but on a short window a
-  tall cap leaves less room for the input sections above.
+- **Height:** groups open one at a time (`visTog`): opening one closes the rest and scrolls
+  its header to the top of the box, so the box holds one chart plus the other headers instead
+  of every chart behind an inner scroll. The box is capped at `38vh` (`30vh` on a phone), so the
+  input sections above always keep most of the sidebar; only a group taller than the cap
+  (PRO's LOAD TRANSFER) scrolls inside it. RIDE · ROLL · DAMPING is the one open by default.
 - **Groups**, in order, each with its own collapse key on `open`:
 
 | Group | `open` key | Shown when |
