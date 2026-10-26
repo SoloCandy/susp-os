@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — pinned UI gives the results their screen back
+
+The disclaimer was pinned under the results; it is now the last thing in the results scroll.
+The expanded Handling Balance panel grew the footer until the results kept about one row (PRO:
+none); it is now a drawer over the results, anchored on the footer's top edge, capped at 80%
+(phone 85%) of the results area (`outH`, measured live) and scrolling inside, with ✕ CLOSE at
+every width. Its RESPONSE rows ran 2 px wider than their scroll box, clipping the % column; the
+box gained 4 px side padding. VISUALS groups now open one at a time under a vh cap, replacing
+the measured `visCaps` cap that let the open card take about half the sidebar. On a phone the
+footer header shows the headline value and verdict (label shortened to BALANCE, PRO's FIT? /
+MECH chips wrap to a second line whenever the row is too narrow); before, the chips pushed the
+headline off a 375 px screen and clipped its verdict at 800 px with the sidebar open.
+Forza's output column is capped at `OUT_MAX_W` and centred, so on a wide monitor a value no
+longer sits ~1200 px from its label; BeamNG's two-column grid keeps the full width.
+
 ## Fixed — BeamNG spring tag disagreed with the slider; output warnings overprinted figures
 
 From a visual review of BeamNG mode.

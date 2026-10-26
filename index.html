@@ -4663,6 +4663,8 @@ const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,su
 // Deliberately no per-value hint icon and no boxed context badge: section-level
 // hints live on Card, and ctx reads as inline text here instead.
 // hid (a HIDE_ITEMS id) makes the row hideable from the edit view; RowGroup reads the same prop.
+// OUT_MAX_W caps the Forza column (px) so the value stays within reading distance of its label.
+const OUT_MAX_W=680;
 const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<OutRowBody {...p}/>;
 const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor='#f59e0b'})=>(
   <div style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 10px'}}>
@@ -7710,33 +7712,35 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:true,visRide:true,visDynamics:true,visSag:true,visLoad:true,visGrip:true});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:false,visRide:true,visDynamics:false,visSag:false,visLoad:false,visGrip:false});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
-  // VISUALS scroll box is capped to the RIDE · ROLL · DAMPING group's own height, so that
-  // group always fits whole and everything else scrolls. Measured live (ResizeObserver),
-  // since the group's height depends on sidebar width. null = not measured yet.
-  // VISUALS box height: each group that should always fit whole is measured live, and the box is
-  // capped at the tallest one that is open (see the box's maxHeight). RIDE · ROLL · DAMPING and,
-  // in PRO, LOAD TRANSFER. visMeasureRef(key) is a stable ref callback per key, so the observers
-  // are not rebuilt every render.
-  const[visCaps,setVisCaps]=useState({});
   // GRIP USE's phase view (MID / ENTRY / EXIT). Session-only UI state, deliberately not persisted.
   const[gripPhase,setGripPhase]=useState('mid');
-  const visROs=useRef({});
-  const visMeasureRef=useMemo(()=>{
-    const refs={};
-    return key=>refs[key]??=(el=>{
-      visROs.current[key]?.disconnect();visROs.current[key]=null;
-      if(!el){setVisCaps(c=>c[key]==null?c:{...c,[key]:null});return;}
-      const measure=()=>{
-        const h=Math.ceil(el.getBoundingClientRect().height);
-        setVisCaps(c=>c[key]===h?c:{...c,[key]:h});
-      };
-      measure();   // RO callbacks wait for a rendered frame; measure once up front too
-      const ro=new ResizeObserver(measure);
-      ro.observe(el);visROs.current[key]=ro;
-    });
+  // VISUALS groups open one at a time: opening one closes the rest, so the pinned box holds one
+  // group and its headers instead of every chart stacked behind an inner scroll. The opened
+  // group's header is scrolled to the top of the box, for the one case it still scrolls (a group
+  // taller than the box's vh cap).
+  const VIS_KEYS=['visDna','visRide','visDynamics','visSag','visLoad','visGrip'];
+  const visTog=key=>e=>{
+    const hdr=e.currentTarget,opening=!open[key];
+    setOpen(p=>({...p,...Object.fromEntries(VIS_KEYS.map(k=>[k,false])),[key]:!p[key]}));
+    if(opening)setTimeout(()=>{
+      const box=hdr.closest('[data-vis-box]');
+      if(box)box.scrollTop+=hdr.getBoundingClientRect().top-box.getBoundingClientRect().top;
+    },0);
+  };
+  // Height of the results scroll area, which the expanded Handling Balance drawer overlays and
+  // is capped against. Measured live: it moves with the footer's own height and the window.
+  const[outH,setOutH]=useState(null);
+  const outRO=useRef(null);
+  const outMeasureRef=useMemo(()=>el=>{
+    outRO.current?.disconnect();outRO.current=null;
+    if(!el)return;
+    const measure=()=>{const h=Math.round(el.getBoundingClientRect().height);setOutH(o=>o===h?o:h);};
+    measure();
+    outRO.current=new ResizeObserver(measure);
+    outRO.current.observe(el);
   },[]);
   // RIDE HEIGHT → CG: when active, keep ch.cgHeight in sync with the ride-height/tyre-radius
   // estimate instead of leaving it as a plain manual field. Only writes when both tyre sizes
@@ -11202,12 +11206,12 @@ function App(){
             to, so VISUALS stays hidden there. */}
         {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&secVis('visuals')!=='none'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
           <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} {...secProps('visuals')}>
-            <div style={{maxHeight:(()=>{
-              const cap=Math.max(open.visRide?visCaps.ride??0:0,uiMode==='pro'&&open.visLoad?visCaps.load??0:0,uiMode==='pro'&&open.visGrip?visCaps.grip??0:0);
-              return cap||(isPhone?'32vh':'50vh');
-            })(),overflowY:'auto',overscrollBehavior:'contain'}}>
+            {/* One group open at a time (visTog) keeps this box to one chart plus headers, which
+                fits under the cap; the cap only bites for a group taller than it, so the input
+                sections above always keep most of the sidebar. */}
+            <div data-vis-box style={{maxHeight:isPhone?'30vh':'38vh',overflowY:'auto',overscrollBehavior:'contain'}}>
               {dnaLink&&<Hide id="visuals.dna">
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDna:!p.visDna}))}
+              <div className="collapsible-hdr" onClick={visTog('visDna')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DNA MATCH</span>
                 <span style={{fontSize:9,color:'#818cf8'}}>{dnaLink.name}</span>
@@ -11241,8 +11245,8 @@ function App(){
                 // stiffness rear fraction so the card still draws.
                 const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
                 const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
-                return<Hide id="visuals.ride"><div ref={visMeasureRef('ride')}>
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visRide:!p.visRide}))}
+                return<Hide id="visuals.ride"><div>
+              <div className="collapsible-hdr" onClick={visTog('visRide')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#64748b'}}>RIDE · ROLL · DAMPING</span>
                 {!open.visRide&&<span style={{fontSize:9,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
@@ -11269,7 +11273,7 @@ function App(){
               })()}
 
               <Hide id="visuals.dynamics">
-              <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visDynamics:!p.visDynamics}))}
+              <div className="collapsible-hdr" onClick={visTog('visDynamics')}
                 style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                 <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>DYNAMICS</span>
                 <Hint text="Each axle settling back to ride height after one bump. Strip = ±10% of the initial displacement; dashed line = settle time (last exit from the strip); ring = first ride-height crossing." term="dynamics-chart"/>
@@ -11406,7 +11410,7 @@ function App(){
                 const gEndOutR=Math.min(gMax,sagR+dSagR*gMax<=yMax||dSagR<=0?gMax:(yMax-sagR)/dSagR);
                 const xTicks=Array.from({length:Math.floor(gMax)+1},(_,i)=>i).filter(g_=>g_<=gMax);
                 return(<>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visSag:!p.visSag}))}
+                  <div className="collapsible-hdr" onClick={visTog('visSag')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,marginTop:6,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>SAG vs LOAD</span>
                     <Hint text="Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top." term="sag-vs-load"/>
@@ -11507,8 +11511,8 @@ function App(){
                 const d=lt.frontShare-lt.weightFront;
                 const shareCol=Math.abs(d)<1?'#e2e8f0':d>0?'#3b82f6':'#ef4444';
                 const anyLift=F.lifts||R.lifts;
-                return(<div ref={visMeasureRef('load')} style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visLoad:!p.visLoad}))}
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visLoad')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>LOAD TRANSFER</span>
                     <Hint text="Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer." term="load-transfer"/>
@@ -11598,8 +11602,8 @@ function App(){
                       {isLim?'LIMIT':`${pct(Math.max(0,1-ax.use))} SPARE`}
                     </span>
                   </div>);
-                return(<div ref={visMeasureRef('grip')} style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={()=>setOpen(p=>({...p,visGrip:!p.visGrip}))}
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visGrip')}
                     style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
                     <span style={{fontSize:9,letterSpacing:2,color:'#334155'}}>GRIP USE</span>
                     <Hint text="Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps." term="grip-use"/>
@@ -11651,13 +11655,14 @@ function App(){
         <div style={{flex:1,display:'flex',flexDirection:'column',background:'#020617',minHeight:0}}>
 
           {/* cards — scrollable */}
-          <div id="zone-output" style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
-          {/* No maxWidth cap: the output is now full-width rows rather than columns of
-              mini-cards, so a wide monitor should use the width instead of leaving dead
-              margin either side. containerType lets the BeamNG grid below query this div's
-              own rendered width (not the viewport's) to decide when to collapse to 1 column —
-              see the .beamng-grid rule in <style>. */}
-          <div style={{containerType:'inline-size'}}>
+          <div id="zone-output" ref={outMeasureRef} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
+          {/* Forza's single column of label … value rows is capped and centred: full width on a
+              wide monitor put the label ~1200 px from its value, too far to read across. BeamNG's
+              two-column grid already halves each row, so it keeps the full width.
+              containerType lets that grid query this div's own rendered width (not the
+              viewport's) to decide when to collapse to 1 column — see the .beamng-grid rule in
+              <style>. */}
+          <div style={{containerType:'inline-size',...(physMode?{}:{maxWidth:OUT_MAX_W,margin:'0 auto'})}}>
           {/* The edit view's own DONE, so it can be reached from this panel too (phones). */}
           {editing&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',marginBottom:8,
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
@@ -12041,11 +12046,9 @@ function App(){
             {hiddenOut} output part{hiddenOut>1?'s':''} hidden in this tier
             <button className="tbtn" style={{fontSize:9}} onClick={()=>setLayoutEdit(true)}>EDIT</button>
           </div>}
-          </div>{/* end maxWidth wrapper */}
-          </div>{/* end cards */}
-
-          {/* DISCLAIMER + FEEDBACK */}
-          <div style={{flexShrink:0,borderTop:'1px solid #0f172a',padding:'6px 12px'}}>
+          {/* DISCLAIMER + FEEDBACK — the last thing in the results scroll, not pinned under it:
+              pinned, its ~80 px came off every screen's results for text read once. */}
+          <div style={{borderTop:'1px solid #0f172a',padding:'8px 12px 2px',marginTop:10}}>
             <p style={{margin:0,fontSize:9,color:'#334155',lineHeight:1.5,textAlign:'center'}}>
               SUSP.OS is an independent tool not affiliated with, endorsed by, or associated with Microsoft Corporation or Turn 10 Studios. Forza Horizon and Forza Motorsport are registered trademarks of Microsoft Corporation.
             </p>
@@ -12063,6 +12066,9 @@ function App(){
                  style={{color:'#475569'}}>Tip jar</a>
             </p>
           </div>
+          </div>{/* end maxWidth wrapper */}
+          </div>{/* end cards */}
+
 
 
           {/* DATA MODAL — share / import / export */}
@@ -12464,8 +12470,9 @@ function App(){
             );
           })()}
 
-          {/* PINNED — HANDLING BALANCE */}
-          <div id="zone-balance-bar" style={{flexShrink:0,borderTop:'1px solid #1e293b',background:'#020617',
+          {/* PINNED — HANDLING BALANCE. position:relative anchors the expanded drawer, which opens
+              upward over the results instead of growing the footer into them. */}
+          <div id="zone-balance-bar" style={{flexShrink:0,position:'relative',borderTop:'1px solid #1e293b',background:'#020617',
                                              paddingBottom:'env(safe-area-inset-bottom,0px)',...dim('balance-bar')}}>
             {/* compact header row — tap to expand */}
             <div className="collapsible-hdr"
@@ -12485,9 +12492,16 @@ function App(){
                    }
                  }}
                  style={{padding:isPhone?'10px 8px':'10px 14px',cursor:'pointer'}}>
-              <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5}}>
-                <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,flex:1,minWidth:0,overflow:'hidden'}}>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>HANDLING BALANCE</span>
+              {/* The headline (value + verdict) never gives way: when the row is too narrow, the
+                  PRO FIT? / MECH chips wrap to a second line rather than push it off the card (on
+                  one line they overflowed a 375 px phone, and an 800 px window with the sidebar
+                  open). On a phone the label also shortens to BALANCE. */}
+              <div data-spot="bar.head" style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,
+                                                flexWrap:'wrap',rowGap:4}}>
+                <div style={{display:'flex',alignItems:'center',gap:isPhone?5:8,minWidth:0,overflow:'hidden',
+                             flex:'1 0 auto'}}>
+                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:2,flexShrink:0}}>
+                    {isPhone?'BALANCE':'HANDLING BALANCE'}</span>
                   <Hint text={phase
                     ?'Mid-corner grip margin: how much more grip the front has left than the rear. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% is NEUTRAL. Tap for ENTRY and EXIT.'
                     :'NET: the car\'s own lean plus springs and bars. + = oversteer, − = understeer. Brakes, diff and damping show as ENTRY / EXIT lanes. Tap for the breakdown and a tip.'} term="balance-bar"/>
@@ -12497,12 +12511,12 @@ function App(){
                                 color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
                     {phase?fmtPct(hbVal):`${hbVal>=0?'+':''}${hbVal.toFixed(1)}`}
                   </span>
-                  {!isMobile&&<span style={{fontSize:11,letterSpacing:2,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                  <span style={{fontSize:11,letterSpacing:2,flexShrink:isPhone?0:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
                                 color:Math.abs(hbVal)<hbBand?'#e2e8f0':hbVal>0?'#ef4444':'#3b82f6'}}>
                     {Math.abs(hbVal)<hbBand?'NEUTRAL':hbVal>0?'OVERSTEER':'UNDERSTEER'}
-                  </span>}
+                  </span>
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0,marginLeft:'auto'}}>
                   {/* Calibration-envelope badge. PRO only: every flag it raises concerns a figure
                       only PRO displays — the tyre-series fit feeds mechBalance and the target solves,
                       LIFT and CG feed the grip model behind GRIP BIAS and GRIP mode. It shipped
@@ -12884,21 +12898,29 @@ function App(){
               </div>}
               </>}
             </div>
-            {/* expanded full verdict */}
+            {/* expanded full verdict — a drawer over the results, bottom edge on the footer's top.
+                Inline, it grew the footer until the results kept about one visible row (PRO: none).
+                Capped to most of the results area (outH) and scrolls inside, so the top of the
+                results stays in view and the footer's own bars stay where they were. */}
             {open.balanceExpanded&&
-              <div style={{padding:'0 14px 12px',borderTop:'1px solid #0f172a'}}>
-                <div style={{display:'flex',justifyContent:'flex-end',gap:4,padding:'6px 0 4px'}}>
+              <div style={{position:'absolute',left:0,right:0,bottom:'100%',zIndex:30,
+                           display:'flex',flexDirection:'column',
+                           maxHeight:outH?Math.round(outH*(isPhone?0.85:0.8)):(isPhone?'50vh':'60vh'),
+                           padding:'0 14px 10px',background:'#020617',borderTop:'1px solid #1e293b',
+                           boxShadow:'0 -10px 24px #000000aa'}}>
+                <div style={{display:'flex',justifyContent:'flex-end',gap:4,padding:'6px 0 4px',flexShrink:0}}>
                   {(()=>{
                     const bs={background:'none',border:'1px solid #1e293b',borderRadius:2,
                       fontFamily:'var(--font-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:1};
                     return(<>
                       <button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();openBalTut();}}>? GUIDE</button>
-                      {isPhone&&<button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();setOpen(p=>({...p,balanceExpanded:false}));}}>✕ CLOSE</button>}
+                      <button style={{...bs,color:'#94a3b8'}} onClick={e=>{e.stopPropagation();setOpen(p=>({...p,balanceExpanded:false}));}}>✕ CLOSE</button>
                     </>);
                   })()}
                 </div>
-                {/* cap expanded height on all devices — ensures LOAD TRANSFER is reachable on short screens */}
-                <div style={{maxHeight:isPhone?'42vh':'60vh',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
+                {/* The 4px side padding holds the dominant RESPONSE row's -4/-2px margins inside the
+                    box: without it the row ran 2px wider than the box and clipped the % column. */}
+                <div style={{flex:1,minHeight:0,padding:'0 4px',overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}>
                 {phase?<PhaseVerdict phase={phase} diffLayout={diff.layout}
                   bDiffAccel={diff.bDiffAccel} bDiffDecel={diff.bDiffDecel} bDampBias={bDampBias}
                   brakeBias={brakeBias} brakeCentre={brakeEntry?'entry':brakeGrip?'grip':'rec'} gripBalance={tune.gripBalance}/>
