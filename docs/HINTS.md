@@ -26,7 +26,9 @@ math before.
   quoted here.
 - **What's not.** Warnings and status messages the app raises about a tune (an
   unreachable target, a clamp, a game limit) are output, not guidance. The TERMS
-  glossary itself lives in `GLOSSARY` and has its own modal. Tutorial text is in
+  glossary itself lives in `GLOSSARY` and has its own modal; each entry's one-line
+  summary is in `GLOSSARY_SUM` beside it (see [CODE_MAP.md](CODE_MAP.md#glossary-and-hints)).
+  Tutorial text is in
   [TUTORIALS.md](TUTORIALS.md#step-text).
 - **Format.** Each entry names the control, then gives its text as a `>` quote. Only
   UI text goes in quotes. `{…}` stands for a value filled in live. A hint that
@@ -150,7 +152,7 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 **Differential Mode** (PRO):
 
-> AUTO (default) works out every lock from your car and the sliders below. MANUAL has you type each lock % directly.
+> AUTO (default) works out every lock from your car and the sliders below. MANUAL has you set each lock % directly.
 
 ### AUTO sliders
 
@@ -630,14 +632,29 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 
 **FRONT / REAR SUSPENSION:**
 
-> Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers. Anti-Roll reads soft; see the note under that row.
+> Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers.{if soft} Anti-Roll reads soft; see the ≈ figure and the note under the suspension cards.
 
-The note under the Anti-Roll row, shown while both ARB Motion Ratios are 1.0 — PRO, then
-BEG/INT (which have no ARB Motion Ratio field):
+The second sentence is on a card only while that axle reads soft: its ARB Motion Ratio is still
+1.0 and its bar is above 0 N/m. Such a row adds a brighter `≈` figure, its rate at
+`ARB_MR_TYPICAL` (0.45).
 
-> Reads ~4–6× soft at ARB Motion Ratio 1.0. Set the ratio in CHASSIS (arm ÷ track, typically 0.4–0.5) if you know the geometry.
+The soft-ARB note is written once, full width under both suspension cards, and only while at
+least one axle reads soft. It names both axles, or the one that reads soft; PRO adds the second
+sentence:
 
-> Reads ~4–6× soft: BeamNG rates the bar at its own lever, so treat it as a direction.
+> {Anti-Roll, Front Anti-Roll or Rear Anti-Roll} is the rate at the wheel; BeamNG rates the bar at its own lever, so the game's number runs ~4–6× higher. ≈ is the rate at a typical {ARB_MR_TYPICAL: 0.45} arm ratio, the closer starting point.
+
+> Set ARB Motion Ratio {F and R, F or R} in CHASSIS (arm ÷ track) if you know the geometry.
+
+**FRONT / REAR DIFFERENTIAL** — FWD/RWD use the Forza DIFFERENTIAL text for their layout. AWD:
+
+> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; more front accel lock pulls the nose out of the corner.
+
+> Starting point; fine-tune in 1% steps. Keep rear decel low for rotation; more rear accel lock adds exit rotation.
+
+**CENTER SPLIT** (AWD):
+
+> Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.
 
 **FRONT / REAR ALIGNMENT** — the Forza ALIGNMENT text above (as `{forza text}`), then:
 
@@ -681,9 +698,9 @@ On ENTRY and EXIT:
 
 **HANDLING BALANCE** — PRO, then BEG/INT:
 
-> Mid-corner grip margin: how much more grip the front has left than the rear. + = the rear gives up first (oversteer), − = the front does (understeer); within ±1% is NEUTRAL. Tap for ENTRY and EXIT.
+> Mid-corner grip margin, %: how much more grip the front has left than the rear. + = rear lets go first (oversteer), − = front does; NEUTRAL within ±1%. BEG/INT use points. Tap for ENTRY and EXIT.
 
-> NET: the car's own lean plus springs and bars. + = oversteer, − = understeer. Brakes, diff and damping show as ENTRY / EXIT lanes. Tap for the breakdown and a tip.
+> NET in points: the car's own lean plus springs and bars. + = oversteer, − = understeer, NEUTRAL within ±3. PRO uses a grip margin in % instead. Tap for the breakdown and a tip.
 
 **FIT?** badge (PRO, only while a figure is outside the fitted set). Its hint takes one
 of three forms. Only extrapolated (soft) flags — with one flag its detail, with more
@@ -722,7 +739,7 @@ where `{wheels}` is one of:
 
 **MECH** readout (PRO):
 
-> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased.
+> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: orange = more rear-biased (oversteer), blue = more front-biased (understeer).
 
 **Segment legend** — PRO, then BEG, then INT:
 
