@@ -19,10 +19,14 @@ see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the rest, which still have the hole.
 (`SECTION_VIS` keys and `HIDE_ITEMS` ids), because its lists are arrays and
 `mergeDefaults` replaces arrays whole.
 
-A repair must live here rather than in a mount effect: `usePersist`'s setter closes
-over the render-time value, so two effects writing the same key in one tick clobber
-each other, and an effect also runs too late to protect the first render. See
-[HISTORY.md](HISTORY.md).
+A repair must live here rather than in a mount effect: an effect runs too late to
+protect the first render. See [HISTORY.md](HISTORY.md).
+
+The setter applies a function update to the last value **set**, not to the
+render-time one, so two effects updating the same key in one tick compose. It
+still writes localStorage before it returns, which the garage migration relies on:
+it reads the key back in the same mount pass. A *value* set replaces whatever came
+before it, as with plain `useState`. `tests-history.js` runs the shipped hook.
 
 | Key | Holds | Default |
 |---|---|---|
