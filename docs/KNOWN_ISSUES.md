@@ -451,15 +451,23 @@ knows about them.
 
 A tutorial step's `spot` list names parts that only render in some modes, layouts or games:
 the Balance Target controls need MECH, CO-SOLVE or Hz MECH, the track widths disappear once
-NAT BAL is measured, the AWD Center Diff step has nothing to point at on FWD or RWD, and
-Forza and BeamNG have different output cards. An absent spot is skipped, and with none left
-the step lights its whole zone as before spots, so the card never points at nothing, but
-the reader may be told about a control they can't see until they switch mode. Spots that
+NAT BAL is measured, and Forza and BeamNG have different output cards. An absent spot is
+skipped, and with none left the step lights its whole zone as before spots, so the card never
+points at nothing. A step whose controls hang on a mode carries an `absent` note saying how to
+reach them, and the AWD Center Diff step is skipped off AWD (`skip`); a step without either
+can still describe a control the reader can't see until they switch mode. Spots that
 are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
 cards above and below the suspension cards. The card says so ("▼ 2 more highlighted
 below — scroll to see") and the line follows the scroll, but the reader has to scroll; no
 single scroll position shows them all on a short window, and the card does not move with
 them.
+
+On phones a card often has room on neither side of its target (a tall sidebar section, the
+expanded balance panel, the garage list): it then docks to the bottom or top edge, and covers
+part of the section. The sidebar and results are scrolled to put the spots at the top first,
+but a section near the end of the sidebar (ALIGNMENT) can't scroll that far. At 1440 the
+expanded PRO balance panel is taller than the window, which is the footer's layout, not the
+guide's; the card there docks over the middle of the rows' lower half.
 
 The fade inside a zone uses `:has()`, to dim only in a zone where a spot rendered and to
 leave a card holding a spotted row lit. A browser without it drops that rule and keeps the
@@ -1109,22 +1117,6 @@ Related but separate: writing entries straight into `suspos_garage_v2` bypasses
 `parseBackup`'s `normalizeEntry` and crashes the garage cards. That one is
 expected — see [PERSISTENCE.md](PERSISTENCE.md) — and is a reason not to hand-edit
 the key, not a hole in rehydration.
-
-## Open — code review findings (2026-09-18)
-
-Found in a full review of `index.html`. Items marked *reproduced* were run against the
-real solver/codec in Node; the rest are from reading the code. None is fixed yet.
-
-- **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
-  so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
-- **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
-  to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
-  arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
-  oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
-  rear-biased and amber for front-biased.
-- **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
-  allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
 
 ## Accepted — the update notice watches `#app-source` only
 

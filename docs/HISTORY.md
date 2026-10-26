@@ -41,6 +41,114 @@ A visual review of BEAMNG mode found:
   Esc did not close the dialog. The buttons are now disabled there, Esc closes it, and ALL METRIC is
   pointed out while inputs are still imperial.
 
+## Changed — guides no longer chain, and their cards stay on screen
+
+Closing the BEG or INT guide opened the COMPLEXITY LEVEL popup at once. Its tier preview always
+highlighted BEG, so in INT it disagreed with the header, and PRO opened no popup at all. Then
+expanding the Handling Balance bar for the first time opened a third, six-step guide. Every tier
+guide now ends the same way: its last card carries a `TUT_END_NOTE` line (the tier it unlocked,
+or for PRO how to reopen it), and DONE or ✕ just closes it. The balance guide opens only from the
+expanded panel's ? GUIDE. The popup shows only for a stored `suspos_onboard_v1` of `false`, with
+the current tier highlighted.
+
+Steps now say when their controls are elsewhere. INT's AWD Center Diff showed on a RWD car with
+nothing lit; a step's `skip` now drops it there, and NEXT, PREV and the count step over it. PRO's
+Mech Balance Target, Balance Target Mode, Alignment Mode, ARB Balance Modes and Manual
+Differential steps described controls that only render in another mode. An `absent` note on the
+card now says how to reach them. PRO's copy is shorter (about half), its Hz MECH step spotlights
+only RIDE, and a Vehicle DNA step closes the guide.
+
+Placement: the card read its own height before the off-screen line was added and ran off the
+bottom (INT VISUALS, PRO Hz MECH and Load Transfer), so it now re-measures when its height
+changes and when a transition ends. The phone drawer's slide could outlast the last timed measure
+and leave the card anchored to where the drawer had been, which is probably the reported "BEG
+steps 6–8 anchored to the wrong control". Output steps scroll their spots to the top of the
+results, so Reading the Results no longer covers the cards it names. With no room on either side
+the card docks to an edge instead of centring, which had covered the expanded balance panel's
+header. Garage steps put the card left of the overlay, and the ring inside it, where it had
+lost its right edge off-screen. The ⟲ reported as left "pink-highlighted" after the PRO guide is
+its permanent colour, not a leftover ring.
+
+
+## Changed — glossary navigation, search, Back and one-line summaries
+
+A review found the TERMS glossary hard to move around: about 58 screens with no index,
+section headers that scrolled away, search results in document order with no count and a
+box that resized as they changed, SEE jumps with no way back, and scope chips that looked
+disabled under ALL. `GlossaryModal` now has a section strip, sticky group headers, a fixed
+height, a ranked search view (name hits first) with a hit count and highlighted matches, a
+BACK button and stack, scope chips that pick your own tier under ALL, a legend for the
+your-tier dot, and touch-sized controls below 768px. Every entry opens with a one-line
+summary from `GLOSSARY_SUM`. TIME SYNC, HYBRID, EQUAL FORCE, LANDING, Mech Balance and
+Natural Balance titles follow one style, and Mech Balance, Natural Balance and the Balance
+Slider now link to each other.
+
+## Changed — PRO balance UX: MECH switch notice, reach warning, unlock, zoomed guide, labelled deltas and units
+
+- Switching ARB Balance Mode to MECH or CO-SOLVE (or BALANCE's new UNLOCK button) now prints
+  `balSwitchNote`: the target, mech balance before → after, and the Handling Balance before → after.
+  The 0.60 default (`MECH_BALANCE_TARGET`) is unchanged.
+- `mechReach` drives an orange `⚠ TARGET NOT REACHED` / `⚠ BARS AT THEIR LIMIT` box in BALANCE and
+  ANTI-ROLL BARS, and a `mechedge` output warning. A target met only with a bar pinned on its floor
+  or ceiling (a fresh build's 0.60 on the default car) used to show nothing but the row's FLOOR tag.
+- Read-only BALANCE shows a TARGET OFF panel with an UNLOCK button (Hz MODE MECH under MAN stiffness).
+- The Balance Guide strip zooms to its markers by default (`guideFull` toggles the full 0.05–0.95).
+- CURRENT/TARGET Δ reads "from NAT"; GEOMETRY GAP names both its ends (NAT → target, or → 0.50).
+- NATURAL shows `target = NAT + offset`, marked `default` while no offset is stored. The glossary
+  said a fresh build's NATURAL starts at 0 offset; the code aims at 0.60, so the text was fixed.
+- Headline labels its scale: NET … pts below PRO, MID … % in PRO; both hints say they differ.
+- Manual diff locks have sliders and a typical-range band; Diff Type and Diff Mode buttons are
+  full width and taller.
+
+## Changed — pinned UI gives the results their screen back
+
+The disclaimer was pinned under the results; it is now the last thing in the results scroll.
+The expanded Handling Balance panel grew the footer until the results kept about one row (PRO:
+none); it is now a drawer over the results, anchored on the footer's top edge, capped at 80%
+(phone 85%) of the results area (`outH`, measured live) and scrolling inside, with ✕ CLOSE at
+every width. Its RESPONSE rows ran 2 px wider than their scroll box, clipping the % column; the
+box gained 4 px side padding. VISUALS groups now open one at a time under a vh cap, replacing
+the measured `visCaps` cap that let the open card take about half the sidebar. On a phone the
+footer header shows the headline value and verdict (label shortened to BALANCE, PRO's FIT? /
+MECH chips wrap to a second line whenever the row is too narrow); before, the chips pushed the
+headline off a 375 px screen and clipped its verdict at 800 px with the sidebar open.
+Forza's output column is capped at `OUT_MAX_W` and centred, so on a wide monitor a value no
+longer sits ~1200 px from its label; BeamNG's two-column grid keeps the full width.
+
+## Fixed — BeamNG spring tag disagreed with the slider; output warnings overprinted figures
+
+From a visual review of BeamNG mode.
+
+- **2.50 Hz read FIRM in the output and RACE on the slider.** `springView` tagged each row from
+  `tune.fHz`/`rHz`, which BeamNG re-derives from the spring snapped to 500 N/m. 2.50 Hz
+  snapped to 2.497 Hz: printed as `2.50 Hz`, tagged FIRM. Horizon, which does not snap,
+  read RACE. The tag now reads the pre-snap Hz (`physics.frontHz`, `tune.rHzTarget`), the
+  same pair the RIDE REF. switch uses for the same reason; see [PHYSICS.md](PHYSICS.md).
+- **"⚠ UNDERDAMPED" painted over "0.40s settle" on the BeamNG suspension cards.** In
+  `OutRowBody` the note sat outside the box the figures wrap in, and could not wrap itself.
+  On the narrow two-column cards the figures overflowed under it. The note now sits in the
+  same box, pushed right with `marginLeft:auto`, so it drops onto its own line when there
+  is no room. Wide cards look as before. The spring tag wraps the same way.
+
+## Fixed — three code-review findings: preset game mode, track width, MECH Δ colours
+
+From a full review of `index.html` on 2026-09-18. A fourth finding, the BeamNG Ride Stiffness
+wheel stall, had already been fixed (see "the scroll wheel stalled on Ride Stiffness in
+BeamNG" below) but was still listed as open.
+
+- **Loading a factory preset switched the game to HORIZON.** `PRESET_SAVES` spread `DEF_FE`,
+  so every preset carried `gameMode:'horizon'`, and `loadPreset` wrote it over the user's
+  game. `loadPreset` now keeps the current `fe.gameMode`. Nothing else needs converting:
+  no preset uses ARB MAN or BASIC, the only fields whose units depend on the game
+  (`crossArbUnits`).
+- **Track widths above 2.2 m were cut on reload and in share codes.** The Track Width F/R
+  fields accept 1000–2600 mm, but `sanitizeTune` clamped `trackF`/`trackR` to 1.0–2.2 m.
+  The clamp is now 1.0–2.6 m, matching the fields. Ids 5/6 are raw numbers, so the codec is
+  unchanged; an older app reading a code with a track wider than 2.2 m still cuts it.
+- **The PRO footer's MECH Δ used the old colours.** Rear-biased read blue and front-biased
+  amber, the reverse of the Balance Guide's orange = oversteer side, blue = understeer side.
+  The delta and its hint now use the Balance Guide's colours.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,
