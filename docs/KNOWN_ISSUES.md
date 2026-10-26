@@ -1115,22 +1115,6 @@ Related but separate: writing entries straight into `suspos_garage_v2` bypasses
 expected — see [PERSISTENCE.md](PERSISTENCE.md) — and is a reason not to hand-edit
 the key, not a hole in rehydration.
 
-## Open — code review findings (2026-09-18)
-
-Found in a full review of `index.html`. Items marked *reproduced* were run against the
-real solver/codec in Node; the rest are from reading the code. None is fixed yet.
-
-- **Loading a factory preset forces HORIZON** *(reproduced)*. `PRESET_SAVES` spread `DEF_FE`,
-  so every preset carries `gameMode:'horizon'` and `loadPreset` writes it.
-- **BeamNG Ride Stiffness slider can stick** *(reproduced)*. INT/PRO and BEG sliders are bound
-  to the post-snap `tune.fHz`/`rHz`; when 0.01 Hz is under half a 500 N/m step, a wheel or
-  arrow step re-snaps to the same spring (2000 lb car stays at 1.2041 Hz).
-- **Footer MECH Δ colours contradict the Balance Guide.** The Balance Guide now uses orange for
-  oversteer / blue for understeer; the footer MECH delta and its hint still use blue for
-  rear-biased and amber for front-biased.
-- **Track width above 2.2 m is cut by the codec** *(reproduced)*. The fields and SLIDERS.md
-  allow 1000–2600 mm, but `sanitizeTune` clamps `trackF`/`trackR` to 1.0–2.2 m.
-
 ## Accepted — the update notice watches `#app-source` only
 
 `useDeployCheck` lights the GitHub button only when the live file's `#app-source`
