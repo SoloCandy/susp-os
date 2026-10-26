@@ -773,8 +773,8 @@ check('GLOSSARY_SUM has exactly one short summary per GLOSSARY id', () => {
 });
 
 // Tier of the reader each guide can reach. beginner / intermediate / pro run as the tutorial for
-// that uiMode. balance is the Handling Balance guide: openBalTut fires from the bar's ? GUIDE
-// button and on the bar's first expand, with no uiMode gate, so a BEG reader sees it. A new
+// that uiMode. balance is the Handling Balance guide: openBalTut fires from the expanded bar's
+// ? GUIDE button, with no uiMode gate, so a BEG reader sees it. A new
 // guide key fails here until someone decides its tier.
 const GUIDE_TIER = { beginner: 'beginner', intermediate: 'intermediate', pro: 'pro', balance: 'beginner' };
 
