@@ -911,7 +911,8 @@ check('every term / hintTerm / TermLink / glossaryBridge.open id outside GLOSSAR
     if (lits.length === 0) return problems.push(`${where}={${v.text}}: not a literal and not a known pass-through`);
     for (const l of lits) refs.push([where, l.raw.slice(1, -1)]);
   };
-  for (const m of SRC_REFS.matchAll(/(?<![\w-])(term|hintTerm)=/g)) take(m[1], valueAt(SRC_REFS, m.index + m[0].length));
+  // (?!>): `term=>` is an arrow function's parameter (the glossary's titleParts), not a prop.
+  for (const m of SRC_REFS.matchAll(/(?<![\w-])(term|hintTerm)=(?!>)/g)) take(m[1], valueAt(SRC_REFS, m.index + m[0].length));
   for (const m of SRC_REFS.matchAll(/(?<![\w-])term:/g)) take('term:', valueAt(SRC_REFS, m.index + m[0].length));
   for (const m of SRC_REFS.matchAll(/<TermLink\b([^>]*?)\/>/g)) {
     const at = m[1].search(/(?<![\w-])id=/);
@@ -946,7 +947,7 @@ const HINT_REFERENCES = [
   /^hints\[name\]\?\?''$/,   // HandlingVerdict rows: the const hints object is measured below
   /^hints\.\w+$/,            // PhaseVerdict rows: likewise
   /^HINT_[A-Z_]+$/,          // shared hint consts, measured below
-  /^[a-z]\w*Hint$/,          // suspHint / beamngAlignHint / destHint consts, measured below
+  /^[a-z]\w*Hint(\([\w$.]*\))?$/, // suspHint / beamngAlignHint / destHint consts, measured below; suspHint(softF) calls one with a flag
   /^null$/,                  // hint=null destructured defaults
 ];
 
