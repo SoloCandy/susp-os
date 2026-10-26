@@ -722,7 +722,7 @@ where `{wheels}` is one of:
 
 **MECH** readout (PRO):
 
-> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased.
+> Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: orange = more rear-biased (oversteer), blue = more front-biased (understeer).
 
 **Segment legend** — PRO, then BEG, then INT:
 
