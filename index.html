@@ -6253,8 +6253,9 @@ const sanitizeTune=({ch,fe,dr})=>{
       frontBias:    cl(ch?.frontBias,      30,   70,   DEF_CH.frontBias),
       wheelbase:    cl(ch?.wheelbase,      0.4,  4.0,  DEF_CH.wheelbase),
       cgHeight:     cl(ch?.cgHeight,       0.2,  1.5,  DEF_CH.cgHeight),
-      trackF:       cl(ch?.trackF,         1.0,  2.2,  DEF_CH.trackF),
-      trackR:       cl(ch?.trackR,         1.0,  2.2,  DEF_CH.trackR),
+      // Bounds mirror the Track Width F/R Field inputs (1000–2600 mm); 2.2 cut wider builds.
+      trackF:       cl(ch?.trackF,         1.0,  2.6,  DEF_CH.trackF),
+      trackR:       cl(ch?.trackR,         1.0,  2.6,  DEF_CH.trackR),
       // Bounds mirror the Ride Height F/R Field inputs' min/max (0.5in/48in imperial,
       // 1.3cm/122cm metric) — see docs/CODEC.md ids 65/66.
       rideHeightF:  cl(ch?.rideHeightF,    0.0127, 1.22, DEF_CH.rideHeightF),
@@ -8693,7 +8694,10 @@ function App(){
 
   const loadPreset=i=>{
     const s=PRESET_SAVES[i];if(!s)return;
-    let adjustedFe={...DEF_FE,...s.fe};
+    // Presets spread DEF_FE, so they carry gameMode:'horizon'. The game is the user's, not the
+    // preset's: keep the current one. No preset uses ARB MAN or BASIC, the only fe fields whose
+    // units depend on the game (crossArbUnits), so nothing else needs converting.
+    let adjustedFe={...DEF_FE,...s.fe,gameMode:fe.gameMode};
     // Hz is already weight-neutral (spring rate = Hz² × cornerMass), so no scaling needed.
     if(uiMode==='beginner'){
       // Match the Beginner Balance slider's own mechanism (WEIGHT ARB mode + rearHzMult
@@ -12526,9 +12530,9 @@ function App(){
                     <span>MECH {tune.mechBalance.toFixed(2)}
                     {(()=>{const _d=tune.mechBalance-natMechBalance;const _a=Math.abs(_d);
                       if(_a<0.01)return null;
-                      return <span style={{color:_d>0?'#60a5fa':'#f59e0b'}}>{(_d>=0?'+':'')+_d.toFixed(2)}</span>;
+                      return <span style={{color:_d>0?'#f97316':'#60a5fa'}}>{(_d>=0?'+':'')+_d.toFixed(2)}</span>;
                     })()}</span>
-                    <Hint text="Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: blue = more rear-biased, amber = more front-biased." term="mech-balance"/>
+                    <Hint text="Rear share of roll stiffness as Forza shows it (0.50 = even). The delta is from natural balance: orange = more rear-biased (oversteer), blue = more front-biased (understeer)." term="mech-balance"/>
                   </span></Hide>}
                   <span style={{fontSize:10,color:'#94a3b8'}}>
                     {(isPhone?footerOpen:open.balanceExpanded)?'▲':'▼'}

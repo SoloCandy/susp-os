@@ -11,6 +11,25 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — three code-review findings: preset game mode, track width, MECH Δ colours
+
+From a full review of `index.html` on 2026-09-18. A fourth finding, the BeamNG Ride Stiffness
+wheel stall, had already been fixed (see "the scroll wheel stalled on Ride Stiffness in
+BeamNG" below) but was still listed as open.
+
+- **Loading a factory preset switched the game to HORIZON.** `PRESET_SAVES` spread `DEF_FE`,
+  so every preset carried `gameMode:'horizon'`, and `loadPreset` wrote it over the user's
+  game. `loadPreset` now keeps the current `fe.gameMode`. Nothing else needs converting:
+  no preset uses ARB MAN or BASIC, the only fields whose units depend on the game
+  (`crossArbUnits`).
+- **Track widths above 2.2 m were cut on reload and in share codes.** The Track Width F/R
+  fields accept 1000–2600 mm, but `sanitizeTune` clamped `trackF`/`trackR` to 1.0–2.2 m.
+  The clamp is now 1.0–2.6 m, matching the fields. Ids 5/6 are raw numbers, so the codec is
+  unchanged; an older app reading a code with a track wider than 2.2 m still cuts it.
+- **The PRO footer's MECH Δ used the old colours.** Rear-biased read blue and front-biased
+  amber, the reverse of the Balance Guide's orange = oversteer side, blue = understeer side.
+  The delta and its hint now use the Balance Guide's colours.
+
 ## Changed — ALIGNMENT, BRAKES and DIFFERENTIAL output name their modes
 
 The three cards showed values with no sign of how they were reached: ALIGNMENT had no header,
