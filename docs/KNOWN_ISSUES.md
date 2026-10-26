@@ -454,7 +454,7 @@ the Balance Target controls need MECH, CO-SOLVE or Hz MECH, the track widths dis
 NAT BAL is measured, and Forza and BeamNG have different output cards. An absent spot is
 skipped, and with none left the step lights its whole zone as before spots, so the card never
 points at nothing. A step whose controls hang on a mode carries an `absent` note saying how to
-reach them, and the AWD Center Diff step is skipped off AWD (`skip`); a step without either
+reach them, and the AWD Centre Diff step is skipped off AWD (`skip`); a step without either
 can still describe a control the reader can't see until they switch mode. Spots that
 are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
 cards above and below the suspension cards. The card says so ("▼ 2 more highlighted
@@ -1022,7 +1022,7 @@ open question is only whether the balance should say the diff is out of lock ins
 
 ## Open — a SPORT diff's hidden centre split still weights the AWD DIFF balance
 
-A Sport diff has no centre lock: CENTER POWER SPLIT hides and the card's Center Split reads N/A.
+A Sport diff has no centre lock: CENTRE POWER SPLIT hides and the card's Centre Split reads N/A.
 `computeDiff` still clamps `dr.diffCenter` to 45–90 and uses it as `C`, the front/rear weighting
 of the AWD DIFF balance terms, so a split set before switching to SPORT keeps moving the DIFF row
 with no control on screen. What Forza actually splits a Sport AWD diff at is unknown here, so there

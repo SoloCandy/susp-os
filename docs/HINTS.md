@@ -207,12 +207,12 @@ Added while MATCH CHASSIS is on — in PRO, then in INT (the same INT sentence a
 
 ### MANUAL fields (PRO)
 
-Every lock field (not Center Split) shows the selected diff type's typical range on a
+Every lock field (not Centre Split) shows the selected diff type's typical range on a
 line of its own underneath (`RangeHint`); AWD Front Decel's always reads 0–0:
 
 > typical: {lo}–{hi}%
 
-AWD, **Front Accel / Front Decel / Rear Accel / Rear Decel / Center Split:**
+AWD, **Front Accel / Front Decel / Rear Accel / Rear Decel / Centre Split:**
 
 > Front lock under power. Higher = more front pull on exit, but more understeer.
 
@@ -626,7 +626,7 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 
 > Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.
 
-> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Center {rear %}% rear.
+> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Centre {rear %}% rear.
 
 **Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
 summary strip keeps the short `header`. By card:
@@ -650,12 +650,12 @@ summary strip keeps the short `header`. By card:
 `{n}% of axle roll`, and a non-Race diff's lock rows `acts like {n}% RACE` (BeamNG: `eff {n}%`).
 Lock tags are OFF, LOW, MEDIUM, HIGH and MAX.
 
-**RECOMMENDED / CENTER SPLIT** (INT+) — while the diff type or centre split differs from the
+**RECOMMENDED / CENTRE SPLIT** (INT+) — while the diff type or centre split differs from the
 recommendation, a box with the recommended value, the reason and → USE; once it matches, one line after a green ✓:
 
 > {TYPE} is the recommended diff for a {BUILD} build.
 
-> CENTER SPLIT {n}% rear is the recommended split for a {BUILD} build.
+> CENTRE SPLIT {n}% rear is the recommended split for a {BUILD} build.
 
 **Warning summary** — above the cards, whenever any card carries a warning: a count, then one
 line per warning naming its card, clicking through to it. Titles by warning: Roll target not
@@ -696,7 +696,7 @@ sentence:
 
 > Starting point; fine-tune in 1% steps. Keep rear decel low for rotation; more rear accel lock adds exit rotation.
 
-**CENTER SPLIT** (AWD):
+**CENTRE SPLIT** (AWD):
 
 > Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.
 

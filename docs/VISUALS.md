@@ -48,6 +48,28 @@ local `COL_F`/`COL_R`); DYNAMICS uses a lighter sky blue, `#38bdf8`, for the fro
 trace. Grey `#94a3b8` means the chassis's **natural** balance and green `#4ade80` the
 **Balance Target**, in every group that shows either. Amber `#f59e0b` is a warning.
 
+These and the app's other meaning-colours are named once, under the `── colour meanings ──`
+banner in `index.html`, and used everywhere rather than retyped:
+
+| Constant | Colour | Means |
+|---|---|---|
+| `C_OS` | orange `#f97316` | oversteer, a + balance figure (the MECH Δ colour) |
+| `C_US` | blue `#60a5fa` | understeer, a − balance figure |
+| `C_WARN` | amber `#f59e0b` | a warning: near or past a limit, clamped, drifted |
+| `C_ERR` | light red `#f87171` | an error or hard failure (bottomed out, bad input) |
+| `C_GOOD` | green `#4ade80` | in range, matched, target met |
+| `C_TAG` | grey `#94a3b8` | a neutral category tag (ROAD, MED…) |
+| `CAT_RAMP` | greys `#64748b` → `#e2e8f0` | an ordered scale with no good/bad meaning: soft → stiff, low → high |
+| `T_MUTED` / `T_FAINT` | `#7c8aa0` / `#64748b` | secondary text (hints, units, sub-headers) / the dimmest text allowed |
+
+Red is no longer a balance colour, so a large oversteer number doesn't read as a fault.
+Character axes that are neither balance nor good/bad — RESPONSE, the Balance Guide's
+stability label, spring and damper categories, diff lock amount — use `C_TAG` and
+`CAT_RAMP`. Front blue (`VIS_COL_F`) is the same hex as `C_US` but means *front axle*; the
+two never share a chart element. No text anywhere is smaller than 10 px on screen: SVG
+labels are sized in viewBox units so they reach 10 px at the narrowest sidebar (about
+1:1 on a 375 px phone).
+
 ## DNA MATCH
 
 A table, not a chart. Shown only while a Vehicle DNA is linked to the current tune;
@@ -98,7 +120,8 @@ One horizontal bar, front on the left and rear on the right.
   least 0.005 so the two don't sit on top of each other. It is not tier-gated, so INT,
   which has no control that sets a target, sees the untouched default (0.60) here — see
   [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
-- **Footer**, left to right:
+- **Footer**, two lines so each label fits at 10 px. The first line has `roll` on the
+  left and `spr … arb` on the right; the second has `nat … tgt …` centred.
   - `roll X.XX°`: body roll at 1 g (`tune.rollDeg`, two decimals), amber when `tune.rollClamped`. In
     ROLL ARB mode it adds `/ rollTarget`.
   - `nat … tgt …`: the two tick values printed. `tgt` is omitted when its tick is.
@@ -112,13 +135,13 @@ than targeted (toward understeer); to the left, toward oversteer.
 
 Each track has two rows, F then R, on one shared scale. The zone bands are drawn at
 opacity 0.28, and a band's label is printed under the track when the band is at
-least 24 units wide. The filled dot is the value; the printed number at the right
+wide enough for the label (six units a character, plus four). The filled dot is the value; the printed number at the right
 edge is the same value in the unit the output card uses.
 
 | Track | Scale | Bands | Header summary |
 |---|---|---|---|
-| RIDE Hz | `HZ_MIN`–`HZ_MAX` | SOFT / ROAD / FIRM / RACE, from `HZ_BANDS` and `HZ_BAND_COLS`, the same edges as the Ride Stiffness readout | `R/F ×ratio`, amber when `physics.rearHzClamped` |
-| ARB | 0 to the game's click ceiling (`lim.arb`) | 50%, 75% and 90% of the ceiling | `of {ceiling}`, amber when either bar is past 88% |
+| RIDE Hz | `HZ_MIN`–`HZ_MAX` | SOFT / ROAD / FIRM / RACE, from `HZ_BANDS` and `HZ_BAND_COLS` (`CAT_RAMP`, darkest grey to lightest), the same edges as the Ride Stiffness readout | `R/F ×ratio`, amber when `physics.rearHzClamped` |
+| ARB | 0 to the game's click ceiling (`lim.arb`) | 50%, 75% and 90% of the ceiling: grey, lighter grey, then amber for the last 10% | `of {ceiling}`, amber when either bar is past 88% |
 | DAMPING ζ | 10–200 %, the Rebound ζ slider's range | see below | `B/R f% · r%`, amber when bump crosses above rebound |
 
 **RIDE Hz.** `tune.fHz` / `tune.rHz`. The rear dot goes amber with the summary when
@@ -141,10 +164,14 @@ The zones are the Rebound ζ and Bump ζ sliders' marker thresholds, 40, 70 and 
 
 | Zone | Range | Label | Colour |
 |---|---|---|---|
-| under-damped, bouncy | 10–40 | UNDER | blue |
-| approaching Butterworth | 40–70 | →BW | green |
-| at or past Butterworth | 70–100 | BWORTH+ | amber |
-| overdamped, sluggish | 100–200 | OVER | red |
+| under-damped, bouncy | 10–40 | UNDER | `CAT_RAMP[0]` |
+| approaching Butterworth | 40–70 | →BW | `CAT_RAMP[1]` |
+| at or past Butterworth | 70–100 | BWORTH+ | `CAT_RAMP[2]` |
+| overdamped, sluggish | 100–200 | OVER | `CAT_RAMP[3]` |
+
+A grey ramp, light for more damping: none of these zones is an error, and the old
+blue/green/amber/red read as understeer, good, warning and danger. BWORTH+'s band is
+too narrow for its label at the 10-unit size, so only UNDER, →BW and OVER print.
 
 `tests-docs.js` fails if either slider's markers, or the Rebound slider's range, stop
 matching these. Change them together.
@@ -257,7 +284,7 @@ when an inside wheel lifts.
 
 | Part | Meaning |
 |---|---|
-| FRONT TAKES · WEIGHT | the front axle's share of the total transfer beside the weight split; blue when the front takes more than its weight share (leans understeer), red when less, white within 1 point |
+| FRONT TAKES · WEIGHT | the front axle's share of the total transfer beside the weight split; `C_US` blue when the front takes more than its weight share (leans understeer), `C_OS` orange when less, white within 1 point |
 | top-down sketch | the four wheels in a left turn, load moving to the right-hand (outer) side; front blue, rear orange, each shaded by its share of the heaviest wheel; a lifted wheel is an amber dashed outline reading LIFT |
 | CORNER | static corner mass |
 | XFER | each axle's transfer per g, then split into SPR+ARB (through the springs and bars: the part the tune moves) and GEOMETRY (through the roll centre: fixed) |
