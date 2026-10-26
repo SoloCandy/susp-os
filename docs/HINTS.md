@@ -26,7 +26,9 @@ math before.
   quoted here.
 - **What's not.** Warnings and status messages the app raises about a tune (an
   unreachable target, a clamp, a game limit) are output, not guidance. The TERMS
-  glossary itself lives in `GLOSSARY` and has its own modal. Tutorial text is in
+  glossary itself lives in `GLOSSARY` and has its own modal; each entry's one-line
+  summary is in `GLOSSARY_SUM` beside it (see [CODE_MAP.md](CODE_MAP.md#glossary-and-hints)).
+  Tutorial text is in
   [TUTORIALS.md](TUTORIALS.md#step-text).
 - **Format.** Each entry names the control, then gives its text as a `>` quote. Only
   UI text goes in quotes. `{…}` stands for a value filled in live. A hint that
