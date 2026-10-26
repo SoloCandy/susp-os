@@ -93,7 +93,10 @@ own slider moves in (500 / 100 / 1000). A few things are specific to BEAMNG
 mode: BASIC ARB stiffness is Forza-only and hidden there; the anti-roll
 number is BeamNG's least-validated output; and PRO gains **Motion Ratio F / R** and **ARB Motion Ratio F / R**
 inputs, since BeamNG's sliders act at the spring/damper and at the bar's own
-lever rather than at the wheel. Full detail — the unit table, all behavioural differences from
+lever rather than at the wheel. Until the ARB ratio is set, each Anti-Roll row also prints a
+`≈` rate at a typical 0.45 arm ratio, in every tier. The output follows BeamNG's own menu
+grouping in two columns (front left, rear right), the sidebar names the mode, and the UNITS
+dialog disables the spring-rate choice there, since BeamNG always uses N/m. Full detail — the unit table, all behavioural differences from
 Forza, and why no new calibration constant was needed — is in PHYSICS.md's
 [**Physical-unit output**](docs/PHYSICS.md#physical-unit-output-beamng-game-mode)
 section.

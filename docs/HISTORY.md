@@ -11,6 +11,36 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — BeamNG output: grid holes, floor-ARB text, soft-ARB figure, units dialog
+
+A visual review of BEAMNG mode found:
+
+- **Grid holes.** RWD and FWD have one diff, but the 2-column grid kept a `<div/>` placeholder for
+  the missing card, so Brakes sat alone on one row and the diff dropped into the next with blank
+  space beside both. The grid now puts the single diff beside Brakes (FWD's left, RWD's right) and
+  has no placeholders. Front/rear rows also drifted apart whenever one side's meta wrapped;
+  `BeamngGrid` now holds each `Pair` section level with its partner.
+- **ARB at the floor.** ROLL ° at BeamNG's floor printed 0 N/m on both axles while the warning said
+  the bars were "split to hold the balance" and the ARB Bias readout showed F 52% / R 48%. With
+  both bars at 0 the warning now says so, and the readout says NO BARS.
+- **Soft ARB.** The note told BEG/INT users to "treat it as a direction", which they could not fix,
+  since ARB Motion Ratio is PRO only. It was also shown on both cards, shown at 0 N/m, and dropped
+  from both cards as soon as either axle's ratio moved off 1.0, although the other still read at
+  1.0. Each soft axle's row now adds a `≈` rate at `ARB_MR_TYPICAL` (0.45), and one note under
+  both cards names the soft axle(s). The default was deliberately not changed to 0.45:
+  `encodeTune` omits ids 68/69 at the default, so every share code written at 1.0 would have
+  decoded at 0.45, while saved tunes (which store 1.0) would not have moved.
+- **Mode strip.** It wrapped mid-phrase and showed in BEG. Each item is now one unbreakable unit
+  with its subsystem named (DAMPERS gained a label), and BEG shows only the warnings.
+- **Diff cards** gained the Forza card's ⓘ, the `diffView` header (mode and type) and the
+  RECOMMENDED type box, now the shared `DiffTypeRec`, since the type scales BeamNG's locks too.
+- **Front Suspension ⓘ** covered the Anti-Roll row it explains; it now opens upward (`Hint`'s
+  `above`) when there is room.
+- **No sign of the mode** in the sidebar: a BEAMNG line now heads it.
+- **UNITS dialog**: the spring-rate buttons stay selectable in BeamNG, where they do nothing, and
+  Esc did not close the dialog. The buttons are now disabled there, Esc closes it, and ALL METRIC is
+  pointed out while inputs are still imperial.
+
 ## Changed — guides no longer chain, and their cards stay on screen
 
 Closing the BEG or INT guide opened the COMPLEXITY LEVEL popup at once. Its tier preview always

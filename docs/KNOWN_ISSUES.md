@@ -780,8 +780,11 @@ so Hz, roll stiffness, mech balance and the handling-balance figures do not move
 when it is set. At 0.45 on the default chassis the front bar prints 49,000 N/m
 instead of 10,000 — a 4.9× correction, inside the 4–6× the sampled vehicle showed.
 
-The amber caveat under the ARB rows now appears **only while both ratios are 1.0**,
-and points at the input instead of telling the user to scale the number by hand.
+While an axle's ratio is 1.0 its Anti-Roll row also prints a `≈` figure, the rate at
+`ARB_MR_TYPICAL` (0.45), so BEG and INT, which cannot set the ratio, see a usable number.
+That is a display figure and not a new default: changing `DEF_CH` would have moved every
+share code that omits ids 68/69 (omitted because they sat at 1.0) while leaving every saved
+tune, which stores 1.0 explicitly, unchanged.
 
 **No fudge factor has been applied** — inventing a multiplier to close the gap is
 exactly what the physical-unit approach exists to avoid, and one sampled vehicle is
@@ -790,10 +793,10 @@ unscaled number and lets a user who knows their geometry supply the arm ratio. A
 second and third vehicle would confirm the arm-ratio range and settle the
 coefficient question (`K = k·arm²` vs `2·k·arm²`), which the input does not decide.
 
-**The in-app caveat now names the input.** The amber note under each suspension
-card's Anti-Roll row states the lever-arm assumption, names ARB Motion Ratio and
-suggests a typical 0.4–0.5, and disappears once either ratio is moved off 1.0. The
-card's hint points to it ("Anti-Roll reads soft — see the note under that row").
+**The in-app caveat is per axle and written once.** One amber note under both
+suspension cards states the lever-arm assumption and explains the `≈` figure, naming the
+axle when only one still reads soft; in PRO it names the ARB Motion Ratio field to set. It
+is absent when no axle reads soft: a ratio moved off 1.0, or a bar at 0 N/m.
 
 ---
 
@@ -1003,8 +1006,8 @@ and nothing here says what that value is. It is the same gap as the Sport centre
 Sport's N/A rows apply in every mode, the BeamNG DIFFERENTIAL output included. Forza Motorsport's
 tuning needs a single adjustable, race-level diff, and no Rally, Off-Road or Drift diff was found
 there. BeamNG's diffs are a different set (open, LSD, locked, viscous) and map onto none of these.
-The `diff-type` glossary entry already says BeamNG has no diff-type recommendation; the picker and
-the scaling still apply there.
+Since the picker and the scaling apply there, the BeamNG diff cards name the type in their header
+and show the same RECOMMENDED box as Forza; the mapping question above is still open.
 
 ## Open — AUTO diff locks saturate at 100% on an Offroad diff
 
