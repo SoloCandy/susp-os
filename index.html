@@ -3177,12 +3177,10 @@ const mergeDefaults=(initial,parsed)=>
 // `repair`, when given, runs ONCE on the rehydrated value before the first render. mergeDefaults
 // fills MISSING keys but never validates the ones that are present, so a persisted enum holding a
 // nonsense value beats its DEF_* and wins every reload. Repairing here rather than in a mount
-// effect is deliberate: `set` below closes over the render-time value, so two effects writing the
-// same key in one tick clobber each other (see the NOTE), and an effect-based repair lost that
-// race to the ARB ceiling effect, which also runs on mount and also writes fe. This happens before
-// any render, so nothing can race it. It does not rewrite localStorage — the stored value stays
-// bad until the next ordinary write to the key, which is harmless because the repair is
-// idempotent and runs on every load.
+// effect is deliberate: an effect runs after the first render, so the bad value would reach it.
+// This happens before any render, so nothing can race it. It does not rewrite localStorage — the
+// stored value stays bad until the next ordinary write to the key, which is harmless because the
+// repair is idempotent and runs on every load.
 const usePersist=(key,initial,repair)=>{
   const[val,setVal]=useState(()=>{
     try{const s=localStorage.getItem(key);
@@ -3190,12 +3188,17 @@ const usePersist=(key,initial,repair)=>{
       return repair?repair(v):v;}
     catch(e){return initial;} // private browsing or parse error — use defaults
   });
-  // NOTE: `set` closes over the render-time `val`, so two set() calls on the SAME key
-  // within one tick clobber each other (the second computes from the stale value).
-  // Callers that need to combine multiple sources must build the full next value first
-  // and issue exactly ONE set() — see the GARAGE migration and the restore handler.
+  // `latest` is the last value set, committed or not. A function update applies to it rather than
+  // to the render-time `val`, so two set() calls on the same key in one tick compose instead of
+  // the second overwriting the first. They used to clobber: on a BEG/INT load the weight
+  // auto-scale effect's ch write wiped the RIDE HEIGHT → CG sync's, so CG height depended on
+  // which tier the page loaded in (docs/HISTORY.md). The update still runs here, synchronously,
+  // and localStorage is still written before set() returns — the GARAGE migration reads it back
+  // in the same mount pass.
+  const latest=useRef(val);
   const set=v=>{
-    const next=typeof v==='function'?v(val):v;
+    const next=typeof v==='function'?v(latest.current):v;
+    latest.current=next;
     setVal(next);
     try{localStorage.setItem(key,JSON.stringify(next));}catch{}
   };
@@ -8030,8 +8033,8 @@ function App(){
   const recordChange=()=>recordChangeRef.current();
   // PERSIST: inside a commit (a load, DNA, a code, RESET), a write keeps the held keys at their
   // pre-commit values. Applied here, per write, rather than as a second update after the load:
-  // usePersist's setter computes a function update from the render-time value, so a later
-  // update in the same commit would not see the load at all. heldRef and keptRef are set below.
+  // the write is compared with the pre-commit snapshot, which a second update could no longer
+  // tell apart from the load. heldRef and keptRef are set below.
   const heldRef=useRef(null),keptRef=useRef(new Set());
   const holdWrite=(state,v)=>{
     const keys=inCommitRef.current?heldRef.current?.[state]:null;
@@ -8145,7 +8148,8 @@ function App(){
         const sig=e=>JSON.stringify([e.name,e.ch??null,e.fe??null,e.dr??null]);
         const seen=new Set(entries.map(sig));
         const fresh=migrated.filter(e=>!seen.has(sig(e)));
-        // exactly ONE set call — see the usePersist note; combining two would clobber
+        // exactly ONE set call, a value built from the render-time `entries`; a second value
+        // set would replace this one rather than add to it
         if(fresh.length)setEntries([...fresh,...entries]);
       }
       localStorage.setItem('suspos_garage_unified_v2','1');
@@ -8537,9 +8541,9 @@ function App(){
     }));
   },[ch.weight,uiMode,restoreTick]); // eslint-disable-line
   // BEG/INT: fall back to simple modes if switching down from PRO; BEG also locks to its simple
-  // modes. ONE effect and ONE write per store, deliberately: usePersist's set() computes an updater
-  // from the render-time value, so two same-tick setFeRaw calls clobber each other. The BEG lock
-  // used to be its own effect, and this one's write (from the stale value) erased it every time.
+  // modes. ONE effect and ONE write per store. The BEG lock used to be its own effect, and back
+  // when usePersist's set() applied updaters to the render-time value this one's write erased it
+  // every time; same-tick updaters compose now, but one write keeps the lock and fallback atomic.
   // Written during render (below, once physics exists) so the fallback can seed rearHzMult without
   // reaching forward to a const declared after it.
   const hzRatioRef=useRef(1.20);
@@ -9487,8 +9491,7 @@ function App(){
     });
   };
   // ── GARAGE actions ────────────────────────────────────────────────────────
-  // Every mutation is a single setEntries call that stamps updatedAt (usePersist's setter
-  // closes over the render-time value, so two calls in one tick would clobber).
+  // Every mutation is a single setEntries call that stamps updatedAt.
   const mutEntry=(id,fn)=>setEntries(list=>list.map(e=>e.id===id?{...fn(e),updatedAt:Date.now()}:e));
   const garageSave=which=>{
     const now=Date.now();
@@ -13354,7 +13357,7 @@ function App(){
                           // replaced one whole list and left the other alone; with a single list
                           // a naive setEntries(fromFile) would silently delete the unselected
                           // kinds. Same spirit, now that "list" means "kind".
-                          // One set call — usePersist's setter closes over the render-time value.
+                          // One set call, built from the render-time `entries`.
                           // Dedup incoming ids against what's being kept — same bump-on-collision
                           // approach unifyLegacy uses for legacy imports, but here against the
                           // live garage rather than a second legacy list. v2 entries carry explicit

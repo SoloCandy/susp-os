@@ -11,6 +11,28 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — CG height depended on the tier the page loaded in
+
+With RIDE HEIGHT → CG on (the default), a page loaded in BEG or INT kept CG height at
+`DEF_CH`'s 450 mm. The ride-height estimate for the default chassis is 447 mm. One load in PRO
+synced it, and from then on the stored 447 mm carried into every tier. The same build read
+1.96° roll and ARB 9.9 / 9.5 on a fresh visit but 1.95° and 9.8 / 9.4 after a PRO visit, and the
+two would share as different codes.
+
+The cause was `usePersist`'s setter, which applied a function update to the render-time value.
+On mount, two effects update `ch` in the same pass: the RIDE HEIGHT → CG sync and the BEG/INT
+weight auto-scale of wheelbase and track. The auto-scale's update started from the pre-sync `ch`
+and wrote the old CG back. The sync didn't run again, because the `cgHeight` in its dependencies
+ended up where it started. PRO skips the auto-scale, which is why loading there worked.
+
+The setter now keeps the last value set in a ref and applies function updates to that, so
+same-tick updates on one key compose. It still writes localStorage before returning, which the
+garage migration's same-pass read depends on. Every earlier workaround for the old behaviour
+(one write per store in the tier fallback, `repair` instead of a mount effect, per-write
+`holdWrite`) still works and is still there. Existing saves that were only ever loaded in
+BEG/INT move from 450 mm to the estimate on their next load. That is the sync doing what it
+always claimed to do. `tests-history.js` now runs the shipped hook.
+
 ## Changed — one colour per meaning, 10 px text floor, brighter secondary text
 
 A visual review found colours meaning different things in different places. Balance used red for

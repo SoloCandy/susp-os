@@ -407,10 +407,10 @@ Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
 - **The tier fallback** is one effect with one write per store: `fe` (BEG's simple-mode lock, then
   ARB Balance Mode MECH / CO-SOLVE / CHASSIS → WEIGHT and Hz MODE MECH → MULTIPLIER), `dr`
   (`diffManual` and `diffComplement` off) and `al` (Alignment Mode back to AUTO, Nudge OFF; the
-  MANUAL angles and Nudge Strength stay stored). **Keep it one write per store.** `usePersist`'s
-  `set` applies an updater to the render-time value, so a second same-tick `setFeRaw` starts from
-  the stale value and erases the first. The BEG lock was once a separate effect and was erased
-  that way on every switch to BEG.
+  MANUAL angles and Nudge Strength stay stored). **Keep it one write per store**, so the lock and
+  the fallback land together. The BEG lock was once a separate effect, and back when `usePersist`'s
+  `set` applied updaters to the render-time value it was erased on every switch to BEG. Same-tick
+  updaters compose now (see [PERSISTENCE.md](PERSISTENCE.md)).
 
 Nothing is restored on returning to PRO. A PRO-only setting that arrives *below* PRO by a share
 code or garage load (neither changes `uiMode`) stays until the next tier change, so the loaded
@@ -524,8 +524,8 @@ The hold is applied in the recording setters (`setCh` / `setFe` / `setDr` / `set
 `holdWrite`). While `inCommitRef` is set, a write keeps each held key at its pre-commit value
 (`snapRef.current`) and records it in `keptRef`. `commit` then sets `persistNote` (the sidebar's
 "PERSIST kept n…" line), or clears it. It is applied per write, not as a second update after the
-load, because `usePersist`'s setter evaluates a function update against the render-time value:
-a later update in the same commit would never see the load.
+load, because each write is compared with the pre-commit snapshot: a second update could not tell
+the load's changes from the held keys'.
 
 What it does not cover, on purpose:
 - a section's own ↺ RESET (an explicit request for that section, not a `commit`);
@@ -882,7 +882,10 @@ of "return the value unchanged" asserts nothing. If its `slice()` markers stop
 matching after a reorganisation, fix the markers; don't delete the suite.
 
 **`tests-history.js` reads `index.html` too** and tests the shipped `makeHistory`:
-commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap.
+commit/undo/redo round trips, burst coalescing, no-op steps, labels and the cap. It also
+runs the shipped `usePersist` against a stand-in for React's hooks: same-tick function
+updates compose, localStorage is written before `set` returns, and rehydration merges and
+repairs.
 
 **`tests-ride.js` reads `index.html` the same way** and drives the real `feelToPhysics`
 and `computeTune` through every Hz mode and Ride Reference: the CO-SOLVE REAR/SHARED
@@ -961,7 +964,7 @@ non-trivial edit:
    or `sanitizeTune`. Reads `index.html`; the picker UI itself still needs the browser.
 10. `node tests/tests-garage.js` after touching `autoTagsOf`, or how `brakeBias` treats
    `brakeCentre` / `brakeBiasShift` by tier. Keep the two in step.
-11. `node tests/tests-history.js` after touching `makeHistory`. It covers the stacks only;
+11. `node tests/tests-history.js` after touching `makeHistory` or `usePersist`. It covers the stacks only;
    the wiring (which setters record, when bursts end, the restore guards) needs
    the browser: drag a slider, load a preset, APPLY a DNA, then undo and redo
    through all three, and cross a game mode with MAN ARBs.
