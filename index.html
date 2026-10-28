@@ -4912,7 +4912,9 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
          style={{...(accent?{borderColor:'#e2e8f011'}:{}),...(editing&&off?{outline:'1px dashed #475569',outlineOffset:1}:{})}}>
       <div className="ch" style={{...(accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}),
                                   ...(editing?{position:'relative'}:{}),...(editing&&off?{opacity:0.35}:{})}}>
-        <span style={accent?{color:'#9ca3af'}:{}}>{title}</span>
+        {/* The title never shrinks or wraps: on a phone a long worded header squeezed it to
+            "ANTI-ROLL / BARS". The header gives way instead. */}
+        <span style={{flexShrink:0,whiteSpace:'nowrap',...(accent?{color:'#9ca3af'}:{})}}>{title}</span>
         {hint&&<Hint text={hint} term={hintTerm} above={hintAbove}/>}
         {/* minWidth 0 + right-aligned: a long worded header wraps under itself instead of
             pushing past the card edge on a phone. */}
@@ -4973,7 +4975,7 @@ const DiffTypeRec=({cur,rec,buildType,onUse,style})=>{
   return(
     <div style={style}>
       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:match?0:4}}>
-        <span style={{fontSize:10,color:T_FAINT,letterSpacing:1}}>RECOMMENDED</span>
+        <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>RECOMMENDED</span>
         <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
           color:match?'#22c55e':'#f59e0b',marginLeft:'auto'}}>
           {label.toUpperCase()}
@@ -4983,7 +4985,9 @@ const DiffTypeRec=({cur,rec,buildType,onUse,style})=>{
           → USE {rec.toUpperCase()}
         </button>}
       </div>
-      <div style={{fontSize:10,color:match?'#334155':'#475569',lineHeight:1.5}}>
+      {/* T_MUTED either way: the green value already says it matches, and the dimmer greys this
+          used (#334155 / #475569, 1.7:1 and 2.4:1 on the box) were close to unreadable. */}
+      <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
         {buildLabel} build → {label}: {DIFF_REC_REASON[rec]}.
       </div>
     </div>
@@ -12864,7 +12868,7 @@ function App(){
             // drivetrain: the single diff on FWD/RWD, CENTER SPLIT on AWD.
             const recBox={padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'};
             const diffRec=uiMode!=='beginner'&&<Hide id="out.diff.rec"><DiffTypeRec cur={dr.diffType??'race'} rec={recommendedDiffType}
-              buildType={dr.buildType} onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...recBox,marginTop:isAWD?0:6,marginBottom:isAWD?5:0}}/></Hide>;
+              buildType={dr.buildType} onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...recBox,marginTop:isAWD?0:6,marginBottom:isAWD&&!isSport?5:0}}/></Hide>;
             const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL" headerRight={diffView.header} hintTerm="diff-output"
               hint={isAWD?'Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; more front accel lock pulls the nose out of the corner.'
                 :'Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.'}
@@ -12890,7 +12894,9 @@ function App(){
                     {lock('Base Torque Split',diff.center,'% rear','out.diff.center')}
                   </RowGroup>
                   {diffRec}
-                  {uiMode!=='beginner'&&<Hide id="out.diff.recCenter"><div style={recBox}>
+                  {/* No split to recommend on SPORT: Base Torque Split reads N/A above. Forza's
+                      DIFFERENTIAL card drops its CENTRE SPLIT box the same way (showSplit). */}
+                  {uiMode!=='beginner'&&!isSport&&<Hide id="out.diff.recCenter"><div style={recBox}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
                       <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>RECOMMENDED</span>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
@@ -12902,9 +12908,9 @@ function App(){
                         → USE {recommendedCenter}%
                       </button>}
                     </div>
-                    <div style={{fontSize:10,color:centerMatch?T_FAINT:T_MUTED,lineHeight:1.5}}>
+                    <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
                       {buildLabel} build → {recommendedCenter}% rear: {centerReasons[dr.buildType??'track']}.
-                      {uiMode==='pro'&&(_weightAdj!==0||_diamAdj!==0||_natAdj!==0)&&<div style={{fontSize:10,color:centerMatch?'#1e293b':T_FAINT,marginTop:2}}>
+                      {uiMode==='pro'&&(_weightAdj!==0||_diamAdj!==0||_natAdj!==0)&&<div style={{fontSize:10,color:T_FAINT,marginTop:2}}>
                         base {_baseCenter}%{_weightAdj!==0?` · weight ${_weightAdj>0?'+':''}${_weightAdj}%`:''}{_diamAdj!==0?` · tyres ${_diamAdj>0?'+':''}${_diamAdj}%`:''}{_natAdj!==0?` · balance ${_natAdj>0?'+':''}${_natAdj}%`:''}
                       </div>}
                     </div>

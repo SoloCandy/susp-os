@@ -651,7 +651,8 @@ summary strip keeps the short `header`. By card:
 Lock tags are OFF, LOW, MEDIUM, HIGH and MAX.
 
 **RECOMMENDED / CENTRE SPLIT** (INT+) — while the diff type or centre split differs from the
-recommendation, a box with the recommended value, the reason and → USE; once it matches, one line after a green ✓:
+recommendation, a box with the recommended value, the reason and → USE; once it matches, one line after a green ✓.
+There is no CENTRE SPLIT box on a Sport diff, which has no centre lock:
 
 > {TYPE} is the recommended diff for a {BUILD} build.
 
@@ -699,6 +700,9 @@ sentence:
 **CENTRE SPLIT** (AWD):
 
 > Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.
+
+Under it (INT+) sit the RECOMMENDED diff-type box and the RECOMMENDED split box. On a Sport
+diff Base Torque Split reads N/A and the split box is left out, as on the Forza card.
 
 **FRONT / REAR ALIGNMENT** — the Forza ALIGNMENT text above (as `{forza text}`), then:
 

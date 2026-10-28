@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — BeamNG recommended a centre split on a Sport diff; faint recommendation text; wrapped card titles
+
+On an AWD car with a Sport diff, BeamNG's CENTRE SPLIT card read "Base Torque Split: N/A" and
+then recommended 65% rear with a → USE button for that same N/A value. The Forza card already
+dropped the box on Sport (`showSplit`); the BeamNG card had no such check and now has one.
+
+`DiffTypeRec`'s reason line was `#334155` once the diff matched (1.7:1 on its box) and `#475569`
+otherwise (2.4:1), close to unreadable in both layouts. The line and its RECOMMENDED label now use
+`T_MUTED`, like BeamNG's centre-split box, whose own matched-state text was also dimmed
+(to `T_FAINT`, and its PRO breakdown line to `#1e293b`, 1.1:1). The green or amber value
+already shows whether the setting matches, so the text no longer needs to fade.
+
+On a phone the worded output headers squeezed `Card`'s title, so ANTI-ROLL BARS wrapped
+onto two lines. The title no longer shrinks or wraps; the header wraps under itself instead.
+
 ## Fixed — CG height depended on the tier the page loaded in
 
 With RIDE HEIGHT → CG on (the default), a page loaded in BEG or INT kept CG height at
