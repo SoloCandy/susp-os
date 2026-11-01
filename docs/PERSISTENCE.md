@@ -28,11 +28,15 @@ still writes localStorage before it returns, which the garage migration relies o
 it reads the key back in the same mount pass. A *value* set replaces whatever came
 before it, as with plain `useState`. `tests-history.js` runs the shipped hook.
 
-`usePersist`'s setter applies an updater to the latest value (a ref), not the
-render-time one, so two same-tick `set(p=>…)` calls on one key compose. A plain value
-still replaces whatever is there, so a caller building one from its own render-time
-copy (the GARAGE migration, restore) must still issue exactly one `set`. The write to
-localStorage happens synchronously inside `set`.
+**A write refused for quota is reported, not swallowed.** The whole origin shares one
+allowance (about 5 MB in most browsers; a full build-with-DNA garage entry is about
+2,000 characters), and every `set` rewrites its key whole — the garage list included.
+A refused write used to leave state updated and storage stale, so the entry looked
+saved and was gone after a reload. `set` now passes a quota error (`isQuotaError`) to
+`noteStorageWrite`, which adds the key to `storageFull.keys`; the next write to that key
+that fits removes it. While the set is non-empty the App shows the storage-full banner
+(`useStorageFull`). Other errors — storage disabled, private browsing — stay silent.
+Writes outside `usePersist` (the migration sentinels) are not tracked.
 
 | Key | Holds | Default |
 |---|---|---|

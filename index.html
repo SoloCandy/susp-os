@@ -3177,6 +3177,25 @@ const mergeDefaults=(initial,parsed)=>
   (initial&&typeof initial==='object'&&!Array.isArray(initial)
     &&parsed&&typeof parsed==='object'&&!Array.isArray(parsed))
     ?{...initial,...parsed}:parsed;
+// Storage-full tracking. A write the browser refuses for quota used to vanish in `set`'s catch:
+// the state updated, the screen looked saved, and a reload brought back the last list that fit.
+// `keys` holds every key whose latest write was refused for quota (a later write that fits
+// clears it); `gen` counts refusals, so the App banner can be dismissed until the next one.
+// Other errors (storage disabled, private browsing) stay silent, as before.
+const storageFull={keys:new Set(),gen:0,subs:new Set()};
+const isQuotaError=e=>!!e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED'
+  ||e.code===22||e.code===1014);
+const noteStorageWrite=(key,err)=>{
+  const quota=isQuotaError(err);
+  if(!quota&&!storageFull.keys.has(key))return;
+  if(quota){storageFull.keys.add(key);storageFull.gen++;}else storageFull.keys.delete(key);
+  storageFull.subs.forEach(f=>f());
+};
+const useStorageFull=()=>{
+  const[,bump]=useReducer(x=>x+1,0);
+  useEffect(()=>{storageFull.subs.add(bump);return()=>{storageFull.subs.delete(bump);};},[]);
+  return{full:storageFull.keys.size>0,gen:storageFull.gen,keys:[...storageFull.keys]};
+};
 // `repair`, when given, runs ONCE on the rehydrated value before the first render. mergeDefaults
 // fills MISSING keys but never validates the ones that are present, so a persisted enum holding a
 // nonsense value beats its DEF_* and wins every reload. Repairing here rather than in a mount
@@ -3203,7 +3222,9 @@ const usePersist=(key,initial,repair)=>{
     const next=typeof v==='function'?v(latest.current):v;
     latest.current=next;
     setVal(next);
-    try{localStorage.setItem(key,JSON.stringify(next));}catch{}
+    let err=null;
+    try{localStorage.setItem(key,JSON.stringify(next));}catch(e){err=e;}
+    noteStorageWrite(key,err);
   };
   return[val,set];
 };
@@ -8072,6 +8093,10 @@ function App(){
   // after a commit that kept something: {label, n}.
   const[persist,setPersist]=usePersist('suspos_persist_v1',false);
   const[persistNote,setPersistNote]=useState(null);
+  // Storage-full banner: shown while any persisted key's latest write was refused for quota.
+  // ✕ hides it until the next refusal (storageFull.gen), not until the storage has room.
+  const storage=useStorageFull();
+  const[storageDismissed,setStorageDismissed]=useState(-1);
   const[saves]=usePersist('suspos_saves_v9',PRESET_SAVES); // read-only: legacy slots, source for one-time MY BUILDS migration
   const[uiMode,setUiMode]=usePersist('suspos_uimode_v1','beginner');
   // Read-only since the header zoom buttons were removed — the persisted value is still
@@ -9614,6 +9639,17 @@ function App(){
     <LayoutCtx.Provider value={layoutCtx}>
       {guideCss&&<style>{guideCss}</style>}
     <div style={{display:'flex',flexDirection:'column',height:`calc(100dvh / ${effZoom})`,minHeight:'-webkit-fill-available',overflow:'hidden',zoom:effZoom}}>
+      {storage.full&&storageDismissed!==storage.gen&&(
+        <div data-storage-full role="alert" style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',flexShrink:0,
+          background:'#2a1a05',borderBottom:'1px solid #92400e',color:'#fbbf24',fontSize:11,lineHeight:1.5}}>
+          <span style={{flex:1,minWidth:0}}>
+            ⚠ BROWSER STORAGE FULL — {storage.keys.some(k=>k.startsWith('suspos_garage'))?'garage saves':'changes'} since
+            this appeared won't survive a reload. SHARE → BACKUP now, then delete garage entries to free space.
+          </span>
+          <button onClick={()=>setStorageDismissed(storage.gen)} aria-label="Dismiss storage warning"
+            style={{background:'none',border:'none',color:'#fbbf24',cursor:'pointer',fontSize:13,padding:'0 4px',fontFamily:'inherit'}}>✕</button>
+        </div>
+      )}
       {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} units={units} ch={ch} setCh={setCh} setFe={v=>commit('import from CHECK',()=>setFe(v))}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
       {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records

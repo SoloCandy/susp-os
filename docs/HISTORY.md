@@ -11,6 +11,14 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a full browser storage lost garage saves silently
+
+`usePersist`'s `set` caught every `localStorage.setItem` error and discarded it. Once the origin's
+quota was reached, a garage save updated state (the entry showed, could be renamed and tagged)
+while storage kept the last list that fit, so a reload removed everything since. Same-size
+rewrites such as a slider move still fit, so the app looked fine. Quota errors now reach
+`storageFull` and the App shows a storage-full banner until a write fits again.
+
 ## Changed — PERSIST holds compose across setters in one commit
 
 `holdWrite` built each held write from `snapRef`, the render-time snapshot, so a second

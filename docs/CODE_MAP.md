@@ -726,6 +726,12 @@ before the first render; `fe` passes `repairFe` (`gameMode` only) and the layout
 edit view's hidden lists pass `repairHidden`. See
 [PERSISTENCE.md](PERSISTENCE.md).
 
+`storageFull` is a module-level store beside `usePersist`, not React state: every
+`usePersist` instance writes to it (`noteStorageWrite`) and the App reads it through
+`useStorageFull`, which subscribes and re-renders on change. It drives the
+`data-storage-full` banner, the first child of the App's main column; `gen` counts
+refusals so ✕ (`storageDismissed`) hides the banner only until the next one.
+
 ---
 
 ## Intentionally-retained legacy — do not remove

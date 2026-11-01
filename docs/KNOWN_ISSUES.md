@@ -13,6 +13,15 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — a full browser storage is reported, not prevented
+
+The storage-full banner says when a write was refused, but nothing stops the garage reaching
+the limit: entry notes have no length cap, so one pasted note can cost as much as dozens of
+saves; RESTORE can merge past the limit in one step; and the origin (`solocandy.github.io`) is
+shared with every other GitHub Pages project on that account. The banner also cannot say which
+entries are unsaved — the whole list since the first refusal is. A pre-save size check in
+`garageSave` and a `maxLength` on notes would prevent the common cases.
+
 ## Open — an alignment value held at its range says nothing
 
 `computeAlignment` and the MECH/GRIP nudge clamp camber (front −4.0..0.0°, rear
