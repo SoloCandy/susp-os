@@ -28,6 +28,7 @@ const slice = (a, b) => {
 };
 
 const M = new Function(
+  slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
   slice('const rsToHz=', '\n') + '\n' +
   slice('const HZ_BANDS=', '// Slider ticks') + '\n' +
   slice('const DEF_DR=', 'const BRAKE_CENTRE_DEC=') + '\n' +

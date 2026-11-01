@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — seven test suites died on load after the colour constants moved
+
+The colour-meanings commit put `C_OS`, `C_US`, `C_WARN`, `C_GOOD`, `CAT_RAMP` and the rest
+first in `#app-source`, and module-scope code such as `HZ_BAND_COLS=CAT_RAMP` reads them at load.
+The suites that lift code out of `index.html` with string slices start at `const DEF_CH=` or later,
+so seven of them (`tests.js`, balance, beamng, dna, garage, ride, share) threw
+`CAT_RAMP is not defined` before running a check. `tests-docs.js` passed, so the docs-only routine
+didn't show it. Each harness now loads the `── colour meanings ──` block first.
+
 ## Fixed — a full browser storage lost garage saves silently
 
 `usePersist`'s `set` caught every `localStorage.setItem` error and discarded it. Once the origin's

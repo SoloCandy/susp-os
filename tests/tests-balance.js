@@ -46,6 +46,7 @@ const slice = (a, b) => {
 };
 
 const M = new Function(
+  slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
   slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
   slice('const KG_TO_LB=', 'const arbRowMeta=') +
@@ -694,6 +695,7 @@ t('the chassis term does not depend on MECH_BAL_GAIN', () => {
   const alt = src.split('const MECH_BAL_GAIN=1.8;').join('const MECH_BAL_GAIN=3.7;');
   ok(alt !== src, 'MECH_BAL_GAIN declaration not found — update this test');
   const M2 = new Function(
+    alt.slice(alt.indexOf('// ── colour meanings ──'), alt.indexOf('const KG_TO_LB=')) + '\n' +
     alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
     alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
     alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbRowMeta=')) +
@@ -787,6 +789,7 @@ t('DRIVE: RWD oversteers on exit, FWD understeers, and AWD moves with the centre
 t('the phase margins do not depend on MECH_BAL_GAIN, and mechBalanceLLT is axleLatG unchanged', () => {
   const alt = src.split('const MECH_BAL_GAIN=1.8;').join('const MECH_BAL_GAIN=3.7;');
   const M2 = new Function(
+    alt.slice(alt.indexOf('// ── colour meanings ──'), alt.indexOf('const KG_TO_LB=')) + '\n' +
     alt.slice(alt.indexOf('const DEF_CH='), alt.indexOf('const DEF_AL=')) + '\n' +
     alt.slice(alt.indexOf('const GAME_MODE_ENC='), alt.indexOf('const CODEC_FIELDS=')) + '\n' +
     alt.slice(alt.indexOf('const KG_TO_LB='), alt.indexOf('const arbRowMeta=')) +

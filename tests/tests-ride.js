@@ -33,6 +33,7 @@ const slice = (a, b) => {
 };
 
 const M = new Function(
+  slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
   slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
   slice('const KG_TO_LB=', 'const arbRowMeta=') +

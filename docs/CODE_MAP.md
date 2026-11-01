@@ -83,6 +83,8 @@ The source runs top to bottom in this order:
    `T_FAINT`, `SLI_FILL`. They come first because module-scope tables below them
    (`HZ_BAND_COLS`, `diffCtx`) read them at load. What each means is in
    [VISUALS.md](VISUALS.md); colour a value by its meaning through these, not a hex.
+   The suites that slice `index.html` load this block first (up to `const KG_TO_LB=`), since
+   their other slices read it; a new top-level constant that sliced code reads needs the same.
 1. **Calibration constants and limits** — `DAMPING_CALIBRATION`,
    `TIRE_LOAD_SENS`, `MECH_BAL_GAIN`, `WIDTH_GRIP_EXP`, `TIRE_MECH_SCALE`,
    `MECH_BALANCE_TARGET`, `ARB_RS_SCALE`, `HZ_MIN`/`HZ_MAX`, `GAME_LIMITS`,
