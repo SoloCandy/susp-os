@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/sync-main.sh\"",
+            "timeout": 30,
+            "statusMessage": "Syncing with origin/main…"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -42,6 +42,14 @@ marker as nothing.
 other suites, what each one can and cannot prove, and why the browser is
 still the only real verification.
 
+## Staying current with `main`
+
+A SessionStart hook (`.claude/hooks/sync-main.sh`, wired in
+`.claude/settings.json`) fetches `origin/main` and fast-forwards a clean local
+`main`; its `[sync-main]` line says what it did or why it didn't. It only runs
+at session start, so **before committing or opening a PR, `git fetch origin
+main` and check you're not behind** — PRs land mid-session.
+
 ## Habits worth keeping
 
 - **Record *why* something non-obvious stays.** CODE_MAP's
