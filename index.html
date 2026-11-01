@@ -31,8 +31,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>SUSP.OS</title>
-<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<!-- SRI: a version bump needs a new hash — see docs/CODE_MAP.md, "CDN scripts are hash-pinned". -->
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -178,12 +179,14 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 </div>
 <script>
 // Global error catcher — fires before React and the app, shows error on blank screen
+// Messages are escaped: some engines quote the offending input (a share code, a backup file).
+function escHtml(s){return String(s).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';';});}
 window.onerror=function(msg,src,line,col,err){
   var d=document.getElementById('pre-load');
   if(d){
     d.innerHTML='<div style="color:#e2e8f0;font-size:14px;margin-bottom:8px">SUSP.OS — Failed to load</div>'
-      +'<div style="color:#6b7280;margin-bottom:12px">JavaScript error on line '+line+'</div>'
-      +'<div style="background:#0f172a;padding:12px;border-radius:4px;color:#ef4444;word-break:break-all;line-height:1.6">'+(msg||'Unknown error')+'</div>'
+      +'<div style="color:#6b7280;margin-bottom:12px">JavaScript error on line '+escHtml(line)+'</div>'
+      +'<div style="background:#0f172a;padding:12px;border-radius:4px;color:#ef4444;word-break:break-all;line-height:1.6">'+escHtml(msg||'Unknown error')+'</div>'
       +'<button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:12px">RELOAD</button>';
   }
 };
@@ -8043,10 +8046,15 @@ function App(){
   const holdWrite=(state,v)=>{
     const keys=inCommitRef.current?heldRef.current?.[state]:null;
     if(!keys?.length)return v;
-    const cur=snapRef.current[state],next=typeof v==='function'?v(cur):v;
-    const back=keys.filter(k=>JSON.stringify(next?.[k]??null)!==JSON.stringify(cur?.[k]??null));
-    back.forEach(k=>keptRef.current.add(state+'.'+k));
-    return back.length?{...next,...Object.fromEntries(back.map(k=>[k,cur[k]]))}:next;
+    // An updater, so usePersist applies `v` to the latest value and two setters in one commit
+    // compose; held keys are compared against, and put back to, the pre-commit snapshot.
+    const cur=snapRef.current[state];
+    return p=>{
+      const next=typeof v==='function'?v(p):v;
+      const back=keys.filter(k=>JSON.stringify(next?.[k]??null)!==JSON.stringify(cur?.[k]??null));
+      back.forEach(k=>keptRef.current.add(state+'.'+k));
+      return back.length?{...next,...Object.fromEntries(back.map(k=>[k,cur[k]]))}:next;
+    };
   };
   const setCh=v=>{recordChange();setChRaw(holdWrite('ch',v));};
   const setFe=v=>{recordChange();setFeRaw(holdWrite('fe',v));};
@@ -14093,12 +14101,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     if(preload){
       preload.style.display='block';
       preload.innerHTML='<div style="color:#e2e8f0;font-size:14px;margin-bottom:8px">SUSP.OS \u2014 Failed to load</div>'
-        +'<div style="color:#6b7280;margin-bottom:12px">'+msg+'</div>'
-        +'<div style="background:#0f172a;padding:12px;border-radius:4px;color:#ef4444;word-break:break-all;line-height:1.6;font-size:11px">'+(detail||'')+'</div>'
+        +'<div style="color:#6b7280;margin-bottom:12px">'+escHtml(msg)+'</div>'
+        +'<div style="background:#0f172a;padding:12px;border-radius:4px;color:#ef4444;word-break:break-all;line-height:1.6;font-size:11px">'+escHtml(detail||'')+'</div>'
         +'<button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:12px">RELOAD</button>';
     }
   }
   var BABEL_URL='https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js';
+  var BABEL_SRI='sha384-x/ilTFv/u/eu6YSmkFDZl5V5Mm/pkxxcVv2cVJOrr1J0rvILhMvRBCy6yA75wYBj';
   // JSX and block scoping only: every browser the app supports runs the rest natively, and the
   // `env` preset cost ~5 s a load. Block scoping stays because parts of the source read a
   // const/let above its declaration and rely on const→var making that undefined, not a throw.
@@ -14107,7 +14116,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   // and settings it came from, and is reused only when both still match — so a push that touches
   // #app-source, or a new Babel version or option, recompiles. babel.min.js (~3 MB) is fetched
   // only on a miss. Any IndexedDB failure or stall just means a miss.
-  var CACHE_ID=BABEL_URL+'|'+JSON.stringify(OPTS);
+  // BABEL_SRI is in the key so a compile cached before the hash was checked is redone once.
+  var CACHE_ID=BABEL_URL+'|'+BABEL_SRI+'|'+JSON.stringify(OPTS);
   var DB='susp-os-boot',STORE='compiled';
   var src=document.getElementById('app-source').textContent;
   function openDb(){
@@ -14140,7 +14150,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     return new Promise(function(res,rej){
       if(typeof Babel!=='undefined')return res();
       var s=document.createElement('script');
-      s.src=BABEL_URL;
+      s.src=BABEL_URL;s.integrity=BABEL_SRI;s.crossOrigin='anonymous';
       s.onload=function(){typeof Babel!=='undefined'?res():rej();};
       s.onerror=rej;
       document.head.appendChild(s);

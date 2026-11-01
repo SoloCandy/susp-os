@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"susp-os","runtimeExecutable":"npx","runtimeArgs":["serve","."],"port":3000,"autoPort":true}]}
+{"version":"0.0.1","configurations":[{"name":"susp-os","runtimeExecutable":"npx","runtimeArgs":["serve","."],"port":3000,"autoPort":true},{"name":"susp-os-py","runtimeExecutable":"python3","runtimeArgs":["-m","http.server","3010"],"port":3010}]}

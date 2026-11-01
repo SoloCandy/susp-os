@@ -43,11 +43,19 @@ the Babel version or `OPTS`. A miss compiles, runs, and only then writes the rec
 a source that throws is never cached. Any IndexedDB failure is a miss, and a read that
 hasn't answered in 1.5 s is treated as one.
 
+**CDN scripts are hash-pinned.** React, ReactDOM and the injected Babel script all
+carry an `integrity` hash (SHA-384) with `crossorigin="anonymous"`, so a CDN serving
+different bytes is refused rather than run. `BABEL_SRI` is part of the cache key, so
+a compile cached before the check existed is redone once. **Bumping a version means
+replacing its hash** — hash the new file (`openssl dgst -sha384 -binary f | openssl
+base64 -A`), ideally from two CDNs, or the app stops loading.
+
 This is why there is no build step, and it shapes how failures appear:
 
 | Failure | What the user sees |
 |---|---|
-| Cache miss and the Babel script can't load (offline, CDN blocked) | `#pre-load` shows "Babel failed to load" |
+| Cache miss and the Babel script can't load (offline, CDN blocked, hash mismatch) | `#pre-load` shows "Babel failed to load" |
+| React or ReactDOM fails to load (including a hash mismatch) | `#pre-load` shows "Runtime error" (`React is not defined`) |
 | Babel can't parse the source (JSX/syntax error) | `#pre-load` shows "Babel compilation failed" + the message |
 | Source parses but throws while evaluating | `#pre-load` shows "Runtime error" + the message |
 | React renders but a component throws | `ErrorBoundary` renders "SUSP.OS — Failed to load" |
@@ -526,6 +534,8 @@ The hold is applied in the recording setters (`setCh` / `setFe` / `setDr` / `set
 "PERSIST kept n…" line), or clears it. It is applied per write, not as a second update after the
 load, because each write is compared with the pre-commit snapshot: a second update could not tell
 the load's changes from the held keys'.
+`holdWrite` returns an updater, so `usePersist` applies it to the latest value and several
+setters in one commit compose; each one's held keys still go back to the pre-commit snapshot.
 
 What it does not cover, on purpose:
 - a section's own ↺ RESET (an explicit request for that section, not a `commit`);

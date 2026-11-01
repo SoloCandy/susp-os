@@ -28,6 +28,12 @@ still writes localStorage before it returns, which the garage migration relies o
 it reads the key back in the same mount pass. A *value* set replaces whatever came
 before it, as with plain `useState`. `tests-history.js` runs the shipped hook.
 
+`usePersist`'s setter applies an updater to the latest value (a ref), not the
+render-time one, so two same-tick `set(p=>…)` calls on one key compose. A plain value
+still replaces whatever is there, so a caller building one from its own render-time
+copy (the GARAGE migration, restore) must still issue exactly one `set`. The write to
+localStorage happens synchronously inside `set`.
+
 | Key | Holds | Default |
 |---|---|---|
 | `suspos_ch_v8` | Chassis state (`ch`) — weight, frontBias, tyres, wheelbase, track widths, CG height + CG source (`useRideHeightCG`, `rideHeightF`/`rideHeightR`), layout, measured nat-bal (`useMeasuredNatBal`, `measuredNatBal`, `measuredNatBalHz`, and `measuredNatBalRef` — the prediction it was taken against, for `natBalStale`), measured ARB click scale (`useMeasuredArbClick`, `measuredArbClick` — the front scale, or both axles' — and `measuredArbClickR`, the rear's own, `null` unless step 2 split them; plus `measuredArbNat`/`measuredArbNatHz`, for `arbScaleStale`), BeamNG motion ratios (`motionRatioF`/`motionRatioR`, `arbMotionRatioF`/`arbMotionRatioR`) | `DEF_CH` |

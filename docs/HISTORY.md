@@ -11,6 +11,29 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — PERSIST holds compose across setters in one commit
+
+`holdWrite` built each held write from `snapRef`, the render-time snapshot, so a second
+recording setter on the same store inside one `commit` started from the pre-commit value and
+dropped the first one's changes. It now returns an updater, which `usePersist` applies to the
+latest value; held keys are still compared with, and put back to, the pre-commit snapshot.
+
+## Changed — CDN scripts carry SRI hashes; loader errors are escaped
+
+React, ReactDOM and Babel were pinned to exact versions but had no `integrity` attribute, so a
+compromised CDN could serve any script, and the compiled-output cache would have kept running a
+bad compile after the CDN was clean. All three now carry SHA-384 hashes, and the Babel hash is
+in the cache key. Separately, both loader error screens wrote the error message into
+`#pre-load` with `innerHTML`; some engines quote the offending input in a parse error, so a
+malformed share code or backup could inject markup. Messages are now escaped (`escHtml`).
+
+## Fixed — a working tree turned CRLF without a content change
+
+Fifteen docs and top-level files arrived in the working tree with CRLF endings and no other
+change, a diff touching every line. There was no `.gitattributes`, so nothing stopped it (see
+"tests-docs.js failed TUTORIALS step text on a CRLF checkout" below for the last time). The repo
+now has one: `* text=auto eol=lf`, PNGs binary.
+
 ## Fixed — BeamNG recommended a centre split on a Sport diff; faint recommendation text; wrapped card titles
 
 On an AWD car with a Sport diff, BeamNG's CENTRE SPLIT card read "Base Torque Split: N/A" and

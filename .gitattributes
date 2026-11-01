@@ -1,0 +1,4 @@
+# Keep LF everywhere: a CRLF checkout once broke tests-docs.js and later turned a
+# whole working tree into a line-ending-only diff. See docs/HISTORY.md.
+* text=auto eol=lf
+*.png binary
