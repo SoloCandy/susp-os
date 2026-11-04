@@ -51,29 +51,119 @@ in [ALIGNMENT.md](ALIGNMENT.md) ("Intent and MANUAL").
 CAMBER vs ROLL and RANGES. Now described in [VISUALS.md](VISUALS.md#alignment). Not done from the
 first sketch: a second dot at the ENTRY / EXIT roll.
 
-### Phase 5 — symptom fixer (PRO)
+### Phase 5 — the symptom fixer
 
-The tuner picks a symptom, and the app proposes one or two changes with the reason, applied by a tap.
-First draft of the mapping:
-
-| Symptom | Proposal |
-|---|---|
-| Understeer on turn-in | Front toe toward OUT; more caster |
-| Push mid-corner | More negative front camber (toward the target); less negative rear |
-| Snaps on lift-off / entry rotation | More rear toe-in |
-| Loose on exit | More rear toe-in; less negative rear camber |
-| Unstable under braking | More rear toe-in |
-| Wanders on straights | Front toe toward IN; more caster |
-| Steering too heavy | Less caster |
-
-Alignment is only one lever for most of these. Where springs, bars, diff or brakes are the bigger one,
-the fixer should say so rather than overload toe.
+Grew past alignment: it is now its own idea, [Symptom fixer](#symptom-fixer-int), covering every
+control. The alignment proposals sketched here are its v2 alignment rows.
 
 ### Open questions
 
 - The balance-model form (held; arrows are the leading idea).
 - The intent slider ranges, once they have been used.
 - The toe sign check against the car's on-screen wheel angle.
+
+---
+
+## Symptom fixer (INT+)
+
+A toolbar panel where the tuner says what feels wrong, in problem terms ("it pushes on entry"),
+and the app proposes **one** change to the controls they already have. It says why, shows what it
+does before it's applied, and applies it with one tap. The change lands on a visible slider and is
+one undo step. It covers every control, not only alignment: most complaints have a stronger lever
+than toe.
+
+### Decisions already made
+
+| Decision | Choice | Why |
+|---|---|---|
+| Tier | **INT and PRO**, each limited to the levers its tier shows | It helps most where the controls are new to the tuner. A proposal never touches a control the tier hides |
+| Where | A **toolbar** button opening a panel, like CHECK and DNA | Reachable from any section. The balance bar's correction tip links into it rather than running a second advice system |
+| Changes | **One change per proposal**, plus one or two alternatives, never a bundle | Change one thing, drive, report back: otherwise nobody knows which change helped |
+| Wording | **Problem terms**: what the car does wrong, not the feel wanted | Easier to name from the driver's seat. Proposals may still say the goal ("more rotation on entry") |
+| Scope order | v1 balance symptoms by phase; v2 response, steering, bumps, traction and alignment; v3 a session log | v1 is where the model can predict the effect, so the preview means something |
+
+### Flow
+
+1. **Where in the corner:** ENTRY (braking, turn-in), MID-CORNER, EXIT (on throttle), plus STRAIGHTS
+   and BUMPS for the non-balance symptoms (v2).
+2. **What:** only the symptoms that make sense for that phase, e.g. ENTRY: *pushes wide*, *snaps
+   loose on lift-off*, *lazy turn-in*, *unstable under braking*; EXIT: *pushes on power*, *tail steps
+   out on power*, *wheelspin*.
+3. **How much:** *a little* / *a lot*, which sets the step size of the proposal.
+4. **The proposal:** the best lever as a before → after on that control, the reason in a sentence, the
+   predicted effect (below), and APPLY. Under it, one or two alternatives with the same detail.
+5. **After APPLY:** "Drive it, then tell me what it does now", back to step 1 with the phase kept.
+
+### Ranked by what the app can predict
+
+Each proposal carries one of three labels, and the modelled levers rank first:
+
+| Label | Means | Levers (v1) |
+|---|---|---|
+| **MODELLED** | the effect is computed before applying: the balance bar's NET (INT) or the phase margin (PRO) moves by the figure shown | springs and bars (ARB Bias, the rear Hz ratio, or the Mech Balance Target, depending on mode); brake bias (ENTRY, sized in PRO); AWD power split (EXIT, sized in PRO) |
+| **DIRECTION** | the model knows which way, not how far, as with the balance bar's arrows | diff ENTRY / EXIT (decel and accel lock), Damping Bias |
+| **BY FEEL** | not in the model; general setup practice | alignment intent (toe, camber, caster) until the balance-model question in [Alignment revamp](#alignment-revamp-forza) is settled |
+
+The preview runs the pure solve (`solveTune`, then `phaseMargins` in PRO) on the patched `fe` / `dr`
+for each candidate, the way the app already does for the live tune, so the figure is the app's own
+model of the change. It is still a model figure, not a lap time, and the panel says so once.
+
+### v1 lever table (balance symptoms)
+
+Understeer = the front gives up first; oversteer = the rear does. Listed best-first. A lever is
+skipped when it is at its limit (with a line saying so, as AUTO Balance Mode's cascade would) or
+when the current mode ignores it.
+
+| Phase · symptom | Levers, best first |
+|---|---|
+| ENTRY · pushes wide | brake bias rearward (BRAKES shift; PRO ENTRY target) · diff ENTRY toward LOOSE · softer front / stiffer rear roll (bars first) |
+| ENTRY · snaps loose on lift-off | diff ENTRY toward STABLE · brake bias forward · stiffer front / softer rear roll |
+| MID · pushes wide | softer front / stiffer rear roll (ARB Bias toward REAR, or the target in a target-solving mode) · rear Hz up |
+| MID · loose | the reverse of MID · pushes wide |
+| EXIT · pushes on power | diff EXIT toward ROTATE · AWD power split rearward · stiffer rear / softer front roll |
+| EXIT · tail steps out on power | diff EXIT toward GRIP · AWD power split forward · softer rear roll *(less rear roll stiffness keeps the inside rear loaded)* |
+
+**The mode decides the lever.** Under ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, the
+solver holds the Mech Balance Target, and ARB Bias does nothing. There the roll-balance proposal
+moves the target (Balance Offset or the MANUAL target, per Balance Target Mode). Under ARB
+Stiffness Mode MAN, it moves the bar clicks directly. Each proposal names the control it actually
+moves.
+
+### v2 (sketch)
+
+Turn-in response, straight-line stability, steering weight, bumps (rebound and bump damping, ride Hz,
+bottoming against SAG vs LOAD), traction (accel lock, power split), and the alignment rows:
+
+| Symptom | Proposal (BY FEEL) |
+|---|---|
+| Lazy turn-in | Turn-in toward SHARP (front toe-out); less caster |
+| Wanders on straights | Turn-in toward STABLE (front toe-in); more caster |
+| Nervous rear on lift-off / braking | Rear stability toward PLANTED (rear toe-in) |
+| Pushes mid-corner, tyre flat-out of grip | Camber F toward MORE (dynamic camber toward the target, seen in VISUALS) |
+| Steering too heavy | Steering feel toward LIGHT (less caster) |
+
+### v3 (sketch)
+
+A session log of what was applied and the symptom it answered, so the panel doesn't re-propose a
+change that was just tried and undone, and so a tuner can read back the path they took. Session
+only; not saved.
+
+### How it fits what exists
+
+- **Correction tip** (balance bar): stays as the one-line summary and links into the panel with
+  the phase pre-picked.
+- **Vehicle DNA:** DNA is "describe the car you want, solve it once", and the fixer is "this one
+  thing is wrong, nudge it". They should share vocabulary (ROTATE, PLANTED, STABLE…). Applying a
+  proposal to a DNA-linked tune drifts it from the DNA like any edit; DNA MATCH already shows that.
+- **AUTO Balance Mode** (below): the same lever priority and limit handling, applied once by
+  hand instead of continuously by the solver. If both are built, they should share the table.
+
+### Open questions
+
+- Step sizes for *a little* / *a lot*, per lever.
+- Whether BEG gets a cut-down version (three symptoms, the Balance slider as the only lever).
+- How a proposal reads when every modelled lever is at its limit.
+- Whether the alternatives may come from a different phase's levers.
 
 ---
 
