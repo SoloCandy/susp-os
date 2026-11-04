@@ -24,8 +24,8 @@ entries are unsaved — the whole list since the first refusal is. A pre-save si
 
 ## Open — an alignment value held at its range says nothing
 
-`computeAlignment` and the MECH/GRIP nudge clamp camber (front −4.0..0.0°, rear
-−3.5..0.0°), toe (front −0.20..0.15°, rear 0.0..0.25°) and caster (4.0–7.5°) without a
+`computeAlignment` and the MECH/GRIP nudge hold each value inside its `ALIGN_REC` band (camber
+front −4.0..0.0°, rear −3.5..0.0°; toe front −0.2..+0.2°, rear 0.0..+0.3°; caster 4.0–7.0°) without a
 flag, so a clamped value prints like any other. The output can't infer it from the value:
 some recommendations sit on an edge without being clamped (DRAG's rear toe is 0.0). A
 LIMIT note needs `computeAlignment` to hand back its values before clamping.

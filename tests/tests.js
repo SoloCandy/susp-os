@@ -202,15 +202,20 @@ const computeAlignment = (ch, tune, layout, buildType) => {
   const isOffroad = build === 'offroad';
   const isDrag = build === 'drag';
 
+  // ALIGN_REC + alignRec, kept local so the mirror tripwire has nothing new to account for
+  const REC = { camberF: [-4.0, 0.0], camberR: [-3.5, 0.0], toeF: [-0.2, 0.2], toeR: [0.0, 0.3], caster: [4.0, 7.0] };
+  const rec = (key, v) => {
+    const r = (Math.sign(v) * Math.round(Math.abs(v) * 10 + 1e-9) / 10) || 0;
+    return Math.max(REC[key][0], Math.min(REC[key][1], r));
+  };
+
   const camberGain = Math.max(0.55, Math.min(0.85, 1.05 - (ch.cgHeight ?? 0.45) * 0.8));
   const rearGainMult = layout === 'FWD' ? 0.50 : layout === 'AWD' ? 0.70 : 0.75;
   const fwdReduction = layout === 'FWD' ? 0.3 : 0.0;
 
   const optimalCamber = isDrift ? -2.5 : isDrag ? -0.2 : isOffroad ? -0.3 : isRally ? -0.8 : isStreet ? -1.0 : -1.5;
-  const recCamberF = Math.round(Math.max(-4.0, Math.min(0.0,
-    optimalCamber - rollDeg * camberGain + fwdReduction)) * 10) / 10;
-  const recCamberR = Math.round(Math.max(-3.5, Math.min(0.0,
-    optimalCamber - rollDeg * camberGain * rearGainMult)) * 10) / 10;
+  const recCamberF = rec('camberF', optimalCamber - rollDeg * camberGain + fwdReduction);
+  const recCamberR = rec('camberR', optimalCamber - rollDeg * camberGain * rearGainMult);
 
   const toeFByBuild = {
     street: layout === 'FWD' ? 0.05 : 0.0,
@@ -220,8 +225,7 @@ const computeAlignment = (ch, tune, layout, buildType) => {
     offroad: 0.05,
     drag: 0.0,
   }[build] ?? -0.05;
-  const recToeF = Math.round(Math.max(-0.20, Math.min(0.15,
-    toeFByBuild + (ch.frontBias - 50) * -0.003 + (fHz - 1.8) * 0.010)) * 10) / 10;
+  const recToeF = rec('toeF', toeFByBuild + (ch.frontBias - 50) * -0.003 + (fHz - 1.8) * 0.010);
 
   const toeRByBuild = {
     street: { RWD: 0.15, AWD: 0.08, FWD: 0.05 },
@@ -232,12 +236,10 @@ const computeAlignment = (ch, tune, layout, buildType) => {
     drag: { RWD: 0.0, AWD: 0.0, FWD: 0.0 },
   }[build] ?? { RWD: 0.10, AWD: 0.08, FWD: 0.05 };
   const toeRBase = toeRByBuild[layout] ?? toeRByBuild.RWD;
-  const recToeR = Math.round(Math.max(0.0, Math.min(0.25,
-    toeRBase + ((1 - ch.frontBias / 100) - 0.5) * 0.20 + Math.max(0, rHz - fHz) * -0.03)) * 10) / 10;
+  const recToeR = rec('toeR', toeRBase + ((1 - ch.frontBias / 100) - 0.5) * 0.20 + Math.max(0, rHz - fHz) * -0.03);
 
   const casterBase = isDrift ? 4.8 : isDrag ? 4.0 : isOffroad ? 4.5 : isStreet ? 5.2 : 5.8;
-  const recCaster = parseFloat(Math.max(4.0, Math.min(7.5,
-    casterBase + (fHz - 1.8) * 0.4 + (ch.frontBias - 50) * 0.04 + (layout === 'FWD' ? -0.5 : 0))).toFixed(1));
+  const recCaster = rec('caster', casterBase + (fHz - 1.8) * 0.4 + (ch.frontBias - 50) * 0.04 + (layout === 'FWD' ? -0.5 : 0));
 
   return { recCamberF, recCamberR, recToeF, recToeR, recCaster };
 };
@@ -1005,7 +1007,28 @@ console.log('\ncomputeAlignment — toe and caster');
 
   // Caster clamps hold at extreme inputs
   const extremeCaster = computeAlignment({ ...ch, frontBias: 70 }, { fHz: 5.5, rHz: 5.5, rollDeg: 0 }, 'RWD', 'track');
-  assertEq('caster clamps at 7.5° max', extremeCaster.recCaster <= 7.5, true);
+  assertEq('caster clamps at 7.0° max, the game\'s own ceiling', extremeCaster.recCaster, 7.0);
+
+  // 0.1° rounding is half away from zero: Math.round sent −0.05 to 0 and +0.05 to 0.1, which
+  // erased TRACK RWD's front toe-out on a default chassis while FWD's toe-in survived.
+  assertEq('TRACK RWD front toe-out survives rounding (−0.05 → −0.1)', computeAlignment(ch, tune, 'RWD', 'track').recToeF, -0.1);
+  assertEq('STREET FWD front toe-in rounds the same distance (+0.05 → +0.1)', computeAlignment(ch, tune, 'FWD', 'street').recToeF, 0.1);
+  assertEq('a rounded value never reads −0', Object.is(computeAlignment(ch, tune, 'RWD', 'drag').recToeR, -0), false);
+
+  // Every output sits inside its band and on the 0.1° grid, at extreme inputs too.
+  const BANDS = { recCamberF: [-4.0, 0.0], recCamberR: [-3.5, 0.0], recToeF: [-0.2, 0.2], recToeR: [0.0, 0.3], recCaster: [4.0, 7.0] };
+  let bandFail = null;
+  for (const build of ['street', 'track', 'drift', 'rally', 'offroad', 'drag', 'unknown'])
+    for (const layout of ['RWD', 'AWD', 'FWD'])
+      for (const frontBias of [30, 50, 70])
+        for (const [fHz, rHz] of [[0.8, 5.5], [1.8, 1.8], [5.5, 0.8]])
+          for (const rollDeg of [0, 2, 8]) {
+            const a = computeAlignment({ frontBias, cgHeight: 0.45 }, { fHz, rHz, rollDeg }, layout, build);
+            for (const [k, [lo, hi]] of Object.entries(BANDS))
+              if (!(a[k] >= lo && a[k] <= hi) || Math.abs(a[k] * 10 - Math.round(a[k] * 10)) > 1e-9)
+                bandFail = bandFail ?? `${build} ${layout} bias ${frontBias} Hz ${fHz}/${rHz} roll ${rollDeg}: ${k}=${a[k]}`;
+          }
+  assertEq('every output inside its band, on the 0.1° grid', bandFail, null);
 }
 
 // ── mirror vs app ─────────────────────────────────────────────────────────────

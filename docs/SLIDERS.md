@@ -119,7 +119,7 @@ sits on one.
 | Accel/Decel Lock (MANUAL diff) | 0–100% each, slider and box; under each, the diff type's typical range drawn as a green band on the same 0–100 scale, then `typical: n–n%` | Direct per-axle lock % | Accel lock: rear → OVERSTEER, front → UNDERSTEER. Decel lock on either axle → UNDERSTEER (resists lift-off rotation; less decel lock = more rotation on entry) — see [FORMULAS.md](FORMULAS.md) |
 | Centre Split (MANUAL AWD) | 0–100% rear, slider and box | Direct torque split | Higher % rear → OVERSTEER |
 | Nudge Strength (Alignment AUTO, Nudge MECH/GRIP) | 0–100%, default 50% | Scales how far camber/toe are nudged from the AUTO values toward the MECH/GRIP gap (see [ALIGNMENT.md](ALIGNMENT.md)). Shown only while Nudge is MECH or GRIP | 0% = no nudge (identical to AUTO with Nudge OFF); direction comes from the gap's sign, not this slider |
-| Camber F/R, Toe F/R, Caster (Alignment MANUAL) | Camber −4.0/−3.5..0.0°, Toe −0.20..0.15° / 0.0..0.25°, Caster 4.0–7.5° | Direct entry, bypasses `computeAlignment` entirely | None directly — whatever you type |
+| Camber F/R, Toe F/R, Caster (Alignment MANUAL) | The game's full span (`ALIGN_GAME`): camber and toe −5.0..+5.0°, caster 1.0–7.0°, step 0.1° | Direct entry, bypasses `computeAlignment` entirely | None directly — whatever you type |
 
 ## Auto-computed by default, or PRO's Alignment Mode
 

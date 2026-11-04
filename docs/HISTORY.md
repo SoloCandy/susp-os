@@ -11,6 +11,26 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — alignment rounding lost toe-out, and AUTO caster passed the game's limit
+
+Three problems in `computeAlignment` and the MECH/GRIP nudge, found when checking the alignment against the
+in-game ranges (camber and toe −5..+5°, caster 1–7°, 0.1° steps):
+
+- **Toe-out rounded away.** The 0.1° rounding used `Math.round`, which rounds .5 toward +∞:
+  −0.05 became 0 while +0.05 became 0.1. TRACK RWD/AWD's front toe-out (−0.05) printed 0.0 on a
+  default chassis, so the hint's "front leans toe-out on TRACK/DRIFT" was false for TRACK.
+  `alignRec` now rounds half away from zero.
+- **Values past their own clamp.** Toe was clamped *then* rounded, and the clamps (front +0.15, rear
+  +0.25) weren't on the 0.1° grid, so the output could read +0.2 / +0.3. Those values were
+  above what MANUAL then accepted. The bands (`ALIGN_REC`) now end on the grid at those same values,
+  and nothing the app printed before changes.
+- **Caster past the game.** The caster band went to 7.5°, and Forza stops at 7.0°. Stiff,
+  front-heavy TRACK and RALLY cars got a caster that couldn't be entered. The band now ends at 7.0°.
+
+MANUAL's fields were capped at the recommendation bands, so a tuner couldn't type an
+alignment already in the game outside them (any rear toe-out, positive camber, caster below 4°).
+They now take the game's full span, `ALIGN_GAME`.
+
 ## Fixed — seven test suites died on load after the colour constants moved
 
 The colour-meanings commit put `C_OS`, `C_US`, `C_WARN`, `C_GOOD`, `CAT_RAMP` and the rest

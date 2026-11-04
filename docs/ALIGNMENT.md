@@ -9,6 +9,33 @@ starting points from general chassis-setup convention, not measured. This
 file exists so they're documented *somewhere* rather than only as inline
 magic numbers.
 
+## Game ranges, recommendation bands and rounding
+
+Two sets of limits, deliberately separate:
+
+| | Camber F | Camber R | Toe F | Toe R | Caster |
+|---|---|---|---|---|---|
+| `ALIGN_GAME`: what Forza accepts, and what MANUAL takes | −5.0..+5.0° | −5.0..+5.0° | −5.0..+5.0° | −5.0..+5.0° | 1.0..7.0° |
+| `ALIGN_REC`: where AUTO and the nudge keep their output | −4.0..0.0° | −3.5..0.0° | −0.2..+0.2° | 0.0..+0.3° | 4.0..7.0° |
+
+`ALIGN_GAME` was read off the in-game tuning menu and is the same in Horizon and Motorsport,
+all in 0.1° steps. `ALIGN_REC` is a design choice, not a game limit. Both ends of every band sit on the 0.1°
+grid, so a rounded value can't land outside its band.
+
+Every recommended value goes through `alignRec(key, v)`. It rounds to 0.1° half away from
+zero, then clamps to the `ALIGN_REC` band. Half away from zero matters because the toe tables are full of
+±0.05 entries: `Math.round` sends −0.05 to 0 and +0.05 to 0.1, so every slight toe-out was
+lost while the matching toe-in survived. The formulas below write `clamp(lo, hi, x)` for
+`alignRec`.
+
+MANUAL values are clamped to `ALIGN_GAME` but not snapped to 0.1°: a typed −1.23 goes through
+as typed.
+
+**Toe sign.** Positive is toe-in, negative toe-out, which matches the numbers in the game and its
+description box. Forum reports say the game's IN/OUT slider labels sit on the opposite sides,
+so a tuner reading the labels instead of the number would enter toe backwards. The convention hasn't
+been checked against the car's on-screen wheel angle.
+
 `computeAlignment` itself is the AUTO recommendation's engine only (stored as
 `al.mode:'build'`, shown as AUTO with Nudge OFF — the UI never says BUILD) — PRO
 mode wraps it with an **Alignment Mode** selector (`al.mode`) that can nudge its
@@ -55,13 +82,12 @@ roll-compensated formula as every other build (see
 ## Toe front (`recToeF`)
 
 ```js
-recToeF = clamp(-0.20, 0.15, toeFByBuild + (frontBias-50)×-0.003 + (fHz-1.8)×0.010)
+recToeF = clamp(-0.2, 0.2, toeFByBuild + (frontBias-50)×-0.003 + (fHz-1.8)×0.010)
 ```
 
-Rounded to the nearest 0.1° — Forza's toe input only accepts one decimal
-place, so anything finer isn't actually enterable in-game. `toeFByBuild`'s
-own 0.05° table increments already get rounded down to this same 0.1° grid
-in the final recommendation.
+Rounded to 0.1° (see above), because Forza's toe input only accepts one decimal place.
+`toeFByBuild`'s 0.05° entries therefore land on a whole 0.1° step: on a default chassis,
+TRACK RWD/AWD's −0.05 prints −0.1 and STREET FWD's +0.05 prints +0.1.
 
 | Build | toeFByBuild (FWD / other layouts) |
 |---|---|
@@ -83,7 +109,7 @@ formula — an earlier version of this doc had that direction backwards too).
 ## Toe rear (`recToeR`)
 
 ```js
-recToeR = clamp(0.0, 0.25, toeRBase + (rearBiasFraction-0.5)×0.20 + max(0, rHz-fHz)×-0.03)
+recToeR = clamp(0.0, 0.3, toeRBase + (rearBiasFraction-0.5)×0.20 + max(0, rHz-fHz)×-0.03)
 ```
 
 Same 0.1° rounding as `recToeF`.
@@ -108,7 +134,7 @@ so it needs less toe-in help).
 ## Caster (`recCaster`)
 
 ```js
-recCaster = clamp(4.0, 7.5, casterBase + (fHz-1.8)×0.4 + (frontBias-50)×0.04 + (layout==='FWD' ? -0.5 : 0))
+recCaster = clamp(4.0, 7.0, casterBase + (fHz-1.8)×0.4 + (frontBias-50)×0.04 + (layout==='FWD' ? -0.5 : 0))
 ```
 
 | Build | casterBase |
@@ -181,8 +207,8 @@ k = normGap * (nudgeStrength / 100)          // nudgeStrength: 0-100 slider, 0 =
 
 recCamberF = clamp(-4.0, 0.0, buildCamberF - 0.5*k)    // more oversteer-leaning (k>0) → more front bite
 recCamberR = clamp(-3.5, 0.0, buildCamberR + 0.3*k)    // more oversteer-leaning (k>0) → less rear grip, freer rotation
-recToeF    = clamp(-0.20, 0.15, buildToeF - 0.10*k)    // more oversteer-leaning (k>0) → more toe-out, sharper turn-in
-recToeR    = clamp(0.0, 0.25, buildToeR - 0.10*k)      // more oversteer-leaning (k>0) → less toe-in, freer rear
+recToeF    = clamp(-0.2, 0.2, buildToeF - 0.10*k)    // more oversteer-leaning (k>0) → more toe-out, sharper turn-in
+recToeR    = clamp(0.0, 0.3, buildToeR - 0.10*k)      // more oversteer-leaning (k>0) → less toe-in, freer rear
 recCaster  = buildCaster                               // never adjusted — not an oversteer/understeer lever
 ```
 
