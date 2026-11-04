@@ -1119,7 +1119,7 @@ available (PRO), then without it:
 
 > The numbers in step 1 are stock examples, not a tune, so nothing is decoded yet. Overwrite the springs, dampers or bars with your tune's values and the decode appears here.
 
-**STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only), above its five fields:
+**STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only; first after the vehicle mass, then ARB, springs and damping), above its five fields:
 
 > As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.
 

@@ -5663,6 +5663,29 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                 {/* In the Weight field's unit: kg under a lb Weight read as a second, unexplained unit. */}
                 <Stat label="Corner mass front" value={mMass?masses.front:masses.front*KG_TO_LB} unit={mMass?'kg':'lb'} decimals={mMass?2:1}/>
                 <Stat label="Corner mass rear" value={mMass?masses.rear:masses.rear*KG_TO_LB} unit={mMass?'kg':'lb'} decimals={mMass?2:1}/>
+                {alignOk&&<>
+                  <CkPhase>ALIGNMENT — OPTIONAL</CkPhase>
+                  <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginBottom:4}}>
+                    As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL.
+                    Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+                    {[['Camber F','camberF'],['Camber R','camberR'],['Toe F','toeF'],['Toe R','toeR']].map(([lbl,k])=>(
+                      <Field noSlider stacked key={k} label={lbl} value={ckAl[k]} onChange={pAl(k)}
+                        min={ALIGN_GAME[k][0]} max={ALIGN_GAME[k][1]} step={0.1} unit="°"/>
+                    ))}
+                  </div>
+                  <Field noSlider label="Caster" value={ckAl.caster} onChange={pAl('caster')}
+                    min={ALIGN_GAME.caster[0]} max={ALIGN_GAME.caster[1]} step={0.1} unit="°"/>
+                </>}
+                <CkPhase>ANTI-ROLL BARS</CkPhase>
+                <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginBottom:4}}>{phys
+                  ?"Anti-Roll Spring Rate in N/m, straight off BeamNG's slider."
+                  :'Clicks, exactly as the in-game tune shows them.'}</div>
+                {[['ARB Front','f'],['ARB Rear','r']].map(([lbl,k])=>(
+                  <Field noSlider key={k} label={lbl} value={ckArb[k]} onChange={pA(k)}
+                    min={phys?0:1} max={phys?200000:lim.arb} step={phys?500:0.1}
+                    unit={phys?'N/m':`/ ${lim.arb}`}/>
+                ))}
                 {/* Physical modes always take N/m regardless of the UNITS spring choice, because that
                     is the unit BeamNG's slider and this mode's SPRINGS card both use — asking
                     for lb/in here while printing N/m there would break the round-trip.
@@ -5688,29 +5711,6 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                     min={phys?0:1} max={phys?40000:lim.damping} step={phys?50:0.1}
                     unit={phys?'N/m/s':`/ ${lim.damping}`}/>
                 ))}
-                <CkPhase>ANTI-ROLL BARS</CkPhase>
-                <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginBottom:4}}>{phys
-                  ?"Anti-Roll Spring Rate in N/m, straight off BeamNG's slider."
-                  :'Clicks, exactly as the in-game tune shows them.'}</div>
-                {[['ARB Front','f'],['ARB Rear','r']].map(([lbl,k])=>(
-                  <Field noSlider key={k} label={lbl} value={ckArb[k]} onChange={pA(k)}
-                    min={phys?0:1} max={phys?200000:lim.arb} step={phys?500:0.1}
-                    unit={phys?'N/m':`/ ${lim.arb}`}/>
-                ))}
-                {alignOk&&<>
-                  <CkPhase>ALIGNMENT — OPTIONAL</CkPhase>
-                  <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginBottom:4}}>
-                    As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL.
-                    Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
-                    {[['Camber F','camberF'],['Camber R','camberR'],['Toe F','toeF'],['Toe R','toeR']].map(([lbl,k])=>(
-                      <Field noSlider stacked key={k} label={lbl} value={ckAl[k]} onChange={pAl(k)}
-                        min={ALIGN_GAME[k][0]} max={ALIGN_GAME[k][1]} step={0.1} unit="°"/>
-                    ))}
-                  </div>
-                  <Field noSlider label="Caster" value={ckAl.caster} onChange={pAl('caster')}
-                    min={ALIGN_GAME.caster[0]} max={ALIGN_GAME.caster[1]} step={0.1} unit="°"/>
-                </>}
               </Card>
 
               <Card title="STEP 2 · DECODED TUNE" accent
@@ -5727,7 +5727,18 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                     <button className="tbtn" style={{display:'block',marginTop:6,fontSize:10}}
                       onClick={()=>setCkEntered(true)}>DECODE THE EXAMPLE NUMBERS</button></div>
                   :<>
+                  {alIn&&<>
+                    {ckEntered&&<CkPhase>ALIGNMENT</CkPhase>}
+                    <Stat label="Camber front" value={ckAl.camberF} unit="°" decimals={1}/>
+                    <Stat label="Camber rear"  value={ckAl.camberR} unit="°" decimals={1}/>
+                    <Stat label={`Toe front${ckAl.toeF>0?' (in)':ckAl.toeF<0?' (out)':''}`} value={ckAl.toeF} unit="°" decimals={1}/>
+                    <Stat label={`Toe rear${ckAl.toeR>0?' (in)':ckAl.toeR<0?' (out)':''}`}  value={ckAl.toeR} unit="°" decimals={1}/>
+                    <Stat label="Caster" value={ckAl.caster} unit="°" decimals={1}/>
+                  </>}
                   {ckEntered&&<>
+                  {alIn&&<CkPhase>SUSPENSION</CkPhase>}
+                  <Stat label="ARB front" value={ckArb.f} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
+                  <Stat label="ARB rear"  value={ckArb.r} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
                     <Readout label="Hz FRONT" value={ck.hF} unit="Hz"/>
                     <Readout label="Hz REAR" value={ck.hR} unit="Hz"/>
@@ -5736,22 +5747,12 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                   <Stat label="Rebound ratio rear"  value={ck.zRebR} unit="%" decimals={1}/>
                   <Stat label="Bump ratio front"    value={ck.zBmpF} unit="%" decimals={1}/>
                   <Stat label="Bump ratio rear"     value={ck.zBmpR} unit="%" decimals={1}/>
-                  <Stat label="ARB front" value={ckArb.f} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
-                  <Stat label="ARB rear"  value={ckArb.r} unit={phys?'N/m':`/ ${lim.arb}`} decimals={phys?0:1}/>
                   {Math.abs(biasWanted)>50&&<CkWarn>
                     This split needs a front/rear damping bias of {biasWanted>0?'+':''}{biasWanted}, past the ±50 limit, so
                     the front is matched and the rear lands as close as it can.</CkWarn>}
                   {Math.abs(bumpBiasWanted)>50&&bumpBiasWanted!==biasWanted&&<CkWarn>
                     The bump split needs a bump bias of {bumpBiasWanted>0?'+':''}{bumpBiasWanted}, past the ±50 limit, so
                     the front bump is matched and the rear lands as close as it can.</CkWarn>}
-                  </>}
-                  {alIn&&<>
-                    {ckEntered&&<CkPhase>ALIGNMENT</CkPhase>}
-                    <Stat label="Camber front" value={ckAl.camberF} unit="°" decimals={1}/>
-                    <Stat label="Camber rear"  value={ckAl.camberR} unit="°" decimals={1}/>
-                    <Stat label={`Toe front${ckAl.toeF>0?' (in)':ckAl.toeF<0?' (out)':''}`} value={ckAl.toeF} unit="°" decimals={1}/>
-                    <Stat label={`Toe rear${ckAl.toeR>0?' (in)':ckAl.toeR<0?' (out)':''}`}  value={ckAl.toeR} unit="°" decimals={1}/>
-                    <Stat label="Caster" value={ckAl.caster} unit="°" decimals={1}/>
                   </>}
                   {/* The two destinations are a fork, not a pair of similar buttons, and which one you
                       want is the only real decision in this tab — so each says in a line what it keeps
@@ -7607,7 +7608,7 @@ const GLOSSARY=[
     {id:'dna-match',term:'DNA Match',tier:'pro',def:"After a Vehicle DNA is applied the tune stays linked to it: a chip in the sidebar names it, the sliders it set carry a mark, and VISUALS shows DNA MATCH with each axis's TARGET and NOW. ✓ means the axis still sits where APPLY left it; amber ≠ means it has moved beyond rounding since APPLY; MODE means that control is no longer in the mode the DNA set, so the value is not comparable.\n\nTARGET is the DNA's own target, which can differ from what APPLY achieved when an axis gave way or used its slack; drift is judged against the achieved value. Loading a garage build replaces the link with the DNA saved in that entry, if any. A FACTORY preset, a share code's feel or drivetrain parts, RESET, or leaving PRO removes it.",see:['dna','dna-priority','garage','share-code']},
   ]},
   {group:'Tools',terms:[
-    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its springs, dampers and bars exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, so MEASURE readings survive a stray click.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also takes an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports convert the Anti-Roll Spring Rate to roll stiffness through the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
+    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its bars, springs and dampers exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, so MEASURE readings survive a stray click.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also opens with an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports convert the Anti-Roll Spring Rate to roll stiffness through the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
     {id:'measure-nat-bal',term:'MEASURE NAT BAL',tier:'beginner',def:"Step 1 of Tune Check's MEASURE tab: an in-game reading of this car's natural mech balance that replaces the app's prediction. Set the spring rates it lists (solved for the Measure Hz from each corner's mass) and both bars to 1 in Forza, then type the Mech Balance the game shows (0.30–0.90). The reading and its Hz save with the chassis and travel in its share code; CLEAR returns to the prediction.\n\nMeasure Hz runs 1.0–3.5, default 2.20. Softer is more accurate: at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins this result, and step 2's ARB scale, more tightly. Use the lowest Hz whose rates the game accepts. If the chassis later changes enough to move the prediction by 0.01 or more, the step reads RE-MEASURE: a reading describes one car in one state and is used as-is until you retake or clear it.\n\n[PRO] MEASURE NAT BAL in the BALANCE section opens this step. Once set, the reading drives NATURAL, GRIP BIAS and every target measured from natural, and the track-width fields hide, since it already reflects the car's real geometry, track width upgrades included; wheelbase stays for flat ride and brake balance.",see:['natural-balance','measure-arb-scale','tune-check','mech-balance']},
     {id:'measure-arb-scale',term:'ARB SCALE SETUP',tier:'beginner',def:"Step 2 of Tune Check's MEASURE tab, Forza only. Forza scales its ARB slider differently per car; this finds what one click is worth on this one, so bar-driven balance lands where the game shows it. It unlocks once step 1 is set and is solved against it: keep step 1's springs, ride height and tyres, set the bars each of the four readings lists (front 1 with rear at the ceiling, the reverse, both at the ceiling, both at half) and type the Mech Balance Forza shows.\n\nThe four are fitted together. If one scale puts every reading within Forza's two-decimal rounding, both axles share it, because the readings cannot tell them apart. If not, the front and rear each get their own scale. Each reading shows FITS, or how far it sits OFF the fit, so you can see whether they agree. When no front/rear pair explains them, a warning names the reading that fits worst; if all four are typed as Forza showed them, the fit is still the best estimate. SCALE IN USE: MEASURED applies the result, DEFAULT returns to the shared 540. A reading no plausible bar fits shows CHECK.\n\nThe scale saves with the chassis and travels in its share code. If step 1 is re-taken or cleared, it reads RE-MEASURE and stays in use until you re-measure or pick DEFAULT. Changing Measure Hz after step 1 does not move the solve, which stays at step 1's Hz.",see:['arb-scale','measure-nat-bal','tune-check','arb']},
     {id:'dna',term:'Vehicle DNA',tier:'beginner',def:"A Vehicle DNA is a set of handling targets the app turns into a complete tune for the current car, so one character can move from car to car. Building and applying one is PRO; below PRO the DNA window only says so.\n\n[PRO] Nine axes: PLATFORM (front Hz), PITCH (rear ÷ front Hz), ARB SHARE (% of roll stiffness from bars), BALANCE (mech balance past grip-neutral, + toward oversteer), REBOUND ζ, BUMP RATIO, DAMP BIAS, DIFF EXIT, DIFF ENTRY. APPLY writes them through fixed modes (FRONT ride reference, Hz stiffness, MULTIPLIER, SHARE %, MECH balance on a GRIP target, CHARACTER, BUMP RATIO, TIME SYNC, AUTO diff), listed under SWITCHES when they change; it overwrites the tune once and ↩ undoes it.\n\n[PRO] The four archetypes (MOMENTUM, RALLY / B-ROAD, GT3, TAIL-HAPPY RWD) are hypotheses to tune in game, not calibration. MY DNA saves DNAs as garage entries (LOAD DNA fills the editor, it does not apply); CODE copies or pastes one DNA on its own code, separate from tune codes. Leaving PRO with a DNA applied changes the tune (BEG and INT cannot use MECH balance; BEG also loses TIME SYNC and damping bias) and removes the link, which returning to PRO does not restore.",see:['dna-priority','dna-match','grip-neutral','tune-check']},
