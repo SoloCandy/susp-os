@@ -216,7 +216,10 @@ The result may pass `ALIGN_REC`, which bounds only AUTO's own recommendation, ou
 limit. That was the owner's call: the sliders exist to override the recommendation.
 
 **MANUAL.** Five number fields across `ALIGN_GAME`, for an alignment already in the game. Tune
-Check DECODE will feed it (planned; see [IDEAS.md](IDEAS.md)), and that's why it's in INT.
+Check DECODE feeds it, and that's why it's in INT: DECODE's step 1 has an optional ALIGNMENT
+block (INT+, Forza modes), and IMPORT TUNE writes it here with `alignManual: true`. It has its
+own gate (`ckAlEntered`), so an alignment imports on its own without the suspension seeds, and
+the other way round, in one undoable commit.
 
 **Switching carries the numbers across** (`setAlignManual`):
 

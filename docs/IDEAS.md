@@ -41,10 +41,10 @@ feel ±1.5°), MANUAL in INT, AUTO ↔ MANUAL translation, alignment state moved
 91–95 and the ALIGNMENT share part. Now described in [ALIGNMENT.md](ALIGNMENT.md) ("Intent and
 MANUAL") and [CODEC.md](CODEC.md). The slider ranges are first guesses, to be tuned with use.
 
-### Phase 3 — Tune Check DECODE: alignment
+### Phase 3 — Tune Check DECODE: alignment (shipped)
 
-An alignment step in DECODE: camber, toe and caster as the game shows them, imported into MANUAL by
-IMPORT TUNE.
+DECODE's step 1 takes an optional alignment, and IMPORT TUNE writes it into MANUAL. Now described
+in [ALIGNMENT.md](ALIGNMENT.md) ("Intent and MANUAL").
 
 ### Phase 4 — VISUALS: ALIGNMENT group
 

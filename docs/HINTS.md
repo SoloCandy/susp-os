@@ -1119,6 +1119,24 @@ available (PRO), then without it:
 
 > The numbers in step 1 are stock examples, not a tune, so nothing is decoded yet. Overwrite the springs, dampers or bars with your tune's values and the decode appears here.
 
+**STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only), above its five fields:
+
+> As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.
+
+**IMPORT TUNE's line** names what it replaces: the suspension sentence when step 1's suspension was
+entered, the alignment one when the alignment was, or both:
+
+> Keeps the numbers: replaces this car's springs, dampers and anti-roll bars, close rather than exact — review them afterward.
+
+> The alignment goes into ALIGNMENT's MANUAL exactly as typed; switch to AUTO and the sliders take the closest setting.
+
+**IMPORT AS DNA's line** (PRO) when the suspension was entered, then when only the alignment was
+(the button is disabled then):
+
+> Keeps the handling: loads it into the DNA editor (toolbar DNA) as targets and leaves this car alone — APPLY it to this car or another. DNA leaves alignment out.
+
+> Needs the springs, dampers or bars from step 1: a DNA is the suspension's handling, not its alignment.
+
 Corner masses show in the Weight field's unit (lb or kg). The DECODE and MEASURE tabs carry titles:
 *Read back a tune you already have, from its in-game numbers* and *Calibrate this car from balance
 readings taken in the game*.

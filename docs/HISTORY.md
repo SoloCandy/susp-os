@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Tune Check DECODE imports an alignment
+
+The alignment revamp's Phase 3 ([IDEAS.md](IDEAS.md)). DECODE's step 1 takes an optional
+alignment (INT+, Forza modes), and IMPORT TUNE writes it into ALIGNMENT's MANUAL. It has its own
+gate, like step 1's suspension: each half imports only if it was typed, so decoding an alignment
+alone no longer means importing the stock spring seeds with it. The CheckerModal's `setFe` prop
+became `onImportTune(feFn, drFn)`, and App applies both halves in one commit, so one undo takes
+back the whole import. IMPORT AS DNA still needs the suspension and leaves alignment out.
+
 ## Changed — ALIGNMENT intent sliders replace the MECH/GRIP nudge; alignment travels
 
 The alignment revamp's Phase 2 ([IDEAS.md](IDEAS.md)). Four things changed together:
