@@ -42,6 +42,29 @@ mode wraps it with an **Alignment Mode** selector (`al.mode`) that can nudge its
 output toward the car's actual balance tuning instead of taking the AUTO numbers
 as-is. See "Alignment Mode (PRO)" below.
 
+## The ALIGNMENT output card
+
+Each row prints the value to enter, and its meta tags (`alignView`):
+
+| Row | Tags |
+|---|---|
+| Camber F / R | `dyn` (camber at the tune's roll, brighter under AUTO); `nudge ±x°` under a nudge; `AUTO x°` under MANUAL when it differs |
+| Toe F / R | `IN` / `OUT` from the sign (nothing at 0.0); then `nudge` / `AUTO` as above |
+| Caster | `steer x° @ 10°`; `AUTO x°` under MANUAL |
+| any | `LIMIT` note when `limit[key]` is set: the `ALIGN_REC` band, not the formula, decided the value |
+
+`steer` is `casterSteerCamber(caster)`: `−caster × sin(CASTER_REF_STEER)`, the negative camber
+the outside front wheel gains from caster when steered. It's small-angle geometry with KPI left out,
+not calibrated. `CASTER_REF_STEER` is 10°, a stated choice, since Forza never shows the
+road-wheel angle.
+
+Under MANUAL the `AUTO` tag is the only gap figure. The gap between MANUAL's `dyn` and the
+build's target is the same number, because both sit at the same roll.
+
+Under AUTO with Nudge OFF, the card's ⓘ hint ends with the terms behind each value: `computeAlignment`'s
+`why`, `[label, degrees]` pairs that sum to the unclamped value (terms under 0.005° are left out,
+except the build base). Wording in [HINTS.md](HINTS.md).
+
 ## Camber
 
 ```js

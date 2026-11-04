@@ -602,6 +602,15 @@ camber target and `{roll}` the tune's roll angle:
 
 > Camber targets {camber} dynamic at {roll}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG. dyn = camber at that roll.
 
+Then, after either layout's sentence, `{steer}` being `CASTER_REF_STEER`:
+
+> steer = camber caster adds to the outside wheel at {steer}° of steering. LIMIT = held at the recommended range.
+
+and, under AUTO with Nudge OFF only, the terms behind each value (`computeAlignment`'s `why`, terms
+under 0.005° left out except the build base), e.g. `Camber F: TRACK -1.50, roll -1.38.`:
+
+> Built from: {terms}
+
 **ANTI-ROLL BARS:**
 
 > Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets.

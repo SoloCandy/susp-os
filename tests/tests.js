@@ -204,18 +204,17 @@ const computeAlignment = (ch, tune, layout, buildType) => {
 
   // ALIGN_REC + alignRec, kept local so the mirror tripwire has nothing new to account for
   const REC = { camberF: [-4.0, 0.0], camberR: [-3.5, 0.0], toeF: [-0.2, 0.2], toeR: [0.0, 0.3], caster: [4.0, 7.0] };
-  const rec = (key, v) => {
-    const r = (Math.sign(v) * Math.round(Math.abs(v) * 10 + 1e-9) / 10) || 0;
-    return Math.max(REC[key][0], Math.min(REC[key][1], r));
-  };
+  const round1 = v => (Math.sign(v) * Math.round(Math.abs(v) * 10 + 1e-9) / 10) || 0;
+  const rec = (key, v) => Math.max(REC[key][0], Math.min(REC[key][1], round1(v)));
+  const raw = {};
 
   const camberGain = Math.max(0.55, Math.min(0.85, 1.05 - (ch.cgHeight ?? 0.45) * 0.8));
   const rearGainMult = layout === 'FWD' ? 0.50 : layout === 'AWD' ? 0.70 : 0.75;
   const fwdReduction = layout === 'FWD' ? 0.3 : 0.0;
 
   const optimalCamber = isDrift ? -2.5 : isDrag ? -0.2 : isOffroad ? -0.3 : isRally ? -0.8 : isStreet ? -1.0 : -1.5;
-  const recCamberF = rec('camberF', optimalCamber - rollDeg * camberGain + fwdReduction);
-  const recCamberR = rec('camberR', optimalCamber - rollDeg * camberGain * rearGainMult);
+  raw.camberF = optimalCamber - rollDeg * camberGain + fwdReduction;
+  raw.camberR = optimalCamber - rollDeg * camberGain * rearGainMult;
 
   const toeFByBuild = {
     street: layout === 'FWD' ? 0.05 : 0.0,
@@ -225,7 +224,7 @@ const computeAlignment = (ch, tune, layout, buildType) => {
     offroad: 0.05,
     drag: 0.0,
   }[build] ?? -0.05;
-  const recToeF = rec('toeF', toeFByBuild + (ch.frontBias - 50) * -0.003 + (fHz - 1.8) * 0.010);
+  raw.toeF = toeFByBuild + (ch.frontBias - 50) * -0.003 + (fHz - 1.8) * 0.010;
 
   const toeRByBuild = {
     street: { RWD: 0.15, AWD: 0.08, FWD: 0.05 },
@@ -236,13 +235,19 @@ const computeAlignment = (ch, tune, layout, buildType) => {
     drag: { RWD: 0.0, AWD: 0.0, FWD: 0.0 },
   }[build] ?? { RWD: 0.10, AWD: 0.08, FWD: 0.05 };
   const toeRBase = toeRByBuild[layout] ?? toeRByBuild.RWD;
-  const recToeR = rec('toeR', toeRBase + ((1 - ch.frontBias / 100) - 0.5) * 0.20 + Math.max(0, rHz - fHz) * -0.03);
+  raw.toeR = toeRBase + ((1 - ch.frontBias / 100) - 0.5) * 0.20 + Math.max(0, rHz - fHz) * -0.03;
 
   const casterBase = isDrift ? 4.8 : isDrag ? 4.0 : isOffroad ? 4.5 : isStreet ? 5.2 : 5.8;
-  const recCaster = rec('caster', casterBase + (fHz - 1.8) * 0.4 + (ch.frontBias - 50) * 0.04 + (layout === 'FWD' ? -0.5 : 0));
+  raw.caster = casterBase + (fHz - 1.8) * 0.4 + (ch.frontBias - 50) * 0.04 + (layout === 'FWD' ? -0.5 : 0);
 
-  return { recCamberF, recCamberR, recToeF, recToeR, recCaster };
+  // limit: the band, not the formula, decided the value (the output's LIMIT tag)
+  const limit = {};
+  for (const k in raw) limit[k] = round1(raw[k]) !== rec(k, raw[k]);
+  return { recCamberF: rec('camberF', raw.camberF), recCamberR: rec('camberR', raw.camberR),
+    recToeF: rec('toeF', raw.toeF), recToeR: rec('toeR', raw.toeR), recCaster: rec('caster', raw.caster), limit };
 };
+// Negative camber caster adds to the outside front wheel at `steer` degrees (default 10).
+const casterSteerCamber = (caster, steer = 10) => -caster * Math.sin(steer * Math.PI / 180);
 
 // Spring-frequency operating band — must mirror app's HZ_MIN/HZ_MAX.
 const HZ_MIN = 0.8, HZ_MAX = 5.5;
@@ -1029,6 +1034,13 @@ console.log('\ncomputeAlignment — toe and caster');
                 bandFail = bandFail ?? `${build} ${layout} bias ${frontBias} Hz ${fHz}/${rHz} roll ${rollDeg}: ${k}=${a[k]}`;
           }
   assertEq('every output inside its band, on the 0.1° grid', bandFail, null);
+
+  // LIMIT: set when the band decided the value, not when the formula lands on an edge itself.
+  assertEq('extreme roll: front camber held → LIMIT', computeAlignment(ch, { fHz: 1.8, rHz: 1.8, rollDeg: 8 }, 'RWD', 'track').limit.camberF, true);
+  assertEq('DRAG rear toe 0.0 at equal Hz is the formula, not LIMIT', computeAlignment(ch, tune, 'RWD', 'drag').limit.toeR, false);
+  assertEq('DRAG rear toe with a stiffer rear wants toe-out → LIMIT', computeAlignment(ch, { fHz: 1.8, rHz: 5.5, rollDeg: 2 }, 'RWD', 'drag').limit.toeR, true);
+  assertEq('default TRACK RWD: nothing at LIMIT', Object.values(computeAlignment(ch, tune, 'RWD', 'track').limit).some(Boolean), false);
+  assert('caster steer camber: 6° at 10° steer ≈ −1.04°', casterSteerCamber(6), -1.042, 0.001);
 }
 
 // ── mirror vs app ─────────────────────────────────────────────────────────────
@@ -1070,7 +1082,7 @@ console.log('\nmirror vs app (reads index.html)');
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
     'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,clampLandingPct,LANDING_PCT_MIN,LANDING_PCT_MAX,LANDING_ZETA_MIN,LANDING_ZETA_MAX,' +
-    'BUMP_STOP_ZONE,floorDampPair,splitDampZetas,catchZetas};'
+    'BUMP_STOP_ZONE,floorDampPair,splitDampZetas,catchZetas,casterSteerCamber,CASTER_REF_STEER};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1195,6 +1207,10 @@ console.log('\nmirror vs app (reads index.html)');
       .flatMap(tune => ['RWD', 'FWD', 'AWD'].flatMap(layout =>
         ['street', 'track', 'drift', 'rally', 'offroad', 'drag'].map(build => ({ ch, tune, layout, build }))))),
     ({ ch, tune, layout, build }) => diff(computeAlignment(ch, tune, layout, build), A.computeAlignment(ch, tune, layout, build)));
+  check('casterSteerCamber', ['casterSteerCamber'],
+    [1, 4, 5.8, 7].flatMap(c => [undefined, 0, 5, 10, 20].map(steer => ({ c, steer }))),
+    ({ c, steer }) => diff(casterSteerCamber(c, steer), A.casterSteerCamber(c, steer))
+      ?? diff(10, A.CASTER_REF_STEER, 'CASTER_REF_STEER (the mirror\'s default steer)'));
 
   // ── springs, dampers and Hz mapping
   check('rsToHz and hzToRs', ['rsToHz', 'hzToRs'],

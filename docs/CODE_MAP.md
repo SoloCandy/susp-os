@@ -134,7 +134,9 @@ solveTune(ch, feEffective, gameMode, build, ph)
 computeDiff(ch, fe, dr)                → differential locks (independent)
 computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
                                          (each through alignRec: 0.1° rounding, then
-                                         the ALIGN_REC band; ALIGN_GAME is the game's span)
+                                         the ALIGN_REC band; ALIGN_GAME is the game's span).
+                                         Also returns limit (alignAtLimit, per value) and
+                                         why (the terms each value sums, for the card hint)
 ```
 
 Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),

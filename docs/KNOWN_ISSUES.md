@@ -22,14 +22,6 @@ shared with every other GitHub Pages project on that account. The banner also ca
 entries are unsaved — the whole list since the first refusal is. A pre-save size check in
 `garageSave` and a `maxLength` on notes would prevent the common cases.
 
-## Open — an alignment value held at its range says nothing
-
-`computeAlignment` and the MECH/GRIP nudge hold each value inside its `ALIGN_REC` band (camber
-front −4.0..0.0°, rear −3.5..0.0°; toe front −0.2..+0.2°, rear 0.0..+0.3°; caster 4.0–7.0°) without a
-flag, so a clamped value prints like any other. The output can't infer it from the value:
-some recommendations sit on an edge without being clamped (DRAG's rear toe is 0.0). A
-LIMIT note needs `computeAlignment` to hand back its values before clamping.
-
 ## Open — an out-of-reach ENTRY brake target shows only in the sidebar
 
 Under BRAKES Centre ENTRY, `entryBrakeBiasFor` stops the bias at 40% or 68% when the

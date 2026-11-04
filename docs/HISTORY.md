@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — an alignment value held at its range said nothing
+
+`computeAlignment` and the MECH/GRIP nudge clamp each value to its `ALIGN_REC` band with no flag, so a clamped
+value printed like any other. It couldn't be inferred from the value, since some recommendations sit
+on an edge on their own (DRAG's rear toe is 0.0 at equal Hz). `computeAlignment` now sums each value
+from its terms and returns `limit` (`alignAtLimit`: the rounded unclamped value differs from the
+clamped one), and the ALIGNMENT card tags those rows LIMIT. Under a nudge, AUTO's LIMIT stands while
+the nudge leaves the value where AUTO had it.
+
 ## Fixed — alignment rounding lost toe-out, and AUTO caster passed the game's limit
 
 Three problems in `computeAlignment` and the MECH/GRIP nudge, found when checking the alignment against the

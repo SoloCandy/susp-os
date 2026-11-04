@@ -8,6 +8,91 @@ rejected, move it to [KNOWN_ISSUES.md](KNOWN_ISSUES.md) with the reasoning.
 
 ---
 
+## Alignment revamp (Forza)
+
+Replace the ALIGNMENT section's AUTO / MANUAL + Nudge with controls in tuner vocabulary,
+make the output explain itself, and add an ALIGNMENT group to VISUALS. Forza only for now.
+The game's input span is already in code as `ALIGN_GAME` (camber and toe −5..+5°, caster
+1–7°, 0.1° steps), and the recommendation bands as `ALIGN_REC`; see [ALIGNMENT.md](ALIGNMENT.md).
+
+### Decisions already made
+
+| Decision | Choice | Why |
+|---|---|---|
+| Nudge MECH / GRIP | **Retired.** Saved `al.mode` `mech`/`grip` migrates to `build`, and `al.nudgeStrength` is dropped | Abstract (it follows a balance gap), often invisible (rounds back to the AUTO value), and the balance model never sees it |
+| BEG | AUTO, plus the clearer output | Beginners read values; they don't tune alignment |
+| INT | AUTO + intent sliders, **and MANUAL** | Tune Check's DECODE will take an existing in-game alignment and import it into MANUAL, and DECODE is open below PRO |
+| PRO | Everything in INT, plus a per-axle dynamic camber target and the symptom fixer | |
+| Balance model | **Held.** Nothing alignment does enters NET or the phase margins yet | None of the alignment constants are calibrated. Leading idea, undecided: direction-only arrows on the Handling Balance lanes, the way diff lock and damping show now, with no magnitude |
+| VISUALS | Camber-vs-roll chart, and range strips | Picked from a longer list; the tyre front view and the top-down toe diagram are not planned |
+
+### Phase 1 — output (shipped)
+
+IN/OUT on toe, LIMIT, caster's steer camber, `AUTO x°` under MANUAL, and the term breakdown in the
+card hint. Now described in [ALIGNMENT.md](ALIGNMENT.md) ("The ALIGNMENT output card").
+
+### Phase 2 — controls
+
+Each slider stores an offset from the AUTO value, so the alignment keeps following chassis and
+spring changes. Each shows the degrees it produces.
+
+| Control | Tier | Moves | Ends | Range (proposal) |
+|---|---|---|---|---|
+| Turn-in | INT | front toe | STABLE ↔ SHARP | ±0.3° around AUTO |
+| Rear stability | INT | rear toe | FREE ↔ PLANTED | ±0.3° around AUTO |
+| Steering feel | INT | caster | LIGHT ↔ WEIGHTED | ±1.5° around AUTO |
+| Camber target F / R | PRO | the dynamic camber target; static is solved from roll | — | −5..0°, default the build's `optimalCamber` |
+
+Every result still passes through `alignRec`. Whether an offset may push past `ALIGN_REC`
+(up to `ALIGN_GAME`) is open.
+
+**MANUAL** stays absolute and is the destination of DECODE's import. A COPY AUTO button seeds it from
+the current AUTO values.
+
+**Sharing.** `al` travels in neither share codes nor garage entries today. Offsets, the camber targets
+and MANUAL values need new codec ids ([CODEC.md](CODEC.md): ids are permanent). Leaving a tier has to
+drop what that tier can't see, like the existing fallback effect.
+
+### Phase 3 — Tune Check DECODE: alignment
+
+An alignment step in DECODE: camber, toe and caster as the game shows them, imported into MANUAL by
+IMPORT TUNE.
+
+### Phase 4 — VISUALS: ALIGNMENT group
+
+1. **Camber vs roll.** x = body roll, y = outside-tyre camber. One line per axle, with
+   `camberGainOf`'s gains as slopes. The build's dynamic target is a shaded band, and a marker sits
+   at `tune.rollDeg`. Possibly a second marker at the roll under ENTRY/EXIT loads.
+2. **Range strips.** One per value on its `ALIGN_GAME` span, with the `ALIGN_REC` band shaded and
+   markers at AUTO and the value in use. Reuses `VisTrack`'s bands and markers.
+
+### Phase 5 — symptom fixer (PRO)
+
+The tuner picks a symptom, and the app proposes one or two changes with the reason, applied by a tap.
+First draft of the mapping:
+
+| Symptom | Proposal |
+|---|---|
+| Understeer on turn-in | Front toe toward OUT; more caster |
+| Push mid-corner | More negative front camber (toward the target); less negative rear |
+| Snaps on lift-off / entry rotation | More rear toe-in |
+| Loose on exit | More rear toe-in; less negative rear camber |
+| Unstable under braking | More rear toe-in |
+| Wanders on straights | Front toe toward IN; more caster |
+| Steering too heavy | Less caster |
+
+Alignment is only one lever for most of these. Where springs, bars, diff or brakes are the bigger one,
+the fixer should say so rather than overload toe.
+
+### Open questions
+
+- The reference steer angle for caster's steer camber (`CASTER_REF_STEER`, 10° for now).
+- Whether intent offsets may leave `ALIGN_REC`.
+- The balance-model form (held; arrows are the leading idea).
+- The toe sign check against the car's on-screen wheel angle.
+
+---
+
 ## AUTO Balance Mode (PRO)
 
 A PRO ARB Balance Mode, next to WEIGHT / NEUTRAL / CHASSIS / MECH / CO-SOLVE, in
