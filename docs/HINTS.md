@@ -524,19 +524,23 @@ Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
 
 ---
 
-## ALIGNMENT (PRO)
+## ALIGNMENT (INT+)
 
 **ALIGNMENT MODE:**
 
-> AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values.
+> AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, then moved by the sliders below. MANUAL: type exact values, e.g. an alignment already in the game. Switching carries the numbers across both ways.
 
-**Nudge** (AUTO):
+**Intent sliders** (AUTO, `ALIGN_INTENT_ROWS`), each with the Alignment Intent ⓘ term:
 
-> OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged.
+> Front camber off the AUTO value. Left adds negative camber (more mid-corner grip on the outside tyre), right takes it away.
 
-**Nudge Strength:**
+> Rear camber off the AUTO value. Left adds negative camber (more rear grip mid-corner), right takes it away (freer rotation).
 
-> How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted.
+> Front toe off the AUTO value. Left is toward toe-out (sharper turn-in), right toward toe-in (steadier on straights).
+
+> Rear toe off the AUTO value. Right adds toe-in (a planted rear on lift-off and braking), left takes it away (freer rotation).
+
+> Caster off the AUTO value. Right adds self-centring and camber while steering at the cost of heavier steering; left lightens it.
 
 **Camber F / Camber R / Toe F / Toe R / Caster** (MANUAL):
 
@@ -604,10 +608,10 @@ camber target and `{roll}` the tune's roll angle:
 
 Then, after either layout's sentence, `{steer}` being `CASTER_REF_STEER`:
 
-> steer = camber caster adds to the outside wheel at {steer}° of steering. LIMIT = held at the recommended range.
+> steer = camber caster adds to the outside wheel at {steer}° of steering. LIMIT = held at the recommended range or the game's limit.
 
-and, under AUTO with Nudge OFF only, the terms behind each value (`computeAlignment`'s `why`, terms
-under 0.005° left out except the build base), e.g. `Camber F: TRACK -1.50, roll -1.38.`:
+and, under AUTO only, the terms behind each value (`computeAlignment`'s `why`, then `adjust`, the
+intent offset; terms under 0.005° left out except the build base), e.g. `Camber F: TRACK -1.50, roll -1.38, adjust -0.30.`:
 
 > Built from: {terms}
 
@@ -640,7 +644,7 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 **Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
 summary strip keeps the short `header`. By card:
 
-- ALIGNMENT: `AUTO for a {BUILD} build` (plus `NUDGE …`), or `MANUAL values`.
+- ALIGNMENT: `AUTO for a {BUILD} build` (plus ` · adjusted` while an intent offset is set), or `MANUAL values`.
 - ANTI-ROLL BARS: the stiffness (`AUTO stiffness`, `BASIC {n}% stiffness`, `ROLL target {deg}°`,
   `bars {n}% of roll stiffness`, `MANUAL bars`) · the balance (`split by WEIGHT` / `CHASSIS`,
   `, reversed` with Split Direction, `NEUTRAL: equal roll` / `NEUTRAL: cancels the chassis`,

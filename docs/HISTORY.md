@@ -11,6 +11,37 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — ALIGNMENT intent sliders replace the MECH/GRIP nudge; alignment travels
+
+The alignment revamp's Phase 2 ([IDEAS.md](IDEAS.md)). Four things changed together:
+
+- **The nudge is retired.** PRO's Nudge OFF / MECH / GRIP and Nudge Strength tilted camber and toe
+  toward the Mech Balance Target's gap, or against the chassis's grip tendency. It was abstract,
+  rounded back to the AUTO value at most strengths, and the balance model never saw it. Five
+  intent sliders replace it: Camber F / R, Turn-in, Rear stability and Steering feel. Each is an
+  offset from AUTO that may reach the game's limit. A saved MECH or GRIP comes back as AUTO.
+- **The section moved to INT**, MANUAL with it, so Tune Check DECODE can later import an in-game
+  alignment there. BEG reads pure AUTO and keeps what is stored, as it does the BRAKES shift. The
+  old "leaving PRO returns it to AUTO" fallback is gone.
+- **State moved from `al` (`suspos_al_v2`) into `dr`.** `al` travelled in neither share codes nor
+  garage entries, so a MANUAL alignment silently became AUTO on whoever received the tune. That
+  was an open known issue, now closed. In `dr` it rides undo, PERSIST, RESET and garage builds like
+  the rest of the build. `migrateLegacyAl` carries a saved MANUAL across once.
+- **Share codes carry intent.** Ids 91–95 hold the offsets in their own ALIGNMENT part. MANUAL is
+  never sent: it is translated to the offsets that land the sender's AUTO closest (`alignDrOut`),
+  the same translation as switching MANUAL → AUTO, and applying the part puts the reader in AUTO.
+
+`DEF_AL` was the end marker of the test suites' `DEF_CH` slice. They now end at
+`const BRAKE_BIAS_SCALE=`.
+
+## Changed — `_v1` tutorial progress converts through a frozen title list
+
+`tutProgressFromV1` counted each guide minus a frozen list of steps added since `_v1`
+(`TUT_ADDED_SINCE_V1`). That can't express a step leaving a guide, and PRO's Alignment Mode moved
+to INT (now "Alignment"), so every later PRO index would have shifted by one. `TUT_V1_TITLES` now
+freezes each guide's `_v1` titles directly. An index names a title, found wherever it now sits; a
+title since removed resumes at the next one that remains.
+
 ## Fixed — an alignment value held at its range said nothing
 
 `computeAlignment` and the MECH/GRIP nudge clamp each value to its `ALIGN_REC` band with no flag, so a clamped

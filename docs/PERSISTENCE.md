@@ -42,8 +42,8 @@ Writes outside `usePersist` (the migration sentinels) are not tracked.
 |---|---|---|
 | `suspos_ch_v8` | Chassis state (`ch`) — weight, frontBias, tyres, wheelbase, track widths, CG height + CG source (`useRideHeightCG`, `rideHeightF`/`rideHeightR`), layout, measured nat-bal (`useMeasuredNatBal`, `measuredNatBal`, `measuredNatBalHz`, and `measuredNatBalRef` — the prediction it was taken against, for `natBalStale`), measured ARB click scale (`useMeasuredArbClick`, `measuredArbClick` — the front scale, or both axles' — and `measuredArbClickR`, the rear's own, `null` unless step 2 split them; plus `measuredArbNat`/`measuredArbNatHz`, for `arbScaleStale`), BeamNG motion ratios (`motionRatioF`/`motionRatioR`, `arbMotionRatioF`/`arbMotionRatioR`) | `DEF_CH` |
 | `suspos_fe_v8` | Feel/tune state (`fe`) — ride stiffness + its input mode (`rideStiffMode` HZ/BOTTOM G's, `rideBottomG` target), Hz mode + ride reference, ARB modes, damping, balance targets (`arbBalTargetMode`; a stored legacy `'manual'` is read as NATURAL by `balTargetModeOf`, never as MANUAL `'abs'`, whose value is `arbBalAbs`; PHASE adds `phaseExitG`) | `DEF_FE` |
-| `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeStock`, `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget` | `DEF_DR` |
-| `suspos_al_v2` | Alignment state (`al`) — mode (build/mech/grip/manual), nudgeStrength, manual camber/toe/caster, and the legacy `alignManual` flag (still read as a fallback for old saves — see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_AL` |
+| `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, and BRAKES' `brakeStock`, `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget`, and ALIGNMENT's `alignManual`, MANUAL values `alignMan*` and intent offsets `alignOfs*` (see [ALIGNMENT.md](ALIGNMENT.md)) | `DEF_DR` |
+| `suspos_al_v2` | Legacy alignment state (`al`: `mode` build/mech/grip/manual, `nudgeStrength`, MANUAL `camberF`…`caster`, `alignManual`) — **read-only**. `migrateLegacyAl`, `suspos_dr_v8`'s repair, reads it while the stored `dr` has no `alignManual` key, taking MANUAL and its angles (MECH/GRIP → AUTO); the first `dr` write ends that. Never written or deleted | — |
 | `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
 | `suspos_hidden_v1` | What the layout edit view hides, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys (whole sections) and `HIDE_ITEMS` ids (single controls, toolbar buttons, output cards and rows, balance-bar parts). The shape and key are unchanged from when only sections could be hidden, so lists stored then still load; the ids are permanent for the same reason. `repairHidden` drops unknown ids, duplicates and ids from another tier (BALANCE, ALIGNMENT and the PRO-only controls). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
 | `suspos_persist_v1` | The layout edit view's PERSIST switch: while `true`, everything in the current tier's hidden list (`heldFields`) keeps its value through every `commit` — loads, DNA, LOAD CODE, CHECK's import, ⟲ RESET. One switch for INT and PRO; BEG holds nothing | `false` |
@@ -164,16 +164,12 @@ a second copy of those would drift. `tests-garage.js` covers the gating.
 `notes` and `tags` are per-device metadata and deliberately **not** codec fields —
 see [CODEC.md](CODEC.md)'s excluded-fields section.
 
-**`al` (alignment) does not travel either.** The "any new field travels for free"
-property above is specifically a `ch`/`fe`/`dr` property — those are the three
-payloads an entry carries. `al` is persisted in its own key (`suspos_al_v2`) and is
-not part of the entry shape, so SAVE CAR does **not** capture Alignment Mode, Nudge
-Strength, or MANUAL camber/toe/caster, and LOAD CHASSIS / LOAD BUILD leave whatever
-alignment state is currently live untouched. For AUTO with Nudge OFF (`al.mode:'build'`) that is invisible,
-since `computeAlignment` re-derives the same angles from `ch` + the tune. For
-MANUAL it means typed angles are lost on save. The share codec has the identical
-gap for the identical reason — see [CODEC.md](CODEC.md) and
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+**Alignment travels with the build.** It lives in `dr`, so a BUILD or CAR entry carries the
+mode, the MANUAL values and the intent offsets, and LOAD BUILD restores them exactly. SAVE and
+OVERWRITE write the offsets translated from MANUAL beside it (`alignDrOut`), so the entry's COPY
+CODE carries the alignment as intent; see [CODEC.md](CODEC.md) ids 91–95. Entries saved before
+the move have no alignment fields and load as AUTO with no offsets. (It used to sit in a separate
+`al` that no entry carried; see [HISTORY.md](HISTORY.md).)
 
 ### Migration chain
 

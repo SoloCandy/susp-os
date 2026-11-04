@@ -49,12 +49,12 @@ const M = new Function(
   slice('const DEF_CH=', '// ── Section visibility') + '\n' +
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
   slice('const TUTORIALS={', '// Standalone reference') +
-  '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,DEF_AL,' +
-  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_ADDED_SINCE_V1,tutProgressFromV1,tutResumeStep,heldFields};'
+  '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,' +
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
-        DEF_CH, DEF_FE, DEF_DR, DEF_AL, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
-        DEF_TUT_PROGRESS, repairTutProgress, TUT_ADDED_SINCE_V1, tutProgressFromV1, tutResumeStep, heldFields } = M;
+        DEF_CH, DEF_FE, DEF_DR, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
+        DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -68,9 +68,9 @@ const eq = (a, b, msg) => {
 };
 const ok = (c, msg) => { if (!c) throw new Error(msg ?? 'expected true'); };
 const st = (o = {}) => ({ ch: { ...DEF_CH, ...o.ch }, fe: { ...DEF_FE, ...o.fe },
-                          dr: { ...DEF_DR, ...o.dr }, al: { ...DEF_AL, ...o.al } });
+                          dr: { ...DEF_DR, ...o.dr } });
 const MECH = { arbBalMode: 'mech' };
-const D = { ch: DEF_CH, fe: DEF_FE, dr: DEF_DR, al: DEF_AL };
+const D = { ch: DEF_CH, fe: DEF_FE, dr: DEF_DR };
 
 section('coverage');
 t('every SECTION_KEYS section is in SECTION_VIS', () => {
@@ -96,7 +96,8 @@ t('every Sec RESET goes through sectionDefaults', () => {
 });
 t('sectionDefaults returns DEF values for exactly the owned keys', () => {
   eq(Object.keys(sectionDefaults('brakes')), ['brakeStock', 'brakeBiasShift', 'brakeCentre', 'brakeDecel', 'brakeEntryTarget']);
-  eq(sectionDefaults('alignment'), DEF_AL);
+  eq(Object.keys(sectionDefaults('alignment')).filter(k => !k.startsWith('align')), []);
+  eq(sectionDefaults('alignment').alignManual, false);
   eq(sectionDefaults('chassis'), DEF_CH);
 });
 t('every Sec passes its own key to secProps', () => {
@@ -114,7 +115,7 @@ t('defaults: nothing changed in any section or tier', () => {
 t('a change in each fielded section is seen', () => {
   ok(sectionChanged('chassis', st({ ch: { weight: 1400 } }), 'pro'), 'chassis');
   ok(sectionChanged('build', st({ dr: { buildType: 'race' } }), 'pro'), 'build');
-  ok(sectionChanged('alignment', st({ al: { camberF: -3 } }), 'pro'), 'alignment');
+  ok(sectionChanged('alignment', st({ dr: { alignOfsToeF: -0.2 } }), 'intermediate'), 'alignment offset');
   ok(sectionChanged('arb', st({ fe: { arbBias: 5 } }), 'pro'), 'arb');
   ok(sectionChanged('ride', st({ fe: { rideStiffness: 2.5 } }), 'pro'), 'ride');
   ok(sectionChanged('dampers', st({ fe: { dampingBias: 5 } }), 'pro'), 'dampers');
@@ -136,6 +137,12 @@ t('below PRO, BRAKES counts only the shift', () => {
   ok(sectionChanged('brakes', centre, 'pro'), 'PRO sees the centre');
   ok(!sectionChanged('brakes', centre, 'intermediate'), 'INT ignores the centre');
   ok(sectionChanged('brakes', st({ dr: { brakeBiasShift: 2 } }), 'intermediate'), 'INT sees the shift');
+});
+t('ALIGNMENT counts the MANUAL values or the offsets, whichever is in use', () => {
+  ok(!sectionChanged('alignment', st({ dr: { alignManCamberF: -3 } }), 'pro'), 'MANUAL value while AUTO');
+  ok(sectionChanged('alignment', st({ dr: { alignManual: true } }), 'pro'), 'MANUAL itself');
+  ok(sectionChanged('alignment', st({ dr: { alignManual: true, alignManToeF: 0.5 } }), 'pro'), 'MANUAL value while MANUAL');
+  ok(!sectionChanged('alignment', st({ dr: { alignManCaster: 6 } }), 'intermediate'), 'MANUAL value, AUTO in use');
 });
 t('sections with no fields never count', () => {
   ok(!sectionChanged('visuals', st({ ch: { weight: 1 } }), 'pro'), 'visuals');
@@ -219,7 +226,7 @@ t('unknown ids are dropped, duplicates collapse', () => {
 t('PRO-only sections and items are dropped from the INT list', () => {
   eq(repairHidden({ intermediate: ['balance', 'alignment', 'ride', 'chassis.wheelbase', 'bar.phase', 'chassis.weight'],
                     pro: ['balance', 'chassis.wheelbase'] }),
-     { intermediate: ['ride', 'chassis.weight'], pro: ['balance', 'chassis.wheelbase'] });
+     { intermediate: ['alignment', 'ride', 'chassis.weight'], pro: ['balance', 'chassis.wheelbase'] });
 });
 t('lists stored before HIDE_ITEMS still load', () => {
   eq(repairHidden({ intermediate: ['tbDna', 'visuals'], pro: ['tbCheck', 'dampers'] }),
@@ -230,7 +237,7 @@ t('no beginner list is kept', () => {
 });
 
 section('heldFields (PERSIST)');
-const NONE = { ch: [], fe: [], dr: [], al: [] };
+const NONE = { ch: [], fe: [], dr: [] };
 t('nothing hidden holds nothing', () => {
   eq(heldFields([], 'pro'), NONE);
   eq(heldFields(undefined, 'pro'), NONE);
@@ -238,7 +245,7 @@ t('nothing hidden holds nothing', () => {
 t('a hidden ARB section holds its own fields and its items\', MAN values included', () => {
   const h = heldFields(['arb'], 'pro');
   for (const k of ['arbMode', 'arbBias', 'arbManF', 'arbManR', 'springShareAuto']) ok(h.fe.includes(k), k);
-  eq([h.ch, h.dr, h.al], [[], [], []]);
+  eq([h.ch, h.dr], [[], []]);
 });
 t('a hidden item holds exactly its fields', () => {
   eq(heldFields(['brakes.bias'], 'intermediate'), { ...NONE, dr: ['brakeBiasShift'] });
@@ -253,7 +260,7 @@ t('a hidden section holds its PRO-only items\' extra fields only in PRO', () => 
   ok(!heldFields(['arb'], 'intermediate').fe.includes('springShareAuto'), 'INT');
 });
 t('keys are listed once', () => {
-  eq(heldFields(['align.mode', 'align.nudge', 'alignment'], 'pro').al.filter(k => k === 'mode').length, 1);
+  eq(heldFields(['align.mode', 'align.ofsToeF', 'alignment'], 'pro').dr.filter(k => k === 'alignManual' || k === 'alignOfsToeF').length, 2);
 });
 
 section('tutorial spots');
@@ -321,18 +328,21 @@ t('step titles are unique within each guide', () => {
     eq(ts.filter((x, i) => ts.indexOf(x) !== i), [], g);
   }
 });
-t('every step added since _v1 exists in its guide', () => {
-  eq(Object.entries(TUT_ADDED_SINCE_V1).flatMap(([m, ts]) => ts.filter(x => !TUTORIALS[m].some(s => s.title === x))
-    .map(x => `${m}: ${x}`)), []);
+t('every _v1 title but the moved PRO Alignment Mode is still in its guide', () => {
+  eq(Object.entries(TUT_V1_TITLES).flatMap(([m, ts]) => ts.filter(x => !TUTORIALS[m].some(s => s.title === x))
+    .map(x => `${m}: ${x}`)), ['pro: Alignment Mode']);
 });
 t('_v1 indices convert to the same step, by title, past the steps added since', () => {
   // _v1 counted BEG Output Toolbar as 11, INT Reading the Results as 13 and Output Toolbar as
   // 14, PRO Load Transfer as 12.
   const v2 = tutProgressFromV1({ beginner: 11, intermediate: 14, pro: 12 });
-  eq(v2.beginner, { title: 'Output Toolbar', step: 12 });
-  eq(v2.intermediate, { title: 'Output Toolbar', step: 16 });
-  eq(v2.pro, { title: 'Load Transfer', step: 13 });
-  eq(tutProgressFromV1({ intermediate: 13 }).intermediate, { title: 'Reading the Results', step: 14 });
+  const at = (m, t) => ({ title: t, step: TUTORIALS[m].findIndex(s => s.title === t) });
+  eq(v2.beginner, at('beginner', 'Output Toolbar'));
+  eq(v2.intermediate, at('intermediate', 'Output Toolbar'));
+  eq(v2.pro, at('pro', 'Load Transfer'));
+  eq(tutProgressFromV1({ intermediate: 13 }).intermediate, at('intermediate', 'Reading the Results'));
+  // PRO's Alignment Mode (6) moved to INT: resume at the next PRO step that _v1 had.
+  eq(tutProgressFromV1({ pro: 6 }).pro, at('pro', 'PRO ARB Balance Modes'));
 });
 t('_v1 junk, zero or nothing converts to nothing to resume; too far clamps', () => {
   for (const v of [null, undefined, 'x', { beginner: 0 }, { beginner: -3, pro: 'a' }])

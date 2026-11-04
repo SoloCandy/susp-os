@@ -36,7 +36,7 @@ Ratio) also get `stacked`, which puts the box under its label. Everything
 else keeps its slider: the BEG trio, Front Weight Bias, ARB
 Bias/Stiffness/Share, Mech Balance Target, Balance Offset, the spring Hz
 sliders, Bottom-Out g, Target Speed, every damper slider, EXIT/ENTRY/POWER
-SPLIT, Nudge Strength, MEAS. NAT BAL and the DNA axes. The tables below still list ranges for both kinds.
+SPLIT, the ALIGNMENT intent sliders, MEAS. NAT BAL and the DNA axes. The tables below still list ranges for both kinds.
 
 **Every slider labels its two ends.** Words where it moves between two named extremes
 (UNDERSTEER / OVERSTEER, STABLE / ROTATE, SOFT / STIFF in BEG); the range with its unit where it
@@ -118,10 +118,14 @@ sits on one.
 | <!--@range fe.springShare-->Spring Share (CO-SOLVE) | 0–100% | Splits correction between spring Hz and ARB split. The slider reads `tune.coSolveAutoS` while AUTO is on and `fe.springShare` once it is off, so leaving AUTO seeds `springShare` from the resolved AUTO share to stop the handle jumping | None directly — redistributes *how*, not the target |
 | Accel/Decel Lock (MANUAL diff) | 0–100% each, slider and box; under each, the diff type's typical range drawn as a green band on the same 0–100 scale, then `typical: n–n%` | Direct per-axle lock % | Accel lock: rear → OVERSTEER, front → UNDERSTEER. Decel lock on either axle → UNDERSTEER (resists lift-off rotation; less decel lock = more rotation on entry) — see [FORMULAS.md](FORMULAS.md) |
 | Centre Split (MANUAL AWD) | 0–100% rear, slider and box | Direct torque split | Higher % rear → OVERSTEER |
-| Nudge Strength (Alignment AUTO, Nudge MECH/GRIP) | 0–100%, default 50% | Scales how far camber/toe are nudged from the AUTO values toward the MECH/GRIP gap (see [ALIGNMENT.md](ALIGNMENT.md)). Shown only while Nudge is MECH or GRIP | 0% = no nudge (identical to AUTO with Nudge OFF); direction comes from the gap's sign, not this slider |
-| Camber F/R, Toe F/R, Caster (Alignment MANUAL) | The game's full span (`ALIGN_GAME`): camber and toe −5.0..+5.0°, caster 1.0–7.0°, step 0.1° | Direct entry, bypasses `computeAlignment` entirely | None directly — whatever you type |
+| <!--@range dr.alignOfsCamberF-->Camber F (ALIGNMENT AUTO, INT+) | -2..2 °, step 0.1, default 0 (AUTO) | Front camber offset from AUTO (`dr.alignOfsCamberF`). The box shows the resulting camber, held to `ALIGN_GAME`, and typing there sets the offset. Left = MORE negative camber | Not in the balance model (held; see [IDEAS.md](IDEAS.md)) |
+| <!--@range dr.alignOfsCamberR-->Camber R (ALIGNMENT AUTO, INT+) | -2..2 °, step 0.1 | Rear camber offset, as Camber F | Not in the balance model |
+| <!--@range dr.alignOfsToeF-->Turn-in (ALIGNMENT AUTO, INT+) | -0.3..0.3 °, step 0.1 | Front toe offset. Left = SHARP (toward toe-out), right = STABLE (toward toe-in) | Not in the balance model; front toe feeds the RESPONSE bar, where toe-out reads reactive |
+| <!--@range dr.alignOfsToeR-->Rear stability (ALIGNMENT AUTO, INT+) | -0.3..0.3 °, step 0.1 | Rear toe offset. Right = PLANTED (more toe-in), left = FREE | Not in the balance model |
+| <!--@range dr.alignOfsCaster-->Steering feel (ALIGNMENT AUTO, INT+) | -1.5..1.5 °, step 0.1 | Caster offset. Right = WEIGHTED (more caster), left = LIGHT | Not in the balance model; caster feeds the RESPONSE bar |
+| Camber F/R, Toe F/R, Caster (Alignment MANUAL, INT+) | The game's full span (`ALIGN_GAME`): camber and toe −5.0..+5.0°, caster 1.0–7.0°, step 0.1° | Direct entry (`dr.alignMan*`), bypasses `computeAlignment`. Switching AUTO ↔ MANUAL carries the numbers across; see [ALIGNMENT.md](ALIGNMENT.md) | None directly — whatever you type |
 
-## Auto-computed by default, or PRO's Alignment Mode
+## Auto-computed by default, or ALIGNMENT's intent and MANUAL
 
 BRAKES (balance % — pressure was removed as dead output) is computed from build type/
 layout/weight bias/chassis geometry, and from INT adjustable through the BRAKES section (see
@@ -129,8 +133,6 @@ the Brake Bias rows above); the recommendation and every adjusted bias are clamp
 **40–68% front**. Values below 50 (a rear bias, valid for trail-braking and
 drift) are reachable only for rear-weighted cars on DRIFT/DRAG builds — the
 CG/wheelbase weight-transfer term front-biases everything else. ALIGNMENT
-(camber, toe, caster) is computed the same way by default (AUTO, stored as
-`al.mode:'build'`), but PRO mode adds an Alignment Mode toggle — AUTO / MANUAL,
-with a Nudge OFF / MECH / GRIP row under AUTO — see the
-Nudge Strength/Camber/Toe/Caster rows above and
-[ALIGNMENT.md](ALIGNMENT.md) for the full reference.
+(camber, toe, caster) is computed the same way by default (AUTO), and from INT the ALIGNMENT
+section adds the intent sliders on top, or MANUAL entry instead. See the alignment rows above
+and [ALIGNMENT.md](ALIGNMENT.md) for the full reference.

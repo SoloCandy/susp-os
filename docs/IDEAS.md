@@ -19,39 +19,27 @@ The game's input span is already in code as `ALIGN_GAME` (camber and toe −5..+
 
 | Decision | Choice | Why |
 |---|---|---|
-| Nudge MECH / GRIP | **Retired.** Saved `al.mode` `mech`/`grip` migrates to `build`, and `al.nudgeStrength` is dropped | Abstract (it follows a balance gap), often invisible (rounds back to the AUTO value), and the balance model never sees it |
+| Nudge MECH / GRIP | **Retired** (Phase 2). A saved `mech`/`grip` migrates to AUTO | Abstract (it follows a balance gap), often invisible (rounds back to the AUTO value), and the balance model never sees it |
 | BEG | AUTO, plus the clearer output | Beginners read values; they don't tune alignment |
 | INT | AUTO + intent sliders, **and MANUAL** | Tune Check's DECODE will take an existing in-game alignment and import it into MANUAL, and DECODE is open below PRO |
-| PRO | Everything in INT, plus a per-axle dynamic camber target and the symptom fixer | |
+| PRO | Everything in INT, plus the symptom fixer | The camber sliders came down to INT: MANUAL camber has to translate into something AUTO holds |
 | Balance model | **Held.** Nothing alignment does enters NET or the phase margins yet | None of the alignment constants are calibrated. Leading idea, undecided: direction-only arrows on the Handling Balance lanes, the way diff lock and damping show now, with no magnitude |
 | VISUALS | Camber-vs-roll chart, and range strips | Picked from a longer list; the tyre front view and the top-down toe diagram are not planned |
+| Reference steer angle | 10° (`CASTER_REF_STEER`) | Owner's call |
+| Intent reach | Offsets may carry a value past `ALIGN_REC`, to `ALIGN_GAME` | Owner's call: the sliders exist to override the recommendation |
+| What travels | Intent only. MANUAL translates to its closest AUTO setting on the way out, and on switching to AUTO; AUTO → MANUAL starts from what AUTO + intent shows | Owner's rule, so a received alignment keeps following the reader's car |
 
 ### Phase 1 — output (shipped)
 
 IN/OUT on toe, LIMIT, caster's steer camber, `AUTO x°` under MANUAL, and the term breakdown in the
 card hint. Now described in [ALIGNMENT.md](ALIGNMENT.md) ("The ALIGNMENT output card").
 
-### Phase 2 — controls
+### Phase 2 — controls (shipped)
 
-Each slider stores an offset from the AUTO value, so the alignment keeps following chassis and
-spring changes. Each shows the degrees it produces.
-
-| Control | Tier | Moves | Ends | Range (proposal) |
-|---|---|---|---|---|
-| Turn-in | INT | front toe | STABLE ↔ SHARP | ±0.3° around AUTO |
-| Rear stability | INT | rear toe | FREE ↔ PLANTED | ±0.3° around AUTO |
-| Steering feel | INT | caster | LIGHT ↔ WEIGHTED | ±1.5° around AUTO |
-| Camber target F / R | PRO | the dynamic camber target; static is solved from roll | — | −5..0°, default the build's `optimalCamber` |
-
-Every result still passes through `alignRec`. Whether an offset may push past `ALIGN_REC`
-(up to `ALIGN_GAME`) is open.
-
-**MANUAL** stays absolute and is the destination of DECODE's import. A COPY AUTO button seeds it from
-the current AUTO values.
-
-**Sharing.** `al` travels in neither share codes nor garage entries today. Offsets, the camber targets
-and MANUAL values need new codec ids ([CODEC.md](CODEC.md): ids are permanent). Leaving a tier has to
-drop what that tier can't see, like the existing fallback effect.
+Five intent sliders under AUTO (Camber F / R ±2.0°, Turn-in and Rear stability ±0.3°, Steering
+feel ±1.5°), MANUAL in INT, AUTO ↔ MANUAL translation, alignment state moved into `dr`, codec ids
+91–95 and the ALIGNMENT share part. Now described in [ALIGNMENT.md](ALIGNMENT.md) ("Intent and
+MANUAL") and [CODEC.md](CODEC.md). The slider ranges are first guesses, to be tuned with use.
 
 ### Phase 3 — Tune Check DECODE: alignment
 
@@ -86,9 +74,8 @@ the fixer should say so rather than overload toe.
 
 ### Open questions
 
-- The reference steer angle for caster's steer camber (`CASTER_REF_STEER`, 10° for now).
-- Whether intent offsets may leave `ALIGN_REC`.
 - The balance-model form (held; arrows are the leading idea).
+- The intent slider ranges, once they have been used.
 - The toe sign check against the car's on-screen wheel angle.
 
 ---
@@ -128,8 +115,9 @@ Each lever works only on the gap the ones before it left:
    (reusing the hold-roll-balance-at-click-limit behaviour).
 2. **Rear/front Hz ratio** — capped at about ±4%, the same span the beginner
    Balance slider uses, so ride quality isn't spent on balance.
-3. **Alignment** — the existing MECH/GRIP nudge, with Nudge Strength set
-   automatically from the remaining gap.
+3. **Alignment** — the ALIGNMENT intent offsets (camber and toe), set automatically from the
+   remaining gap. The MECH/GRIP nudge this step first named is retired; alignment also has no
+   balance-model effect yet (see "Alignment revamp" above), which this step would need first.
 4. **Diff entry/exit** — last and light; it shapes corner phases, not
    steady-state balance.
 

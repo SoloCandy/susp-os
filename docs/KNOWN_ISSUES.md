@@ -306,47 +306,6 @@ change belongs with them.
 
 ---
 
-## Open — alignment state travels in neither the share codec nor the garage
-
-`al` is the fourth state group (`suspos_al_v2`: `mode`, `nudgeStrength`, manual
-`camberF`/`camberR`/`toeF`/`toeR`/`caster`, plus the legacy `alignManual`). It is
-absent from both transport paths, and both docs were silent on it until an audit
-went looking:
-
-- **Share codec.** `encodeTune(ch, fe, dr)` takes three groups, `DEF_GROUPS` maps
-  three, and no `CODEC_FIELDS` row carries `group:'al'`.
-- **Garage.** An entry is `{id, name, ch?, fe?, dr?, tags, notes, …}`. SAVE CAR
-  captures neither Alignment Mode nor any manual angle.
-
-For AUTO with Nudge OFF (`al.mode` `'build'`) this is invisible and arguably correct: `computeAlignment` is a
-pure function of `ch`/`tune`/`layout`/`buildType`, all of which travel, so the
-receiver recomputes identical angles. That is presumably why the group was never
-given ids — the same "computed-locally, shared-as-output" reasoning that still
-justifies excluding `useRideHeightCG`.
-
-It stops holding the moment `al.mode` is anything but `'build'`. A PRO user who
-picks MANUAL and types exact angles, then shares a code or saves a car, ships or
-stores a tune whose alignment silently reverts to the computed values. Nudge MECH/GRIP
-plus Nudge Strength have the same problem: they are inputs with no other carrier.
-Nothing warns either party.
-
-This is the third instance of the same trap. ids 60/61 (`measuredNatBal`) and
-65/66 (`rideHeightF/R`) were both added after exactly this reasoning — "its output
-already travels, so the input need not" — turned out to have a second consumer.
-[CODEC.md](CODEC.md)'s excluded-fields list now says outright that it has been
-wrong twice; this would be the third.
-
-Below PRO this no longer reaches the output: leaving PRO resets `al.mode` to AUTO (Nudge OFF), so
-BEG and INT always show the computed alignment. The gap is between PRO sessions and devices.
-
-**Not fixed here.** Closing it means ids 67+, a fourth group threaded through
-`DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune`, an `al` payload on the
-garage entry shape (and therefore `normalizeEntry`, `kindOf`'s derivation, and the
-backup format), and a decision about whether a chassis-less BUILD entry should
-carry alignment at all. That is a feature-sized change, not a doc fix. Recorded in
-[CODEC.md](CODEC.md) and [PERSISTENCE.md](PERSISTENCE.md) so it is at least no
-longer silent.
-
 ## Documented — TUNE CHECK cannot reproduce every front/rear damper split
 
 Found while fixing the decode's anchoring (see [HISTORY.md](HISTORY.md)), kept as-is
@@ -866,8 +825,8 @@ check it against the car on track.
 
 ## Open — VISUALS shows the Balance Target when nothing solves toward it
 
-Only the displays are affected: MATCH CHASSIS and alignment Nudge MECH, which also read the
-target, act only while `hasBalTargetSolve` holds (see [FORMULAS.md](FORMULAS.md)).
+Only the displays are affected: MATCH CHASSIS, which also reads the
+target, acts only while `hasBalTargetSolve` holds (see [FORMULAS.md](FORMULAS.md)).
 
 The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
 under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks

@@ -1070,7 +1070,7 @@ console.log('\nmirror vs app (reads index.html)');
   };
   const A = new Function(
     slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
-    slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
+    slice('const DEF_CH=', 'const BRAKE_BIAS_SCALE=') + '\n' +
     slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
     slice('const KG_TO_LB=', 'const arbRowMeta=') +
     '\nreturn{DEF_CH,DEF_FE,DEF_DR,KG_TO_LB,LB_IN_TO_NM,MPH_TO_MS,DAMPING_CALIBRATION,GAME_LIMITS,' +

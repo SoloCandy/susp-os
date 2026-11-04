@@ -152,7 +152,7 @@ for (const m of stripComments(codecBlock).matchAll(/\{id:(\d+),\s*([^}]*)\}/g)) 
 // Keys that legitimately have no codec id. Each MUST be justified in CODEC.md's
 // excluded-fields section — the second assertion below enforces that, so this
 // list cannot quietly grow into a dumping ground.
-const CODEC_EXCLUDED = ['useRideHeightCG'];
+const CODEC_EXCLUDED = ['useRideHeightCG', 'alignManual', 'alignManCamberF', 'alignManCamberR', 'alignManToeF', 'alignManToeR', 'alignManCaster'];
 
 section('share codec');
 
@@ -470,6 +470,13 @@ if (sanStart < 0 || sanEnd < 0)
 const sanitize = SRC.slice(sanStart, sanEnd);
 const CONSTS = { HZ_MIN: HZ_BAND[1], HZ_MAX: HZ_BAND[2], BAL_TARGET_MIN: BAL_BAND[1], BAL_TARGET_MAX: BAL_BAND[2],
                  PHASE_EXIT_G_MIN: EXIT_G_BAND[1], PHASE_EXIT_G_MAX: EXIT_G_BAND[2] };
+// ALIGN_OFS_RANGE.k bounds the alignment offsets, ± the same figure; read it from the source.
+const ofsRange = /const ALIGN_OFS_RANGE=\{([^}]*)\}/.exec(SRC);
+if (!ofsRange) throw new Error('cannot find ALIGN_OFS_RANGE in index.html');
+for (const [, k, v] of ofsRange[1].matchAll(/(\w+):([\d.]+)/g)) {
+  CONSTS[`ALIGN_OFS_RANGE.${k}`] = String(Number(v));
+  CONSTS[`-ALIGN_OFS_RANGE.${k}`] = String(-Number(v));
+}
 const clamps = new Map();
 for (const m of sanitize.matchAll(/(\w+):\s*cl\((ch|fe|dr)\?\.(\w+),\s*([^,]+?),\s*([^,]+?),/g)) {
   const resolve = v => (CONSTS[v.trim()] ?? v.trim());

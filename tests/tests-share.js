@@ -34,7 +34,7 @@ const slice = (a, b) => {
 // Order matters: the DEF_* literals execute at eval time and the enum block reads them.
 const M = new Function(
   slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
-  slice('const DEF_CH=', 'const DEF_AL=') + '\n' +
+  slice('const DEF_CH=', 'const BRAKE_BIAS_SCALE=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
   slice('const KG_TO_LB=', 'const arbRowMeta=') + '\n' +
   slice('const DNA_ARCHETYPES=', 'const Hint=') + '\n' +
@@ -42,7 +42,8 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
-  'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX};'
+  'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,' +
+  'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE};'
 )();
 
 let pass = 0, fail = 0;
@@ -380,12 +381,75 @@ t('a whole-tune code omits id 85, so it reads exactly as it always did', () => {
   assert(carriesIn(codeOf(theirs())) === null, 'carries should decode to null (= everything)');
 });
 
-t('a DRIVETRAIN-only code carries only dr, and every other part is unofferable', () => {
+t('a DRIVETRAIN-only code carries only dr\'s parts (DRIVETRAIN, ALIGNMENT); every other part is unofferable', () => {
   const code = M.encodeTune(M.DEF_CH, M.DEF_FE, theirs().dr, 'pro', M.CARRY_BIT.dr);
   const c = carriesIn(code);
   assert(c === M.CARRY_BIT.dr, `carries decoded as ${c}`);
   for (const id of M.SHARE_PART_IDS)
-    assert(M.partCarried(c, id) === (id === 'dr'), `${id}: partCarried ${M.partCarried(c, id)}`);
+    assert(M.partCarried(c, id) === (id === 'dr' || id === 'align'), `${id}: partCarried ${M.partCarried(c, id)}`);
+});
+
+t('ALIGNMENT travels as offsets and puts the reader in AUTO; MANUAL values never travel', () => {
+  const dr = { ...M.DEF_DR, alignOfsToeF: -0.2, alignOfsCaster: 1.2, alignManual: true, alignManCamberF: -3.3 };
+  const dec = M.decodeTune(M.encodeTune(M.DEF_CH, M.DEF_FE, dr, 'intermediate'));
+  assert(Math.abs(dec.dr.alignOfsToeF + 0.2) < 1e-9 && Math.abs(dec.dr.alignOfsCaster - 1.2) < 1e-9, JSON.stringify(dec.dr));
+  assert(!('alignManual' in dec.dr) && !('alignManCamberF' in dec.dr), 'MANUAL state decoded');
+  const me = { ch: M.DEF_CH, fe: M.DEF_FE, dr: { ...M.DEF_DR, alignManual: true, alignManCamberF: -2.0 } };
+  const out = M.mergeTune(me, M.sanitizeTune(dec), { align: true });
+  assert(out.dr.alignManual === false, 'reader left in MANUAL');
+  assert(out.dr.alignManCamberF === -2.0, 'reader\'s own MANUAL values kept');
+  assert(Math.abs(out.dr.alignOfsToeF + 0.2) < 1e-9, 'offset applied');
+  const keep = M.mergeTune(me, M.sanitizeTune(dec), { dr: true });
+  assert(keep.dr.alignManual === true && keep.dr.alignOfsToeF === 0, 'DRIVETRAIN alone touched the alignment');
+});
+
+// ── alignment: AUTO + intent, MANUAL, and the translation between them ──
+{
+  const ch = { ...M.DEF_CH }, tune = { fHz: 1.8, rHz: 1.8, rollDeg: 2 };
+  const auto = M.computeAlignment(ch, tune, 'RWD', 'track');
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  t('alignOut: no offsets is AUTO exactly; an offset adds, rounded to 0.1°', () => {
+    const plain = M.alignOut(auto, M.DEF_DR, 'intermediate');
+    for (const k of M.ALIGN_KEYS) assert(near(plain['rec' + k[0].toUpperCase() + k.slice(1)], auto['rec' + k[0].toUpperCase() + k.slice(1)]), k);
+    const o = M.alignOut(auto, { ...M.DEF_DR, alignOfsToeF: -0.2, alignOfsCaster: 0.30000000000000004 }, 'intermediate');
+    assert(near(o.recToeF, auto.recToeF - 0.2) && near(o.recCaster, auto.recCaster + 0.3), JSON.stringify(o));
+  });
+  t('alignOut: BEG reads pure AUTO, ignoring both offsets and MANUAL', () => {
+    const o = M.alignOut(auto, { ...M.DEF_DR, alignManual: true, alignOfsToeF: -0.2 }, 'beginner');
+    assert(!o.manual && near(o.recToeF, auto.recToeF), JSON.stringify(o));
+  });
+  t('alignOut: an offset may pass ALIGN_REC to the game limit, and LIMIT marks the game edge', () => {
+    // caster 6.4 + 1.5 would be 7.9: the game stops at 7.0
+    const hi = M.computeAlignment({ ...ch, frontBias: 60 }, { fHz: 3.0, rHz: 1.8, rollDeg: 2 }, 'RWD', 'track');
+    const o = M.alignOut(hi, { ...M.DEF_DR, alignOfsCaster: 1.5 }, 'pro');
+    assert(o.recCaster === M.ALIGN_GAME.caster[1] && o.limit.caster, JSON.stringify({ base: hi.recCaster, o }));
+    // rear toe AUTO 0.1 + 0.3 = 0.4, past ALIGN_REC's 0.3 and not a LIMIT: the game allows it
+    const t2 = M.alignOut(auto, { ...M.DEF_DR, alignOfsToeR: 0.3 }, 'pro');
+    assert(near(auto.recToeR, 0.1) && near(t2.recToeR, 0.4) && !t2.limit.toeR, JSON.stringify({ base: auto.recToeR, t2 }));
+  });
+  t('MANUAL → offsets → AUTO lands on the MANUAL values when they are within the slider ranges', () => {
+    const man = { camberF: auto.recCamberF - 0.7, camberR: auto.recCamberR + 0.4, toeF: auto.recToeF + 0.1,
+                  toeR: auto.recToeR - 0.2, caster: auto.recCaster + 1.1 };
+    const dr = { ...M.DEF_DR, ...M.alignOfsFrom(auto, man) };
+    const o = M.alignOut(auto, dr, 'intermediate');
+    for (const k of M.ALIGN_KEYS) assert(near(o['rec' + k[0].toUpperCase() + k.slice(1)], Math.round(man[k] * 10) / 10), `${k}: ${JSON.stringify(o)}`);
+  });
+  t('MANUAL beyond a slider range translates to that range\'s end', () => {
+    const ofs = M.alignOfsFrom(auto, { camberF: -5, camberR: auto.recCamberR, toeF: 3, toeR: auto.recToeR, caster: 1 });
+    assert(ofs.alignOfsCamberF === -2 && ofs.alignOfsToeF === 0.3 && ofs.alignOfsCaster === -1.5 && ofs.alignOfsToeR === 0, JSON.stringify(ofs));
+  });
+  t('alignDrOut: AUTO leaves dr alone; MANUAL writes the translated offsets beside the MANUAL values', () => {
+    const dr = { ...M.DEF_DR, alignOfsToeF: 0.1 };
+    assert(M.alignDrOut(auto, dr) === dr, 'AUTO copied');
+    const m = { ...M.DEF_DR, alignManual: true, alignManToeF: auto.recToeF - 0.3 };
+    const out = M.alignDrOut(auto, m);
+    assert(out.alignManual === true && out.alignManToeF === m.alignManToeF && near(out.alignOfsToeF, -0.3), JSON.stringify(out));
+  });
+}
+
+t('sanitizeTune holds the offsets to their slider ranges', () => {
+  const t = M.sanitizeTune({ ch: M.DEF_CH, fe: M.DEF_FE, dr: { ...M.DEF_DR, alignOfsToeF: 9, alignOfsCaster: -9, alignOfsCamberR: 'x' } });
+  assert(t.dr.alignOfsToeF === 0.3 && t.dr.alignOfsCaster === -1.5 && t.dr.alignOfsCamberR === 0, JSON.stringify(t.dr));
 });
 
 t('APPLY with every tick on leaves the parts a code does not carry alone', () => {

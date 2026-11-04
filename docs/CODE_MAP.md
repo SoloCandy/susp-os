@@ -95,7 +95,7 @@ The source runs top to bottom in this order:
    whole app; [PHYSICS.md](PHYSICS.md) carries the calibration table.
 2. **Pure physics** — no React, no state, safe to lift out (see below). It ends
    with the Vehicle DNA core under its own `── Vehicle DNA ──` banner.
-3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR`, `DEF_AL`,
+3. **Defaults and presets** — `DEF_CH`, `DEF_FE`, `DEF_DR` (alignment included), `migrateLegacyAl`,
    `PRESET_SAVES`, `BUILD_PRESET_MAP`, `DNA_ARCHETYPES`.
 4. **Persistence primitives** — `mergeDefaults`, `usePersist`, then `GITHUB_MARK`, `LIVE_URL`,
    `DOWNLOAD_URL`, `appSourceOf` and `useDeployCheck` under a `── Deploy check ──`
@@ -303,7 +303,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `OutRow`, `RowGroup` | the output panel's value rows and their bordered groups — single column for Forza (`horizon`/`motorsport`), capped at `OUT_MAX_W` and centred; assembled into the BeamNG two-column layout's cards below when `physMode`. A `meta` entry is a string or `{text, on}`; `on` draws it brighter (a figure the active ARB, spring or damper mode sets). The meta figures share one wrapping box, so on a phone they fold under the label rather than push the value off the card. `OutRowBody` also marks a changed value: it reads `OutGenCtx`, a counter App bumps whenever `ch`, `fe`, `dr` or `al` changes identity (`outGen`), and keeps its last printed value in a ref, so a row whose text moved in the latest generation gets a blue left edge and a "was …" title until the next one. A units toggle changes no generation, so it never marks rows. The ref is written during render on purpose: it is idempotent for one generation, so a re-render never moves the mark |
 | `dampView` (App, not a component) | the DAMPERS output built once for both layouts: the header (balance mode and bump source, never an intermediate solve value), each damper row's `note` and `meta` from `damperMetrics`/`damperTargets`, the per-axle landing warning and the direction-aware clamp warning. The Forza DAMPERS card, the BeamNG `SuspensionCard` rows, the summary strip and the warnings list all read it |
 | `arbView`, `springView` (App, not components) | the ANTI-ROLL BARS and SPRINGS output built once for both layouts, like `dampView`. `arbView`: header = stiffness mode · balance mode · achieved roll, read from `physics` (so MAN's CO-SOLVE-to-WEIGHT override shows as MAN); rows mark `% roll` (EQUAL ROLL) or `% ARB` (WEIGHT, CHASSIS), note FLOOR/CEILING from its `pin`, which the roll warning reuses. `arbView` and `springView` also return `head`, the same header in words for the Forza cards, and each row a `metaF` that spells out `% roll` / `% ARB` ("of axle roll", "of both bars"; `arbRowMeta`'s `long` flag); BeamNG's cards and summary strip keep `header` and `meta`, whose narrow per-axle rows the long form would wrap. `springView`: header = Hz mode with its setting (CO-SOLVE's Spring Share in its place) · ride reference; SHARED quotes the g the solve ran on, from Ride Stiffness, not the stored `rideBottomG`. Rows add bottom-out g under BOTTOM G's or SHARED, and flag CLAMPED (an axle at the Hz band edge while `rearHzClamped`) over LIFT RISK over the Hz band. The Forza cards, the BeamNG `SuspensionCard` rows and the summary strip read them |
-| `alignView`, `brakeView`, `diffView` (App) | ALIGNMENT, BRAKES and DIFFERENTIAL output for both layouts. `alignView`: header (AUTO · build · nudge, or MANUAL), camber rows' `dyn` (from `camberGainOf`, the gain `computeAlignment` uses) and each nudged row's offset from `autoAlign`. `brakeView`: header (the Centre, or STOCK), the row's centre and shift or ENTRY BRK (`phase.entry.brk`), and LIMIT when the 40–68% clamp moved a REC/GRIP bias. `diffView`: header (AUTO/MANUAL · type · MATCH CHASSIS) and `meta(v)`, the effective lock on non-Race types (`metaF(v)` on the Forza card: "acts like N% RACE"). Each of these, and `dampView`, also returns `head`, the header in words that the Forza cards show; `header` stays for BeamNG. BeamNG's per-axle cards read the alignment and diff headers in the summary strip, and its single BRAKES card carries its own. `HINT_BRAKES_OUT` is the BRAKES hint both layouts share |
+| `alignView`, `brakeView`, `diffView` (App) | ALIGNMENT, BRAKES and DIFFERENTIAL output for both layouts. `alignView`: header (AUTO · build, `· ADJUSTED` while an intent offset is set, or MANUAL), camber rows' `dyn` (from `camberGainOf`, the gain `computeAlignment` uses), toe IN / OUT, caster's steer camber, an `AUTO x°` tag on any row moved off `autoAlign`, LIMIT notes and the `why` terms for the card hint. The alignment itself is `align = alignOut(autoAlign, dr, uiMode)`. `brakeView`: header (the Centre, or STOCK), the row's centre and shift or ENTRY BRK (`phase.entry.brk`), and LIMIT when the 40–68% clamp moved a REC/GRIP bias. `diffView`: header (AUTO/MANUAL · type · MATCH CHASSIS) and `meta(v)`, the effective lock on non-Race types (`metaF(v)` on the Forza card: "acts like N% RACE"). Each of these, and `dampView`, also returns `head`, the header in words that the Forza cards show; `header` stays for BeamNG. BeamNG's per-axle cards read the alignment and diff headers in the summary strip, and its single BRAKES card carries its own. `HINT_BRAKES_OUT` is the BRAKES hint both layouts share |
 | `outWarns` (App), `OutWarn` | every output-panel warning, written once: `outWarns` is `{arb, springs, dampers}`, each a list of `{key, color, text}` (roll target, mech balance, Hz clamp, wheel lift, then `dampView`'s two). Each Forza card renders its own list in a `<Keep>`; BeamNG renders all three, in that order, under its summary strip. `OutWarn` is the box both draw. The text used to live in both layouts, so a fix had to be made twice |
 | `SuspensionCard`, `AlignCard`, `DiffCard` | BeamNG-only (`physMode`) output cards — per-axle shells built from `OutRow`/`RowGroup`/`Card`. `SuspensionCard` merges the Forza ARB+SPRINGS+DAMPERS cards into one card per axle; `AlignCard` omits Caster on the rear side (no rear caster slider in BeamNG); `DiffCard` is a per-axle differential card with the Forza card's hint and `diffView` header. Each card's sections are `Pair` blocks (`data-pair`), which `BeamngGrid` (the 2-column `.beamng-grid`) holds level with the same section in the other column after every render and on resize, so a row that wraps on one side does not push the rows below it out of line; in one column it clears them. Grid order: FWD diff · Brakes, Brakes · RWD diff, or Brakes · Center / Front · Rear diff, then suspension and alignment pairs; no placeholder cells. The rest of the layout (mode strip, soft-ARB note, CENTRE SPLIT card) is inline JSX in `App` — see the `physMode` branch in the output panel |
 | `DiffTypeRec`, `DIFF_REC_REASON` | the RECOMMENDED diff-type box, shared by Forza's DIFFERENTIAL card and BeamNG (on the single diff card for FWD/RWD, on CENTRE SPLIT for AWD); both wrap it in `Hide id="out.diff.rec"` |
@@ -402,11 +402,11 @@ depends on the tier.
   `zone-weight`, `zone-ride-stiffness`, `zone-balance`, `zone-character`, plus
   `zone-output` and `zone-balance-bar`. No `Sec` sections at all, and no VISUALS.
 - **INT** switches to the sectioned sidebar: `zone-chassis`, `zone-build`,
-  `zone-brakes`, `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
+  `zone-brakes`, `zone-alignment`, `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
   `zone-visuals`, plus output and balance bar.
-- **PRO** adds `zone-balance-target` and `zone-alignment`, and unlocks extra
+- **PRO** adds `zone-balance-target`, and unlocks extra
   controls inside the shared sections (CHASSIS geometry, ARB MECH/CO-SOLVE,
-  Hz MECH mode, Alignment Mode). PRO's CHASSIS is grouped by data source with
+  Hz MECH mode). PRO's CHASSIS is grouped by data source with
   `SrcHead` headers, and holds the MEASURE NAT BAL entry point under FROM THE
   GAME; `zone-balance-target` keeps only the ARB SCALE RE-MEASURE flag.
 
@@ -420,8 +420,8 @@ Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
   overwrote a typed value on every weight edit and every load.
 - **The tier fallback** is one effect with one write per store: `fe` (BEG's simple-mode lock, then
   ARB Balance Mode MECH / CO-SOLVE / CHASSIS → WEIGHT and Hz MODE MECH → MULTIPLIER), `dr`
-  (`diffManual` and `diffComplement` off) and `al` (Alignment Mode back to AUTO, Nudge OFF; the
-  MANUAL angles and Nudge Strength stay stored). **Keep it one write per store**, so the lock and
+  (`diffManual` and `diffComplement` off). Alignment has no entry: INT has the whole section, and
+  `alignOut` reads pure AUTO at BEG without touching what is stored. **Keep it one write per store**, so the lock and
   the fallback land together. The BEG lock was once a separate effect, and back when `usePersist`'s
   `set` applied updaters to the render-time value it was erased on every switch to BEG. Same-tick
   updaters compose now (see [PERSISTENCE.md](PERSISTENCE.md)).
@@ -710,7 +710,7 @@ user data — see [PERSISTENCE.md](PERSISTENCE.md). Versions are per-key; see
 [PERSISTENCE.md](PERSISTENCE.md) for when to bump one (removing a field never
 requires it — the stale key is simply ignored).
 
-`suspos_ch_v8`, `suspos_fe_v8`, `suspos_dr_v8`, `suspos_al_v2`,
+`suspos_ch_v8`, `suspos_fe_v8`, `suspos_dr_v8` (+ `suspos_al_v2`, read-only, `migrateLegacyAl`),
 `suspos_units_v2` (+ `suspos_units_v1`, read-only), `suspos_uimode_v1`, `suspos_zoom_v1` (read-only now),
 `suspos_tutorial_seen_v1`, `suspos_tutorial_step_v2` (+ `suspos_tutorial_step_v1`, read-only), `suspos_baltut_seen_v1`, `suspos_onboard_v1`,
 `suspos_garage_v2`, `suspos_garage_ui_v1`.
@@ -760,21 +760,19 @@ value that no UI control sets is the intended design here, not an oversight.
 **`ARB_MODE_DEC` index 3** — decodes a retired `'balance'` value to `'auto'`.
 Index 4 is `'man'`, relocated from `ARB_BAL_MODE`. Both positions are frozen.
 
-**`TUT_ADDED_SINCE_V1` and `tutProgressFromV1`** — read the retired
-`suspos_tutorial_step_v1`, whose bare indices count each guide without the steps the spot
-work added, to seed `suspos_tutorial_step_v2` by title. The list is frozen: a step added
-later can't move a `_v2` save, so it never grows, and a title in it that no longer exists
-fails `tests-sections.js`. Removing them resets the RESUME point of anyone who last saved
-under `_v1`.
+**`TUT_V1_TITLES` and `tutProgressFromV1`** — read the retired
+`suspos_tutorial_step_v1`, whose bare indices count each guide as it stood then, to seed
+`suspos_tutorial_step_v2` by title. `TUT_V1_TITLES` is that frozen list of titles: a `_v1`
+index names a title, found wherever it sits now; one whose step has since gone (PRO's Alignment
+Mode, moved to INT) resumes at the next `_v1` step that remains. It replaced
+`TUT_ADDED_SINCE_V1`, a list of steps added since, which could not express a step leaving a
+guide. Removing them resets the RESUME point of anyone who last saved under `_v1`.
 
-**`al.alignManual`** — `DEF_AL` still defines it and `alignMode` still falls
-back to it (`ALIGN_MODE_DEC.includes(al.mode) ? al.mode : (al.alignManual ? 'manual' : 'build')`) for state
-saved before `al.mode` existed. The *other* former use of it — the ALIGNMENT
-card's hint prefix — was a genuine bug and has been fixed to read `alignMode`;
-that does not make the fallback removable.
-
-**`al.camberF` / `toeF` / `toeR` / `caster` / `camberR`** — these were dead
-state once, and are live now (PRO Alignment Mode MANUAL). See
+**`migrateLegacyAl` and the `suspos_al_v2` key** — alignment moved from its own `al` state into
+`dr`. `migrateLegacyAl`, `suspos_dr_v8`'s repair, reads the old key while the stored `dr` lacks
+`alignManual`, so a saved MANUAL alignment survives the move. It still honours the legacy
+`alignManual` boolean of `al` for state saved before `al.mode` existed. It looks dead once
+everyone has written a new `dr`, but nothing proves that, so it stays. See
 [ALIGNMENT.md](ALIGNMENT.md).
 
 **`arbBalTargetMode` / `arbBalDelta` / `arbBalAbs`** — fully live; they drive the
