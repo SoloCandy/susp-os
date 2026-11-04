@@ -46,13 +46,10 @@ MANUAL") and [CODEC.md](CODEC.md). The slider ranges are first guesses, to be tu
 DECODE's step 1 takes an optional alignment, and IMPORT TUNE writes it into MANUAL. Now described
 in [ALIGNMENT.md](ALIGNMENT.md) ("Intent and MANUAL").
 
-### Phase 4 — VISUALS: ALIGNMENT group
+### Phase 4 — VISUALS: ALIGNMENT group (shipped)
 
-1. **Camber vs roll.** x = body roll, y = outside-tyre camber. One line per axle, with
-   `camberGainOf`'s gains as slopes. The build's dynamic target is a shaded band, and a marker sits
-   at `tune.rollDeg`. Possibly a second marker at the roll under ENTRY/EXIT loads.
-2. **Range strips.** One per value on its `ALIGN_GAME` span, with the `ALIGN_REC` band shaded and
-   markers at AUTO and the value in use. Reuses `VisTrack`'s bands and markers.
+CAMBER vs ROLL and RANGES. Now described in [VISUALS.md](VISUALS.md#alignment). Not done from the
+first sketch: a second dot at the ENTRY / EXIT roll.
 
 ### Phase 5 — symptom fixer (PRO)
 

@@ -11,6 +11,13 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — VISUALS gets an ALIGNMENT group
+
+The alignment revamp's Phase 4 ([IDEAS.md](IDEAS.md)), in the Forza modes. CAMBER vs ROLL plots
+each axle's outside-tyre camber against body roll, with the build's dynamic target dashed and a dot
+at the tune's roll. RANGES puts each value on its range beside AUTO's recommended band and AUTO's own
+value. `computeAlignment` now also returns `target`, the dynamic camber target the chart draws.
+
 ## Changed — Tune Check DECODE imports an alignment
 
 The alignment revamp's Phase 3 ([IDEAS.md](IDEAS.md)). DECODE's step 1 takes an optional

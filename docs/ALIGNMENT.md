@@ -65,6 +65,9 @@ Under AUTO, the card's ⓘ hint ends with the terms behind each value: `computeA
 `why`, `[label, degrees]` pairs that sum to the unclamped value, followed by `adjust`, the intent
 offset (terms under 0.005° are left out, except the build base). Wording in [HINTS.md](HINTS.md).
 
+VISUALS' ALIGNMENT group draws the same values: camber against roll, and each value on its
+range. See [VISUALS.md](VISUALS.md#alignment).
+
 ## Camber
 
 ```js

@@ -355,7 +355,7 @@ the Welcome card and live in the glossary.
 | 10 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
 | 11 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
 | 12 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
-| 13 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD. |
+| 13 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD, ALIGNMENT. |
 | 14 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | NET: the CAR tick, SPR and ARB, the NET tick; tap for the rows. |
 | 15 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off NET, outside the headline. |
 | 16 | Reading the Results | `output` | as BEG step 11 | close | The suspension cards first; amber = near a game limit. |
@@ -541,7 +541,7 @@ Absent note (no POWER SPLIT on screen):
 
 #### 13. VISUALS Card
 
-> VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.
+> VISUALS, pinned at the bottom of the sidebar, holds collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
 
 #### 14. Handling Balance Bar
 

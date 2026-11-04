@@ -2650,7 +2650,10 @@ const computeAlignment=(ch,tune,layout,buildType)=>{
   const limit={};for(const k in raw)limit[k]=alignAtLimit(k,raw[k]);
   return{recCamberF:alignRec('camberF',raw.camberF),recCamberR:alignRec('camberR',raw.camberR),
     recToeF:alignRec('toeF',raw.toeF),recToeR:alignRec('toeR',raw.toeR),recCaster:alignRec('caster',raw.caster),
-    limit,why};
+    limit,why,
+    // The build's dynamic camber target per axle, what AUTO's static camber aims for at the tune's
+    // roll; the VISUALS camber chart draws it.
+    target:{camberF:optimalCamber+fwdReduction,camberR:optimalCamber}};
 };
 
 const DIFF_BIAS_SCALE=0.14; // slightly higher — AWD contributions now split by center fraction
@@ -4660,6 +4663,94 @@ const VisRollSplit=({mechBal,natBal,target,rsSpF,rsAbF,rsSpR,rsAbR,rollDeg,rollC
         </text>
         <text x={VIS_W} y={H-14} textAnchor="end" fontSize={10} fill="#94a3b8" fontFamily={VIS_MONO}>
           spr {Math.round(100-arbShare)} · arb {Math.round(arbShare)}%</text>
+      </svg>
+    </div>
+  );
+};
+
+// ALIGNMENT group. Camber vs roll: the outside tyre's camber as the body rolls, static + roll ×
+// gain (camberGainOf), per axle. Dashed = the build's dynamic target, dot = the tune's roll; a dot
+// on its dashed line is AUTO hitting its target. Front blue, rear orange, as everywhere.
+const VisCamberRoll=({camberF,camberR,targetF,targetR,rollDeg,gainF,gainR})=>{
+  const W=VIS_W,H=92,padL=30,padR=22,padT=6,padB=16;
+  const xMax=Math.max(3,Math.ceil(rollDeg*1.6));
+  const endF=camberF+xMax*gainF,endR=camberR+xMax*gainR;
+  const vals=[camberF,camberR,targetF,targetR,endF,endR];
+  const yLo=Math.floor((Math.min(...vals)-0.3)*2)/2,yHi=Math.ceil((Math.max(...vals)+0.3)*2)/2;
+  const xS=v=>padL+v/xMax*(W-padL-padR),yS=v=>padT+(yHi-v)/(yHi-yLo)*(H-padT-padB);
+  const dynF=camberF+rollDeg*gainF,dynR=camberR+rollDeg*gainR;
+  const f1=v=>`${v>0?'+':''}${(Math.round(v*10)/10||0).toFixed(1)}`;
+  const xTicks=Array.from({length:xMax+1},(_,i)=>i);
+  const axle=(stat,end,tgt,dyn,col,key)=>(<g key={key}>
+    <line x1={padL} y1={yS(tgt)} x2={W-padR} y2={yS(tgt)} stroke={col} strokeWidth={1} strokeDasharray="3,2" opacity={0.55}/>
+    <line x1={xS(0)} y1={yS(stat)} x2={xS(xMax)} y2={yS(end)} stroke={col} strokeWidth={2}/>
+    <circle cx={xS(rollDeg)} cy={yS(dyn)} r={4} fill={col} stroke="#0a0f1a" strokeWidth={1.5}/>
+  </g>);
+  // Direct labels at the right end, nudged apart when the two lines finish close together.
+  let lyF=yS(endF)+3.5,lyR=yS(endR)+3.5;
+  if(Math.abs(lyF-lyR)<11){const m=(lyF+lyR)/2,up=endF>=endR;lyF=m+(up?-5.5:5.5);lyR=m+(up?5.5:-5.5);}
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-mono)',fontSize:10,marginBottom:1}}>
+        <span style={{color:T_MUTED,letterSpacing:1.5}}>CAMBER vs ROLL</span>
+        <Hint text="The outside tyre's camber as the body rolls: it starts at the static camber and rises by each axle's roll gain. Dashed = your build's dynamic target; dot = at this tune's roll. A dot on its dashed line is AUTO on target." term="camber"/>
+        <span style={{marginLeft:'auto',color:'#cbd5e1'}}>dyn F {f1(dynF)} · R {f1(dynR)}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+        <line x1={padL} y1={padT} x2={padL} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
+        <line x1={padL} y1={H-padB} x2={W-padR} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
+        {yLo<0&&yHi>0&&<line x1={padL} y1={yS(0)} x2={W-padR} y2={yS(0)} stroke="#334155" strokeWidth={1}/>}
+        {/* 0 labelled when it has room between the end labels: the solid line is zero camber. */}
+        {yLo<0&&yHi>0&&yS(0)-padT>=12&&H-padB-yS(0)>=12&&
+          <text x={padL-4} y={yS(0)+3.5} fontSize={10} fill={T_MUTED} textAnchor="end" fontFamily={VIS_MONO}>0</text>}
+        {xTicks.map(v=><g key={v}>
+          <line x1={xS(v)} y1={H-padB} x2={xS(v)} y2={H-padB+3} stroke="#334155" strokeWidth={1}/>
+          <text x={xS(v)} y={H-padB+13} fontSize={10} fill={T_MUTED} textAnchor="middle" fontFamily={VIS_MONO}>{v}°</text>
+        </g>)}
+        <text x={padL-4} y={padT+8} fontSize={10} fill={T_MUTED} textAnchor="end" fontFamily={VIS_MONO}>{f1(yHi)}</text>
+        <text x={padL-4} y={H-padB} fontSize={10} fill={T_MUTED} textAnchor="end" fontFamily={VIS_MONO}>{f1(yLo)}</text>
+        {axle(camberR,endR,targetR,dynR,VIS_COL_R,'r')}
+        {axle(camberF,endF,targetF,dynF,VIS_COL_F,'f')}
+        <text x={W-padR+4} y={lyF} fontSize={10} fill={VIS_COL_F} fontFamily={VIS_MONO}>F</text>
+        <text x={W-padR+4} y={lyR} fontSize={10} fill={VIS_COL_R} fontFamily={VIS_MONO}>R</text>
+      </svg>
+    </div>
+  );
+};
+// ALIGNMENT range strips: each value on its own span, with AUTO's recommended band (ALIGN_REC)
+// shaded, a ring at AUTO and a dot at the value in use (amber at LIMIT). Camber and caster use
+// the game's full span (ALIGN_GAME). Toe uses ±1.0° of the game's ±5: on ±5 the whole band and
+// every intent offset would fit in a few pixels. A toe beyond ±1 pins to the edge, and its
+// printed value says where it really is.
+const ALIGN_STRIP_SPAN={camberF:ALIGN_GAME.camberF,camberR:ALIGN_GAME.camberR,toeF:[-1,1],toeR:[-1,1],caster:ALIGN_GAME.caster};
+const VisAlignStrips=({align,autoAlign})=>{
+  const rows=[['camber F','camberF',VIS_COL_F],['camber R','camberR',VIS_COL_R],
+              ['toe F','toeF',VIS_COL_F],['toe R','toeR',VIS_COL_R],['caster','caster',VIS_COL_F]];
+  const X0=58,X1=232,RH=15,H=rows.length*RH+2;
+  const f1=v=>`${v>0?'+':''}${(Math.round(v*10)/10||0).toFixed(1)}`;
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-mono)',fontSize:10,marginBottom:1}}>
+        <span style={{color:T_MUTED,letterSpacing:1.5}}>RANGES</span>
+        <Hint text="Each value on its range: camber −5 to +5° and caster 1 to 7°, the game's full range, and toe ±1°. Shaded = where AUTO keeps its recommendation; ring = AUTO; dot = the value in use, amber at LIMIT." term="align-intent"/>
+        {align.manual&&<span style={{marginLeft:'auto',color:'#cbd5e1'}}>MANUAL</span>}
+      </div>
+      <svg viewBox={`0 0 ${VIS_W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+        {rows.map(([lbl,k,col],i)=>{
+          const[lo,hi]=ALIGN_STRIP_SPAN[k],y=7+i*RH;
+          const x=v=>X0+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*(X1-X0);
+          const v=align[alignRecKey(k)],auto=autoAlign[alignRecKey(k)],lim=!!align.limit?.[k];
+          const[bLo,bHi]=ALIGN_REC[k];
+          return(<g key={k}>
+            <text x={0} y={y+3.5} fontSize={10} fill={col} fontFamily={VIS_MONO}>{lbl}</text>
+            <rect x={X0} y={y-2} width={X1-X0} height={4} fill="#1e293b"/>
+            <rect x={x(bLo)} y={y-2} width={Math.max(1,x(bHi)-x(bLo))} height={4} fill={C_TAG} opacity={0.35}/>
+            {lo<0&&hi>0&&<line x1={x(0)} y1={y-4} x2={x(0)} y2={y+4} stroke="#334155" strokeWidth={1}/>}
+            <circle cx={x(auto)} cy={y} r={4.2} fill="none" stroke={col} strokeWidth={1.3} opacity={0.85}/>
+            <circle cx={x(v)} cy={y} r={3.2} fill={lim?C_WARN:col} stroke="#0a0f1a" strokeWidth={1}/>
+            <text x={VIS_W} y={y+3.5} textAnchor="end" fontSize={10} fill={lim?C_WARN:'#e2e8f0'} fontFamily={VIS_MONO}>{f1(v)}°</text>
+          </g>);
+        })}
       </svg>
     </div>
   );
@@ -7279,7 +7370,7 @@ const TUTORIALS={
      glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
      focus:['visuals'],spot:['visuals.ride','visuals.dynamics','visuals.sag'],
-     body:'VISUALS, pinned at the bottom of the sidebar, holds three collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band) and SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source). Tap a header to collapse it.',
+     body:'VISUALS, pinned at the bottom of the sidebar, holds collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.',
      glossary:['ride-roll-damping','dynamics-chart','sag-vs-load']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],spot:['bar.head','bar.main','bar.legend'],sidebar:'close',
@@ -8570,7 +8661,7 @@ function App(){
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
   const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
-  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:false,visRide:true,visDynamics:false,visSag:false,visLoad:false,visGrip:false});
+  const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:false,visRide:true,visDynamics:false,visSag:false,visAlign:false,visLoad:false,visGrip:false});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
   // GRIP USE's phase view (MID / ENTRY / EXIT). Session-only UI state, deliberately not persisted.
@@ -8579,7 +8670,7 @@ function App(){
   // group and its headers instead of every chart stacked behind an inner scroll. The opened
   // group's header is scrolled to the top of the box, for the one case it still scrolls (a group
   // taller than the box's vh cap).
-  const VIS_KEYS=['visDna','visRide','visDynamics','visSag','visLoad','visGrip'];
+  const VIS_KEYS=['visDna','visRide','visDynamics','visSag','visAlign','visLoad','visGrip'];
   const visTog=key=>e=>{
     const hdr=e.currentTarget,opening=!open[key];
     setOpen(p=>({...p,...Object.fromEntries(VIS_KEYS.map(k=>[k,false])),[key]:!p[key]}));
@@ -12571,6 +12662,23 @@ function App(){
                 </>);
               })()}
               </Hide>
+              {/* ALIGNMENT (INT+, Forza modes): camber vs roll and the range strips. See docs/VISUALS.md. */}
+              {!physMode&&(()=>{
+                const{camberGain,rearGainMult}=camberGainOf(ch,ch.layout);
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visAlign')}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>ALIGNMENT</span>
+                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visAlign?'▲':'▼'}</span>
+                  </div>
+                  {open.visAlign&&<div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:8}}>
+                    <VisCamberRoll camberF={align.recCamberF} camberR={align.recCamberR}
+                      targetF={autoAlign.target.camberF} targetR={autoAlign.target.camberR}
+                      rollDeg={tune.rollDeg} gainF={camberGain} gainR={camberGain*rearGainMult}/>
+                    <VisAlignStrips align={align} autoAlign={autoAlign}/>
+                  </div>}
+                </div>);
+              })()}
               {/* LOAD TRANSFER (PRO): the grip model's own transfer at 1 g (loadTransferOf), so the
                   springs and bars move it. Moved here from the bottom of the expanded Handling
                   Balance panel: it is a picture of the car's loads, like the groups above. */}

@@ -587,6 +587,14 @@ their ⓘ says.
 
 > Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top.
 
+**ALIGNMENT → CAMBER vs ROLL** (Forza modes):
+
+> The outside tyre's camber as the body rolls: it starts at the static camber and rises by each axle's roll gain. Dashed = your build's dynamic target; dot = at this tune's roll. A dot on its dashed line is AUTO on target.
+
+**ALIGNMENT → RANGES:**
+
+> Each value on its range: camber −5 to +5° and caster 1 to 7°, the game's full range, and toe ±1°. Shaded = where AUTO keeps its recommendation; ring = AUTO; dot = the value in use, amber at LIMIT.
+
 ---
 
 ## Results panel — Forza cards
