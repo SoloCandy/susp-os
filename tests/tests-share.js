@@ -43,7 +43,8 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
   'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,' +
-  'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE};'
+  'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE,' +
+  'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText};'
 )();
 
 let pass = 0, fail = 0;
@@ -445,6 +446,54 @@ t('ALIGNMENT travels as offsets and puts the reader in AUTO; MANUAL values never
     const out = M.alignDrOut(auto, m);
     assert(out.alignManual === true && out.alignManToeF === m.alignManToeF && near(out.alignOfsToeF, -0.3), JSON.stringify(out));
   });
+  t('alignBeyondReach: nothing under AUTO or within reach; lists what the sliders cannot reach', () => {
+    assert(M.alignBeyondReach(auto, { ...M.DEF_DR, alignManCamberF: -9 }).length === 0, 'AUTO listed');
+    const within = { ...M.DEF_DR, alignManual: true, ...Object.fromEntries(M.ALIGN_KEYS.map(k =>
+      ['alignMan' + k[0].toUpperCase() + k.slice(1), auto['rec' + k[0].toUpperCase() + k.slice(1)]])) };
+    assert(M.alignBeyondReach(auto, within).length === 0, 'MANUAL equal to AUTO listed');
+    const far = M.alignBeyondReach(auto, { ...within, alignManCamberF: auto.recCamberF - 2.4 });
+    assert(far.length === 1 && far[0].k === 'camberF' && near(far[0].reach, auto.recCamberF - 2), JSON.stringify(far));
+    assert(/camber F .* → /.test(M.alignReachText(far)), M.alignReachText(far));
+  });
+  t('alignFieldsOf: exactly the alignment fields, only those present', () => {
+    const f = M.alignFieldsOf({ ...M.DEF_DR, alignManual: true, alignOfsToeF: 0.2 });
+    assert(f.alignManual === true && f.alignOfsToeF === 0.2 && !('buildType' in f) && Object.keys(f).length === 11, JSON.stringify(f));
+    assert(Object.keys(M.alignFieldsOf({ buildType: 'track' })).length === 0, 'invented fields');
+  });
+}
+
+// ── migrateLegacyAl: alignment's move from suspos_al_v2 into dr ──
+{
+  const store = {};
+  globalThis.localStorage = { getItem: k => (k in store ? store[k] : null) };
+  const set = (dr, al) => { for (const k in store) delete store[k];
+    if (dr !== undefined) store.suspos_dr_v8 = JSON.stringify(dr); if (al !== undefined) store.suspos_al_v2 = JSON.stringify(al); };
+  const legacyManual = { mode: 'manual', camberF: -2.7, camberR: -1.9, toeF: -0.2, toeR: 0.2, caster: 6.1, nudgeStrength: 50 };
+  t('a stored dr from before the move takes MANUAL and its angles from the old key', () => {
+    set({ buildType: 'track' }, legacyManual);
+    const out = M.migrateLegacyAl({ ...M.DEF_DR, buildType: 'track' });
+    assert(out.alignManual === true && out.alignManCamberF === -2.7 && out.alignManCaster === 6.1 && out.alignManToeR === 0.2, JSON.stringify(out));
+  });
+  t('MECH and GRIP come across as AUTO; the legacy alignManual boolean still counts', () => {
+    set({}, { ...legacyManual, mode: 'mech' });
+    assert(M.migrateLegacyAl({ ...M.DEF_DR }).alignManual === false, 'mech');
+    set({}, { camberF: -3, alignManual: true });
+    const o = M.migrateLegacyAl({ ...M.DEF_DR });
+    assert(o.alignManual === true && o.alignManCamberF === -3, JSON.stringify(o));
+  });
+  t('a dr written since the move, no stored dr, or no old key: nothing changes', () => {
+    const dr = { ...M.DEF_DR };
+    set({ alignManual: false }, legacyManual); assert(M.migrateLegacyAl(dr) === dr, 'new dr migrated again');
+    set(undefined, legacyManual);             assert(M.migrateLegacyAl(dr) === dr, 'fresh install migrated');
+    set({ buildType: 'track' }, undefined);   assert(M.migrateLegacyAl(dr) === dr, 'no old key');
+  });
+  t('junk in the old key falls back to the defaults', () => {
+    set({}, { mode: 'manual', camberF: 'x', toeF: null });
+    const o = M.migrateLegacyAl({ ...M.DEF_DR });
+    assert(o.alignManual === true && o.alignManCamberF === M.DEF_DR.alignManCamberF && o.alignManToeF === M.DEF_DR.alignManToeF, JSON.stringify(o));
+    store.suspos_al_v2 = '{not json'; assert(M.migrateLegacyAl(M.DEF_DR) === M.DEF_DR, 'parse error');
+  });
+  delete globalThis.localStorage;
 }
 
 t('sanitizeTune holds the offsets to their slider ranges', () => {

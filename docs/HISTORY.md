@@ -11,6 +11,25 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — review of the alignment revamp
+
+Found reviewing the branch before it merged:
+
+- **RESPONSE tips** for TOE F and CASTER still told INT "Alignment has no control at this tier",
+  gated on PRO. INT gets the real tips now; BEG keeps the line.
+- **SHARE's DRIVETRAIN box** carries the alignment but said only "Build type · diff · brakes". It now
+  says alignment too.
+- **A MANUAL value past its slider's reach** was shared, and switched to AUTO, inexactly with no
+  notice. `alignBeyondReach` now names each one, in the ALIGNMENT section and in SHARE.
+- **Loading a factory preset reset the alignment** to AUTO, as did loading a garage build saved
+  before alignment moved into `dr`: both wrote `{...DEF_DR, ...payload}`. They now keep the live
+  alignment (`alignFieldsOf`), which is how presets behaved while alignment lived in `al`.
+- **Garage COPY CODE** encoded an entry without its defaults, so a field the entry predates went out
+  as `id:undefined` (five such pairs for ids 91–95 on every older build, and the same for older
+  late-added ids). It now fills defaults first, as LOAD does.
+- Cleanups: `setAlignManual` computed the alignment five times; three copies of the signed one-decimal
+  formatter became `alignFmt`. `migrateLegacyAl` gained tests.
+
 ## Changed — VISUALS gets an ALIGNMENT group
 
 The alignment revamp's Phase 4 ([IDEAS.md](IDEAS.md)), in the Forza modes. CAMBER vs ROLL plots

@@ -2589,6 +2589,25 @@ const alignOfsFrom=(auto,values)=>Object.fromEntries(ALIGN_KEYS.map(k=>{
   return[alignOfsKey(k),Math.max(-r,Math.min(r,alignRound(values[k]-auto[alignRecKey(k)])))];
 }));
 const alignManOf=dr=>Object.fromEntries(ALIGN_KEYS.map(k=>[k,dr[alignManKey(k)]]));
+// The MANUAL values the sliders cannot reach: each as {k, man, reach}, reach being what AUTO + the
+// clamped offset lands on. Empty outside MANUAL. The ALIGNMENT section and the SHARE panel list
+// them, because switching to AUTO and every share code land on `reach`, not on the typed value.
+const alignBeyondReach=(auto,dr)=>{
+  if(!dr.alignManual)return[];
+  const ofs=alignOfsFrom(auto,alignManOf(dr));
+  return ALIGN_KEYS.flatMap(k=>{
+    const man=alignRound(dr[alignManKey(k)]),reach=alignGame(k,auto[alignRecKey(k)]+ofs[alignOfsKey(k)]);
+    return man!==reach?[{k,man,reach}]:[];
+  });
+};
+// Every alignment field of dr, as a patch: what a load that carries no alignment (a factory preset,
+// a garage build saved before alignment moved into dr) keeps from the live tune.
+const ALIGN_DR_KEYS=['alignManual',...ALIGN_KEYS.map(alignManKey),...ALIGN_KEYS.map(alignOfsKey)];
+const alignFieldsOf=dr=>Object.fromEntries(ALIGN_DR_KEYS.filter(k=>k in (dr??{})).map(k=>[k,dr[k]]));
+// A value as the alignment readouts print it: one decimal, signed, never "-0.0".
+const alignFmt=v=>{const r=alignRound(v);return`${r>0?'+':''}${r.toFixed(1)}`;};
+const ALIGN_LABEL={camberF:'camber F',camberR:'camber R',toeF:'toe F',toeR:'toe R',caster:'caster'};
+const alignReachText=list=>list.map(({k,man,reach})=>`${ALIGN_LABEL[k]} ${alignFmt(man)} → ${alignFmt(reach)}°`).join(', ');
 // dr as it leaves the device: under MANUAL, its offsets translated from the MANUAL values, so the
 // receiver's AUTO lands as close as the slider ranges allow. alignManual and the MANUAL values
 // are not in the codec; mergeTune puts the receiver in AUTO.
@@ -4679,7 +4698,7 @@ const VisCamberRoll=({camberF,camberR,targetF,targetR,rollDeg,gainF,gainR})=>{
   const yLo=Math.floor((Math.min(...vals)-0.3)*2)/2,yHi=Math.ceil((Math.max(...vals)+0.3)*2)/2;
   const xS=v=>padL+v/xMax*(W-padL-padR),yS=v=>padT+(yHi-v)/(yHi-yLo)*(H-padT-padB);
   const dynF=camberF+rollDeg*gainF,dynR=camberR+rollDeg*gainR;
-  const f1=v=>`${v>0?'+':''}${(Math.round(v*10)/10||0).toFixed(1)}`;
+  const f1=alignFmt;
   const xTicks=Array.from({length:xMax+1},(_,i)=>i);
   const axle=(stat,end,tgt,dyn,col,key)=>(<g key={key}>
     <line x1={padL} y1={yS(tgt)} x2={W-padR} y2={yS(tgt)} stroke={col} strokeWidth={1} strokeDasharray="3,2" opacity={0.55}/>
@@ -4727,7 +4746,7 @@ const VisAlignStrips=({align,autoAlign})=>{
   const rows=[['camber F','camberF',VIS_COL_F],['camber R','camberR',VIS_COL_R],
               ['toe F','toeF',VIS_COL_F],['toe R','toeR',VIS_COL_R],['caster','caster',VIS_COL_F]];
   const X0=58,X1=232,RH=15,H=rows.length*RH+2;
-  const f1=v=>`${v>0?'+':''}${(Math.round(v*10)/10||0).toFixed(1)}`;
+  const f1=alignFmt;
   return(
     <div>
       <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-mono)',fontSize:10,marginBottom:1}}>
@@ -7222,7 +7241,9 @@ const EntryCard=({entry,metricUnits,onLoadChassis,onLoadBuild,onLoadDna,onRewrit
           onClick={()=>copyToClipboard(
             // A chassis-only or build-only entry fills the missing groups with defaults, so the
             // code says which ones are real (id 85) — or LOAD CODE would offer the defaults.
-            encodeTune(entry.ch||DEF_CH,entry.fe||DEF_FE,entry.dr||DEF_DR,entry.tier,
+            // Defaults filled in, as LOAD does: an entry saved before a field existed would otherwise
+            // encode it as "id:undefined".
+            encodeTune({...DEF_CH,...entry.ch},{...DEF_FE,...entry.fe},{...DEF_DR,...entry.dr},entry.tier,
               (entry.ch?CARRY_BIT.ch:0)|(entry.fe?CARRY_BIT.fe:0)|(entry.dr?CARRY_BIT.dr:0)),
             ()=>{setCodeCopied(true);setTimeout(()=>setCodeCopied(false),1500);}
           )}>{codeCopied?'COPIED':'COPY CODE'}</button>
@@ -9193,9 +9214,14 @@ function App(){
   // AUTO ↔ MANUAL carry the alignment across: MANUAL starts from what AUTO + intent prints, and AUTO
   // takes the offsets that land closest to the MANUAL values (alignOfsFrom), so neither switch
   // moves a number that the slider ranges can hold.
-  const setAlignManual=on=>setDr(p=>!!p.alignManual===on?p:on
-    ?{...p,alignManual:true,...Object.fromEntries(ALIGN_KEYS.map(k=>[alignManKey(k),alignOut(autoAlign,p,uiMode)[alignRecKey(k)]]))}
-    :{...p,alignManual:false,...alignOfsFrom(autoAlign,alignManOf(p))});
+  const setAlignManual=on=>setDr(p=>{
+    if(!!p.alignManual===on)return p;
+    if(!on)return{...p,alignManual:false,...alignOfsFrom(autoAlign,alignManOf(p))};
+    const o=alignOut(autoAlign,p,uiMode);
+    return{...p,alignManual:true,...Object.fromEntries(ALIGN_KEYS.map(k=>[alignManKey(k),o[alignRecKey(k)]]))};
+  });
+  // MANUAL values AUTO + intent cannot reach (alignBeyondReach): shown in ALIGNMENT and SHARE.
+  const alignReach=useMemo(()=>uiMode==='beginner'?[]:alignBeyondReach(autoAlign,dr),[autoAlign,dr,uiMode]);
   // computeDiff resolves the display-space natural itself (natDisplayOf, feEffective.gameMode),
   // measured or not. It used to be handed the reading only when measured and fall back to its own
   // inline GEOMETRY otherwise — a second copy of the unqualified natural, in the wrong space.
@@ -9555,7 +9581,7 @@ function App(){
     const header=manual?'MANUAL':['AUTO',BUILD,adjusted?'ADJUSTED':null].filter(Boolean).join(' · ');
     const head=manual?'MANUAL values':`AUTO for a ${BUILD} build${adjusted?' · adjusted':''}`;
     const{camberGain,rearGainMult}=camberGainOf(ch,ch.layout);
-    const r1=v=>Math.round(v*10)/10||0; // ||0: no "-0.0"
+    const r1=alignRound;
     // Where AUTO alone would put it, whenever intent or MANUAL moved the value. Under MANUAL the dyn
     // gap to AUTO's is the same number (same roll).
     const vsAuto=(v,auto)=>r1(v-auto)!==0?[`AUTO ${r1(auto).toFixed(1)}°`]:[];
@@ -9771,7 +9797,7 @@ function App(){
     }
     commit(`load ${s.name??'preset'}`,()=>{
       setFe(adjustedFe);
-      setDr(p=>({...DEF_DR,...s.dr}));
+      setDr(p=>({...DEF_DR,...alignFieldsOf(p),...s.dr})); // a preset carries no alignment: keep the live one
       dnaUnlink();
     });
   };
@@ -9836,7 +9862,8 @@ function App(){
       const{settleMode:_sm,settleBias:_sb,...rest}=merged;
       setFe({...rest,...dampBal});
     }
-    if(e.dr)setDr({...DEF_DR,...e.dr});
+    // An entry saved before alignment moved into dr carries none: keep the live alignment.
+    if(e.dr)setDr(p=>({...DEF_DR,...alignFieldsOf(p),...e.dr}));
     setDnaStore({...dnaStore,applied:e.dna??null});
   });};
   const allTags=[...new Set(entries.flatMap(e=>e.tags||[]))].sort();
@@ -11215,6 +11242,8 @@ function App(){
               </div>
               <Hide id="align.caster"><Field noSlider label="Caster" value={dr.alignManCaster} onChange={pDr('alignManCaster')} min={ALIGN_GAME.caster[0]} max={ALIGN_GAME.caster[1]} step={0.1} unit="°"
                 hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/></Hide>
+              {alignReach.length>0&&<div style={{fontSize:10,color:C_WARN,lineHeight:1.5,marginTop:6}}>
+                Beyond the sliders' reach: {alignReachText(alignReach)}. Switching to AUTO and share codes land there.</div>}
             </>}
           </Sec></div>}
 
@@ -13375,9 +13404,11 @@ function App(){
                   {[
                     {key:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout'},
                     {key:'fe',label:'FEEL',sub:'Ride · damping · ARB · balance'},
-                    {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes'},
+                    {key:'dr',label:'DRIVETRAIN',sub:'Build type · diff · brakes · alignment'},
                   ].map(({key,label,sub})=>chkRow(key,label,sub,shareSel[key],
                     e=>{setShareSel(s=>({...s,[key]:e.target.checked}));setShareCopied(false);}))}
+                  {shareSel.dr&&alignReach.length>0&&<div style={{fontSize:10,color:C_WARN,margin:'6px 0 0',lineHeight:1.5}}>
+                    The alignment travels as AUTO + sliders, which can't reach every MANUAL value: {alignReachText(alignReach)}.</div>}
                   {shareNone&&<div style={{fontSize:10,color:'#f87171',margin:'6px 0 0',letterSpacing:0.5}}>
                     Tick at least one part.</div>}
                   <textarea readOnly value={shareNone?'':sharePayload} rows={3} onFocus={e=>e.target.select()}
@@ -14181,6 +14212,7 @@ function App(){
                   const agileP=Math.round((score-0.5)*100);
                   const aCol=Math.abs(agileP)<15?C_TAG:'#e2e8f0';
                   const totalAbsDev=segs.reduce((s,x)=>s+Math.abs(x.deviation),0);
+                  // BEG only: from INT the ALIGNMENT section's sliders move toe and caster.
                   const noAlign='Alignment has no control at this tier; this factor is for reference.';
                   const tips=uiMode==='beginner'?{
                     'Hz F':   agileP>0?'Lower Ride Stiffness for a more planted entry feel.':'Raise Ride Stiffness to sharpen initial turn-in response.',
@@ -14194,8 +14226,8 @@ function App(){
                     'DAMP F': agileP>0?'Increase front rebound damping to settle entry more firmly.':'Reduce front rebound damping to free up initial roll response.',
                     'Hz R':   agileP>0?'Soften rear springs (lower Hz) to reduce rotation tendency.':'Stiffen rear springs to improve rear body control and rotation speed.',
                     'DAMP R': agileP>0?'Increase rear rebound damping to plant the rear more firmly.':'Reduce rear rebound damping for more rotation freedom.',
-                    'TOE F':  uiMode!=='pro'?noAlign:agileP>0?'Add front toe-in to improve straight-line stability.':'Reduce front toe-in to sharpen turn-in response.',
-                    CASTER:   uiMode!=='pro'?noAlign:agileP>0?'Increase caster for stronger self-centering and stability.':'Reduce caster for lighter, quicker steering response.',
+                    'TOE F':  agileP>0?'Add front toe-in to improve straight-line stability.':'Reduce front toe-in to sharpen turn-in response.',
+                    CASTER:   agileP>0?'Increase caster for stronger self-centering and stability.':'Reduce caster for lighter, quicker steering response.',
                   };
                   const tip=Math.abs(agileP)<15
                     ?'Transient response is balanced.'+(domBig?' '+dom.label+' is the primary character driver.':'')

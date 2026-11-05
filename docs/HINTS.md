@@ -1083,7 +1083,7 @@ INT and PRO — Hz F, DAMP F, Hz R, DAMP R:
 
 > Reduce rear rebound damping for more rotation freedom.
 
-TOE F and CASTER — PRO:
+TOE F and CASTER — INT and PRO (the ALIGNMENT section's Turn-in and Steering feel move them):
 
 > Add front toe-in to improve straight-line stability.
 
@@ -1093,7 +1093,7 @@ TOE F and CASTER — PRO:
 
 > Reduce caster for lighter, quicker steering response.
 
-and in BEG and INT, which have no alignment controls, for either:
+and in BEG, which has no alignment controls, for either:
 
 > Alignment has no control at this tier; this factor is for reference.
 
@@ -1130,6 +1130,16 @@ available (PRO), then without it:
 **STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only; first after the vehicle mass, then ARB, springs and damping), above its five fields:
 
 > As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.
+
+**ALIGNMENT → MANUAL, beyond reach** (amber, under the fields, while a MANUAL value is further from
+AUTO than its slider reaches; `{list}` is e.g. `camber F -4.8 → -4.4°`):
+
+> Beyond the sliders' reach: {list}. Switching to AUTO and share codes land there.
+
+**SHARE → INCLUDE:** DRIVETRAIN's sub-line is `Build type · diff · brakes · alignment`. With
+DRIVETRAIN ticked and the same condition, an amber line under the boxes:
+
+> The alignment travels as AUTO + sliders, which can't reach every MANUAL value: {list}.
 
 **IMPORT TUNE's line** names what it replaces: the suspension sentence when step 1's suspension was
 entered, the alignment one when the alignment was, or both:

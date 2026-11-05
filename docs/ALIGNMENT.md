@@ -229,7 +229,9 @@ the other way round, in one undoable commit.
 - AUTO → MANUAL: the MANUAL values become what AUTO + intent printed.
 - MANUAL → AUTO: the offsets become `alignOfsFrom(auto, manual)`, the offsets that land AUTO
   closest to the MANUAL values: `manual − autoRec`, rounded to 0.1° and held to `ALIGN_OFS_RANGE`.
-  Exact while the MANUAL value is within its slider's reach of AUTO.
+  Exact while the MANUAL value is within its slider's reach of AUTO. When one isn't,
+  `alignBeyondReach` lists it, and an amber line under the MANUAL fields (and in SHARE, with
+  DRIVETRAIN ticked) says where it will land, e.g. `camber F -4.8 → -4.4°`.
 
 **Leaving the device.** A share code carries only the offsets (ids 91–95, the ALIGNMENT part;
 see [CODEC.md](CODEC.md)). Under MANUAL, `alignDrOut` translates the MANUAL values into offsets
@@ -237,6 +239,11 @@ first, the same way MANUAL → AUTO does. So a received alignment is always AUTO
 following the reader's car, and applying it puts the reader in AUTO. Garage SAVE / OVERWRITE
 store the whole `dr`, so MANUAL comes back exactly on this device, with the translated offsets
 beside it for the entry's COPY CODE.
+
+**Loads that carry no alignment keep the live one.** A factory preset, and a garage build saved
+before alignment moved into `dr`, write `{...DEF_DR, ...alignFieldsOf(live), ...payload}`, so the
+alignment isn't reset to AUTO. A share code's DRIVETRAIN part never touches it either; only its
+ALIGNMENT part does. The SHARE panel's DRIVETRAIN box says it carries the alignment.
 
 **BEG** reads pure AUTO (`alignOut` with tier `beginner`). The stored mode, offsets and MANUAL
 values are kept, not reset, the same as the BRAKES shift, so returning to INT brings them back.

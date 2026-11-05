@@ -168,7 +168,7 @@ see [CODEC.md](CODEC.md)'s excluded-fields section.
 mode, the MANUAL values and the intent offsets, and LOAD BUILD restores them exactly. SAVE and
 OVERWRITE write the offsets translated from MANUAL beside it (`alignDrOut`), so the entry's COPY
 CODE carries the alignment as intent; see [CODEC.md](CODEC.md) ids 91–95. Entries saved before
-the move have no alignment fields and load as AUTO with no offsets. (It used to sit in a separate
+the move have no alignment fields, so LOAD BUILD keeps the live alignment for them (`alignFieldsOf`), as a factory preset does. (It used to sit in a separate
 `al` that no entry carried; see [HISTORY.md](HISTORY.md).)
 
 ### Migration chain

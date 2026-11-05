@@ -180,7 +180,9 @@ not tell "the sender left FEEL out" from "the sender's FEEL is the default one" 
 LOAD CODE opens with every part ticked, so APPLY reset the reader's own values to
 defaults and the picker labelled them "from the code". The garage's COPY CODE has the
 same shape: a chassis-only or build-only entry fills the missing groups with defaults,
-so it writes the mask from which payloads the entry has.
+so it writes the mask from which payloads the entry has. Each payload it does have is also
+filled from its defaults first (`{...DEF_DR, ...entry.dr}`), so a field the entry predates goes
+out as its default (omitted) rather than as `id:undefined`.
 
 `DEF_META.carries` is `null`, meaning every group, and `encodeTune` writes `null` when
 the mask is 7. So a whole-tune code carries no id 85 and reads exactly as every code
