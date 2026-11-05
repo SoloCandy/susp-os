@@ -152,7 +152,7 @@ for (const m of stripComments(codecBlock).matchAll(/\{id:(\d+),\s*([^}]*)\}/g)) 
 // Keys that legitimately have no codec id. Each MUST be justified in CODEC.md's
 // excluded-fields section — the second assertion below enforces that, so this
 // list cannot quietly grow into a dumping ground.
-const CODEC_EXCLUDED = ['useRideHeightCG', 'alignManual', 'alignManCamberF', 'alignManCamberR', 'alignManToeF', 'alignManToeR', 'alignManCaster'];
+const CODEC_EXCLUDED = ['useRideHeightCG', 'alignManual', 'alignManCamberF', 'alignManCamberR', 'alignManToeF', 'alignManToeR', 'alignManCaster', 'alignToeV2'];
 
 section('share codec');
 

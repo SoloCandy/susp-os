@@ -2539,6 +2539,13 @@ const CASTER_REF_STEER=10;
 // Negative camber the outside front wheel gains from caster at `steer` degrees of road-wheel angle:
 // caster × sin(steer), small-angle geometry with KPI left out. Not calibrated against the game.
 const casterSteerCamber=(caster,steer=CASTER_REF_STEER)=>-caster*Math.sin(steer*Math.PI/180);
+// Toe as the game shows it. The model's toe is + = toe-in, and stays so everywhere inside (every
+// formula, the RESPONSE bar, the IN/OUT tags, share-code offsets). Forza prints and takes the
+// opposite, + = toe-out: checked on the car, +1.0° front toe turns the fronts of the wheels outward.
+// BeamNG matches the model, + = front in. Every toe number a tuner reads or types passes through
+// this; it is its own inverse, so the same call converts game → model.
+const toeGameSign=gm=>isPhysical(gm)?1:-1;
+const alignInGame=(k,v,gm)=>k.startsWith('toe')?v*toeGameSign(gm)||0:v;
 // ── alignment intent and MANUAL ──
 // The five alignment values in output order, and their dr keys: alignMan* the MANUAL entry,
 // alignOfs* the intent offset AUTO adds. See docs/ALIGNMENT.md "Intent and MANUAL".
@@ -2607,7 +2614,7 @@ const alignFieldsOf=dr=>Object.fromEntries(ALIGN_DR_KEYS.filter(k=>k in (dr??{})
 // A value as the alignment readouts print it: one decimal, signed, never "-0.0".
 const alignFmt=v=>{const r=alignRound(v);return`${r>0?'+':''}${r.toFixed(1)}`;};
 const ALIGN_LABEL={camberF:'camber F',camberR:'camber R',toeF:'toe F',toeR:'toe R',caster:'caster'};
-const alignReachText=list=>list.map(({k,man,reach})=>`${ALIGN_LABEL[k]} ${alignFmt(man)} → ${alignFmt(reach)}°`).join(', ');
+const alignReachText=(list,gm)=>list.map(({k,man,reach})=>`${ALIGN_LABEL[k]} ${alignFmt(alignInGame(k,man,gm))} → ${alignFmt(alignInGame(k,reach,gm))}°`).join(', ');
 // dr as it leaves the device: under MANUAL, its offsets translated from the MANUAL values, so the
 // receiver's AUTO lands as close as the slider ranges allow. alignManual and the MANUAL values
 // are not in the codec; mergeTune puts the receiver in AUTO.
@@ -3735,12 +3742,29 @@ const DEF_DR={buildType:'street',diffType:'sport',
               // ranges ALIGN_OFS_RANGE). Only the offsets travel in share codes. See alignOut.
               alignManual:false,
               alignManCamberF:-2.3,alignManCamberR:-1.8,alignManToeF:-0.1,alignManToeR:0.1,alignManCaster:5.5,
-              alignOfsCamberF:0,alignOfsCamberR:0,alignOfsToeF:0,alignOfsToeR:0,alignOfsCaster:0};
+              alignOfsCamberF:0,alignOfsCamberR:0,alignOfsToeF:0,alignOfsToeR:0,alignOfsCaster:0,
+              // Set once the MANUAL toe has been read in the corrected sign (migrateToeSign).
+              alignToeV2:true};
 const BRAKE_CENTRE_DEC=['rec','grip','entry'];
 // Alignment lived in its own key, suspos_al_v2, before it moved into dr. A stored dr without
 // alignManual predates the move, so it takes MANUAL and its angles from that key (MECH and GRIP,
 // retired, come across as AUTO). The old key is left in place: it is read only while the stored dr
 // lacks alignManual, which the first write fixes. Retained deliberately — see docs/CODE_MAP.md.
+// Until the toe sign was checked on the car, MANUAL toe was read as + = toe-in in every game mode.
+// A Forza tuner typed the game's own number, so a saved Forza MANUAL toe means the opposite of how it
+// was read: negate it once. Only while MANUAL is on (otherwise the values are reseeded from AUTO on
+// the next switch), only in a Forza mode (BeamNG was always right), and only for a stored dr without
+// alignToeV2. See docs/HISTORY.md.
+const migrateToeSign=dr=>{
+  try{
+    const raw=JSON.parse(localStorage.getItem('suspos_dr_v8')??'null');
+    if(!raw||'alignToeV2' in raw||!dr.alignManual)return dr;
+    const fe=JSON.parse(localStorage.getItem('suspos_fe_v8')??'null');
+    if(isPhysical(fe?.gameMode))return dr;
+    const neg=v=>typeof v==='number'&&isFinite(v)?(-v||0):v;
+    return{...dr,alignManToeF:neg(dr.alignManToeF),alignManToeR:neg(dr.alignManToeR),alignToeV2:true};
+  }catch(e){return dr;}
+};
 const migrateLegacyAl=dr=>{
   try{
     const raw=JSON.parse(localStorage.getItem('suspos_dr_v8')??'null');
@@ -4743,7 +4767,7 @@ const VisCamberRoll=({camberF,camberR,targetF,targetR,rollDeg,gainF,gainR})=>{
 // every intent offset would fit in a few pixels. A toe beyond ±1 pins to the edge, and its
 // printed value says where it really is.
 const ALIGN_STRIP_SPAN={camberF:ALIGN_GAME.camberF,camberR:ALIGN_GAME.camberR,toeF:[-1,1],toeR:[-1,1],caster:ALIGN_GAME.caster};
-const VisAlignStrips=({align,autoAlign})=>{
+const VisAlignStrips=({align,autoAlign,gameMode})=>{
   const rows=[['camber F','camberF',VIS_COL_F],['camber R','camberR',VIS_COL_R],
               ['toe F','toeF',VIS_COL_F],['toe R','toeR',VIS_COL_R],['caster','caster',VIS_COL_F]];
   const X0=58,X1=232,RH=15,H=rows.length*RH+2;
@@ -4759,8 +4783,10 @@ const VisAlignStrips=({align,autoAlign})=>{
         {rows.map(([lbl,k,col],i)=>{
           const[lo,hi]=ALIGN_STRIP_SPAN[k],y=7+i*RH;
           const x=v=>X0+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*(X1-X0);
-          const v=align[alignRecKey(k)],auto=autoAlign[alignRecKey(k)],lim=!!align.limit?.[k];
-          const[bLo,bHi]=ALIGN_REC[k];
+          // In the game's sign, so the dot sits where its printed figure says (Forza toe: + = out).
+          const g=v=>alignInGame(k,v,gameMode);
+          const v=g(align[alignRecKey(k)]),auto=g(autoAlign[alignRecKey(k)]),lim=!!align.limit?.[k];
+          const bLo=Math.min(g(ALIGN_REC[k][0]),g(ALIGN_REC[k][1])),bHi=Math.max(g(ALIGN_REC[k][0]),g(ALIGN_REC[k][1]));
           return(<g key={k}>
             <text x={0} y={y+3.5} fontSize={10} fill={col} fontFamily={VIS_MONO}>{lbl}</text>
             <rect x={X0} y={y-2} width={X1-X0} height={4} fill="#1e293b"/>
@@ -5580,7 +5606,7 @@ const CkIntro=({children})=>(
   <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,background:'#060c17',
                border:'1px solid #1e293b',borderRadius:2,padding:'8px 12px'}}>{children}</div>);
 
-const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna,initialMode})=>{
+const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,onImportDna,initialMode})=>{
   const mMass=units.mass==='kg',su=springUnit(units.spring);
   // A physical-unit game mode has no click ceiling, so the inputs here take BeamNG's own
   // units — N/m springs and anti-roll rate, N/m/s damping — which also means computeCheck
@@ -5627,7 +5653,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
   const pA=k=>v=>{setCkEntered(true);setCkArb(p=>({...p,[k]:v}));};
   // ALIGNMENT (INT+, Forza): optional, with its own gate, so an alignment can be decoded on its own
   // and a suspension decode never drags the seed angles in with it. Seeds are DEF_DR's MANUAL values.
-  const[ckAl,setCkAl]=useState(()=>alignManOf(DEF_DR));
+  // Held as typed, in the game's sign; converted to the model's on import (alignInGame).
+  const[ckAl,setCkAl]=useState(()=>Object.fromEntries(ALIGN_KEYS.map(k=>[k,alignInGame(k,DEF_DR[alignManKey(k)],gameMode)])));
   const[ckAlEntered,setCkAlEntered]=useState(false);
   const pAl=k=>v=>{setCkAlEntered(true);setCkAl(p=>({...p,[k]:v}));};
   const alIn=alignOk&&ckAlEntered;
@@ -5680,7 +5707,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
   };
   // One commit for both: the suspension as an fe patch when step 1's suspension was entered, the
   // alignment into MANUAL when its own fields were. Each half is left out when it was not typed.
-  const decodedDr=p=>({...p,alignManual:true,...Object.fromEntries(ALIGN_KEYS.map(k=>[alignManKey(k),ckAl[k]]))});
+  const decodedDr=p=>({...p,alignManual:true,...Object.fromEntries(ALIGN_KEYS.map(k=>[alignManKey(k),alignInGame(k,ckAl[k],gameMode)]))});
+  const toeWord=k=>{const m=alignInGame(k,ckAl[k],gameMode);return m>0?' (in)':m<0?' (out)':'';};
   const importDecoded=()=>{onImportTune(ckEntered?decodedFe:null,alIn?decodedDr:null);flash(setImported);};
   // Overwrites the DNA editor's draft and nothing else — the sidebar tune is left where it is.
   const importDecodedDna=()=>{onImportDna(decodedFe);flash(setDnaSet);};
@@ -5778,7 +5806,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                   <CkPhase>ALIGNMENT — OPTIONAL</CkPhase>
                   <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginBottom:4}}>
                     As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL.
-                    Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.</div>
+                    Type toe exactly as Forza shows it: there, positive is toe-out and negative toe-in.</div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
                     {[['Camber F','camberF'],['Camber R','camberR'],['Toe F','toeF'],['Toe R','toeR']].map(([lbl,k])=>(
                       <Field noSlider stacked key={k} label={lbl} value={ckAl[k]} onChange={pAl(k)}
@@ -5842,8 +5870,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,onImportDna
                     {ckEntered&&<CkPhase>ALIGNMENT</CkPhase>}
                     <Stat label="Camber front" value={ckAl.camberF} unit="°" decimals={1}/>
                     <Stat label="Camber rear"  value={ckAl.camberR} unit="°" decimals={1}/>
-                    <Stat label={`Toe front${ckAl.toeF>0?' (in)':ckAl.toeF<0?' (out)':''}`} value={ckAl.toeF} unit="°" decimals={1}/>
-                    <Stat label={`Toe rear${ckAl.toeR>0?' (in)':ckAl.toeR<0?' (out)':''}`}  value={ckAl.toeR} unit="°" decimals={1}/>
+                    <Stat label={`Toe front${toeWord('toeF')}`} value={ckAl.toeF} unit="°" decimals={1}/>
+                    <Stat label={`Toe rear${toeWord('toeR')}`}  value={ckAl.toeR} unit="°" decimals={1}/>
                     <Stat label="Caster" value={ckAl.caster} unit="°" decimals={1}/>
                   </>}
                   {ckEntered&&<>
@@ -7615,7 +7643,7 @@ const GLOSSARY=[
   ]},
   {group:'Alignment',terms:[
     {id:'camber',term:'Camber',tier:'beginner',def:"Camber is the wheel's tilt seen from the front; negative camber leans the top of the tyre inward. It keeps more of the contact patch flat on the road once the body rolls in a corner.\n\nThe ALIGNMENT card gives a static camber chosen so the tyre reaches a dynamic target for your build at the tune's body roll: STREET −1.0°, TRACK −1.5°, DRIFT −2.5°, RALLY −0.8°, OFFROAD −0.3°, DRAG −0.2°. More roll means more static negative camber, and a low-CG car gets more correction per degree of roll. The rear takes only part of the front's roll correction (FWD 0.50, AWD 0.70, RWD 0.75), and FWD front camber is reduced by 0.3° to protect traction. The recommendation stays within −4.0° to 0° front and −3.5° to 0° rear, and rounds to 0.1°, the precision the game accepts.\n\n[INT] The Camber F and Camber R sliders move each axle up to 2.0° off the AUTO value, and MANUAL takes camber directly, both across the game's full −5.0° to +5.0°.",see:['toe','caster','align-mode','align-intent']},
-    {id:'toe',term:'Toe',tier:'beginner',def:"Toe is the angle the wheels point relative to straight ahead, seen from above. In SUSP.OS positive is toe-in and negative is toe-out. Toe-in adds stability; toe-out sharpens turn-in at some cost to straight-line stability.\n\nThe recommendation starts from a build and layout table that leans to front toe-out on RWD and AWD TRACK and DRIFT builds, slight front toe-in on OFFROAD and on FWD STREET and TRACK, and rear toe-in on every build except DRAG. Front toe then moves toward toe-in with stiffer front springs; rear toe-in grows with rear weight share and shrinks when the rear springs are stiffer than the front. Toe rounds to 0.1°, the precision the game accepts, and the Forza output tags each toe IN or OUT, so the sign never has to be read off the game's slider labels. Front toe also feeds the RESPONSE bar, where toe-out reads reactive.\n\nThe recommendation stays within −0.2° to +0.2° front and 0° to +0.3° rear.\n\n[INT] Turn-in moves front toe and Rear stability moves rear toe, each up to 0.3° off the AUTO value; MANUAL takes toe directly. Both reach the game's full −5.0° to +5.0°.",see:['camber','caster','align-mode','align-intent','response']},
+    {id:'toe',term:'Toe',tier:'beginner',def:"Toe is the angle the wheels point relative to straight ahead, seen from above. Every toe number in SUSP.OS is the game's own: in Forza positive is toe-out and negative toe-in (checked on the car); in BeamNG positive is toe-in. The IN or OUT tag beside each toe on the ALIGNMENT card says which, in either game. Toe-in adds stability; toe-out sharpens turn-in at some cost to straight-line stability.\n\nThe recommendation starts from a build and layout table that leans to front toe-out on RWD and AWD TRACK and DRIFT builds, slight front toe-in on OFFROAD and on FWD STREET and TRACK, and rear toe-in on every build except DRAG. Front toe then moves toward toe-in with stiffer front springs; rear toe-in grows with rear weight share and shrinks when the rear springs are stiffer than the front. Toe rounds to 0.1°, the precision the game accepts. Front toe also feeds the RESPONSE bar, where toe-out reads reactive.\n\nThe recommendation stays within 0.2° of zero either way at the front, and between zero and 0.3° of toe-in at the rear.\n\n[INT] Turn-in moves front toe and Rear stability moves rear toe, each up to 0.3° off the AUTO value; MANUAL takes toe directly. Both reach the game's full −5.0° to +5.0°.",see:['camber','caster','align-mode','align-intent','response']},
     {id:'caster',term:'Caster',tier:'beginner',def:"Caster is the steering axis's fore-aft tilt. More caster adds self-centring and camber gain while steering (the outside tyre gains negative camber as you turn in), at the cost of heavier steering.\n\nThe recommendation starts from a build base (TRACK and RALLY 5.8°, STREET 5.2°, DRIFT 4.8°, OFFROAD 4.5°, DRAG 4.0°), rises with stiffer front springs and more front weight bias, drops 0.5° on FWD, and stays within 4.0–7.0°. The Forza output's steer tag is the camber caster adds to the outside wheel at 10° of steering (caster × sin 10°, geometry only). Lower caster reads reactive on the RESPONSE bar.\n\n[INT] Steering feel moves caster up to 1.5° off the AUTO value, and MANUAL takes it directly, both within the game's 1.0–7.0°.",see:['camber','toe','align-mode','align-intent','response']},
     {id:'align-mode',term:'Alignment Mode',tier:'beginner',def:"Alignment Mode decides where the ALIGNMENT card's camber, toe and caster come from. By default (AUTO) the app recommends them from build type, layout, front weight bias, front and rear ride Hz and body roll: general chassis-setup starting points, not values calibrated against the game, so fine-tune by feel.\n\nThe card's hint names your build's dynamic camber target and the layout's toe pattern: FWD gets reduced front camber for traction and leans to toe-in; RWD and AWD TRACK and DRIFT builds get front toe-out for turn-in; rear toe-in adds stability on every build but DRAG.\n\n[INT] The ALIGNMENT section offers AUTO or MANUAL. Under AUTO, five sliders move the values off the recommendation by feel (see Alignment Intent). MANUAL takes exact values, such as an alignment already in the game. Switching carries the numbers across: MANUAL starts from what AUTO shows, and AUTO takes the slider settings that land closest to the MANUAL values. A share code carries the sliders, never MANUAL, so a MANUAL alignment travels as its closest AUTO setting. Garage saves keep MANUAL as it is. In Beginner the card shows plain AUTO; the settings are kept for when you come back.",see:['camber','toe','caster','align-intent']},
     {id:'align-intent',term:'Alignment Intent',tier:'intermediate',def:"The five ALIGNMENT sliders under AUTO. Each moves one value off the AUTO recommendation, so the alignment keeps following the chassis, springs and build type while holding your preference on top. Camber F and Camber R (MORE ↔ LESS negative camber, up to 2.0° each way), Turn-in (front toe, SHARP toward toe-out ↔ STABLE toward toe-in, up to 0.3°), Rear stability (rear toe, FREE ↔ PLANTED toe-in, up to 0.3°) and Steering feel (caster, LIGHT ↔ WEIGHTED, up to 1.5°).\n\nThe box beside each slider shows the resulting value, the number to type into the game, and typing a value there sets the slider to match. The tick marks AUTO. A slider can carry its value past the recommended range to the game's own limit; LIMIT on the card marks a value held at either. Share codes and garage saves carry these settings.",see:['align-mode','camber','toe','caster']},
@@ -7710,7 +7738,7 @@ const GLOSSARY=[
     {id:'phase-verdict',term:'Phase Breakdown',tier:'pro',def:"PRO's expanded Handling Balance panel, by corner phase in grip-margin percent (+ = the rear gives up first; within ±1% is NEUTRAL). MID is the steady-state margin: CAR STARTS at the weight-matched split (the car's own lean, CHASSIS), with SPRINGS and ARB sharing the rest in proportion to how far each moves the split. ENTRY, trail braking into the corner, adds BRAKES, the bias against the entry-load ideal (BRAKES' GRIP bias at 0.3 g braking). EXIT adds DRIVE (CENTRE on AWD), the drive split against the load-proportional one at 0.2 g of drive; + means the rear carries more than its share.\n\nPITCH, the car's own weight transfer at that load, is shown muted and left out of the totals: it is not tunable, depends on how hard you brake or accelerate, and would bury every setting. Diff lock (DIFF ENTRY, DIFF EXIT) and damping (DAMP, under TRANSIENT) show a direction only, an arrow with no figure, since nothing has calibrated how far they push. PITCH's bar is drawn at a quarter of the other rows' scale, so it does not dwarf them; the compact line shows the diff's direction as an arrow.\n\nTips name the dominant MID term, compare brake bias with the ENTRY ideal (Brake Balance explains why that differs from the card), and for EXIT point to the centre split on AWD; on FWD and RWD only throttle and exit diff lock manage it.",see:['balance-bar','brake-balance','grip-bias','load-transfer']},
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
-    {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from +0.20° (planted) to −0.20° (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
+    {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from 0.20° toe-in (planted) to 0.20° toe-out (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
     {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows the Race lock it acts like, the lock × the type's scale (eff on BeamNG).\n\nIn Horizon and Motorsport the headers are written out in words, any warnings are listed above the cards (click one to jump to its card), and every value the last edit, load or undo moved carries a blue left edge until the next change; hover it for the old value.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Centre Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MEDIUM below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTRE SPLIT recommends a rear % with the build's reason and its own → USE. Once the diff matches a recommendation, its box shrinks to a single ✓ line.\n\n[PRO] CENTRE SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
@@ -8332,7 +8360,7 @@ function App(){
   // them. Everything a user does goes through setCh/setFe/setDr below, which record.
   const[ch,setChRaw]=usePersist('suspos_ch_v8',DEF_CH);
   const[fe,setFeRaw]=usePersist('suspos_fe_v8',DEF_FE,repairFe);
-  const[dr,setDrRaw]=usePersist('suspos_dr_v8',DEF_DR,migrateLegacyAl);
+  const[dr,setDrRaw]=usePersist('suspos_dr_v8',DEF_DR,d=>migrateToeSign(migrateLegacyAl(d)));
   // Declared this early because the tier effects below list restoreTick as a dependency, and
   // Babel's const→var would read it as undefined further down. Wiring: "Undo / redo wiring".
   const histRef=useRef(null);
@@ -9585,7 +9613,7 @@ function App(){
     const r1=alignRound;
     // Where AUTO alone would put it, whenever intent or MANUAL moved the value. Under MANUAL the dyn
     // gap to AUTO's is the same number (same roll).
-    const vsAuto=(v,auto)=>r1(v-auto)!==0?[`AUTO ${r1(auto).toFixed(1)}°`]:[];
+    const vsAuto=(v,auto,k='')=>r1(v-auto)!==0?[`AUTO ${r1(alignInGame(k,auto,fe.gameMode)).toFixed(1)}°`]:[];
     // Toe direction in words: the game's IN/OUT slider labels are reported reversed, so the
     // number's sign is the thing to trust (docs/ALIGNMENT.md). Nothing for zero.
     const toeDir=v=>r1(v)>0?[{text:'IN',on:true}]:r1(v)<0?[{text:'OUT',on:true}]:[];
@@ -9593,13 +9621,13 @@ function App(){
     return{header,head,
       camberF:[{text:`dyn ${r1(align.recCamberF+tune.rollDeg*camberGain).toFixed(1)}°`,on:!manual},...vsAuto(align.recCamberF,autoAlign.recCamberF)],
       camberR:[{text:`dyn ${r1(align.recCamberR+tune.rollDeg*camberGain*rearGainMult).toFixed(1)}°`,on:!manual},...vsAuto(align.recCamberR,autoAlign.recCamberR)],
-      toeF:[...toeDir(align.recToeF),...vsAuto(align.recToeF,autoAlign.recToeF)],
-      toeR:[...toeDir(align.recToeR),...vsAuto(align.recToeR,autoAlign.recToeR)],
+      toeF:[...toeDir(align.recToeF),...vsAuto(align.recToeF,autoAlign.recToeF,'toeF')],
+      toeR:[...toeDir(align.recToeR),...vsAuto(align.recToeR,autoAlign.recToeR,'toeR')],
       caster:[`steer ${r1(casterSteerCamber(align.recCaster)).toFixed(1)}° @ ${CASTER_REF_STEER}°`,...vsAuto(align.recCaster,autoAlign.recCaster)],
       note:{camberF:lim('camberF'),camberR:lim('camberR'),toeF:lim('toeF'),toeR:lim('toeR'),caster:lim('caster')},
       // The terms behind each AUTO value, for the card hint, with the intent offset as a last term.
       why:manual?null:[['Camber F','camberF'],['Camber R','camberR'],['Toe F','toeF'],['Toe R','toeR'],['Caster','caster']]
-        .map(([name,k])=>`${name}: ${[...autoAlign.why[k],['adjust',align.ofs[k]]].filter(([,v],i)=>i===0||Math.abs(v)>=0.005).map(([l,v])=>`${l} ${v>0?'+':''}${v.toFixed(2)}`).join(', ')}.`).join(' ')};
+        .map(([name,k])=>`${name}: ${[...autoAlign.why[k],['adjust',align.ofs[k]]].filter(([,v],i)=>i===0||Math.abs(v)>=0.005).map(([l,v0])=>{const v=alignInGame(k,v0,fe.gameMode);return`${l} ${v>0?'+':''}${v.toFixed(2)}`;}).join(', ')}.`).join(' ')};
   })();
   // BRAKES output: the header names the Centre (INT always runs REC) and its setting; the row
   // carries what that Centre sets: the centre bias and the shift off it, or ENTRY's BRK margin.
@@ -9929,7 +9957,7 @@ function App(){
       )}
       {showChecker&&<CheckerModal onClose={()=>setShowChecker(false)} lim={lim} units={units} ch={ch} setCh={setCh}
         onImportTune={(feFn,drFn)=>commit('import from CHECK',()=>{if(feFn)setFe(feFn);if(drFn)setDr(drFn);})}
-        alignOk={uiMode!=='beginner'&&!physMode}
+        alignOk={uiMode!=='beginner'&&!physMode} gameMode={fe.gameMode}
         onImportDna={uiMode==='pro'?dnaFromDecoded:null} initialMode={checkerInitMode}/>}
       {/* DNA — PRO only. The editor holds a draft; APPLY stamps it onto fe/dr once and records
           the link the sidebar marks and the VISUALS match card read. Opened from the sidebar
@@ -11217,16 +11245,19 @@ function App(){
             {alignMode!=='manual'&&ALIGN_INTENT_ROWS.map(({k,hid,label,left,right,hint})=>{
               // The slider moves the offset; the box shows the value it gives, the number to type
               // into the game, and typing there sets the offset back from it.
+              // Box and readout in the game's sign (alignInGame: Forza toe is + = out); the slider itself
+              // moves the model's offset, so its ends keep their meaning in every game.
+              const g=v=>alignInGame(k,v,fe.gameMode);
               const r=ALIGN_OFS_RANGE[k],base=autoAlign[alignRecKey(k)],ofs=dr[alignOfsKey(k)]??0;
               const setOfs=v=>setDr(p=>({...p,[alignOfsKey(k)]:Math.max(-r,Math.min(r,alignRound(v)))}));
+              const lo=Math.max(ALIGN_GAME[k][0],Math.min(g(base-r),g(base+r))),hi=Math.min(ALIGN_GAME[k][1],Math.max(g(base-r),g(base+r)));
               return(<Hide key={k} id={hid}><div style={{marginBottom:8}}>
                 <FeelSlider label={label} value={ofs} onChange={setOfs} min={-r} max={r} step={0.1}
                   leftLabel={left} rightLabel={right}
-                  readout={alignRound(ofs)===0?'AUTO':`${ofs>0?'+':''}${alignRound(ofs).toFixed(1)}`}
+                  readout={alignRound(ofs)===0?'AUTO':alignFmt(g(ofs))}
                   markers={[{value:0,color:'#cbd5e1'}]}
-                  box={{value:align[alignRecKey(k)],unit:'°',dp:1,
-                    min:Math.max(ALIGN_GAME[k][0],base-r),max:Math.min(ALIGN_GAME[k][1],base+r),
-                    onCommit:v=>setOfs(v-base)}}
+                  box={{value:g(align[alignRecKey(k)]),unit:'°',dp:1,min:lo,max:hi,
+                    onCommit:v=>setOfs(g(v)-base)}}
                   hint={hint} hintTerm="align-intent"/>
               </div></Hide>);
             })}
@@ -11236,15 +11267,15 @@ function App(){
                   hint="Front static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
                 <Hide id="align.camberR"><Field noSlider stacked label="Camber R" value={dr.alignManCamberR} onChange={pDr('alignManCamberR')} min={ALIGN_GAME.camberR[0]} max={ALIGN_GAME.camberR[1]} step={0.1} unit="°"
                   hint="Rear static camber. Negative = top of the tyre leans inward." hintTerm="camber"/></Hide>
-                <Hide id="align.toeF"><Field noSlider stacked label="Toe F" value={dr.alignManToeF} onChange={pDr('alignManToeF')} min={ALIGN_GAME.toeF[0]} max={ALIGN_GAME.toeF[1]} step={0.1} unit="°"
-                  hint="Front toe. Negative = toe-out, positive = toe-in." hintTerm="toe"/></Hide>
-                <Hide id="align.toeR"><Field noSlider stacked label="Toe R" value={dr.alignManToeR} onChange={pDr('alignManToeR')} min={ALIGN_GAME.toeR[0]} max={ALIGN_GAME.toeR[1]} step={0.1} unit="°"
-                  hint="Rear toe. Positive = toe-in." hintTerm="toe"/></Hide>
+                <Hide id="align.toeF"><Field noSlider stacked label="Toe F" value={alignInGame('toeF',dr.alignManToeF,fe.gameMode)} onChange={v=>pDr('alignManToeF')(alignInGame('toeF',v,fe.gameMode))} min={ALIGN_GAME.toeF[0]} max={ALIGN_GAME.toeF[1]} step={0.1} unit="°"
+                  hint={physMode?'Front toe. Positive = toe-in, negative = toe-out.':'Front toe as Forza shows it. Positive = toe-out, negative = toe-in.'} hintTerm="toe"/></Hide>
+                <Hide id="align.toeR"><Field noSlider stacked label="Toe R" value={alignInGame('toeR',dr.alignManToeR,fe.gameMode)} onChange={v=>pDr('alignManToeR')(alignInGame('toeR',v,fe.gameMode))} min={ALIGN_GAME.toeR[0]} max={ALIGN_GAME.toeR[1]} step={0.1} unit="°"
+                  hint={physMode?'Rear toe. Positive = toe-in.':'Rear toe as Forza shows it. Negative = toe-in.'} hintTerm="toe"/></Hide>
               </div>
               <Hide id="align.caster"><Field noSlider label="Caster" value={dr.alignManCaster} onChange={pDr('alignManCaster')} min={ALIGN_GAME.caster[0]} max={ALIGN_GAME.caster[1]} step={0.1} unit="°"
                 hint="Caster angle. More = stronger self-centring and heavier steering." hintTerm="caster"/></Hide>
               {alignReach.length>0&&<div style={{fontSize:10,color:C_WARN,lineHeight:1.5,marginTop:6}}>
-                Beyond the sliders' reach: {alignReachText(alignReach)}. Switching to AUTO and share codes land there.</div>}
+                Beyond the sliders' reach: {alignReachText(alignReach,fe.gameMode)}. Switching to AUTO and share codes land there.</div>}
             </>}
           </Sec></div>}
 
@@ -12705,7 +12736,7 @@ function App(){
                     <VisCamberRoll camberF={align.recCamberF} camberR={align.recCamberR}
                       targetF={autoAlign.target.camberF} targetR={autoAlign.target.camberR}
                       rollDeg={tune.rollDeg} gainF={camberGain} gainR={camberGain*rearGainMult}/>
-                    <VisAlignStrips align={align} autoAlign={autoAlign}/>
+                    <VisAlignStrips align={align} autoAlign={autoAlign} gameMode={fe.gameMode}/>
                   </div>}
                 </div>);
               })()}
@@ -12940,8 +12971,8 @@ function App(){
               <OutRow hid="out.camberR" label="Camber Rear"  value={align.recCamberR} unit="°" meta={alignView.camberR} note={alignView.note.camberR}/>
             </RowGroup>
             <RowGroup>
-              <OutRow hid="out.toeF" label="Toe Front" value={align.recToeF} unit="°" meta={alignView.toeF} note={alignView.note.toeF}/>
-              <OutRow hid="out.toeR" label="Toe Rear"  value={align.recToeR} unit="°" meta={alignView.toeR} note={alignView.note.toeR}/>
+              <OutRow hid="out.toeF" label="Toe Front" value={alignInGame('toeF',align.recToeF,fe.gameMode)} unit="°" meta={alignView.toeF} note={alignView.note.toeF}/>
+              <OutRow hid="out.toeR" label="Toe Rear"  value={alignInGame('toeR',align.recToeR,fe.gameMode)} unit="°" meta={alignView.toeR} note={alignView.note.toeR}/>
             </RowGroup>
             <RowGroup style={{marginBottom:0}}>
               <OutRow hid="out.caster" label="Caster" value={align.recCaster} unit="°" meta={alignView.caster} note={alignView.note.caster}/>
@@ -13185,9 +13216,9 @@ function App(){
             })();
             const beamngAlignHint=`${alignPrefix} Sliders are %, not degrees: match BeamNG's live readout.`;
 
-            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={align.recToeF} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"
+            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={alignInGame('toeF',align.recToeF,fe.gameMode)} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"
               camberMeta={alignView.camberF} toeMeta={alignView.toeF}/>;
-            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={align.recToeR} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"
+            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={alignInGame('toeR',align.recToeR,fe.gameMode)} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"
               camberMeta={alignView.camberR} toeMeta={alignView.toeR}/>;
 
             // Differential — same isSport/lock/diffCtx pattern as the Forza card, scoped per
@@ -13409,7 +13440,7 @@ function App(){
                   ].map(({key,label,sub})=>chkRow(key,label,sub,shareSel[key],
                     e=>{setShareSel(s=>({...s,[key]:e.target.checked}));setShareCopied(false);}))}
                   {shareSel.dr&&alignReach.length>0&&<div style={{fontSize:10,color:C_WARN,margin:'6px 0 0',lineHeight:1.5}}>
-                    The alignment travels as AUTO + sliders, which can't reach every MANUAL value: {alignReachText(alignReach)}.</div>}
+                    The alignment travels as AUTO + sliders, which can't reach every MANUAL value: {alignReachText(alignReach,fe.gameMode)}.</div>}
                   {shareNone&&<div style={{fontSize:10,color:'#f87171',margin:'6px 0 0',letterSpacing:0.5}}>
                     Tick at least one part.</div>}
                   <textarea readOnly value={shareNone?'':sharePayload} rows={3} onFocus={e=>e.target.select()}

@@ -11,6 +11,24 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — every Forza toe value was reversed in the game
+
+The app has always treated toe as + = toe-in, and printed and taken that number in every game. Checked
+on the car, Forza is the opposite: +1.0° front toe turns the fronts of the wheels outward. So every toe
+value the app gave a Forza tuner meant the opposite in-game. The recommended rear toe-in (+0.1) went in
+as rear toe-out, the unstable direction. TRACK's front toe-out went in as toe-in. BeamNG, checked the same
+way, is + = front in, so it was always right.
+
+The model keeps + = toe-in, so no formula, stored offset or share code changes. `alignInGame` applies
+the game's sign wherever a toe number is read or typed: the output card, the intent slider's box and
+readout, MANUAL, Tune Check DECODE, VISUALS' RANGES and the beyond-reach note. `migrateToeSign` negates
+a Forza MANUAL toe saved before the fix, once, since it was typed as Forza's number. Garage builds saved
+in MANUAL between the alignment revamp's merge and this fix are not migrated; re-enter their toe.
+
+The forum report that the game's IN/OUT slider labels are reversed (ALIGNMENT.md said so) turned out to
+be about the labels, not the numbers. The DECODE note and the toe glossary now just say what Forza's sign
+means.
+
 ## Fixed — review of the alignment revamp
 
 Found reviewing the branch before it merged:

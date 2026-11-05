@@ -548,7 +548,16 @@ Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
 
 > Rear static camber. Negative = top of the tyre leans inward.
 
-> Front toe. Negative = toe-out, positive = toe-in.
+The toe fields show and take the game's own number (`alignInGame`), so their hints follow the
+game mode. Forza:
+
+> Front toe as Forza shows it. Positive = toe-out, negative = toe-in.
+
+> Rear toe as Forza shows it. Negative = toe-in.
+
+BeamNG:
+
+> Front toe. Positive = toe-in, negative = toe-out.
 
 > Rear toe. Positive = toe-in.
 
@@ -1129,7 +1138,7 @@ available (PRO), then without it:
 
 **STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only; first after the vehicle mass, then ARB, springs and damping), above its five fields:
 
-> As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.
+> As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Type toe exactly as Forza shows it: there, positive is toe-out and negative toe-in.
 
 **ALIGNMENT → MANUAL, beyond reach** (amber, under the fields, while a MANUAL value is further from
 AUTO than its slider reaches; `{list}` is e.g. `camber F -4.8 → -4.4°`):
