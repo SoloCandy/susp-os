@@ -774,11 +774,15 @@ On ENTRY and EXIT:
 
 ### Header and compact bar
 
-**HANDLING BALANCE** — PRO, then BEG/INT:
+**HANDLING BALANCE** — PRO, then BEG, then INT. INT and PRO head the bar with the three phases in
+words (`PhaseHeadline`: ENTRY · MID · EXIT, each NEUTRAL, PUSH, LOOSE, STRONG PUSH or STRONG LOOSE,
+the one furthest from neutral in bold); BEG keeps `NET {value} pts` and its verdict:
 
-> Mid-corner grip margin, %: how much more grip the front has left than the rear. + = rear lets go first (oversteer), − = front does; NEUTRAL within ±1%. BEG/INT use points. Tap for ENTRY and EXIT.
+> Each phase in words from its grip margin: PUSH = the front lets go first (understeer), LOOSE = the rear does. NEUTRAL within ±1%, STRONG past 5%. The figures are in the row below.
 
-> NET in points: the car's own lean plus springs and bars. + = oversteer, − = understeer, NEUTRAL within ±3. PRO uses a grip margin in % instead. Tap for the breakdown and a tip.
+> NET in points: the car's own lean plus springs and bars. + = oversteer, − = understeer, NEUTRAL within ±3. Tap for the breakdown and a tip.
+
+> Each phase in words: PUSH = understeer, LOOSE = oversteer. MID is the car, springs, bars and camber; ENTRY and EXIT add their lanes. NEUTRAL within ±3 points. Tap for the figures.
 
 **FIT?** badge (PRO, only while a figure is outside the fitted set). Its hint takes one
 of three forms. Only extrapolated (soft) flags — with one flag its detail, with more
@@ -821,11 +825,11 @@ where `{wheels}` is one of:
 
 **Segment legend** — PRO, then BEG, then INT:
 
-> CAR (grey): the car's own MID lean. SPR and ARB stack from it to NET (white), the MID margin. Lanes stack brakes and drive off NET; arrows are diff and damping. TOTAL (pink) adds the sized ones.
+> CAR (grey): the car's own MID lean. SPR and ARB stack from it to MID (white). Lanes stack brakes and drive off MID; arrows are diff, damping and ALIGN. TOTAL (pink) adds the sized ones.
 
 > CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. Brakes, diff and damping are listed in the breakdown.
 
-> CAR (grey): the car's own lean. SPR and ARB stack from it to NET (white), the headline. ENTRY / EXIT lanes stack brakes, diff and damping off NET.
+> CAR (grey): the car's own lean. SPR, ARB and ALIGN (camber) stack from it to MID (white). ENTRY / EXIT lanes stack brakes, diff, damping and ALIGN (toe) off MID.
 
 **ENTRY · MID · EXIT** line (PRO) — `{entry g}` and `{exit g}` are `ENTRY_G` and `EXIT_G`:
 
@@ -924,9 +928,26 @@ DAMP (INT; BEG uses its balance line):
 
 > Move Damping Bias toward REAR to let the front take weight more freely.
 
-**Contributor rows** — CAR STARTS (the CHASSIS term, drawn as a tick), then SPRINGS, ARB
-(MID · MAKES NET), then DIFF F, DIFF R (AWD), DIFF EXIT and DIFF ENTRY (FWD, then RWD), BRAKES
-(absent on STOCK), DAMP (ENTRY / EXIT · NOT IN NET):
+CAMBER, TOE F and TOE R (INT), oversteer then understeer each:
+
+> The rear's dynamic camber is off its target. Move Camber R toward it (VISUALS → ALIGNMENT shows where it sits).
+
+> The front's dynamic camber is off its target. Move Camber F toward it (VISUALS → ALIGNMENT shows where it sits).
+
+> Front toe-out sharpens turn-in toward oversteer. Move Turn-in toward STABLE.
+
+> Front toe-in steadies turn-in toward understeer. Move Turn-in toward SHARP.
+
+> Rear toe-out frees the rear on entry and exit. Move Rear stability toward PLANTED.
+
+> Rear toe-in plants the rear on entry and exit. Move Rear stability toward FREE for more rotation.
+
+INT opens the panel with the three phases' figures, `ENTRY {v} · MID {v} · EXIT {v} pts`.
+
+**Contributor rows** — CAR STARTS (the CHASSIS term, drawn as a tick), then SPRINGS, ARB and, in
+INT, CAMBER (BEG: MID · MAKES NET; INT: MID · STEADY STATE), then DIFF F, DIFF R (AWD), DIFF EXIT
+and DIFF ENTRY (FWD, then RWD), BRAKES (absent on STOCK), DAMP and, in INT, TOE F and TOE R (BEG:
+ENTRY / EXIT · NOT IN NET; INT: ENTRY / EXIT · ADDED PER PHASE):
 
 > Where the car sits before any tuning: its own lean at the limit from tyres, track widths, CG and weight split. The rows below move it from here.
 
@@ -950,9 +971,17 @@ DAMP (INT; BEG uses its balance line):
 
 > The front/rear damping split. Firmer front = toward understeer (−), firmer rear = toward oversteer (+).
 
-**Footer**, under the rows:
+> Dynamic camber off each axle's target loses grip: front off = understeer (−), rear off = oversteer (+). Part of MID. Small, uncalibrated size.
 
-> Alignment is not counted, though it also affects balance.
+> Front toe on turn-in: toe-in = understeer (−), toe-out = oversteer (+). In ENTRY. Small, uncalibrated size, like damping.
+
+> Rear toe: toe-in plants the rear (−), toe-out frees it (+). In ENTRY and EXIT. Small, uncalibrated size, like damping.
+
+**Footer**, under the rows — BEG, then INT:
+
+> Alignment is AUTO here and not counted, though it also affects balance.
+
+> Alignment counts at a deliberately small, uncalibrated size, like damping.
 
 ### Expanded panel — PRO
 
@@ -1001,7 +1030,8 @@ EXIT — AWD, then RWD and FWD:
 > Exit: front drive takes lateral grip from the front under power. Only throttle and exit diff lock manage it.
 
 **Phase rows** — MID: CAR STARTS (a tick), SPRINGS, ARB; ENTRY: BRAKES (absent on STOCK), PITCH; EXIT: DRIVE (CENTRE
-on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT's DAMP.
+on AWD), PITCH; then the direction-only rows DIFF ENTRY, TOE F and TOE R (ENTRY), CAMBER (MID), DIFF EXIT
+and TOE R (EXIT), and TRANSIENT's DAMP.
 `{entry g}` / `{exit g}` as above; `{ideal front %}` is BRAKES' GRIP bias at `{entry g}` g and
 `{ideal rear %}` the load-proportional drive split:
 
@@ -1025,9 +1055,15 @@ on AWD), PITCH; then the direction-only rows DIFF ENTRY, DIFF EXIT and TRANSIENT
 
 > Front vs rear damping. It acts only while load is moving, so it shows a direction only.
 
+> Front toe on turn-in: toe-in toward understeer, toe-out toward oversteer. Direction only: the grip model does not size alignment.
+
+> Rear toe on entry and exit: toe-in plants the rear (toward understeer), toe-out frees it. Direction only.
+
+> Dynamic camber off each axle's target loses grip there: front off toward understeer, rear off toward oversteer. Direction only.
+
 **Footer**, under the rows — `{grip bias}` is GRIP BIAS on its 0–1 scale:
 
-> Grip margin: + = the rear gives up first. GRIP BIAS {grip bias} is the same model on its 0–1 scale; alignment is not counted.
+> Grip margin: + = the rear gives up first. GRIP BIAS {grip bias} is the same model on its 0–1 scale; alignment shows a direction only.
 
 **MECH BALANCE** strip:
 

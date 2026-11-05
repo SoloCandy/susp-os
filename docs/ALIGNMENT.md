@@ -76,6 +76,10 @@ Under AUTO, the card's ⓘ hint ends with the terms behind each value: `computeA
 `why`, `[label, degrees]` pairs that sum to the unclamped value, followed by `adjust`, the intent
 offset (terms under 0.005° are left out, except the build base). Wording in [HINTS.md](HINTS.md).
 
+**In the Handling Balance.** Alignment leans the balance through `alignBalanceOf` ([FORMULAS.md](FORMULAS.md)
+"Alignment"): toe on ENTRY and EXIT, camber off its dynamic target on MID. INT sizes it at a small,
+uncalibrated scale like damping; PRO shows its direction only.
+
 VISUALS' ALIGNMENT group draws the same values: camber against roll, and each value on its
 range. See [VISUALS.md](VISUALS.md#alignment).
 

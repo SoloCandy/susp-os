@@ -66,6 +66,29 @@ const bDampBias = -(tune.zetaF - tune.zetaR) * 16 / effectiveAvgZeta;
   values will actually produce in-game — same treatment `rsAbF`/`rsAbR`
   already get for ARB.
 
+## Alignment (`alignBalanceOf`)
+
+```js
+const ALIGN_BAL_TOE = 5, ALIGN_BAL_CAMBER = 1;        // points per degree; uncalibrated
+toeF   = -ALIGN_BAL_TOE * recToeF                      // model sign: + = toe-in
+toeR   = -ALIGN_BAL_TOE * recToeR
+camber =  ALIGN_BAL_CAMBER * (|dynR - targetR| - |dynF - targetF|)
+// dyn = static + rollDeg × gain (camberGainOf); target = computeAlignment's `target`
+```
+
+- **Toe-in → understeer (−), toe-out → oversteer (+),** front and rear. Neutral is 0°. Toe is in
+  the model's sign (+ = toe-in), not Forza's (see [ALIGNMENT.md](ALIGNMENT.md) "Toe sign").
+- **Camber off target loses grip, either way.** The front off its dynamic target reads
+  understeer, the rear off its target oversteer. On target, as AUTO sets it, it is about zero.
+- **Where it acts:** front toe on ENTRY (turn-in); rear toe on ENTRY and EXIT; camber on MID.
+- **Size: deliberately small, and uncalibrated,** like `bDampBias`. 0.1° of toe is 0.5 points;
+  the intent sliders at full reach move a term by at most ±1.5 (toe) or ±2 (camber), inside the
+  ±3 NEUTRAL band on their own. It shows a direction and a plausible scale, not a measurement.
+- **Tiers.** BEG counts none (no alignment controls; its card is pure AUTO). INT sizes it: camber in
+  MID, toe in the lanes, rows in the breakdown. PRO shows its direction only (arrows in the lanes
+  and on the MID bar, direction rows in the phase breakdown), because the grip model can't size it.
+- **Not in `bNet` or `bTotFull`.** BEG's headline and `recommendedDiffType` are unchanged by it.
+
 ## Brakes (`bBrakeEntry`)
 
 ```js
@@ -183,9 +206,22 @@ const bNet     = tune.bTot + tune.bChassis;   // tune.bTot = bSp + bAb
 const bTotFull = bNet + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
 ```
 
-`bNet` is the Handling Balance headline (and its colour-coded OS/US label) in **BEG and INT**,
-with ±3 reading NEUTRAL, and the white NET tick on the bar: the steady-state part, car plus
-springs and bars. Brakes, decel lock and damping act on corner entry and accel lock on exit, so
+`bNet` is the Handling Balance headline (and its colour-coded OS/US label) in **BEG**, with ±3
+reading NEUTRAL, and the white NET tick on the bar: the steady-state part, car plus springs and
+bars.
+
+**INT reads three phases instead** (`intPhase`), each in words (`balWord`: NEUTRAL within ±3
+points, PUSH or LOOSE past it, STRONG past `PTS_STRONG` = 10):
+
+```js
+MID   = bNet + align.camber
+ENTRY = MID + bBrakeEntry + bDiffDecel + bDampBias + align.toeF + align.toeR
+EXIT  = MID + bDiffAccel + align.toeR
+```
+
+ENTRY and EXIT are exactly where their lanes end on the bar. INT's white tick is MID, and its
+Correction Tip judges MID. PRO's headline is the same three words from its phase margins below
+(NEUTRAL within ±1%, STRONG past `PHASE_STRONG` = 5%). Brakes, decel lock and damping act on corner entry and accel lock on exit, so
 the bar draws them as ENTRY and EXIT lanes stacked off NET instead of adding them in. The
 Correction Tip judges `bNet` too.
 
@@ -230,8 +266,8 @@ NEUTRAL.
 - **PITCH** — `gripMargin` at the ideal split minus MID — is shown per phase, muted, and **not
   added** to either total. It is the car's own weight transfer (+ on entry, − on exit), not
   tunable, and at any realistic load larger than everything that is.
-- **Diff lock and damping have a direction only** (`DirSeg`), read from the signs of
-  `bDiffDecel`, `bDiffAccel` and `bDampBias` above. `DIFF_BIAS_SCALE` is uncalibrated and damping
+- **Diff lock, damping and alignment have a direction only** (`DirSeg`), read from the signs of
+  `bDiffDecel`, `bDiffAccel`, `bDampBias` and `alignBalanceOf` above. `DIFF_BIAS_SCALE` is uncalibrated and damping
   acts only in transients, which a steady-state model cannot size.
 - **The identities `tests-balance.js` asserts:** CHAS + SPR + ARB = MID; MID has GRIP BIAS's sign;
   BRK is zero at `idealBrakeF` (= GRIP at `ENTRY_G`) and falls as front bias rises; DRIVE is + for RWD, − for FWD and
@@ -382,6 +418,8 @@ Deliberately limited:
 | Brakes (`bBrakeEntry`) | oversteer (+) (more rear brake) | understeer (−) (more front brake) |
 | Diff accel lock (`bDiffAccel`) | oversteer (+) (rear accel lock) | understeer (−) (front accel lock) |
 | Diff decel lock (`bDiffDecel`) | understeer (−) — resists lift-off oversteer, regardless of which axle is driven | understeer (−) — resists lift-off oversteer, regardless of which axle is driven |
+| Toe (`alignBalanceOf`) | rear toe-in: understeer (−); rear toe-out: oversteer (+) | front toe-in: understeer (−); front toe-out: oversteer (+) |
+| Camber off target (`alignBalanceOf`) | rear off: oversteer (+) | front off: understeer (−) |
 
 See [SLIDERS.md](SLIDERS.md) for how each individual slider maps onto these
 contributors.
