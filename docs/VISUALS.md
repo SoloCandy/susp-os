@@ -290,7 +290,8 @@ INT and PRO. The maths is in [ALIGNMENT.md](ALIGNMENT.md).
 - **Y axis:** camber in degrees, the drawn values ±0.3° rounded out to the next 0.5°, labelled at
   both ends. A solid line marks 0° when it is in range, labelled when there is room.
 - **Header:** `dyn F … · R …`, the dynamic camber at the tune's roll, the same figure as the
-  output card's `dyn` tag.
+  output card's `dyn` tag. On a narrow phone it drops below the title as a whole rather than
+  breaking either one.
 
 | Mark | Meaning |
 |---|---|
