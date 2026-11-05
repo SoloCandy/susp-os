@@ -35,6 +35,7 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 | [RIDE · ROLL · DAMPING](#ride--roll--damping) | `visRide` | always |
 | [DYNAMICS](#dynamics) | `visDynamics` | always |
 | [SAG vs LOAD](#sag-vs-load) | `visSag` | CHASSIS → CG Height Source is RIDE HEIGHT (`ch.useRideHeightCG`) and both tyre sizes parse to a radius |
+| [ALIGNMENT](#alignment) | `visAlign` | a Forza game mode (`!physMode`) |
 | [LOAD TRANSFER](#load-transfer) | `visLoad` | PRO (`uiMode==='pro'`) |
 | [GRIP USE](#grip-use) | `visGrip` | PRO (`uiMode==='pro'`) |
 
@@ -274,6 +275,48 @@ line usually bottoms first, because it starts from static sag rather than zero.
 
 Braking load transfer and bump loads are not modelled by either line. Treat HIGH,
 BOTTOMED and every bottom-out figure as a prompt to check, not a certainty.
+
+## ALIGNMENT
+
+Two panels, `VisCamberRoll` and `VisAlignStrips`, reading the alignment the output prints
+(`align`, from `alignOut`) and AUTO's own (`autoAlign`). Forza modes only: `ALIGN_GAME` and
+`ALIGN_REC` are Forza's ranges. Like every VISUALS group it starts below BEG, so in practice
+INT and PRO. The maths is in [ALIGNMENT.md](ALIGNMENT.md).
+
+**CAMBER vs ROLL.** The outside tyre's camber as the body rolls, per axle.
+
+- **X axis:** body roll in degrees, 0 to `max(3, ceil(rollDeg × 1.6))`, so the tune's roll sits a
+  little past the middle. Integer ticks.
+- **Y axis:** camber in degrees, the drawn values ±0.3° rounded out to the next 0.5°, labelled at
+  both ends. A solid line marks 0° when it is in range, labelled when there is room.
+- **Header:** `dyn F … · R …`, the dynamic camber at the tune's roll, the same figure as the
+  output card's `dyn` tag. On a narrow phone it drops below the title as a whole rather than
+  breaking either one.
+
+| Mark | Meaning |
+|---|---|
+| solid line | static camber + roll × gain: front gain `camberGain`, rear `camberGain × rearGainMult` (`camberGainOf`) |
+| dashed horizontal | the build's dynamic target (`computeAlignment`'s `target`: `optimalCamber`, plus `fwdReduction` on a FWD front) |
+| dot | the camber at `tune.rollDeg`; on its dashed line when AUTO reaches its target with no camber offset |
+| `F` / `R` | direct labels at the lines' right ends, nudged apart when close |
+
+Front draws over rear, so on a RWD or AWD car at AUTO both dots and both targets coincide and the
+front's hide the rear's; the header still prints both.
+
+**RANGES.** One strip per value: camber F, camber R, toe F, toe R, caster.
+
+| Mark | Meaning |
+|---|---|
+| track | the span: camber −5..+5° and caster 1..7° (`ALIGN_GAME`); toe ±1° (`ALIGN_STRIP_SPAN`) |
+| grey shading | that value's `ALIGN_REC` band, where AUTO keeps its recommendation |
+| short tick | 0°, on the camber and toe strips |
+| hollow ring | AUTO's value (`autoAlign`) |
+| filled dot | the value in use, amber when `align.limit` holds it at a band or the game's limit |
+| right-hand figure | the value in use, amber at LIMIT |
+
+Toe is drawn across ±1° rather than the game's ±5° because on ±5° the band and every intent offset
+would fit in a few pixels. A toe beyond ±1° pins to the strip's end, and its figure gives the real
+value. `MANUAL` shows in the header while MANUAL is on.
 
 ## LOAD TRANSFER
 

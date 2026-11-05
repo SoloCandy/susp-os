@@ -5,6 +5,9 @@ at the top of the GARAGE drawer (all tiers). Each preset sets `fe` and `dr`
 fields on top of the defaults (`{...DEF_FE, ...}` / `{...DEF_DR, ...}`) —
 any field not listed below stays at its `DEF_FE`/`DEF_DR` default.
 
+Loading a preset does **not** touch the alignment either: presets carry none, so `loadPreset`
+keeps the live `dr` alignment fields (`alignFieldsOf`) — MANUAL, its values and the intent offsets.
+
 Loading a preset does **not** touch `ch` (chassis) or `layout` — both are
 treated as sticky, car-specific state that a preset shouldn't override (see
 `loadPreset`, and the `layout` migration in

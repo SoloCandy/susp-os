@@ -11,6 +11,101 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — review of the alignment revamp
+
+Found reviewing the branch before it merged:
+
+- **RESPONSE tips** for TOE F and CASTER still told INT "Alignment has no control at this tier",
+  gated on PRO. INT gets the real tips now; BEG keeps the line.
+- **SHARE's DRIVETRAIN box** carries the alignment but said only "Build type · diff · brakes". It now
+  says alignment too.
+- **A MANUAL value past its slider's reach** was shared, and switched to AUTO, inexactly with no
+  notice. `alignBeyondReach` now names each one, in the ALIGNMENT section and in SHARE.
+- **Loading a factory preset reset the alignment** to AUTO, as did loading a garage build saved
+  before alignment moved into `dr`: both wrote `{...DEF_DR, ...payload}`. They now keep the live
+  alignment (`alignFieldsOf`), which is how presets behaved while alignment lived in `al`.
+- **Garage COPY CODE** encoded an entry without its defaults, so a field the entry predates went out
+  as `id:undefined` (five such pairs for ids 91–95 on every older build, and the same for older
+  late-added ids). It now fills defaults first, as LOAD does.
+- Cleanups: `setAlignManual` computed the alignment five times; three copies of the signed one-decimal
+  formatter became `alignFmt`. `migrateLegacyAl` gained tests.
+
+## Changed — VISUALS gets an ALIGNMENT group
+
+The alignment revamp's Phase 4 ([IDEAS.md](IDEAS.md)), in the Forza modes. CAMBER vs ROLL plots
+each axle's outside-tyre camber against body roll, with the build's dynamic target dashed and a dot
+at the tune's roll. RANGES puts each value on its range beside AUTO's recommended band and AUTO's own
+value. `computeAlignment` now also returns `target`, the dynamic camber target the chart draws.
+
+## Changed — Tune Check DECODE imports an alignment
+
+The alignment revamp's Phase 3 ([IDEAS.md](IDEAS.md)). DECODE's step 1 takes an optional
+alignment (INT+, Forza modes), and IMPORT TUNE writes it into ALIGNMENT's MANUAL. It has its own
+gate, like step 1's suspension: each half imports only if it was typed, so decoding an alignment
+alone no longer means importing the stock spring seeds with it. The CheckerModal's `setFe` prop
+became `onImportTune(feFn, drFn)`, and App applies both halves in one commit, so one undo takes
+back the whole import. IMPORT AS DNA still needs the suspension and leaves alignment out.
+
+## Changed — ALIGNMENT intent sliders replace the MECH/GRIP nudge; alignment travels
+
+The alignment revamp's Phase 2 ([IDEAS.md](IDEAS.md)). Four things changed together:
+
+- **The nudge is retired.** PRO's Nudge OFF / MECH / GRIP and Nudge Strength tilted camber and toe
+  toward the Mech Balance Target's gap, or against the chassis's grip tendency. It was abstract,
+  rounded back to the AUTO value at most strengths, and the balance model never saw it. Five
+  intent sliders replace it: Camber F / R, Turn-in, Rear stability and Steering feel. Each is an
+  offset from AUTO that may reach the game's limit. A saved MECH or GRIP comes back as AUTO.
+- **The section moved to INT**, MANUAL with it, so Tune Check DECODE can later import an in-game
+  alignment there. BEG reads pure AUTO and keeps what is stored, as it does the BRAKES shift. The
+  old "leaving PRO returns it to AUTO" fallback is gone.
+- **State moved from `al` (`suspos_al_v2`) into `dr`.** `al` travelled in neither share codes nor
+  garage entries, so a MANUAL alignment silently became AUTO on whoever received the tune. That
+  was an open known issue, now closed. In `dr` it rides undo, PERSIST, RESET and garage builds like
+  the rest of the build. `migrateLegacyAl` carries a saved MANUAL across once.
+- **Share codes carry intent.** Ids 91–95 hold the offsets in their own ALIGNMENT part. MANUAL is
+  never sent: it is translated to the offsets that land the sender's AUTO closest (`alignDrOut`),
+  the same translation as switching MANUAL → AUTO, and applying the part puts the reader in AUTO.
+
+`DEF_AL` was the end marker of the test suites' `DEF_CH` slice. They now end at
+`const BRAKE_BIAS_SCALE=`.
+
+## Changed — `_v1` tutorial progress converts through a frozen title list
+
+`tutProgressFromV1` counted each guide minus a frozen list of steps added since `_v1`
+(`TUT_ADDED_SINCE_V1`). That can't express a step leaving a guide, and PRO's Alignment Mode moved
+to INT (now "Alignment"), so every later PRO index would have shifted by one. `TUT_V1_TITLES` now
+freezes each guide's `_v1` titles directly. An index names a title, found wherever it now sits; a
+title since removed resumes at the next one that remains.
+
+## Fixed — an alignment value held at its range said nothing
+
+`computeAlignment` and the MECH/GRIP nudge clamp each value to its `ALIGN_REC` band with no flag, so a clamped
+value printed like any other. It couldn't be inferred from the value, since some recommendations sit
+on an edge on their own (DRAG's rear toe is 0.0 at equal Hz). `computeAlignment` now sums each value
+from its terms and returns `limit` (`alignAtLimit`: the rounded unclamped value differs from the
+clamped one), and the ALIGNMENT card tags those rows LIMIT. Under a nudge, AUTO's LIMIT stands while
+the nudge leaves the value where AUTO had it.
+
+## Fixed — alignment rounding lost toe-out, and AUTO caster passed the game's limit
+
+Three problems in `computeAlignment` and the MECH/GRIP nudge, found when checking the alignment against the
+in-game ranges (camber and toe −5..+5°, caster 1–7°, 0.1° steps):
+
+- **Toe-out rounded away.** The 0.1° rounding used `Math.round`, which rounds .5 toward +∞:
+  −0.05 became 0 while +0.05 became 0.1. TRACK RWD/AWD's front toe-out (−0.05) printed 0.0 on a
+  default chassis, so the hint's "front leans toe-out on TRACK/DRIFT" was false for TRACK.
+  `alignRec` now rounds half away from zero.
+- **Values past their own clamp.** Toe was clamped *then* rounded, and the clamps (front +0.15, rear
+  +0.25) weren't on the 0.1° grid, so the output could read +0.2 / +0.3. Those values were
+  above what MANUAL then accepted. The bands (`ALIGN_REC`) now end on the grid at those same values,
+  and nothing the app printed before changes.
+- **Caster past the game.** The caster band went to 7.5°, and Forza stops at 7.0°. Stiff,
+  front-heavy TRACK and RALLY cars got a caster that couldn't be entered. The band now ends at 7.0°.
+
+MANUAL's fields were capped at the recommendation bands, so a tuner couldn't type an
+alignment already in the game outside them (any rear toe-out, positive camber, caster below 4°).
+They now take the game's full span, `ALIGN_GAME`.
+
 ## Fixed — seven test suites died on load after the colour constants moved
 
 The colour-meanings commit put `C_OS`, `C_US`, `C_WARN`, `C_GOOD`, `CAT_RAMP` and the rest

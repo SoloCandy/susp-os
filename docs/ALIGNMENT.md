@@ -9,11 +9,64 @@ starting points from general chassis-setup convention, not measured. This
 file exists so they're documented *somewhere* rather than only as inline
 magic numbers.
 
-`computeAlignment` itself is the AUTO recommendation's engine only (stored as
-`al.mode:'build'`, shown as AUTO with Nudge OFF — the UI never says BUILD) — PRO
-mode wraps it with an **Alignment Mode** selector (`al.mode`) that can nudge its
-output toward the car's actual balance tuning instead of taking the AUTO numbers
-as-is. See "Alignment Mode (PRO)" below.
+## Game ranges, recommendation bands and rounding
+
+Two sets of limits, deliberately separate:
+
+| | Camber F | Camber R | Toe F | Toe R | Caster |
+|---|---|---|---|---|---|
+| `ALIGN_GAME`: what Forza accepts; MANUAL and AUTO + intent stay inside it | −5.0..+5.0° | −5.0..+5.0° | −5.0..+5.0° | −5.0..+5.0° | 1.0..7.0° |
+| `ALIGN_REC`: where AUTO's own recommendation stays | −4.0..0.0° | −3.5..0.0° | −0.2..+0.2° | 0.0..+0.3° | 4.0..7.0° |
+
+`ALIGN_GAME` was read off the in-game tuning menu and is the same in Horizon and Motorsport,
+all in 0.1° steps. `ALIGN_REC` is a design choice, not a game limit. Both ends of every band sit on the 0.1°
+grid, so a rounded value can't land outside its band.
+
+Every recommended value goes through `alignRec(key, v)`. It rounds to 0.1° half away from
+zero, then clamps to the `ALIGN_REC` band. Half away from zero matters because the toe tables are full of
+±0.05 entries: `Math.round` sends −0.05 to 0 and +0.05 to 0.1, so every slight toe-out was
+lost while the matching toe-in survived. The formulas below write `clamp(lo, hi, x)` for
+`alignRec`.
+
+MANUAL values are clamped to `ALIGN_GAME` but not snapped to 0.1°: a typed −1.23 goes through
+as typed.
+
+**Toe sign.** Positive is toe-in, negative toe-out, which matches the numbers in the game and its
+description box. Forum reports say the game's IN/OUT slider labels sit on the opposite sides,
+so a tuner reading the labels instead of the number would enter toe backwards. The convention hasn't
+been checked against the car's on-screen wheel angle.
+
+`computeAlignment` itself is the AUTO recommendation's engine only. From INT, the ALIGNMENT
+section adds intent offsets on top of it or replaces it with MANUAL values; `alignOut` makes
+the alignment the output prints. See "Intent and MANUAL (INT+)" below.
+
+## The ALIGNMENT output card
+
+Each row prints the value to enter, and its meta tags (`alignView`):
+
+| Row | Tags |
+|---|---|
+| Camber F / R | `dyn` (camber at the tune's roll, brighter under AUTO); `AUTO x°` when intent or MANUAL moved the value off AUTO |
+| Toe F / R | `IN` / `OUT` from the sign (nothing at 0.0); then `AUTO x°` as above |
+| Caster | `steer x° @ 10°`; `AUTO x°` as above |
+| any | `LIMIT` note when `alignOut`'s `limit[key]` is set: AUTO held at its `ALIGN_REC` band with no offset moving it off, or AUTO + offset held at `ALIGN_GAME` |
+
+The header reads `AUTO · {BUILD}`, plus `· ADJUSTED` while any offset is non-zero, or `MANUAL`.
+
+`steer` is `casterSteerCamber(caster)`: `−caster × sin(CASTER_REF_STEER)`, the negative camber
+the outside front wheel gains from caster when steered. It's small-angle geometry with KPI left out,
+not calibrated. `CASTER_REF_STEER` is 10°, a stated choice, since Forza never shows the
+road-wheel angle.
+
+The `AUTO` tag is the only gap figure. The gap between MANUAL's `dyn` and the
+build's target is the same number, because both sit at the same roll.
+
+Under AUTO, the card's ⓘ hint ends with the terms behind each value: `computeAlignment`'s
+`why`, `[label, degrees]` pairs that sum to the unclamped value, followed by `adjust`, the intent
+offset (terms under 0.005° are left out, except the build base). Wording in [HINTS.md](HINTS.md).
+
+VISUALS' ALIGNMENT group draws the same values: camber against roll, and each value on its
+range. See [VISUALS.md](VISUALS.md#alignment).
 
 ## Camber
 
@@ -34,8 +87,10 @@ recCamberR = clamp(-3.5, 0.0, optimalCamber - rollDeg*camberGain*rearGainMult)
 
 The ALIGNMENT output adds the roll term back to show each axle's `dyn` camber:
 `static + rollDeg*camberGain` front, `static + rollDeg*camberGain*rearGainMult` rear. Under
-AUTO that lands on `optimalCamber` (plus `fwdReduction` on a FWD front) unless a clamp or a
-nudge moved the static value; under MANUAL it shows what the typed camber gives at that roll.
+AUTO that lands on `optimalCamber` (plus `fwdReduction` on a FWD front) unless a clamp or an
+intent offset moved the static value; under MANUAL it shows what the typed camber gives at that roll.
+A camber offset moves the static and the dynamic camber by the same amount, so Camber F / R
+set the dynamic target as well.
 
 | Build | optimalCamber |
 |---|---|
@@ -55,13 +110,12 @@ roll-compensated formula as every other build (see
 ## Toe front (`recToeF`)
 
 ```js
-recToeF = clamp(-0.20, 0.15, toeFByBuild + (frontBias-50)×-0.003 + (fHz-1.8)×0.010)
+recToeF = clamp(-0.2, 0.2, toeFByBuild + (frontBias-50)×-0.003 + (fHz-1.8)×0.010)
 ```
 
-Rounded to the nearest 0.1° — Forza's toe input only accepts one decimal
-place, so anything finer isn't actually enterable in-game. `toeFByBuild`'s
-own 0.05° table increments already get rounded down to this same 0.1° grid
-in the final recommendation.
+Rounded to 0.1° (see above), because Forza's toe input only accepts one decimal place.
+`toeFByBuild`'s 0.05° entries therefore land on a whole 0.1° step: on a default chassis,
+TRACK RWD/AWD's −0.05 prints −0.1 and STREET FWD's +0.05 prints +0.1.
 
 | Build | toeFByBuild (FWD / other layouts) |
 |---|---|
@@ -83,7 +137,7 @@ formula — an earlier version of this doc had that direction backwards too).
 ## Toe rear (`recToeR`)
 
 ```js
-recToeR = clamp(0.0, 0.25, toeRBase + (rearBiasFraction-0.5)×0.20 + max(0, rHz-fHz)×-0.03)
+recToeR = clamp(0.0, 0.3, toeRBase + (rearBiasFraction-0.5)×0.20 + max(0, rHz-fHz)×-0.03)
 ```
 
 Same 0.1° rounding as `recToeF`.
@@ -108,7 +162,7 @@ so it needs less toe-in help).
 ## Caster (`recCaster`)
 
 ```js
-recCaster = clamp(4.0, 7.5, casterBase + (fHz-1.8)×0.4 + (frontBias-50)×0.04 + (layout==='FWD' ? -0.5 : 0))
+recCaster = clamp(4.0, 7.0, casterBase + (fHz-1.8)×0.4 + (frontBias-50)×0.04 + (layout==='FWD' ? -0.5 : 0))
 ```
 
 | Build | casterBase |
@@ -133,75 +187,73 @@ caster only special-cases FWD vs everything else).
 4. Add a `casterBase` case.
 5. Update the tables in this file to match.
 
-## Alignment Mode (PRO)
+## Intent and MANUAL (INT+)
 
-PRO mode adds an ALIGNMENT sidebar section (`zone-alignment`) storing four
-possible values in `al.mode` (`ALIGN_MODE_DEC`: `build`/`mech`/`grip`/`manual`), but
-the UI presents them as a two-tier hierarchy rather than four flat peer
-buttons, since they aren't actually peers — `build` (labelled AUTO, Nudge OFF)
-is the baseline every other value is a small perturbation of (or a full bypass,
-for MANUAL). No button is labelled BUILD:
+The ALIGNMENT section (INT and PRO; not in BEG) has two modes, stored in `dr` with the rest of
+the build (`DEF_DR`):
 
-- **Top tier — AUTO / MANUAL.** AUTO covers `build`/`mech`/`grip` (`computeAlignment`,
-  optionally nudged); MANUAL is a full bypass. Picking AUTO here sets
-  `al.mode='build'` (any previous MECH/GRIP nudge selection resets to OFF —
-  there's no separate memory of it).
-- **Second tier — Nudge: OFF / MECH / GRIP** (shown only under AUTO). Sets
-  `al.mode` directly to `'build'`/`'mech'`/`'grip'` — the second tier is just
-  a different arrangement of the same stored values, not additional state.
-
-The whole section (and thus the Nudge sub-tier and MANUAL) is PRO-only, so
-leaving PRO sets `al.mode` back to `'build'` (AUTO, Nudge OFF) in the tier
-fallback effect, like the other PRO-only modes. `al` travels in neither share
-codes nor garage entries, so a PRO mode left in force made BEG/INT output
-that could be neither seen nor reproduced. The MANUAL angles and Nudge
-Strength stay stored: picking MANUAL again in PRO brings the typed values
-back. Nothing restores the mode itself on returning to PRO.
-
-| `al.mode` | What it does |
+| `dr` field | Meaning |
 |---|---|
-| **build** (AUTO / Nudge OFF, default) | `computeAlignment`'s output, unchanged — see the rest of this file |
-| **mech** (AUTO / Nudge MECH) | Nudges camber and toe toward `gap = feEffective.arbBalTarget − natDisplayOf(ch, gameMode)` (both display space) — the same signal `computeDiff`'s MATCH CHASSIS uses (see [FORMULAS.md](FORMULAS.md)). Like MATCH CHASSIS, the gap is 0 unless `hasBalTargetSolve(feEffective)`: with nothing solving toward the target it is the hidden `MECH_BALANCE_TARGET` fallback, so MECH then equals OFF and its button is dimmed. Reinforces whatever oversteer/understeer intent you've explicitly dialed into the Mech Balance Target. Note the minuend is the **resolved** target, not `resolveArbBalTarget(ch,fe)` directly as this row said until an audit: under Balance Target mode GRIP, `feEffective.arbBalTarget` is the grip-derived value instead, so under that mode both nudges trace back to `natGripBalance`. They are still **not** the same number — `mechGap - gripGap = 0.5 + fe.arbBalDelta - natDisplayOf(ch, gameMode)`, roughly +0.03 on the default chassis, a tenth of the ±0.30 normalisation window and enough to flip the nudge's sign when `gripGap` sits near zero |
-| **grip** (AUTO / Nudge GRIP) | Nudges using `gripGap = -(natGripBalance-0.5)` instead — counteracts the chassis's own natural at-limit tendency (understeer-prone chassis gets pushed toward more aggressive/oversteer-leaning alignment, and vice versa), independent of whatever ARB balance mode is active |
-| **manual** | Direct entry — wires up `al.camberF/camberR/toeF/toeR/caster` (these fields, plus `al.alignManual`, predate this feature and were previously unused dead state with no UI) |
+| `alignManual` | `false` = AUTO + intent (default), `true` = MANUAL |
+| `alignOfsCamberF` / `CamberR` / `ToeF` / `ToeR` / `Caster` | intent offsets AUTO adds, ± degrees, ranges `ALIGN_OFS_RANGE` |
+| `alignManCamberF` / … / `alignManCaster` | MANUAL values, absolute degrees within `ALIGN_GAME` |
 
-`mechGap` and `gripGap` are both differences of ~0.5-centered 0–1 fractions
-(`arbBalTarget`, `natDisplayOf`, and `natGripBalance` are all
-balance-fraction values on the same scale), so the two nudge sources
-saturate the shared `normGap` clamp below at comparable real-world
-magnitudes. `gripGap` used to be pre-multiplied by `2` before that clamp,
-which made GRIP saturate to full nudge strength for almost any chassis while
-MECH rarely did — despite both being presented as equal-strength options.
+**AUTO + intent.** Five sliders (`ALIGN_INTENT_ROWS`), each an offset from that value's AUTO
+recommendation. Each slider's box shows the resulting value, the number to type into the game,
+and typing there sets the offset back from it. Because they store offsets, the alignment keeps
+following the chassis, springs and build type, with the preference on top.
 
-**MECH/GRIP nudge formula:**
+| Slider | Value | Ends (− ↔ +) | Range |
+|---|---|---|---|
+| Camber F | front camber | MORE ↔ LESS (negative camber) | ±2.0° |
+| Camber R | rear camber | MORE ↔ LESS | ±2.0° |
+| Turn-in | front toe | SHARP (toe-out) ↔ STABLE (toe-in) | ±0.3° |
+| Rear stability | rear toe | FREE ↔ PLANTED (toe-in) | ±0.3° |
+| Steering feel | caster | LIGHT ↔ WEIGHTED | ±1.5° |
 
 ```js
-normGap = clamp(-1, 1, rawGap / 0.30)       // rawGap = mechGap or gripGap depending on mode
-k = normGap * (nudgeStrength / 100)          // nudgeStrength: 0-100 slider, 0 = identical to AUTO / Nudge OFF
-
-recCamberF = clamp(-4.0, 0.0, buildCamberF - 0.5*k)    // more oversteer-leaning (k>0) → more front bite
-recCamberR = clamp(-3.5, 0.0, buildCamberR + 0.3*k)    // more oversteer-leaning (k>0) → less rear grip, freer rotation
-recToeF    = clamp(-0.20, 0.15, buildToeF - 0.10*k)    // more oversteer-leaning (k>0) → more toe-out, sharper turn-in
-recToeR    = clamp(0.0, 0.25, buildToeR - 0.10*k)      // more oversteer-leaning (k>0) → less toe-in, freer rear
-recCaster  = buildCaster                               // never adjusted — not an oversteer/understeer lever
+value = clamp(ALIGN_GAME[k], round0.1(autoRec[k] + offset[k]))   // alignOut
 ```
 
-`recToeF`/`recToeR` still round to the nearest 0.1° — same as `computeAlignment`'s own
-toe rounding, matching Forza's toe input precision (one decimal place, so
-anything finer isn't actually enterable in-game). The toe coefficient is
-`0.10` here (not `0.05`, camber/toe's other coefficients are unchanged) so
-that a fully-saturated nudge (`k=±1`) can cross one whole 0.1° step reliably
-instead of landing under the rounding threshold every time. At more typical
-gaps/strengths the toe nudge still often rounds back to the AUTO value — that
-reflects the real precision ceiling, not a bug.
+The result may pass `ALIGN_REC`, which bounds only AUTO's own recommendation, out to the game's
+limit. That was the owner's call: the sliders exist to override the recommendation.
 
-The **Nudge Strength** slider (0-100%, default 50%) controls `k`'s
-magnitude only — direction always comes from `rawGap`'s sign. At 0% every
-output is identical to AUTO with Nudge OFF; verified manually that camber/toe
-converge back to that baseline exactly at 0%. The slider shows only while Nudge
-is MECH or GRIP.
+**MANUAL.** Five number fields across `ALIGN_GAME`, for an alignment already in the game. Tune
+Check DECODE feeds it, and that's why it's in INT: DECODE's step 1 has an optional ALIGNMENT
+block (INT+, Forza modes), and IMPORT TUNE writes it here with `alignManual: true`. It has its
+own gate (`ckAlEntered`), so an alignment imports on its own without the suspension seeds, and
+the other way round, in one undoable commit.
 
-Persisted in `suspos_al_v2` (see [PERSISTENCE.md](PERSISTENCE.md)) alongside
-the legacy `alignManual` boolean, which is still read as a fallback for old
-saved state (`ALIGN_MODE_DEC.includes(al.mode) ? al.mode : (al.alignManual ? 'manual' : 'build')`)
-so existing users who had it set don't silently revert to AUTO.
+**Switching carries the numbers across** (`setAlignManual`):
+
+- AUTO → MANUAL: the MANUAL values become what AUTO + intent printed.
+- MANUAL → AUTO: the offsets become `alignOfsFrom(auto, manual)`, the offsets that land AUTO
+  closest to the MANUAL values: `manual − autoRec`, rounded to 0.1° and held to `ALIGN_OFS_RANGE`.
+  Exact while the MANUAL value is within its slider's reach of AUTO. When one isn't,
+  `alignBeyondReach` lists it, and an amber line under the MANUAL fields (and in SHARE, with
+  DRIVETRAIN ticked) says where it will land, e.g. `camber F -4.8 → -4.4°`.
+
+**Leaving the device.** A share code carries only the offsets (ids 91–95, the ALIGNMENT part;
+see [CODEC.md](CODEC.md)). Under MANUAL, `alignDrOut` translates the MANUAL values into offsets
+first, the same way MANUAL → AUTO does. So a received alignment is always AUTO + intent and keeps
+following the reader's car, and applying it puts the reader in AUTO. Garage SAVE / OVERWRITE
+store the whole `dr`, so MANUAL comes back exactly on this device, with the translated offsets
+beside it for the entry's COPY CODE.
+
+**Loads that carry no alignment keep the live one.** A factory preset, and a garage build saved
+before alignment moved into `dr`, write `{...DEF_DR, ...alignFieldsOf(live), ...payload}`, so the
+alignment isn't reset to AUTO. A share code's DRIVETRAIN part never touches it either; only its
+ALIGNMENT part does. The SHARE panel's DRIVETRAIN box says it carries the alignment.
+
+**BEG** reads pure AUTO (`alignOut` with tier `beginner`). The stored mode, offsets and MANUAL
+values are kept, not reset, the same as the BRAKES shift, so returning to INT brings them back.
+
+**Retired: Nudge MECH / GRIP and Nudge Strength.** PRO used to tilt camber and toe toward the
+Mech Balance Target's gap (MECH) or against the chassis's grip tendency (GRIP), scaled by a
+0–100% strength. It was abstract, rounded back to the AUTO value at most strengths, and the
+balance model never saw it, so the intent sliders replaced it. A saved `mech` or `grip` mode
+migrates to AUTO. See [HISTORY.md](HISTORY.md).
+
+**Migration.** Alignment used to live in its own key, `suspos_al_v2`. `migrateLegacyAl` runs
+as `suspos_dr_v8`'s repair: a stored `dr` without `alignManual` predates the move and takes MANUAL
+and its angles from the old key. See [PERSISTENCE.md](PERSISTENCE.md).

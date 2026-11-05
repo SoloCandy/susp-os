@@ -524,19 +524,23 @@ Settle Target" under SETTLE TIME and "Rebound ζ" under CHARACTER:
 
 ---
 
-## ALIGNMENT (PRO)
+## ALIGNMENT (INT+)
 
 **ALIGNMENT MODE:**
 
-> AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, optionally nudged (below). MANUAL: type exact values.
+> AUTO: camber, toe and caster recommended from build type, layout, weight bias, ride Hz and roll, then moved by the sliders below. MANUAL: type exact values, e.g. an alignment already in the game. Switching carries the numbers across both ways.
 
-**Nudge** (AUTO):
+**Intent sliders** (AUTO, `ALIGN_INTENT_ROWS`), each with the Alignment Intent ⓘ term:
 
-> OFF: AUTO values unchanged. MECH: nudges camber and toe toward your Mech Balance Target's understeer/oversteer intent. GRIP: counters the chassis's own grip tendency. Caster is never nudged.
+> Front camber off the AUTO value. Left adds negative camber (more mid-corner grip on the outside tyre), right takes it away.
 
-**Nudge Strength:**
+> Rear camber off the AUTO value. Left adds negative camber (more rear grip mid-corner), right takes it away (freer rotation).
 
-> How far MECH or GRIP moves camber and toe from the AUTO values: 0% = pure AUTO, 100% = full nudge. Caster is never adjusted.
+> Front toe off the AUTO value. Left is toward toe-out (sharper turn-in), right toward toe-in (steadier on straights).
+
+> Rear toe off the AUTO value. Right adds toe-in (a planted rear on lift-off and braking), left takes it away (freer rotation).
+
+> Caster off the AUTO value. Right adds self-centring and camber while steering at the cost of heavier steering; left lightens it.
 
 **Camber F / Camber R / Toe F / Toe R / Caster** (MANUAL):
 
@@ -583,6 +587,14 @@ their ⓘ says.
 
 > Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top.
 
+**ALIGNMENT → CAMBER vs ROLL** (Forza modes):
+
+> The outside tyre's camber as the body rolls: it starts at the static camber and rises by each axle's roll gain. Dashed = your build's dynamic target; dot = at this tune's roll. A dot on its dashed line is AUTO on target.
+
+**ALIGNMENT → RANGES:**
+
+> Each value on its range: camber −5 to +5° and caster 1 to 7°, the game's full range, and toe ±1°. Shaded = where AUTO keeps its recommendation; ring = AUTO; dot = the value in use, amber at LIMIT.
+
 ---
 
 ## Results panel — Forza cards
@@ -601,6 +613,15 @@ camber target and `{roll}` the tune's roll angle:
 > Camber targets {camber} dynamic. FWD front camber reduced for traction. Leans to toe-in for stability. dyn = camber at the car's roll.
 
 > Camber targets {camber} dynamic at {roll}° roll. Front leans toe-out on TRACK/DRIFT; rear toe-in except on DRAG. dyn = camber at that roll.
+
+Then, after either layout's sentence, `{steer}` being `CASTER_REF_STEER`:
+
+> steer = camber caster adds to the outside wheel at {steer}° of steering. LIMIT = held at the recommended range or the game's limit.
+
+and, under AUTO only, the terms behind each value (`computeAlignment`'s `why`, then `adjust`, the
+intent offset; terms under 0.005° left out except the build base), e.g. `Camber F: TRACK -1.50, roll -1.38, adjust -0.30.`:
+
+> Built from: {terms}
 
 **ANTI-ROLL BARS:**
 
@@ -631,7 +652,7 @@ It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on
 **Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
 summary strip keeps the short `header`. By card:
 
-- ALIGNMENT: `AUTO for a {BUILD} build` (plus `NUDGE …`), or `MANUAL values`.
+- ALIGNMENT: `AUTO for a {BUILD} build` (plus ` · adjusted` while an intent offset is set), or `MANUAL values`.
 - ANTI-ROLL BARS: the stiffness (`AUTO stiffness`, `BASIC {n}% stiffness`, `ROLL target {deg}°`,
   `bars {n}% of roll stiffness`, `MANUAL bars`) · the balance (`split by WEIGHT` / `CHASSIS`,
   `, reversed` with Split Direction, `NEUTRAL: equal roll` / `NEUTRAL: cancels the chassis`,
@@ -1062,7 +1083,7 @@ INT and PRO — Hz F, DAMP F, Hz R, DAMP R:
 
 > Reduce rear rebound damping for more rotation freedom.
 
-TOE F and CASTER — PRO:
+TOE F and CASTER — INT and PRO (the ALIGNMENT section's Turn-in and Steering feel move them):
 
 > Add front toe-in to improve straight-line stability.
 
@@ -1072,7 +1093,7 @@ TOE F and CASTER — PRO:
 
 > Reduce caster for lighter, quicker steering response.
 
-and in BEG and INT, which have no alignment controls, for either:
+and in BEG, which has no alignment controls, for either:
 
 > Alignment has no control at this tier; this factor is for reference.
 
@@ -1105,6 +1126,34 @@ available (PRO), then without it:
 (with a DECODE THE EXAMPLE NUMBERS button under it):
 
 > The numbers in step 1 are stock examples, not a tune, so nothing is decoded yet. Overwrite the springs, dampers or bars with your tune's values and the decode appears here.
+
+**STEP 1 · ALIGNMENT — OPTIONAL** (INT+, Forza modes only; first after the vehicle mass, then ARB, springs and damping), above its five fields:
+
+> As the game shows them. Fill these in to bring the alignment across too; they import into MANUAL. Positive toe is toe-in. Read the number's sign: the game's IN / OUT slider labels are reported to be reversed.
+
+**ALIGNMENT → MANUAL, beyond reach** (amber, under the fields, while a MANUAL value is further from
+AUTO than its slider reaches; `{list}` is e.g. `camber F -4.8 → -4.4°`):
+
+> Beyond the sliders' reach: {list}. Switching to AUTO and share codes land there.
+
+**SHARE → INCLUDE:** DRIVETRAIN's sub-line is `Build type · diff · brakes · alignment`. With
+DRIVETRAIN ticked and the same condition, an amber line under the boxes:
+
+> The alignment travels as AUTO + sliders, which can't reach every MANUAL value: {list}.
+
+**IMPORT TUNE's line** names what it replaces: the suspension sentence when step 1's suspension was
+entered, the alignment one when the alignment was, or both:
+
+> Keeps the numbers: replaces this car's springs, dampers and anti-roll bars, close rather than exact — review them afterward.
+
+> The alignment goes into ALIGNMENT's MANUAL exactly as typed; switch to AUTO and the sliders take the closest setting.
+
+**IMPORT AS DNA's line** (PRO) when the suspension was entered, then when only the alignment was
+(the button is disabled then):
+
+> Keeps the handling: loads it into the DNA editor (toolbar DNA) as targets and leaves this car alone — APPLY it to this car or another. DNA leaves alignment out.
+
+> Needs the springs, dampers or bars from step 1: a DNA is the suspension's handling, not its alignment.
 
 Corner masses show in the Weight field's unit (lb or kg). The DECODE and MEASURE tabs carry titles:
 *Read back a tune you already have, from its in-game numbers* and *Calibrate this car from balance

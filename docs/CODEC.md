@@ -107,8 +107,21 @@ future version might not carry.
 | 88 | fe | phaseExitG | raw number — PHASE Balance Target's EXIT Load, g; read only in PHASE (id 53 = 4) |
 | 89 | dr | brakeStock | bool — BRAKES on STOCK (no race brakes): the brakes leave every calculation; INT+ only, see note |
 | 90 | ch | measuredArbClickR | raw number — MEASURE ARB's rear click scale; absent/null = same as id 74, see note |
+| 91 | dr | alignOfsCamberF | raw number — ALIGNMENT intent: front camber offset from AUTO, ±2.0°; see note |
+| 92 | dr | alignOfsCamberR | raw number — rear camber offset from AUTO, ±2.0° |
+| 93 | dr | alignOfsToeF | raw number — front toe offset from AUTO (Turn-in), ±0.3° |
+| 94 | dr | alignOfsToeR | raw number — rear toe offset from AUTO (Rear stability), ±0.3° |
+| 95 | dr | alignOfsCaster | raw number — caster offset from AUTO (Steering feel), ±1.5° |
 
-**Next available id: 91.**
+**Next available id: 96.**
+
+Ids 91–95 carry the alignment as **intent**, not angles: offsets that the reader's own AUTO
+recommendation takes on top. Like the BRAKES shift (id 80), a code lands on the reader's car
+as that car's recommendation plus the sender's preference. A sender in MANUAL doesn't send
+MANUAL: `alignDrOut` translates the MANUAL values to the offsets that bring the sender's AUTO
+closest to them (exact within the slider ranges), and those go out. They ride their own
+ALIGNMENT part, and applying it puts the reader in AUTO (`mergeTune`). An app older than these
+ids skips them and shows plain AUTO.
 
 Id 84 is a target, like `rideBottomG` (64): a code carries the drop the sender wanted
 caught, and bump ζ re-solves against the reader's Hz and ride heights. Because the drop is a
@@ -167,7 +180,9 @@ not tell "the sender left FEEL out" from "the sender's FEEL is the default one" 
 LOAD CODE opens with every part ticked, so APPLY reset the reader's own values to
 defaults and the picker labelled them "from the code". The garage's COPY CODE has the
 same shape: a chassis-only or build-only entry fills the missing groups with defaults,
-so it writes the mask from which payloads the entry has.
+so it writes the mask from which payloads the entry has. Each payload it does have is also
+filled from its defaults first (`{...DEF_DR, ...entry.dr}`), so a field the entry predates goes
+out as its default (omitted) rather than as `id:undefined`.
 
 `DEF_META.carries` is `null`, meaning every group, and `encodeTune` writes `null` when
 the mask is 7. So a whole-tune code carries no id 85 and reads exactly as every code
@@ -297,6 +312,7 @@ choice, decided after the code is read.
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
 | `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeStock, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
+| `align` (ALIGNMENT) | `dr` | alignOfsCamberF, alignOfsCamberR, alignOfsToeF, alignOfsToeR, alignOfsCaster — applying it also sets the reader's `alignManual` to false |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 | `carries` (CARRIES) | `meta` | carries — **`applies:false`**: decides which of the parts above can be ticked at all (`partCarried` / `carriedSel`), never merged or shown as a row |
 
@@ -446,7 +462,6 @@ undocumented.
 | Array | Index → value |
 |---|---|
 | `DIFF_TYPE_DEC` | 0 `race` · 1 `sport` · 2 `rally` · 3 `offroad` · 4 `drift` |
-| `ALIGN_MODE_DEC` | 0 `build` · 1 `mech` · 2 `grip` · 3 `manual` |
 | `GAME_MODE_DEC` | 0 `horizon` · 1 `motorsport` · 2 `beamng` |
 | `DAMPING_MODE_DEC` | 0 `ratio` · 1 `independent` · 2 `landing` |
 | `REAR_HZ_MODE_DEC` | 0 `flatRide` · 1 `independent` · 2 `multiplier` · 3 `mech` · 4 `shared` |
@@ -461,9 +476,8 @@ undocumented.
 | `BRAKE_CENTRE_DEC` | 0 `rec` · 1 `grip` · 2 `entry` (UI labels: REC / GRIP / ENTRY) |
 
 `ARB_MODE_DEC` carries `auto` twice on purpose — index 3 is a retired `balance`
-value decoding to `auto` rather than throwing. `ALIGN_MODE_DEC` has no encoder
-and no id at all: `al` is not a codec group (see the excluded-fields section
-below), so only its membership test matters, not its order.
+value decoding to `auto` rather than throwing. (`ALIGN_MODE_DEC`, the old alignment-mode
+list, was never a codec enum and is gone; `migrateLegacyAl` reads the old strings directly.)
 
 ## Notes on semantic changes (id kept, meaning changed)
 
@@ -648,28 +662,13 @@ verify the field's output is genuinely self-contained — an absolute value
 with exactly one consumer, not a delta or an input feeding some other field
 too — before excluding it.
 
-**The whole `al` (alignment) group is excluded — every field of it.** This is the
-largest omission in the codec and it was undocumented here until an audit went
-looking for it. `encodeTune(ch, fe, dr)` takes three groups and `DEF_GROUPS` maps
-exactly three; there is no `group:'al'` anywhere in `CODEC_FIELDS`. So a share code
-carries **none** of `al.mode`, `al.nudgeStrength`, or the MANUAL
-`camberF`/`camberR`/`toeF`/`toeR`/`caster` values.
-
-The consequence is worth stating plainly, because it is silent: a PRO user who
-sets Alignment Mode to MANUAL and types exact angles, then sends a code, ships a
-tune whose recipient sees AUTO (Nudge OFF) computed alignment instead. Nothing warns
-either party. The same is true of a MECH/GRIP nudge and its Nudge Strength.
-
-For AUTO with Nudge OFF (`al.mode:'build'`) this is harmless and arguably correct — `computeAlignment` is a
-pure function of `ch`/`tune`/`layout`/`buildType`, all of which *do* travel, so
-the receiver recomputes identical angles from the same inputs. That is the
-"computed-locally, shared-as-output" pattern `useRideHeightCG` follows above, and
-it is presumably why the group was never given ids. It stops holding the moment
-`al.mode` is anything but `'build'`, since MANUAL's values and the nudge strength
-are inputs with no other carrier — the same trap ids 60/61 and 65/66 were both
-added to close. Treat this as a known gap rather than a settled exclusion; closing
-it means ids 67+ and a fourth group in `DEF_GROUPS`/`encodeTune`/`decodeTune`/
-`sanitizeTune`. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+**ALIGNMENT's MANUAL state is excluded:** `alignManual` and the MANUAL values
+`alignManCamberF`/`alignManCamberR`/`alignManToeF`/`alignManToeR`/`alignManCaster`. The
+alignment travels as the intent offsets (ids 91–95), and MANUAL is translated into them on the
+way out, so a code is always AUTO + intent. This is the owner's rule: MANUAL translates to its
+closest AUTO setting, so a received alignment keeps following the reader's own car. These
+fields used to sit in a separate `al` group that travelled nowhere at all; see
+[HISTORY.md](HISTORY.md).
 
 Garage entries' `notes` and `tags` are excluded for the same reason, one level up:
 they describe *your* relationship to a tune ("needs work", "Nordschleife"), not the
