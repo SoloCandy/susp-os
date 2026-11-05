@@ -31,10 +31,21 @@ lost while the matching toe-in survived. The formulas below write `clamp(lo, hi,
 MANUAL values are clamped to `ALIGN_GAME` but not snapped to 0.1°: a typed −1.23 goes through
 as typed.
 
-**Toe sign.** Positive is toe-in, negative toe-out, which matches the numbers in the game and its
-description box. Forum reports say the game's IN/OUT slider labels sit on the opposite sides,
-so a tuner reading the labels instead of the number would enter toe backwards. The convention hasn't
-been checked against the car's on-screen wheel angle.
+**Toe sign.** Inside the app, toe is **+ = toe-in**: every formula and table in this file, the
+RESPONSE bar, the IN/OUT tags, the stored offsets and share-code ids 93/94. The games differ, and
+that was checked on each car's wheels:
+
+| Game | + toe means |
+|---|---|
+| Forza (Horizon, Motorsport) | **toe-out**: +1.0° front turns the fronts of the wheels outward |
+| BeamNG | toe-in (front in), the same as the model |
+
+Every toe number a tuner reads or types goes through `alignInGame(k, v, gameMode)`: the output
+card, the intent slider's box and readout, the MANUAL fields, Tune Check DECODE, the RANGES strip
+and the beyond-reach note. It negates toe in Forza and is its own inverse. So a Forza card prints
+the model's −0.1 front toe-out as **+0.1 OUT**. The IN / OUT tag is read from the model, so it is
+right in every game. Until this was checked, the app printed the model's sign in Forza too, so every
+toe value it gave was reversed in-game; see [HISTORY.md](HISTORY.md).
 
 `computeAlignment` itself is the AUTO recommendation's engine only. From INT, the ALIGNMENT
 section adds intent offsets on top of it or replaces it with MANUAL values; `alignOut` makes
@@ -127,8 +138,8 @@ TRACK RWD/AWD's −0.05 prints −0.1 and STREET FWD's +0.05 prints +0.1.
 | Drag | 0.0 / 0.0 |
 | *(unmatched build)* | −0.05 (fallback) |
 
-Sign convention, as the app's own toe hints state it: positive is toe-in,
-negative is toe-out. The `(frontBias-50)×-0.003` term therefore nudges
+Sign convention, in the model's sign (see "Toe sign" above; Forza shows the opposite): positive is
+toe-in, negative is toe-out. The `(frontBias-50)×-0.003` term therefore nudges
 slightly toward toe-**out** with front-heavier cars (this doc said toe-in until
 an audit checked it against the sign convention); `(fHz-1.8)×0.010` nudges
 toward more toe-in with stiffer front springs (verified against the actual

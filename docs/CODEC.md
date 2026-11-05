@@ -668,7 +668,12 @@ alignment travels as the intent offsets (ids 91–95), and MANUAL is translated 
 way out, so a code is always AUTO + intent. This is the owner's rule: MANUAL translates to its
 closest AUTO setting, so a received alignment keeps following the reader's own car. These
 fields used to sit in a separate `al` group that travelled nowhere at all; see
-[HISTORY.md](HISTORY.md).
+[HISTORY.md](HISTORY.md). `alignToeV2` is excluded too: a local migration marker
+(`migrateToeSign`), meaningless on another device.
+
+The toe offsets (ids 93/94) are in the model's convention, + = toe-in, in every game mode. The
+game's own sign is applied only on screen (`alignInGame`), so the Forza toe-sign fix changed no
+code already shared.
 
 Garage entries' `notes` and `tags` are excluded for the same reason, one level up:
 they describe *your* relationship to a tune ("needs work", "Nordschleife"), not the

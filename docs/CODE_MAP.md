@@ -768,6 +768,8 @@ Mode, moved to INT) resumes at the next `_v1` step that remains. It replaced
 `TUT_ADDED_SINCE_V1`, a list of steps added since, which could not express a step leaving a
 guide. Removing them resets the RESUME point of anyone who last saved under `_v1`.
 
+**`migrateToeSign` and `dr.alignToeV2`** — the one-time fix for MANUAL toe saved before Forza's sign was checked (Forza's + is toe-out). The flag looks like dead state, but it is what stops the negation running twice: removing it, or defaulting it to anything but `true`, flips every Forza MANUAL toe on each load. See [ALIGNMENT.md](ALIGNMENT.md) "Toe sign".
+
 **`migrateLegacyAl` and the `suspos_al_v2` key** — alignment moved from its own `al` state into
 `dr`. `migrateLegacyAl`, `suspos_dr_v8`'s repair, reads the old key while the stored `dr` lacks
 `alignManual`, so a saved MANUAL alignment survives the move. It still honours the legacy

@@ -44,7 +44,7 @@ const M = new Function(
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
   'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,' +
   'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE,' +
-  'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText};'
+  'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText,alignInGame,migrateToeSign};'
 )();
 
 let pass = 0, fail = 0;
@@ -493,8 +493,42 @@ t('ALIGNMENT travels as offsets and puts the reader in AUTO; MANUAL values never
     assert(o.alignManual === true && o.alignManCamberF === M.DEF_DR.alignManCamberF && o.alignManToeF === M.DEF_DR.alignManToeF, JSON.stringify(o));
     store.suspos_al_v2 = '{not json'; assert(M.migrateLegacyAl(M.DEF_DR) === M.DEF_DR, 'parse error');
   });
+  // ── migrateToeSign: Forza MANUAL toe was read with the wrong sign until checked on the car ──
+  const setFe = fe => { store.suspos_fe_v8 = JSON.stringify(fe); };
+  const manual = { ...M.DEF_DR, alignManual: true, alignManToeF: 0.2, alignManToeR: -0.1 };
+  t('a Forza MANUAL toe saved before the fix is negated once, and flagged', () => {
+    set({ alignManual: true }); setFe({ gameMode: 'horizon' });
+    const o = M.migrateToeSign(manual);
+    assert(o.alignManToeF === -0.2 && o.alignManToeR === 0.1 && o.alignToeV2 === true, JSON.stringify(o));
+    assert(o.alignManCamberF === manual.alignManCamberF, 'camber touched');
+  });
+  t('migrateToeSign leaves alone: a flagged dr, AUTO, BeamNG, a fresh install', () => {
+    set({ alignManual: true, alignToeV2: true }); setFe({ gameMode: 'horizon' });
+    assert(M.migrateToeSign(manual) === manual, 'flagged dr negated again');
+    set({ alignManual: false }); setFe({ gameMode: 'horizon' });
+    const auto0 = { ...manual, alignManual: false };
+    assert(M.migrateToeSign(auto0) === auto0, 'AUTO negated');
+    set({ alignManual: true }); setFe({ gameMode: 'beamng' });
+    assert(M.migrateToeSign(manual) === manual, 'BeamNG negated');
+    set(undefined);
+    assert(M.migrateToeSign(manual) === manual, 'fresh install negated');
+  });
   delete globalThis.localStorage;
 }
+
+t('alignInGame: Forza toe is the model negated, BeamNG toe and every camber/caster unchanged, and it is its own inverse', () => {
+  for (const gm of ['horizon', 'motorsport']) {
+    assert(M.alignInGame('toeF', 0.1, gm) === -0.1 && M.alignInGame('toeR', -0.2, gm) === 0.2, gm);
+    assert(M.alignInGame('toeF', M.alignInGame('toeF', 0.3, gm), gm) === 0.3, 'not self-inverse');
+    assert(Object.is(M.alignInGame('toeF', 0, gm), 0), 'returned -0');
+  }
+  assert(M.alignInGame('toeF', 0.1, 'beamng') === 0.1, 'BeamNG flipped');
+  for (const k of ['camberF', 'camberR', 'caster']) assert(M.alignInGame(k, -1.5, 'horizon') === -1.5, k);
+});
+t('alignReachText prints toe in the game\'s sign', () => {
+  const txt = M.alignReachText([{ k: 'toeR', man: 0.5, reach: 0.4 }], 'horizon');
+  assert(txt === 'toe R -0.5 → -0.4°', txt);
+});
 
 t('sanitizeTune holds the offsets to their slider ranges', () => {
   const t = M.sanitizeTune({ ch: M.DEF_CH, fe: M.DEF_FE, dr: { ...M.DEF_DR, alignOfsToeF: 9, alignOfsCaster: -9, alignOfsCamberR: 'x' } });

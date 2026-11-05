@@ -60,7 +60,6 @@ control. The alignment proposals sketched here are its v2 alignment rows.
 
 - The balance-model form (held; arrows are the leading idea).
 - The intent slider ranges, once they have been used.
-- The toe sign check against the car's on-screen wheel angle.
 
 ---
 

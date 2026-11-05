@@ -307,7 +307,7 @@ front's hide the rear's; the header still prints both.
 
 | Mark | Meaning |
 |---|---|
-| track | the span: camber −5..+5° and caster 1..7° (`ALIGN_GAME`); toe ±1° (`ALIGN_STRIP_SPAN`) |
+| track | the span: camber −5..+5° and caster 1..7° (`ALIGN_GAME`); toe ±1° (`ALIGN_STRIP_SPAN`). Every mark and figure is in the game's sign (`alignInGame`), so a Forza toe-in sits left of 0 |
 | grey shading | that value's `ALIGN_REC` band, where AUTO keeps its recommendation |
 | short tick | 0°, on the camber and toe strips |
 | hollow ring | AUTO's value (`autoAlign`) |
