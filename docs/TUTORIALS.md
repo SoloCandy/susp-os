@@ -356,8 +356,8 @@ the Welcome card and live in the glossary.
 | 11 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
 | 12 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
 | 13 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD, ALIGNMENT. |
-| 14 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | NET: the CAR tick, SPR and ARB, the NET tick; tap for the rows. |
-| 15 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off NET, outside the headline. |
+| 14 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | The three-phase headline in words; the CAR tick, SPR, ARB and ALIGN, the MID tick; tap for the rows. |
+| 15 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off MID, toe included; where each ends is that phase. |
 | 16 | Reading the Results | `output` | as BEG step 11 | close | The suspension cards first; amber = near a game limit. |
 | 17 | Alignment, Brakes & Diff | `output` | as BEG step 12 | close | The other cards and the settings they follow. |
 | 18 | Output Toolbar | `toolbar` | `tb.reset`, `tbDna`, `tbCheck`, `tb.share` | | RESET, DNA, CHECK, SHARE. |
@@ -393,7 +393,7 @@ step's spots, which dim the rest of the bar only.
 | # | Title | Spotlight | Spots | Sidebar | Covers |
 |---|---|---|---|---|---|
 | 1 | Handling Balance | — | `bar.head` | | NET headline; sign convention: + oversteer, − understeer; colour zones. PRO reads grip-margin % by phase (ENTRY / MID / EXIT). |
-| 2 | Reading the Bar | — | `bar.main` / `.lanes` / `.legend` | | CAR tick → SPR / ARB → NET tick; from INT, ENTRY / EXIT lanes off NET; PRO's arrows and TOTAL line. |
+| 2 | Reading the Bar | — | `bar.main` / `.lanes` / `.legend` | | CAR tick → SPR / ARB → NET tick (MID from INT, with camber); from INT, ENTRY / EXIT lanes off MID; PRO's arrows and TOTAL line. |
 | 3 | Typical Targets by Build | — | | | Rough ranges per build; zero isn't the goal. The ranges are BEG/INT points; PRO's ±1% NEUTRAL is a smaller unit. |
 | 4 | Reading Each Row | — | `bal.rows` | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. Opens the expanded panel. |
 | 5 | Using the Correction Tip | — | `bal.tip` | | Move the largest contributor first; the main balance control for big shifts. |
@@ -545,11 +545,11 @@ Absent note (no POWER SPLIT on screen):
 
 #### 14. Handling Balance Bar
 
-> The Handling Balance bar at the bottom of the results shows NET, the car plus springs and bars: + toward oversteer, − toward understeer. The grey tick is the car on its own; SPR and ARB stack from it to the white NET tick. Tap it for the rows behind each.
+> The Handling Balance bar at the bottom of the results reads each corner phase in words: ENTRY, MID and EXIT, each PUSH (understeer), NEUTRAL or LOOSE (oversteer), the furthest from neutral in bold. On the bar, the grey tick is the car on its own; SPR, ARB and ALIGN (camber) carry it to the white MID tick. Tap it for the figures and the rows behind each.
 
 #### 15. Entry & Exit Lanes
 
-> Below the bar, the ENTRY and EXIT lanes start from NET and stack what acts only at each end of a corner: brakes and damping on entry, the diff on both. They show how the car changes through the corner without moving the headline.
+> Below the bar, the ENTRY and EXIT lanes start from MID and stack what acts only at each end of a corner: brakes, damping and front toe on entry, the diff and rear toe on both. Where each lane ends is that phase's word in the headline.
 
 #### 16. Reading the Results
 
@@ -657,11 +657,11 @@ Absent note (shown while its controls are not on screen):
 
 #### 1. Handling Balance
 
-> The headline is NET: the car's own lean plus springs and bars. + leans oversteer, − understeer. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO the total is a grip margin in percent, read by corner phase.
+> In BEG the headline is NET: the car's own lean plus springs and bars. + leans oversteer, − understeer. From INT it reads each corner phase in words instead: ENTRY, MID and EXIT, PUSH or LOOSE. The zones run neutral, mild and aggressive, but the right number depends on your goal. In PRO each phase is a grip margin in percent.
 
 #### 2. Reading the Bar
 
-> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white NET tick. From INT, ENTRY and EXIT lanes below stack brakes, diff and damping off NET; PRO arrows diff and damping, adds the drive split, and draws a pink TOTAL line above.
+> The grey CAR tick is where the car sits before tuning. SPR and ARB stack from it to the white tick (NET in BEG, MID from INT, where camber joins them as ALIGN). From INT, ENTRY and EXIT lanes stack brakes, diff, damping and toe off MID; PRO arrows diff, damping and alignment, adds the drive split, and draws a pink TOTAL line above.
 
 #### 3. Typical Targets by Build
 
@@ -669,7 +669,7 @@ Absent note (shown while its controls are not on screen):
 
 #### 4. Reading Each Row
 
-> CAR STARTS is the car's own lean before tuning. The rows below move it: springs and anti-roll bars make NET, then diff, brakes and damping act on entry and exit. Each shows its value and share, so the dominant one stands out. PRO groups the rows by corner phase.
+> CAR STARTS is the car's own lean before tuning. The rows below move it: springs and anti-roll bars (and from INT camber) make the steady state, then diff, brakes, damping and toe act on entry and exit. Each shows its value and share, so the dominant one stands out. PRO groups the rows by corner phase.
 
 #### 5. Using the Correction Tip
 

@@ -39,12 +39,14 @@ const M = new Function(
   slice('const KG_TO_LB=', 'const arbRowMeta=') + '\n' +
   slice('const DNA_ARCHETYPES=', 'const Hint=') + '\n' +
   slice('const CODEC_FIELDS=', 'const sanitizeTune=') + '\n' +
-  slice('const sanitizeTune=', '\nconst useTwoTap') +
+  slice('const sanitizeTune=', '\nconst useTwoTap') + '\n' +
+  slice('const PHASE_NEUTRAL=', 'const PhaseHeadline=') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
   'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,' +
   'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE,' +
-  'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText,alignInGame,migrateToeSign};'
+  'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText,alignInGame,migrateToeSign,' +
+  'alignBalanceOf,ALIGN_BAL_TOE,ALIGN_BAL_CAMBER,balWord,PHASE_NEUTRAL,PHASE_STRONG,PTS_NEUTRAL,PTS_STRONG};'
 )();
 
 let pass = 0, fail = 0;
@@ -525,6 +527,42 @@ t('alignInGame: Forza toe is the model negated, BeamNG toe and every camber/cast
   assert(M.alignInGame('toeF', 0.1, 'beamng') === 0.1, 'BeamNG flipped');
   for (const k of ['camberF', 'camberR', 'caster']) assert(M.alignInGame(k, -1.5, 'horizon') === -1.5, k);
 });
+// ── alignment in the Handling Balance (alignBalanceOf) and the three-phase words (balWord) ──
+{
+  const tgt = { camberF: -1.5, camberR: -1.5 }, roll = 2, gain = 0.69, rear = 0.75;
+  const onTarget = { recCamberF: -1.5 - roll * gain, recCamberR: -1.5 - roll * gain * rear, recToeF: 0, recToeR: 0 };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  t('alignBalanceOf: zero toe and camber on target lean nowhere', () => {
+    const b = M.alignBalanceOf(onTarget, tgt, roll, gain, rear);
+    assert(near(b.toeF, 0) && near(b.toeR, 0) && near(b.camber, 0), JSON.stringify(b));
+  });
+  t('alignBalanceOf: toe-in leans understeer, toe-out oversteer, front and rear (model sign)', () => {
+    const inn = M.alignBalanceOf({ ...onTarget, recToeF: 0.1, recToeR: 0.2 }, tgt, roll, gain, rear);
+    assert(near(inn.toeF, -0.1 * M.ALIGN_BAL_TOE) && near(inn.toeR, -0.2 * M.ALIGN_BAL_TOE), JSON.stringify(inn));
+    const out = M.alignBalanceOf({ ...onTarget, recToeF: -0.1 }, tgt, roll, gain, rear);
+    assert(out.toeF > 0, 'front toe-out not toward oversteer');
+  });
+  t('alignBalanceOf: camber off target either way — front toward understeer, rear toward oversteer', () => {
+    for (const d of [-0.8, 0.8]) {
+      const f = M.alignBalanceOf({ ...onTarget, recCamberF: onTarget.recCamberF + d }, tgt, roll, gain, rear);
+      assert(near(f.camber, -0.8 * M.ALIGN_BAL_CAMBER), `front ${d}: ${f.camber}`);
+      const r = M.alignBalanceOf({ ...onTarget, recCamberR: onTarget.recCamberR + d }, tgt, roll, gain, rear);
+      assert(near(r.camber, 0.8 * M.ALIGN_BAL_CAMBER), `rear ${d}: ${r.camber}`);
+    }
+  });
+  t('alignment stays small: the intent sliders at full reach stay inside a few points', () => {
+    const b = M.alignBalanceOf({ ...onTarget, recToeF: 0.3, recToeR: 0.3, recCamberF: onTarget.recCamberF - 2 }, tgt, roll, gain, rear);
+    assert(Math.abs(b.toeF) <= 1.5 + 1e-9 && Math.abs(b.toeR) <= 1.5 + 1e-9 && Math.abs(b.camber) <= 2 + 1e-9, JSON.stringify(b));
+  });
+  t('balWord: NEUTRAL inside the band, PUSH / LOOSE past it, STRONG past the strong edge', () => {
+    const w = v => M.balWord(v, M.PTS_NEUTRAL, M.PTS_STRONG);
+    assert(w(0) === 'NEUTRAL' && w(2.9) === 'NEUTRAL' && w(-2.9) === 'NEUTRAL', 'band');
+    assert(w(3) === 'LOOSE' && w(-3) === 'PUSH', 'edge');
+    assert(w(M.PTS_STRONG) === 'STRONG LOOSE' && w(-M.PTS_STRONG) === 'STRONG PUSH', 'strong');
+    assert(M.balWord(0.5, M.PHASE_NEUTRAL, M.PHASE_STRONG) === 'NEUTRAL' && M.balWord(-6, M.PHASE_NEUTRAL, M.PHASE_STRONG) === 'STRONG PUSH', 'PRO');
+  });
+}
+
 t('alignReachText prints toe in the game\'s sign', () => {
   const txt = M.alignReachText([{ k: 'toeR', man: 0.5, reach: 0.4 }], 'horizon');
   assert(txt === 'toe R -0.5 → -0.4°', txt);

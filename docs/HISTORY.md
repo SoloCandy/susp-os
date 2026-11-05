@@ -11,6 +11,22 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the Handling Balance reads three phases, and counts alignment
+
+From INT the headline is ENTRY · MID · EXIT in words (`PhaseHeadline`, `balWord`: NEUTRAL, PUSH,
+LOOSE, STRONG …), the phase furthest from neutral in bold. It used to be one figure: NET in INT, MID
+in PRO. A balanced MID could hide a loose EXIT: on one test car PRO's headline read MID +0.72% NEUTRAL
+while EXIT sat at +9.9%.
+
+Alignment now counts, following damping: INT sizes it in points at a deliberately small,
+uncalibrated scale (`alignBalanceOf`: toe in the ENTRY / EXIT lanes, camber off target in MID), and PRO
+shows its direction only. INT's MID is `bNet` plus camber; `bNet` itself (BEG's headline) and
+`bTotFull` (`recommendedDiffType`) leave it out.
+
+INT keeps its own point model rather than PRO's grip-margin %. PRO's model rests on track widths and
+the measured natural balance, which are PRO-only inputs. INT drops "pts" from the headline instead and
+gives the figures in the expanded panel.
+
 ## Fixed — every Forza toe value was reversed in the game
 
 The app has always treated toe as + = toe-in, and printed and taken that number in every game. Checked

@@ -23,7 +23,7 @@ The game's input span is already in code as `ALIGN_GAME` (camber and toe −5..+
 | BEG | AUTO, plus the clearer output | Beginners read values; they don't tune alignment |
 | INT | AUTO + intent sliders, **and MANUAL** | Tune Check's DECODE will take an existing in-game alignment and import it into MANUAL, and DECODE is open below PRO |
 | PRO | Everything in INT, plus the symptom fixer | The camber sliders came down to INT: MANUAL camber has to translate into something AUTO holds |
-| Balance model | **Held.** Nothing alignment does enters NET or the phase margins yet | None of the alignment constants are calibrated. Leading idea, undecided: direction-only arrows on the Handling Balance lanes, the way diff lock and damping show now, with no magnitude |
+| Balance model | **Shipped, following dampers:** INT sizes alignment in points like DAMP (small, uncalibrated); PRO shows its direction only (`alignBalanceOf`, see [FORMULAS.md](FORMULAS.md)). The Handling Balance headline reads ENTRY · MID · EXIT in words from INT up; INT stays on its own point model, since PRO's % model rests on PRO-only inputs (track widths, measured natural balance) | None of the alignment constants are calibrated. Leading idea, undecided: direction-only arrows on the Handling Balance lanes, the way diff lock and damping show now, with no magnitude |
 | VISUALS | Camber-vs-roll chart, and range strips | Picked from a longer list; the tyre front view and the top-down toe diagram are not planned |
 | Reference steer angle | 10° (`CASTER_REF_STEER`) | Owner's call |
 | Intent reach | Offsets may carry a value past `ALIGN_REC`, to `ALIGN_GAME` | Owner's call: the sliders exist to override the recommendation |
@@ -58,7 +58,6 @@ control. The alignment proposals sketched here are its v2 alignment rows.
 
 ### Open questions
 
-- The balance-model form (held; arrows are the leading idea).
 - The intent slider ranges, once they have been used.
 
 ---
