@@ -45,7 +45,7 @@ const M = new Function(
   slice('const sanitizeTune=', '\nconst useTwoTap') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,HZ_MIN,HZ_MAX,DNA_AXES,DNA_YIELDABLE,DNA_SLACK_AXES,dnaSlackMax,DNA_MAX_MOVES,DNA_ARCHETYPES,' +
   'sanitizeDNA,compileDNA,measureDNA,dnaReadBack,dnaTolerances,dnaEvaluate,applyDNA,resolveFeEffective,' +
-  'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,' +
+  'encodeDNA,decodeDNA,DNA_CODE_PREFIX,DNA_CODEC_IDS,DNA_CODEC_VERSION,codecSum,' +
   'resolveArbBalTarget,balTargetModeOf,balanceBandOf,MECH_BALANCE_TARGET,BAL_TARGET_MIN,BAL_TARGET_MAX,clampBalTarget,gripNeutralOf,rollKOf,solveTune,gripNeutralSplitOf,tireCorrOf,natRsOf,natDisplayOf,balanceFromRsBal,sanitizeTune,' +
   'computeTune,feelToPhysics,PHYS_SNAP,DAMP_BAL_MODE_ENC,DAMP_BAL_MODE_DEC};'
 )();
@@ -725,8 +725,10 @@ t('a code is prefixed, and the tune decoder says so rather than calling it corru
 t('an unknown id is ignored, and the ids themselves are permanent', () => {
   // A code from a newer app carrying an axis this one has never heard of must still load.
   const d = M.sanitizeDNA(M.DNA_ARCHETYPES[2]);
-  const inner = atob(M.encodeDNA(d).slice(M.DNA_CODE_PREFIX.length)) + '|99:1.23';
-  const back = M.decodeDNA(M.DNA_CODE_PREFIX + btoa(inner));
+  // Built the way a newer encoder would, checksum included, so it is the unknown id under test.
+  const [ver, , ...pairs] = atob(M.encodeDNA(d).slice(M.DNA_CODE_PREFIX.length)).split('|');
+  pairs.push('99:1.23');
+  const back = M.decodeDNA(M.DNA_CODE_PREFIX + btoa([ver, '~' + M.codecSum(pairs.join('|')), ...pairs].join('|')));
   assert(JSON.stringify(back) === JSON.stringify(d), 'an unknown id changed the result');
   // Pinned so a reshuffle of DNA_CODEC_IDS has to be a deliberate act, not a rename side effect.
   assert(JSON.stringify(M.DNA_CODEC_IDS) === JSON.stringify({
@@ -738,9 +740,58 @@ t('an unknown id is ignored, and the ids themselves are permanent', () => {
 
 t('a default DNA encodes to almost nothing', () => {
   const code = M.encodeDNA({});
-  assert(atob(code.slice(M.DNA_CODE_PREFIX.length)) === String(M.DNA_CODEC_VERSION),
-    `a DNA at every default should carry only its version, got ${atob(code.slice(M.DNA_CODE_PREFIX.length))}`);
+  assert(atob(code.slice(M.DNA_CODE_PREFIX.length)) === `${M.DNA_CODEC_VERSION}|~${M.codecSum('')}`,
+    `a DNA at every default should carry only its version and checksum, got ${atob(code.slice(M.DNA_CODE_PREFIX.length))}`);
   assert(JSON.stringify(M.decodeDNA(code)) === JSON.stringify(M.sanitizeDNA({})), 'the empty code should decode to the default DNA');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+section('DNA code integrity — a damaged code is refused, not half-loaded');
+
+const dnaPlain = code => atob(code.slice(M.DNA_CODE_PREFIX.length));
+const decodeErr = code => { try { M.decodeDNA(code); return null; } catch (e) { return e; } };
+
+t('every new code carries a checksum of its body as its second pair', () => {
+  for (const a of M.DNA_ARCHETYPES) {
+    const parts = dnaPlain(M.encodeDNA(a)).split('|');
+    assert(parts[1].startsWith('~'), `${a.name}: second pair is ${parts[1]}`);
+    assert(M.codecSum(parts.slice(2).join('|')) === parts[1].slice(1), `${a.name}: checksum does not match its body`);
+  }
+});
+
+t('a code cut short at any length is refused with the codec\'s own message', () => {
+  const code = M.encodeDNA({ ...M.DNA_ARCHETYPES[1], name: 'B-ROAD ½', slack: { arbShare: 3 } });
+  for (let cut = 1; cut < code.length; cut++) {
+    const short = code.slice(0, code.length - cut);
+    let same = false;                       // dropping only '=' padding decodes to the same text
+    try { same = atob(short.slice(M.DNA_CODE_PREFIX.length)) === dnaPlain(code); } catch {}
+    if (same) continue;
+    const e = decodeErr(short);
+    assert(e, `cut ${cut} decoded without an error`);
+    assert(e.codec === true, `cut ${cut}: a non-codec error leaked out: ${e.message}`);
+  }
+});
+
+t('an edited value is refused', () => {
+  const plain = dnaPlain(M.encodeDNA(M.DNA_ARCHETYPES[2]));
+  assert(plain.includes('|1:3.3'), `fixture changed: ${plain}`);
+  const e = decodeErr(M.DNA_CODE_PREFIX + btoa(plain.replace('|1:3.3', '|1:2.3')));
+  assert(e && /damaged/.test(e.message), 'an edited code was accepted');
+});
+
+t('a legacy code (no checksum) still decodes, unchecked', () => {
+  const d = M.sanitizeDNA(M.DNA_ARCHETYPES[3]);
+  const [ver, , ...pairs] = dnaPlain(M.encodeDNA(d)).split('|');
+  const back = M.decodeDNA(M.DNA_CODE_PREFIX + btoa([ver, ...pairs].join('|')));
+  assert(JSON.stringify(back) === JSON.stringify(d), 'a pre-checksum code no longer round-trips');
+});
+
+t('garbage after the prefix is a codec error, never a browser one', () => {
+  for (const bad of ['DNA-!!!!', 'DNA-', 'DNA-' + btoa('1'), 'DNA-' + btoa('1|10:%E0%A4%A')]) {
+    const e = decodeErr(bad);
+    assert(e, `${bad} decoded`);
+    assert(e.codec === true, `${bad}: leaked ${e.message}`);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -371,7 +371,9 @@ version: `codecSum` (32-bit FNV-1a, base 36) of everything after it.
   shows their own wording: DNA code, outdated version, damaged or cut short. Anything
   else gets the generic "Invalid code — make sure you pasted the full string."
 
-The DNA codec has no checksum yet; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+DNA codes carry the same checksum under the same rules — see
+[The DNA codec](#the-dna-codec--a-second-separate-code). `codecSum` and `codecError` are
+declared with the DNA codec, which sits earlier in `index.html`, and both codecs use them.
 
 ## Links (`#t=`)
 
@@ -627,12 +629,20 @@ carries is chassis-specific, which is the exact thing a DNA exists to escape —
 
 **The same rules as the tune codec, for the same reasons.** Ids are permanent — retire, never
 reuse. Fields still at their default are omitted, so a DNA at every default encodes to just its
-version. Unknown ids are ignored, so a code from a newer app carrying an axis this one has never
+version and checksum. Unknown ids are ignored, so a code from a newer app carrying an axis this one has never
 heard of still loads.
 
 **The prefix is load-bearing.** Every code starts `DNA-`, and `decodeTune` checks for it before
 anything else so a DNA code pasted into TUNE CHECK or LOAD CODE is named rather than reported as
 corruption. One guard covers all three tune-decoding paths.
+
+**Integrity: the same `~` checksum.** Every DNA code carries `~sum` as its second pair, right
+after the version: `codecSum` of everything after it, exactly as in
+[Integrity](#integrity--the--checksum) and for the same reasons — second rather than last, not an
+id, legacy codes without it accepted unchecked, and a code with nothing after its version refused
+as cut short (the only legacy code that read that way was an all-default DNA). Every error
+`decodeDNA` raises carries `codec:true`, including a broken base64 body or a name that no longer
+URI-decodes, so the DNA editor shows the codec's wording and never a browser's.
 
 `decodeDNA` returns a `sanitizeDNA` shape, so a decoded DNA is the same object a saved one is —
 out-of-range axes clamp, slack clamps to `dnaSlackMax`, and a damaged `keep` is repaired into a

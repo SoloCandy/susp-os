@@ -609,7 +609,7 @@ see [PRESETS.md](PRESETS.md).
 permanent tune-codec ids threaded through `DEF_GROUPS`/`encodeTune`/`decodeTune`/`sanitizeTune`
 for an object no solver reads. A separate table costs nothing on that side and lets an axis change
 meaning under its own version without touching a single tune code. The code carries the axes,
-`slack`, `keep` and the name; it does **not** carry `ref` or the applied link, which are local
+`slack`, `keep` and the name, behind the tune codec's `~` checksum, so a code cut short is refused; it does **not** carry `ref` or the applied link, which are local
 state about where a draft came from. Decoding replaces the editor's draft with no `ref` — it came
 from somewhere else, so "edited from" would name a DNA this app never had — and is not a commit.
 Field table and rules: [CODEC.md](CODEC.md#the-dna-codec--a-second-separate-code).

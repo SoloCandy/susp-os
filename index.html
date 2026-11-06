@@ -2853,9 +2853,9 @@ const HZ_MARKERS=HZ_BANDS.map((v,i)=>({value:v,color:HZ_BAND_COLS[i+1],
   label:['ROAD','FIRM','RACE'][i]}));
 // ── Vehicle DNA ─────────────────────────────────────────────────────────────
 // A chassis-portable handling personality: axis TARGETS, compiled into ordinary fe/dr fields in
-// PRO's target modes, never a change to feelToPhysics/computeTune. Core only — App does not call
-// any of this yet; tests-dna.js is its consumer until the UI lands. docs/DNA.md is the spec and
-// carries the reasoning behind every mode choice below.
+// PRO's target modes, never a change to feelToPhysics/computeTune. Pure functions only: App's DNA
+// modal, sidebar link and DNA MATCH card call them, and tests-dna.js exercises them directly.
+// docs/DNA.md is the spec and carries the reasoning behind every mode choice below.
 
 // Each range is the sanitizeTune clamp of the field the axis compiles into, so a compiled patch is
 // always a sanitizeTune fixed point (tests-dna.js asserts it). Defaults match DEF_FE; they are
@@ -2927,6 +2927,15 @@ const sanitizeDNA=raw=>{
 // Same shape as the tune codec otherwise: `version|id:value|…`, base64, fields still at their
 // default omitted, unknown ids ignored so a newer app's extra axis does not break an older one.
 // THESE IDS ARE PERMANENT. Retire, never reuse.
+// Shared with the tune codec's integrity check below (── integrity ──): 32-bit FNV-1a, base 36.
+const codecSum=s=>{
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}
+  return(h>>>0).toString(36);
+};
+// Errors the codecs raise on purpose carry codec:true, so LOAD CODE and the DNA editor can show
+// their own wording rather than a browser's (atob's "not correctly encoded", say).
+const codecError=msg=>Object.assign(new Error(msg),{codec:true});
 const DNA_CODEC_VERSION=1;
 const DNA_CODE_PREFIX='DNA-';            // so a DNA code is never mistaken for a tune code
 const DNA_CODEC_IDS={platformHz:1,pitchRatio:2,arbShare:3,balanceOffset:4,reboundZeta:5,
@@ -2946,21 +2955,36 @@ const encodeDNA=raw=>{
   }
   const keep=d.keep.map(k=>DNA_YIELDABLE.indexOf(k)).join('');
   if(keep!==DNA_YIELDABLE.map((_,i)=>i).join(''))parts.push(`${DNA_CODEC_KEEP}:${keep}`);
-  return DNA_CODE_PREFIX+btoa(parts.join('|'));
+  // `~sum` as the SECOND pair, exactly as the tune codec does it and for the same reason: a cut
+  // can't take the checksum with it. Not an id — it describes the string, not the DNA.
+  const[ver,...pairs]=parts;
+  return DNA_CODE_PREFIX+btoa([ver,'~'+codecSum(pairs.join('|')),...pairs].join('|'));
 };
 
 // Returns a sanitizeDNA shape, so every downstream reader gets the same object a saved DNA is.
 const decodeDNA=code=>{
   const t=String(code??'').trim();
-  if(!t.toUpperCase().startsWith(DNA_CODE_PREFIX))throw new Error('Not a DNA code — DNA codes start with DNA-.');
-  const parts=atob(t.slice(DNA_CODE_PREFIX.length)).split('|');
-  if(parseInt(parts[0],10)!==DNA_CODEC_VERSION)throw new Error('Outdated or invalid DNA code — ask for a new one.');
+  if(!t.toUpperCase().startsWith(DNA_CODE_PREFIX))throw codecError('Not a DNA code — DNA codes start with DNA-.');
+  const cut=()=>codecError('This DNA code is damaged or cut short — copy it again from the sender.');
+  let text;
+  try{text=atob(t.slice(DNA_CODE_PREFIX.length));}catch{throw cut();}
+  let parts=text.split('|');
+  if(parseInt(parts[0],10)!==DNA_CODEC_VERSION)throw codecError('Outdated or invalid DNA code — ask for a new one.');
+  if(parts[1]?.startsWith('~')){
+    if(codecSum(parts.slice(2).join('|'))!==parts[1].slice(1))throw cut();
+    parts=[parts[0],...parts.slice(2)];
+  }else if(!parts.slice(1).some(p=>p.includes(':'))){
+    // No checksum and no pair: a new code cut down to its version. The only legacy code that read
+    // this way was an all-default DNA, which carried nothing — same rule as decodeTune.
+    throw cut();
+  }
+  // A code written before the checksum (no `~` pair) is accepted unchecked, as before.
   const axes={},slack={};let name,keep;
   for(let i=1;i<parts.length;i++){
     const ci=parts[i].indexOf(':');
     if(ci<0)continue;
     const id=Number(parts[i].slice(0,ci)),v=parts[i].slice(ci+1);
-    if(id===DNA_CODEC_NAME){name=decodeURIComponent(v);continue;}
+    if(id===DNA_CODEC_NAME){try{name=decodeURIComponent(v);}catch{throw cut();}continue;}
     if(id===DNA_CODEC_KEEP){keep=[...v].map(c=>DNA_YIELDABLE[Number(c)]).filter(Boolean);continue;}
     const axis=Object.keys(DNA_CODEC_IDS).find(k=>DNA_CODEC_IDS[k]===id);
     if(axis){axes[axis]=Number(v);continue;}
@@ -3141,10 +3165,10 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
     return best;
   };
   // Two candidates moving together, tried only after every single candidate has failed. The case
-  // it exists for: on a front-heavy or staggered chassis TAIL-HAPPY's balance is reachable by
-  // raising pitch, but raising pitch breaks share, which TAIL-HAPPY ranks above pitch — so the
-  // single pass rejects the pitch move and share alone cannot reach balance, and a miss was
-  // accepted that both axes together can clear.
+  // it exists for (docs/DNA.md, "Two candidates together"): on a balanced chassis in Horizon,
+  // RALLY / B-ROAD asking for a +0.10 balance offset with balance ranked first — neither pitch nor
+  // share alone clears the balance miss without breaking the other, so the single pass refuses
+  // both and a miss was accepted that the two together can clear.
   //
   // It is not a 2-D search. The less protected axis `b` moves first with `a` RELEASED from its
   // guard — that is, allowed to break — and then `a` moves to repair itself while holding `b`'s
@@ -6845,14 +6869,8 @@ const codecReadField=(src,f)=>{
 // legacy code. An older client skips it like any pair without a ':'; a code without it (written
 // before it existed) is accepted unchecked, exactly as before. Not an id: it is about the
 // string, not the tune, and ids are permanent.
-const codecSum=s=>{
-  let h=0x811c9dc5;
-  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}
-  return(h>>>0).toString(36);
-};
-// Errors the codec raises on purpose carry codec:true, so LOAD CODE can show their own wording
-// rather than the generic one it uses for anything else.
-const codecError=msg=>Object.assign(new Error(msg),{codec:true});
+// codecSum and codecError are declared with the DNA codec, which uses both and is evaluated
+// earlier in the file (so every test harness that slices the DNA core gets them too).
 
 const encodeTune=(ch,fe,dr,tier,carries=CARRY_ALL)=>{
   const c=carriesOf(carries);
@@ -9238,12 +9256,12 @@ function App(){
   const dnaSave=()=>{
     const now=Date.now(),name=dnaEntryName.trim()||dnaName;
     setEntries(list=>[normalizeEntry({id:now,name,dna:{...dnaDraft,name},createdAt:now,updatedAt:now}),...list]);
-    setDnaStore({...dnaStore,draft:{...dnaDraft,name,ref:{id:now,name,axes:dnaDraft.axes,slack:dnaDraft.slack}}});
+    setDnaStore({...dnaStore,draft:{...dnaDraft,name,ref:{id:now,name,axes:dnaDraft.axes,slack:dnaDraft.slack,keep:dnaDraft.keep}}});
     setDnaEntryName('');
   };
   const dnaLoadSaved=e=>{
     const d=sanitizeDNA(e.dna);
-    setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes,slack:d.slack}}});
+    setDnaStore({...dnaStore,draft:{...d,name:e.name,ref:{id:e.id,name:e.name,axes:d.axes,slack:d.slack,keep:d.keep}}});
   };
   // Replaces the editor's draft, and nothing else — not a commit, exactly like IMPORT AS DNA.
   const dnaLoadCode=()=>{
@@ -9251,7 +9269,7 @@ function App(){
       const d=decodeDNA(dnaCodeIn);
       setDnaStore({...dnaStore,draft:{...d,ref:null}});
       setDnaCodeIn('');setDnaCodeErr('');
-    }catch(err){setDnaCodeErr(err.message||'Invalid DNA code.');}
+    }catch(err){setDnaCodeErr(err.codec?err.message:'Invalid DNA code — make sure you pasted the full string.');}
   };
   const dnaUnlink=()=>{if(dnaStore.applied)setDnaStore({...dnaStore,applied:null});};
   const dnaApply=()=>{
@@ -10117,7 +10135,7 @@ function App(){
                       {DNA_ARCHETYPES.map(a=>{
                         const on=dnaRef?.id==null&&dnaRef?.name===a.name;
                         return <button key={a.name} className={`tbtn${on?' on':''}`} style={{fontSize:10,padding:'4px 2px'}}
-                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes,slack:a.slack}}})}>{a.name}</button>;
+                          onClick={()=>setDnaStore({...dnaStore,draft:{...a,ref:{name:a.name,axes:a.axes,slack:a.slack,keep:a.keep}}})}>{a.name}</button>;
                       })}
                     </div>
                     <div style={{fontSize:10,color:dnaEdited?'#f59e0b':'#64748b',marginBottom:4,letterSpacing:0.5}}>

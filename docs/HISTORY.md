@@ -11,6 +11,22 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — DNA codes had no checksum, and a deleted saved DNA lost its priority order
+
+**Checksum.** A DNA code cut short in transit used to decode: the missing axes came back at their
+defaults, or a number cut mid-digit was clamped by `sanitizeDNA`. DNA codes now carry the tune
+codec's `~` checksum as their second pair (`codecSum`, moved up beside the DNA codec so both share
+it). Codes written before it still load, unchecked. A broken base64 body or a name that no longer
+URI-decodes used to surface the browser's own error text in the DNA editor (atob's "not correctly
+encoded", a `URIError`). Every error `decodeDNA` raises is now a `codecError` with the app's
+wording. See [CODEC.md](CODEC.md#the-dna-codec--a-second-separate-code).
+
+**Priority order of a deleted saved DNA.** The editor's draft keeps a `ref` snapshot of what it
+was loaded from, which stands in once the saved entry is deleted. SAVE DNA and LOAD DNA wrote
+that snapshot without `keep`. So after the entry was deleted, a draft with a custom PRIORITY
+order compared against the default order: it read "(edited)" and REVERT restored the wrong
+order. The snapshot now carries `keep`, archetype loads included.
+
 ## Changed — the Handling Balance reads three phases, and counts alignment
 
 From INT the headline is ENTRY · MID · EXIT in words (`PhaseHeadline`, `balWord`: NEUTRAL, PUSH,
