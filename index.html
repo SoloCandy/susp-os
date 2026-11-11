@@ -4441,7 +4441,19 @@ const fieldEnd=(v,step,unit)=>{
   const dp=Math.min(6,(String(step).split('.')[1]||'').length);
   return`${v.toFixed(dp)}${!unit||/^[%°×÷]/.test(unit)?'':' '}${unit}`;
 };
-const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false,hintTerm=null})=>{
+// "= FRONT": copies the front value of an F/R pair into the rear field. Used by the tyre
+// sizes and, through Field's onCopyFront, the stacked Ride Height / Track Width / Motion
+// Ratio pairs. The copy is the stored value, not the rounded display, so rear lands on
+// exactly what front holds. Field's pairs show it as "= F", matching their "… F / … R" labels:
+// "= FRONT" beside "Ride Height R" overflows a half-width sidebar column and truncates the label.
+const CopyFrontBtn=({onClick,title,text='= FRONT'})=>(
+  <button type="button" onClick={onClick} title={title}
+    style={{fontSize:10,letterSpacing:text==='= FRONT'?0.5:0,color:T_MUTED,background:'transparent',
+            border:'1px solid #1e293b',borderRadius:2,padding:text==='= FRONT'?'1px 4px':'1px 3px',flexShrink:0,
+            cursor:'pointer',fontFamily:'var(--font-mono)',lineHeight:1.2}}>{text}</button>
+);
+
+const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false,hintTerm=null,onCopyFront=null,copyTitle=null})=>{
   const mid=logMid??Math.sqrt(min*max);
   const valToT=v=>{
     if(!logScale)return(v-min)/(max-min);
@@ -4500,10 +4512,15 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
       {/* `stacked` puts the box under its label, for paired F/R fields sharing a row. */}
       <div style={stacked?{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:3,marginBottom:3}
                          :{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-        <span style={{fontSize:12,color:'#9ca3af',minWidth:0,maxWidth:'100%',overflow:'hidden',
-                      textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:6}}>
-          {label}{hint&&<Hint pad text={hint} term={hintTerm}/>}
-        </span>
+        {/* Stacked rows get a fixed-height label line so a rear field's = FRONT button
+            doesn't sit its box lower than the front field beside it. */}
+        <div style={stacked?{display:'flex',alignItems:'center',gap:2,width:'100%',height:18,minWidth:0}:{display:'contents'}}>
+          <span style={{fontSize:12,color:'#9ca3af',minWidth:0,maxWidth:'100%',overflow:'hidden',
+                        textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:onCopyFront?0:6}}>
+            {label}{hint&&<Hint pad text={hint} term={hintTerm}/>}
+          </span>
+          {onCopyFront&&<span style={{marginLeft:'auto',display:'flex'}}><CopyFrontBtn onClick={onCopyFront} title={copyTitle} text="= F"/></span>}
+        </div>
         <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
           <input ref={numRef} type="number" className="num" min={min} max={max} step={logScale?1:step}
             value={focused?draft:value}
@@ -10817,12 +10834,7 @@ function App(){
                     {/* Fixed height: REAR's = FRONT button would otherwise sit its input lower than FRONT's. */}
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,height:18}}>
                       <div style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>{label}</div>
-                      {onCopyFront&&
-                        <button type="button" onClick={onCopyFront}
-                          style={{fontSize:10,letterSpacing:0.5,color:T_MUTED,background:'transparent',
-                                  border:'1px solid #1e293b',borderRadius:2,padding:'1px 4px',
-                                  cursor:'pointer',fontFamily:'var(--font-mono)'}}
-                          title="Copy front tyre size to rear">= FRONT</button>}
+                      {onCopyFront&&<CopyFrontBtn onClick={onCopyFront} title="Copy front tyre size to rear"/>}
                     </div>
                     <input type="text" value={val}
                       onChange={e=>pCh(key)(e.target.value)}
@@ -10896,7 +10908,8 @@ function App(){
                   <Hide id="chassis.rideHeightR"><Field noSlider stacked label="Ride Height R" value={Math.round((ch.rideHeightR*1000/inMm)*10)/10}
                     onChange={v=>pCh('rideHeightR')((v*inMm)/1000)}
                     min={mLen?1.3:0.5} max={mLen?122:48} step={mLen?0.5:0.1} unit={unitLbl}
-                    hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`} hintTerm="ride-height"/></Hide>
+                    hint={`Rear ride height as shown on the car's stat/tuning screen in Forza (${unitLbl}).`} hintTerm="ride-height"
+                    onCopyFront={()=>pCh('rideHeightR')(ch.rideHeightF)} copyTitle="Copy front ride height to rear"/></Hide>
                 </div>
                 <Hide id="chassis.cgEst"><div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
                   <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>CG HEIGHT (EST.)</span>
@@ -10940,7 +10953,8 @@ function App(){
                 <Hide id="chassis.trackF"><Field noSlider stacked label="Track Width F" value={Math.round(ch.trackF*1000)} onChange={v=>pCh('trackF')(v/1000)} min={1000} max={2600} step={5} unit="mm"
                   hint="Distance between left and right wheels at the front. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm. Wider = more roll resistance." hintTerm="track-width"/></Hide>
                 <Hide id="chassis.trackR"><Field noSlider stacked label="Track Width R" value={Math.round(ch.trackR*1000)} onChange={v=>pCh('trackR')(v/1000)} min={1000} max={2600} step={5} unit="mm"
-                  hint="Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"/></Hide>
+                  hint="Distance between left and right wheels at the rear. Forza doesn't show it: look it up online, or skip it with MEASURE NAT BAL. Typical: 1400–1800 mm, often slightly wider than the front. Wider = more roll resistance." hintTerm="track-width"
+                  onCopyFront={()=>pCh('trackR')(ch.trackF)} copyTitle="Copy front track width to rear"/></Hide>
               </div>
               :<div style={{fontSize:10,color:T_MUTED,padding:'0 0 8px'}}>Track widths not needed: the MEASURE NAT BAL reading above replaces them.</div>}
             {(physMode||!ch.useRideHeightCG)&&<SrcHead label="ESTIMATES" note="not shown anywhere · typical values"
@@ -10954,7 +10968,8 @@ function App(){
               {[['F','motionRatioF','Front','chassis.motionRatioF'],['R','motionRatioR','Rear','chassis.motionRatioR']].map(([ax,key,side,hid])=>(
                 <Hide key={ax} id={hid}><Field noSlider stacked label={`Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"/></Hide>
+                  hint={`How far the ${side.toLowerCase()} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.`} hintTerm="motion-ratio"
+                  onCopyFront={ax==='R'?()=>pCh(key)(ch.motionRatioF??1.0):null} copyTitle="Copy front motion ratio to rear"/></Hide>
               ))}
             </div>}
             {/* ARB drop link, not the spring mount — separate geometry, separate field. Only the
@@ -10963,7 +10978,8 @@ function App(){
               {[['F','arbMotionRatioF','Front','chassis.arbMotionRatioF'],['R','arbMotionRatioR','Rear','chassis.arbMotionRatioR']].map(([ax,key,side,hid])=>(
                 <Hide key={ax} id={hid}><Field noSlider stacked label={`ARB Motion Ratio ${ax}`} value={ch[key]??1.0}
                   onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
-                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"/></Hide>
+                  hint={`Length of the ${side.toLowerCase()} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.`} hintTerm="arb-motion-ratio"
+                  onCopyFront={ax==='R'?()=>pCh(key)(ch.arbMotionRatioF??1.0):null} copyTitle="Copy front ARB motion ratio to rear"/></Hide>
               ))}
             </div>}
             </>}
