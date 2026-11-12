@@ -65,6 +65,18 @@ body{background:#020617;color:#cbd5e1;font-family:var(--font-mono);overflow:hidd
 @container (max-width:580px){
   .beamng-grid{grid-template-columns:1fr}
 }
+/* Forza output: one column of label … value rows, capped at 680px and centred so a value stays
+   within reading distance of its label (full width on a wide monitor put it ~1200px away). From
+   960px of panel the cards flow into two balanced columns instead (CSS columns, so a short card
+   never leaves a grid-row gap under it), each about half the panel — the width is used and a
+   row stays readable. Between 680 and 960 two columns would squeeze the meta figures, so the
+   capped column stays. Same container-query reasoning as .beamng-grid above. */
+.forza-out{max-width:680px;margin:0 auto}
+.forza-cols>*{break-inside:avoid}
+@container (min-width:960px){
+  .forza-out{max-width:none}
+  .forza-cols{column-count:2;column-gap:10px}
+}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:#0a0f1a}
 ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:2px}
@@ -5173,8 +5185,6 @@ const Readout=({label,value,unit,warn=false,decimals=1,ctx=null,primary=false,su
 // Deliberately no per-value hint icon and no boxed context badge: section-level
 // hints live on Card, and ctx reads as inline text here instead.
 // hid (a HIDE_ITEMS id) makes the row hideable from the edit view; RowGroup reads the same prop.
-// OUT_MAX_W caps the Forza column (px) so the value stays within reading distance of its label.
-const OUT_MAX_W=680;
 const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<OutRowBody {...p}/>;
 // Which edit the output is showing: App bumps it whenever ch, fe or dr change (an edit, a load,
 // undo), and not for a units toggle or a panel opening. A row compares its printed value across
@@ -13205,13 +13215,12 @@ function App(){
 
           {/* cards — scrollable */}
           <div id="zone-output" data-hint-bound ref={outMeasureRef} className={editing?'layout-editing':undefined} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
-          {/* Forza's single column of label … value rows is capped and centred: full width on a
-              wide monitor put the label ~1200 px from its value, too far to read across. BeamNG's
-              two-column grid already halves each row, so it keeps the full width.
-              containerType lets that grid query this div's own rendered width (not the
-              viewport's) to decide when to collapse to 1 column — see the .beamng-grid rule in
-              <style>. */}
-          <div style={{containerType:'inline-size',...(physMode?{}:{maxWidth:OUT_MAX_W,margin:'0 auto'})}}>
+          {/* containerType lets the output layouts query this div's own rendered width (not the
+              viewport's), which depends on the sidebar as much as the window — see the
+              .beamng-grid and .forza-out rules in <style>. A container cannot query itself, so
+              Forza's width rule sits on the forza-out div inside it. */}
+          <div style={{containerType:'inline-size'}}>
+          <div className={physMode?undefined:'forza-out'}>
           <OutGenCtx.Provider value={outGen}>
           {/* The edit view's own DONE, so it can be reached from this panel too (phones). */}
           {editing&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',marginBottom:8,
@@ -13237,11 +13246,12 @@ function App(){
               </button>))}
           </div>}
 
-          {/* Forza (horizon/motorsport): the original six full-width, single-column cards,
-              unchanged. BeamNG gets its own two-column layout below instead — see physMode
-              branch. Nothing in here renders in a physical game mode, so it carries no
-              physMode branches: BeamNG wording belongs on the SuspensionCard layout. */}
-          {!physMode&&(<>
+          {/* Forza (horizon/motorsport): the six cards in the game's menu order, one column,
+              flowing into two on a wide panel (.forza-cols). BeamNG gets its own two-column
+              layout below instead — see physMode branch. Nothing in here renders in a physical
+              game mode, so it carries no physMode branches: BeamNG wording belongs on the
+              SuspensionCard layout. */}
+          {!physMode&&(<div className="forza-cols">
           {/* 1 — ALIGNMENT */}
           <Card hid="out.card.align" title="ALIGNMENT" headerRight={alignView.head}
             hint={(()=>{
@@ -13429,7 +13439,7 @@ function App(){
               );
             })()}
           </Card>
-          </>)}
+          </div>)}
 
           {/* BeamNG: two-column, per-axle layout matching BeamNG's own tuning-menu grouping
               (Differentials/Suspension/Alignment, each Front then Rear) instead of Forza's
@@ -13649,7 +13659,8 @@ function App(){
                  style={{color:T_MUTED}}>Tip jar</a>
             </p>
           </div>
-          </div>{/* end maxWidth wrapper */}
+          </div>{/* end forza-out */}
+          </div>{/* end container */}
           </div>{/* end cards */}
 
 

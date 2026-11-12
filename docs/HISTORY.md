@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Forza's output uses a wide panel again
+
+The 680 px cap on Forza's output column (see "Pinned UI" below) fixed one problem and made
+another: on a 1920 px monitor the six cards sat in a 680 px strip down the middle of a 1300 px
+panel, most of it empty, and the cards below the fold needed a scroll. From 960 px of panel width
+the cards now flow into two balanced columns, each about half the panel, so the space is used
+and a value is still within reading distance of its label. Below 960 px the capped, centred
+column is unchanged; two columns there would squeeze the meta figures. The cap moved from the
+`OUT_MAX_W` constant into the `.forza-out` CSS rule, beside the container query that lifts it.
+
 ## Changed — Tune Check's MEASURE tab reads as the trip into the game
 
 Nothing it stores or solves changed; the layout and wording did. Step 1 listed its four settings as
