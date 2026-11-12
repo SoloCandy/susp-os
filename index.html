@@ -2866,8 +2866,8 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
 };
 
 // SOFT | ROAD | FIRM | RACE band boundaries (Hz). Single source of truth shared by
-// the hzCtx badge, the RIDE spring dial zones, and the Ride Stiffness slider markers —
-// change here and all three stay in sync.
+// the hzCtx badge, the RIDE Hz track's zones and the Ride Stiffness / Bottom-Out slider
+// bands (both through HZ_ZONES below) — change here and all of them stay in sync.
 const HZ_BANDS=[1.2,1.8,2.5];
 const HZ_BAND_COLS=CAT_RAMP; // SOFT, ROAD, FIRM, RACE — an ordered scale, not good/bad
 const hzCtx=hz=>{
@@ -2876,10 +2876,23 @@ const hzCtx=hz=>{
   if(hz<HZ_BANDS[2])return['FIRM',HZ_BAND_COLS[2]];
   return['RACE',HZ_BAND_COLS[3]];
 };
-// Slider ticks at each band boundary, labelled with the band that begins there
-// (SOFT is the implicit floor). Colour matches that band's hzCtx colour.
-const HZ_MARKERS=HZ_BANDS.map((v,i)=>({value:v,color:HZ_BAND_COLS[i+1],
-  label:['ROAD','FIRM','RACE'][i]}));
+// ── Zone tables ──
+// Each row is [lo, hi, colour, label]: the region lo ≤ v < hi, named by its label (null = an
+// unnamed region). The one shape VisTrack's `bands` and SliderTrack's `bands` both take, so a
+// slider and the readout or VISUALS track that grade the same quantity read one table — the
+// Settle Target slider once lit its markers backwards because its thresholds were a second copy.
+// A slider clips the table to its own min..max.
+const HZ_ZONES=[[HZ_MIN,HZ_BANDS[0],HZ_BAND_COLS[0],'SOFT'],[HZ_BANDS[0],HZ_BANDS[1],HZ_BAND_COLS[1],'ROAD'],
+                [HZ_BANDS[1],HZ_BANDS[2],HZ_BAND_COLS[2],'FIRM'],[HZ_BANDS[2],HZ_MAX,HZ_BAND_COLS[3],'RACE']];
+// Rebound / bump ζ (%): the Rebound ζ and Bump ζ sliders and the DAMPING ζ track.
+const ZETA_ZONES=[[10,40,CAT_RAMP[0],'UNDER'],[40,70,CAT_RAMP[1],'→BW'],[70,100,CAT_RAMP[2],'BWORTH+'],[100,200,CAT_RAMP[3],'OVER']];
+// Settle time (s): the DAMPERS table's Settle grade (slower axle, through settleGrade) and the
+// Settle Target slider. Shorter is firmer, so the ramp runs light → dark left to right.
+const SETTLE_ZONES=[[0,0.35,CAT_RAMP[3],'PLANTED'],[0.35,0.60,CAT_RAMP[2],'RACE'],[0.60,0.90,C_TAG,'SPORT'],
+                    [0.90,1.30,C_TAG,'ROAD'],[1.30,Infinity,CAT_RAMP[0],'SOFT']];
+const settleGrade=t=>{const z=SETTLE_ZONES.find(z=>t<z[1])??SETTLE_ZONES[SETTLE_ZONES.length-1];return[z[3],z[2]];};
+// Bump Ratio (% of rebound). The middle region is the ordinary one and goes unnamed.
+const BUMP_RATIO_ZONES=[[10,30,CAT_RAMP[1],'UNDER'],[30,65,CAT_RAMP[1],null],[65,100,CAT_RAMP[2],'FIRM']];
 // ── Vehicle DNA ─────────────────────────────────────────────────────────────
 // A chassis-portable handling personality: axis TARGETS, compiled into ordinary fe/dr fields in
 // PRO's target modes, never a change to feelToPhysics/computeTune. Pure functions only: App's DNA
@@ -4468,8 +4481,10 @@ const NUM_UNIT_STYLE={fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)',
 // Field's slider ends: the range in the box's own unit and step, e.g. 30% / 70%.
 const fieldEnd=(v,step,unit)=>{
   const dp=Math.min(6,(String(step).split('.')[1]||'').length);
-  return`${v.toFixed(dp)}${!unit||/^[%°×÷]/.test(unit)?'':' '}${unit}`;
+  return withUnit(v.toFixed(dp),unit);
 };
+// A number and its unit, spaced as the end labels are: none before %, °, × or ÷.
+const withUnit=(txt,unit)=>`${txt}${!unit||/^[%°×÷]/.test(unit)?'':' '}${unit||''}`;
 // "= FRONT": copies the front value of an F/R pair into the rear field. Used by the tyre
 // sizes and, through Field's onCopyFront, the stacked Ride Height / Track Width / Motion
 // Ratio pairs. The copy is the stored value, not the rounded display, so rear lands on
@@ -4482,62 +4497,44 @@ const CopyFrontBtn=({onClick,title,text='= FRONT'})=>(
             cursor:'pointer',fontFamily:'var(--font-mono)',lineHeight:1.2}}>{text}</button>
 );
 
-const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false,hintTerm=null,onCopyFront=null,copyTitle=null})=>{
+// The box is NumBox, as on every FeelSlider: an unedited box commits nothing on blur, Escape
+// cancels, and a typed value is clamped and trimmed to 6 dp. (Field once had its own input,
+// which committed on every blur and ignored Escape.) `bands` / `refs` are SliderTrack's markers.
+const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=false,logMid=null,noSlider=false,stacked=false,hintTerm=null,onCopyFront=null,copyTitle=null,bands=null,refs=null})=>{
   const mid=logMid??Math.sqrt(min*max);
-  const valToT=v=>{
-    if(!logScale)return(v-min)/(max-min);
-    if(v<=mid)return 0.5*Math.log(Math.max(v,min)/min)/Math.log(mid/min);
-    return 0.5+0.5*Math.log(v/mid)/Math.log(max/mid);
-  };
-  const tToVal=t=>{
-    if(!logScale)return min+(max-min)*t;
-    if(t<=0.5)return min*Math.pow(mid/min,t*2);
-    return mid*Math.pow(max/mid,(t-0.5)*2);
-  };
-  const t=Math.max(0,Math.min(1,valToT(value)));
-  const pct=t*100;
   const clamp=v=>Math.max(min,Math.min(max,v));
-  const [draft,setDraft]=useState(null);
-  const focused=draft!==null;
-  const commit=()=>{
-    if(draft===null)return;
-    const v=parseFloat(draft);
-    onChange(isNaN(v)?value:clamp(v));
-    setDraft(null);
-  };
-  const numRef=useRef(null), sliRef=useRef(null);
+  const scale=logScale?{
+    toT:v=>v<=mid?0.5*Math.log(Math.max(v,min)/min)/Math.log(mid/min):0.5+0.5*Math.log(v/mid)/Math.log(max/mid),
+    fromT:t=>Math.round(clamp(t<=0.5?min*Math.pow(mid/min,t*2):mid*Math.pow(max/mid,(t-0.5)*2))),
+  }:null;
+  const wrapRef=useRef(null);
   const valRef=useRef(value);
-  const draftRef=useRef(draft);
   const onChangeRef=useRef(onChange); useLayoutEffect(()=>{onChangeRef.current=onChange;},[onChange]);
   useLayoutEffect(()=>{valRef.current=value;},[value]);
-  useLayoutEffect(()=>{draftRef.current=draft;},[draft]);
+  // Wheel over the focused box or slider steps the value. The log-scale step grows past 6000 —
+  // the lb midpoint, kept as it was in kg too (where it never applies).
   const stepBy=dir=>{
-    const base=draftRef.current!==null&&!isNaN(parseFloat(draftRef.current))
-      ? parseFloat(draftRef.current) : valRef.current;
+    const base=valRef.current;
     const dynStep=logScale?(base<6000?1:Math.max(1,Math.round((base-6000)/600))):step;
     const next=clamp(base+dir*dynStep);
     const snapped=logScale?Math.round(next):Math.round(next/step)*step;
     onChangeRef.current(parseFloat(snapped.toFixed(6)));
-    if(draftRef.current!==null)setDraft(null);
   };
   useEffect(()=>{
     const onWheel=e=>{
-      const focused=document.activeElement===numRef.current||document.activeElement===sliRef.current;
-      if(!focused)return;
+      if(!wrapRef.current?.contains(document.activeElement))return;
       e.preventDefault();
       e.stopPropagation();
       stepBy(e.deltaY<0?1:-1);
     };
-    const n=numRef.current, s=sliRef.current;
-    n&&n.addEventListener('wheel',onWheel,{passive:false});
-    s&&s.addEventListener('wheel',onWheel,{passive:false});
-    return()=>{
-      n&&n.removeEventListener('wheel',onWheel);
-      s&&s.removeEventListener('wheel',onWheel);
-    };
+    const w=wrapRef.current;
+    w&&w.addEventListener('wheel',onWheel,{passive:false});
+    return()=>{w&&w.removeEventListener('wheel',onWheel);};
   },[min,max,step,logScale]);
+  const dp=logScale?0:Math.min(6,(String(step).split('.')[1]||'').length);
+  const strLabel=typeof label==='string'&&label?label:undefined;
   return(
-    <div style={{marginBottom:10,minWidth:0}}>
+    <div ref={wrapRef} style={{marginBottom:10,minWidth:0}}>
       {/* `stacked` puts the box under its label, for paired F/R fields sharing a row. */}
       <div style={stacked?{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:3,marginBottom:3}
                          :{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
@@ -4550,24 +4547,13 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
           </span>
           {onCopyFront&&<span style={{marginLeft:'auto',display:'flex'}}><CopyFrontBtn onClick={onCopyFront} title={copyTitle} text="= F"/></span>}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
-          <input ref={numRef} type="number" className="num" min={min} max={max} step={logScale?1:step}
-            value={focused?draft:value}
-            onFocus={()=>setDraft(String(value))}
-            onChange={e=>setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={e=>{if(e.key==='Enter')e.target.blur();}}/>
-          <span style={NUM_UNIT_STYLE}>{unit}</span>
-        </div>
+        <span style={{flexShrink:0}}>
+          <NumBox value={value} onCommit={onChange} min={min} max={max} dp={dp} unit={unit} label={strLabel}/>
+        </span>
       </div>
-      {!noSlider&&<input ref={sliRef} type="range" className="sli" min={0} max={1} step={0.0001}
-        value={logScale?t:undefined}
-        {...(!logScale&&{min,max,step,value})}
-        style={{background:`linear-gradient(to right,${SLI_FILL} ${pct}%,#1e293b ${pct}%)`}}
-        onChange={e=>onChange(logScale
-          ?Math.round(clamp(tToVal(parseFloat(e.target.value))))
-          :parseFloat(e.target.value))}/>}
-      {!noSlider&&<SliderEnds left={fieldEnd(min,step,unit)} right={fieldEnd(max,step,unit)}/>}
+      {!noSlider&&<SliderTrack value={value} min={min} max={max} step={step} onChange={onChange} scale={scale}
+        bands={bands} refs={refs} leftLabel={fieldEnd(min,step,unit)} rightLabel={fieldEnd(max,step,unit)}
+        label={strLabel} valueText={Number.isFinite(value)?fieldEnd(value,logScale?1:step,unit):undefined}/>}
     </div>
   );
 };
@@ -4644,13 +4630,114 @@ const SliderEnds=({left,right})=>(left==null&&right==null)?null:(
   </div>
 );
 
+// The track every Field and FeelSlider draws: the native range input, its fill, the zone bands
+// and reference ticks, the label row under it, and the end labels. The label row and number
+// box above stay with each caller. `onChange` takes a value in the slider's own space; `scale`
+// ({toT, fromT}, value ↔ 0..1) replaces the linear mapping, for Field's log-scale weight.
+//
+// Two kinds of marker, never one "lit once passed" tick (which read backwards wherever a label
+// named the region below its tick):
+//   bands — zone rows [lo, hi, colour, label], the Zone tables' shape, clipped to min..max. A
+//           tick at each inner edge, every label centred in its own region, and the region the
+//           value is in underlined, its label bright. Colour is not used here: the active
+//           region is told by brightness, the same for every slider.
+//   refs  — [{value, label?}] fixed reference points (NEUTRAL, MATCH, 50/50, the AUTO point).
+//           Always drawn, never switched on or off. A labelled one is a button that sets the
+//           slider to it.
+// Labels that would overlap are thinned by priority (the active region, then refs, then the
+// rest) after layout, and pulled inside the track's ends; see the layout effect.
+// `valueText` is the value as words for aria-valuetext; the active region's label is added.
+const SLI_EDGE='#94a3b8',SLI_REF='#e2e8f0',SLI_LBL_ON='#e2e8f0',SLI_LBL_OFF='#64748b';
+const SliderTrack=({value,min,max,step,onChange,scale=null,locked=false,bands=null,refs=null,
+                    leftLabel,rightLabel,label,valueText})=>{
+  const toT=v=>Math.max(0,Math.min(1,scale?scale.toT(v):(v-min)/(max-min)));
+  const t=toT(value);
+  const bg=`linear-gradient(to right,${SLI_FILL} ${t*100}%,#1e293b ${t*100}%)`;
+  const zs=(bands||[]).map(([lo,hi,,lbl])=>({lo:Math.max(lo,min),hi:Math.min(hi,max),label:lbl}))
+    .filter(z=>z.hi>z.lo);
+  let act=zs.findIndex(z=>value<z.hi);
+  if(act<0)act=zs.length-1;
+  const rs=(refs||[]).filter(r=>r.value>=min&&r.value<=max);
+  const labels=[
+    ...zs.map((z,i)=>z.label&&{key:`z${i}`,text:z.label,t:(toT(z.lo)+toT(z.hi))/2,prio:i===act?0:2,on:i===act}),
+    ...rs.map((r,i)=>r.label&&{key:`r${i}`,text:r.label,t:toT(r.value),prio:1,ref:r}),
+  ].filter(Boolean);
+  const rowRef=useRef(null);
+  // Positions depend only on the tables and the range, priorities on the active region, so
+  // the overlap pass re-runs when those change or the track is resized, not on every drag step.
+  const layoutKey=`${act}|${labels.map(l=>`${l.text}@${l.t.toFixed(4)}`).join(',')}`;
+  useLayoutEffect(()=>{
+    const row=rowRef.current;
+    if(!row)return;
+    const place=()=>{
+      const W=row.clientWidth;
+      if(!W)return; // in a collapsed section; the observer runs this again once it opens
+      const els=[...row.children];
+      for(const el of els){el.style.visibility='';el.style.marginLeft='0px';}
+      const R=row.getBoundingClientRect();
+      const items=els.map(el=>{const r=el.getBoundingClientRect();return{el,l:r.left-R.left,r:r.right-R.left,prio:+el.dataset.prio};});
+      for(const it of items){
+        const dx=it.l<0?-it.l:it.r>W?W-it.r:0;
+        if(dx){it.el.style.marginLeft=`${dx}px`;it.l+=dx;it.r+=dx;}
+      }
+      const kept=[];
+      for(const it of [...items].sort((a,b)=>a.prio-b.prio)){
+        if(kept.some(k=>it.l<k.r+4&&k.l<it.r+4))it.el.style.visibility='hidden';
+        else kept.push(it);
+      }
+    };
+    place();
+    if(typeof ResizeObserver==='undefined')return;
+    const ro=new ResizeObserver(place);
+    ro.observe(row);
+    return()=>ro.disconnect();
+  },[layoutKey]);
+  const at=rs.find(r=>r.label&&r.value===value);
+  const words=[valueText,zs[act]?.label,at?.label].filter(Boolean).join(', ');
+  const scaled=!!scale;
+  return(<>
+    <div style={{position:'relative'}}>
+      <input type="range" className="sli" min={scaled?0:min} max={scaled?1:max} step={scaled?0.0001:step}
+        value={scaled?t:value} aria-label={label} aria-valuetext={words||undefined} disabled={locked}
+        style={{background:bg,cursor:locked?'not-allowed':'pointer',pointerEvents:locked?'none':'auto'}}
+        onChange={e=>{if(locked)return;const v=parseFloat(e.target.value);onChange(scaled?scale.fromT(v):v);}}/>
+      {/* Region underline, then edge and ref ticks. Labels sit in the row below, clear of the
+          thumb's path: on the track they hid under the thumb exactly where it rests. */}
+      {zs.length>1&&zs[act]&&<div aria-hidden="true" style={{position:'absolute',pointerEvents:'none',top:'calc(50% + 4px)',height:2,borderRadius:1,
+          left:sliderPosOf(toT(zs[act].lo)),width:`calc(${(toT(zs[act].hi)-toT(zs[act].lo))*100}% - ${(toT(zs[act].hi)-toT(zs[act].lo))*14}px)`,
+          background:SLI_EDGE,opacity:0.55}}/>}
+      {zs.slice(1).map((z,i)=>(
+        <div key={`e${i}`} aria-hidden="true" style={{position:'absolute',left:sliderPosOf(toT(z.lo)),top:'50%',
+            transform:'translate(-50%,-50%)',pointerEvents:'none',width:1,height:8,background:SLI_EDGE}}/>
+      ))}
+      {rs.map((r,i)=>(
+        <div key={`r${i}`} aria-hidden="true" style={{position:'absolute',left:sliderPosOf(toT(r.value)),top:'50%',
+            transform:'translate(-50%,-50%)',pointerEvents:'none',width:1.5,height:10,borderRadius:1,background:SLI_REF}}/>
+      ))}
+    </div>
+    {labels.length>0&&<div ref={rowRef} style={{position:'relative',height:12,marginTop:1}}>
+      {labels.map(l=>{
+        const st={position:'absolute',left:sliderPosOf(l.t),top:0,transform:'translateX(-50%)',
+          fontSize:10,lineHeight:'12px',letterSpacing:0.5,whiteSpace:'nowrap',transition:'color .15s'};
+        return l.ref
+          ?<button key={l.key} type="button" data-prio={l.prio} tabIndex={-1} disabled={locked}
+              title={`Set to ${l.text}`} onClick={()=>onChange(l.ref.value)}
+              style={{...st,padding:0,border:'none',background:'none',fontFamily:'inherit',
+                      color:SLI_EDGE,cursor:locked?'default':'pointer'}}>{l.text}</button>
+          :<span key={l.key} data-prio={l.prio} aria-hidden="true"
+              style={{...st,color:l.on?SLI_LBL_ON:SLI_LBL_OFF}}>{l.text}</span>;
+      })}
+    </div>}
+    <SliderEnds left={leftLabel} right={rightLabel}/>
+  </>);
+};
+
 // Every FeelSlider carries Field's number box (NumBox) beside its label, as CHASSIS does, so any
 // slider can be typed. `box` configures it: `unit`, and `value`/`onCommit`/`min`/`max`/`dp`
 // overrides where the stored field isn't the slider's (Target Speed, displayed inverted and in mph
 // or km/h; POWER SPLIT, centred on 50). `readout` is secondary text to the left of the box.
-const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,readout=null,locked=false,hint=null,markers=null,box={},noSlider=false,hintTerm=null})=>{
-  const pct=((value-min)/(max-min))*100;
-  const bg=`linear-gradient(to right,${SLI_FILL} ${pct}%,#1e293b ${pct}%)`;
+// `bands` / `refs` are SliderTrack's markers, in the slider's own space.
+const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,readout=null,locked=false,hint=null,bands=null,refs=null,box={},noSlider=false,hintTerm=null})=>{
   const wrapRef=useRef(null);
   const valRef=useRef(value);
   useLayoutEffect(()=>{valRef.current=value;},[value]);
@@ -4669,6 +4756,8 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
     w&&w.addEventListener('wheel',onWheel,{passive:false});
     return()=>{w&&w.removeEventListener('wheel',onWheel);};
   },[min,max,step]);
+  const shown=box.value??value;
+  const strLabel=typeof label==='string'&&label?label:undefined;
   return(
     <div ref={wrapRef} style={{marginBottom:10,opacity:locked?0.38:1,transition:'opacity .15s'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
@@ -4679,42 +4768,14 @@ const FeelSlider=({label,value,onChange,min,max,step=1,leftLabel,rightLabel,read
           {readout&&(typeof readout==='string'
             ?<span style={{fontSize:11,color:'#9ca3af',fontFamily:'var(--font-mono)',whiteSpace:'nowrap'}}>{readout}</span>
             :readout)}
-          <NumBox value={box.value??value} onCommit={box.onCommit??onChange}
+          <NumBox value={shown} onCommit={box.onCommit??onChange}
             min={box.min??min} max={box.max??max} dp={box.dp??dp} unit={box.unit}
-            disabled={locked} label={typeof label==='string'&&label?label:undefined}/>
+            disabled={locked} label={strLabel}/>
         </div>
       </div>
-      {!noSlider&&<><div style={{position:'relative'}}>
-        <input type="range" className="sli" min={min} max={max} step={step} value={value}
-          style={{background:bg,cursor:locked?'not-allowed':'pointer',pointerEvents:locked?'none':'auto'}}
-          onChange={e=>!locked&&onChange(parseFloat(e.target.value))}/>
-        {/* Ticks only, centred on the track. Their labels sit in the row below, clear of the
-            thumb's path: on the track they hid under the thumb exactly where it rests. */}
-        {markers&&markers.map(m=>{
-          const pct=(m.value-min)/(max-min);
-          const active=m.lessThan?value<m.value:value>=m.value;
-          return(
-            <div key={m.value} style={{position:'absolute',left:sliderPosOf(pct),top:'50%',
-                transform:'translate(-50%,-50%)',pointerEvents:'none',
-                width:1.5,height:8,borderRadius:1,
-                background:active?m.color:'#1e293b',transition:'background .15s'}}/>
-          );
-        })}
-      </div>
-      {markers&&markers.some(m=>m.label)&&<div style={{position:'relative',height:12,marginTop:1}} aria-hidden="true">
-        {markers.filter(m=>m.label).map(m=>{
-          const pct=(m.value-min)/(max-min);
-          const active=m.lessThan?value<m.value:value>=m.value;
-          return(
-            <span key={m.value} style={{position:'absolute',left:sliderPosOf(pct),top:0,
-                transform:'translateX(-50%)',fontSize:10,lineHeight:'12px',letterSpacing:0.5,
-                whiteSpace:'nowrap',color:active?m.color:'#94a3b8',transition:'color .15s'}}>
-              {m.label}
-            </span>
-          );
-        })}
-      </div>}
-      <SliderEnds left={leftLabel} right={rightLabel}/></>}
+      {!noSlider&&<SliderTrack value={value} min={min} max={max} step={step} onChange={onChange}
+        locked={locked} bands={bands} refs={refs} leftLabel={leftLabel} rightLabel={rightLabel}
+        label={strLabel} valueText={Number.isFinite(shown)?withUnit(shown.toFixed(box.dp??dp),box.unit):undefined}/>}
     </div>
   );
 };
@@ -4931,9 +4992,7 @@ const VisSuspTracks=({tune,physics,natBal,target,arbLimit,physical,dispF,dispR,h
   const zF=physics.zetaF,zR=physics.zetaR,bF=physics.bumpZetaF,bR=physics.bumpZetaR;
   const pctBR=(b,r)=>r>0?Math.round(b/r*100):0;
   const crossF=bF>zF,crossR=bR>zR;
-  const HZ_ZONES=[[HZ_MIN,HZ_BANDS[0],HZ_BAND_COLS[0],'SOFT'],[HZ_BANDS[0],HZ_BANDS[1],HZ_BAND_COLS[1],'ROAD'],
-                  [HZ_BANDS[1],HZ_BANDS[2],HZ_BAND_COLS[2],'FIRM'],[HZ_BANDS[2],HZ_MAX,HZ_BAND_COLS[3],'RACE']];
-  const ZETA_ZONES=[[10,40,CAT_RAMP[0],'UNDER'],[40,70,CAT_RAMP[1],'→BW'],[70,100,CAT_RAMP[2],'BWORTH+'],[100,200,CAT_RAMP[3],'OVER']];
+  // HZ_ZONES and ZETA_ZONES are module-level (see Zone tables): the sliders read them too.
   const ARB_ZONES=physical?[]:[[Lim*0.5,Lim*0.75,CAT_RAMP[0]],[Lim*0.75,Lim*0.9,CAT_RAMP[2]],[Lim*0.9,Lim,C_WARN]];
   const fmtArb=(v,d)=>physical?Math.round(d??v).toString():v.toFixed(1);
   return(
@@ -7974,10 +8033,10 @@ const GLOSSARY=[
   {group:'Damping',terms:[
     {id:'zeta',term:'ζ (Zeta / Damping Ratio)',tier:'beginner',short:'ζ damping ratio',def:"ζ (zeta), the damping ratio, is how quickly a bounce dies out, as a percentage of critical damping. 100% is critically damped: back to rest in one smooth motion with no overshoot. SUSP.OS defaults rebound to 70% (Butterworth): one small overshoot of about 4%, then done, without feeling harsh. Below about 40% feels bouncy and underdamped; above 100% feels sluggish and overdamped, and the DAMPERS card flags rebound below 40% and any value above 100%. No single ζ is best at everything: about 59% gives the quickest settle after one bump, about 70% the flattest response to a continuous rough surface, and 100% the quickest with no overshoot at all.\n\n[INT] The Rebound ζ slider runs 10–200%, with 55–70% typical. The text beside it reads BUTTERWORTH at 68–72%, FIRM above 72% (planted but stiff) and ⚠ OVERDAMPED above 100%.",see:['critical-damping','butterworth','rebound','settle-time']},
     {id:'critical-damping',term:'Critical Damping',tier:'beginner',def:"Critical damping is the exact amount of damping that stops a spring's oscillation as fast as possible without overshooting past rest. It is the reference ζ is measured against: ζ is always a percentage of this value for that corner's spring and mass, not an absolute number. Beyond it, above 100%, the suspension creeps back to rest more slowly rather than faster.\n\n[INT] That is why SETTLE TIME never back-solves above 100% ζ: past critical damping, more damping settles slower.",see:['zeta','settle-time']},
-    {id:'butterworth',term:'Butterworth (≈70% ζ)',tier:'intermediate',def:"Butterworth damping is the ratio of about 0.707, rounded to 70% here, that gives the flattest response with no resonant peak, borrowed from Butterworth filter design. That is a frequency-domain property: in the idealised model no road frequency is amplified more than the rest, which keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% overshoots about 4%, and the quickest ±10% settle sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why Rebound ζ defaults to 70%: firm enough to control the car, soft enough not to feel harsh over bumps. The Rebound ζ slider marks it BWORTH and names only 68–72% BUTTERWORTH, since it is a point, not a region.",see:['zeta','settle-time']},
+    {id:'butterworth',term:'Butterworth (≈70% ζ)',tier:'intermediate',def:"Butterworth damping is the ratio of about 0.707, rounded to 70% here, that gives the flattest response with no resonant peak, borrowed from Butterworth filter design. That is a frequency-domain property: in the idealised model no road frequency is amplified more than the rest, which keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% overshoots about 4%, and the quickest ±10% settle sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why Rebound ζ defaults to 70%: firm enough to control the car, soft enough not to feel harsh over bumps. The Rebound ζ slider's BWORTH+ zone starts at 70%, and the text beside its box names only 68–72% BUTTERWORTH, since it is a point, not a region.",see:['zeta','settle-time']},
     {id:'rebound',term:'Rebound',tier:'beginner',def:"Rebound is damping resistance as the suspension extends — the wheel dropping back after being compressed. It controls how fast the wheel returns after a bump or during weight transfer, and settle time is calculated from it. Bump damping is usually set as a share of it.\n\nThe DAMPERS card lists rebound and bump per axle with each value's ζ, plus the rebound settle time. Values above 88% of the game's limit turn amber; if either end of a stroke would leave the click range, that stroke's pair is scaled together so its front/rear ratio holds. The header names the Damping Balance Mode and where bump comes from; the brighter figures on each row (settle time, force share, catch) are the ones that mode evens out. Rebound ζ also feeds the RESPONSE bar; bump does not.",see:['bump','zeta','bump-ratio','response']},
     {id:'bump',term:'Bump (Compression)',tier:'beginner',def:"Bump is damping resistance as the suspension compresses — the wheel moving up into a bump or under load transfer. It is usually softer than rebound: soft bump absorbs sharp hits while rebound controls how fast the wheel extends back. Bump Ratio expresses it as a percentage of rebound.\n\n[INT] BUMP MODE INDEPENDENT sets a Bump ζ directly (10–115%, default 39%) for combinations the ratio cannot express, such as soft bump with firm rebound. It is an anchor, not a per-axle value: Damping Balance Mode splits it front/rear the same way it splits rebound, and the readout shows both axles when they differ. Keep it below rebound for normal handling; ⚠ CROSSED means an axle's bump ζ is above that axle's rebound ζ.",see:['rebound','bump-ratio','bump-mode']},
-    {id:'bump-ratio',term:'Bump Ratio',tier:'beginner',def:"Bump Ratio sets bump damping as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. Lower is softer over sharp hits and more compliant on rough roads; higher gives a more consistent feel between the two strokes. 40–65% is the typical range and 56% the default. The DAMPERS card header shows it.\n\n[INT] The slider runs 10–100%, marked UNDER below 30% and FIRM at 65%; the text beside it is the resulting bump ζ, which never exceeds rebound. Switching from INDEPENDENT seeds the ratio from the bump damping in force, clamped to 10–100%, so a crossed tune (bump above rebound) does change.",see:['bump','rebound','bump-mode','character']},
+    {id:'bump-ratio',term:'Bump Ratio',tier:'beginner',def:"Bump Ratio sets bump damping as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. Lower is softer over sharp hits and more compliant on rough roads; higher gives a more consistent feel between the two strokes. 40–65% is the typical range and 56% the default. The DAMPERS card header shows it.\n\n[INT] The slider runs 10–100%, marked UNDER below 30% and FIRM from 65%; the text beside it is the resulting bump ζ, which never exceeds rebound. Switching from INDEPENDENT seeds the ratio from the bump damping in force, clamped to 10–100%, so a crossed tune (bump above rebound) does change.",see:['bump','rebound','bump-mode','character']},
     {id:'settle-time',term:'Settle Time',tier:'beginner',def:"Settle time is the seconds until the suspension is back inside ±10% of the initial bump and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. The DAMPERS card shows it per axle, from rebound ζ and ride frequency.\n\n[INT] Two figures carry the name: the DAMPERS rows and the damper table's Settle row give a quick estimate from rebound ζ and Hz alone, while the DYNAMICS chart and the table's MEAS figure measure the drawn curve, which also sees bump damping, so they can differ. The table grades the slower axle PLANTED (under 0.35 s), RACE (0.60), SPORT (0.90), ROAD (1.30) or SOFT.\n\n[INT] Settle Target, under REBOUND MODE SETTLE TIME, runs 0.10–1.50 s (default 0.80) and back-solves rebound ζ on the reference axle against the quick estimate, so bump damping does not move it. The solve stops at 100% ζ, since past critical damping more damping settles slower. Damping Bias skews the front/rear timing.",see:['zeta','rebound-mode','dynamics-chart','damper-table']},
     {id:'character',term:'Character (Stable / Agile)',tier:'beginner',short:'Character',def:"Character sets damping feel in Beginner — how quickly the suspension settles after a bump or weight transfer — by moving rebound ζ and Bump Ratio together. STABLE (left) raises rebound ζ and lowers the bump ratio: more damped, settles quickly, planted and predictable. AGILE (right) lowers rebound ζ and raises the bump ratio: lighter, livelier and quicker to change direction. Centre is the defaults, 70% rebound ζ and a 56% bump ratio; start there and match it to your driving style.\n\nIt covers only part of the rebound ζ range, so a tune with very light or very heavy rebound damping shows the handle pinned at an end; moving it then overwrites both values.\n\n[INT] It is the Rebound ζ and Bump Ratio sliders in one. Beginner always runs CHARACTER rebound mode, STANDARD damping balance and zero Damping Bias.",see:['zeta','bump-ratio','rebound','settle-time']},
     {id:'rebound-mode',term:'Rebound Mode (CHARACTER / SETTLE TIME)',tier:'intermediate',short:'Rebound Mode',def:"REBOUND MODE decides how the anchor rebound ζ is obtained. CHARACTER: you type it on the Rebound ζ slider and nothing is back-solved. SETTLE TIME: you set a target settle time in seconds and the app back-solves the ζ that hits it on the ride-reference axle. Switching carries the value across — the time you were holding becomes the equivalent ζ and vice versa — so the car does not jump; above 100% ζ the round trip lands on the underdamped ζ with the same settle time, since time alone cannot tell the two apart.\n\nIt is independent of Damping Balance Mode, which decides how the anchor becomes a front/rear pair. Under SETTLE TIME only the anchored axle is guaranteed to hit the target: TIME SYNC matches the other axle to the same time at 0 Damping Bias, while STANDARD, HYBRID and EQUAL FORCE split differently, and the damper table shows the other axle's real time.",see:['settle-time','zeta','damping-balance-mode']},
@@ -10877,7 +10936,7 @@ function App(){
                   onChange={v=>pFe('rideStiffness')(hzToRs(v))}
                   min={HZ_MIN} max={HZ_MAX} step={0.01}
                   leftLabel="SOFT" rightLabel="STIFF"
-                  markers={HZ_MARKERS}
+                  bands={HZ_ZONES}
                   box={{unit:'Hz'}}
                   readout={<span style={{fontSize:11,color:hzCol,fontFamily:'var(--font-mono)',fontWeight:700,letterSpacing:1}}>{hzCat}</span>}
                   hint="How stiff the suspension feels: SOFT = comfortable, ROAD = balanced, FIRM = sporty, RACE = stiff competition setup." hintTerm="ride-stiffness"/>
@@ -10904,7 +10963,7 @@ function App(){
                   });}}
                   min={-50} max={50} step={1}
                   leftLabel="UNDERSTEER" rightLabel="OVERSTEER"
-                  markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
+                  refs={[{value:0,label:'NEUTRAL'}]}
                   readout={balVal<-10?'UNDERSTEER':balVal>10?'OVERSTEER':'NEUTRAL'}
                   hint="Shifts handling balance. Right (OVERSTEER) = more rotation, freer rear end; left (UNDERSTEER) = more stability. Start at centre for most builds." hintTerm="balance-slider"/>
                 </div>
@@ -10916,7 +10975,7 @@ function App(){
                   }))}
                   min={-50} max={50} step={1}
                   leftLabel="STABLE" rightLabel="AGILE"
-                  markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
+                  refs={[{value:0,label:'NEUTRAL'}]}
                   readout={stAgVal===0?'NEUTRAL':stAgVal>0?'AGILE':'STABLE'}
                   hint="Damping feel. STABLE (left) = more damping, settles quickly, predictable; AGILE (right) = lighter, livelier, quicker direction changes. Start at centre." hintTerm="character"/>
                 </div>
@@ -11552,7 +11611,7 @@ function App(){
                 <FeelSlider label={label} value={ofs} onChange={setOfs} min={-r} max={r} step={0.1}
                   leftLabel={left} rightLabel={right}
                   readout={alignRound(ofs)===0?'AUTO':alignFmt(g(ofs))}
-                  markers={[{value:0,color:'#cbd5e1'}]}
+                  refs={[{value:0}]}
                   box={{value:g(align[alignRecKey(k)]),unit:'°',dp:1,min:lo,max:hi,
                     onCommit:v=>setOfs(g(v)-base)}}
                   hint={hint} hintTerm="align-intent"/>
@@ -11770,7 +11829,7 @@ function App(){
                   value={(fe.springShareAuto!==false)?(tune.coSolveAutoS??50):(fe.springShare??50)}
                   onChange={pFe('springShare')}
                   min={0} max={100} leftLabel="ARB ONLY" rightLabel="SPRING ONLY"
-                  markers={[{value:50,color:'#94a3b8',label:'50/50'}]}
+                  refs={[{value:50,label:'50/50'}]}
                   box={{unit:'% SPR'}}
                   readout={`ARB ${100-((fe.springShareAuto!==false)?(tune.coSolveAutoS??50):(fe.springShare??50))}%`}
                   hint="How much of the balance correction comes from rear springs vs the ARB split. AUTO (default) is right for most builds; turn it off to set by hand." hintTerm="spring-share"/>
@@ -11814,7 +11873,7 @@ function App(){
                 </div>}
                 <Hide id="arb.bias"><FeelSlider label="ARB Bias" value={fe.arbBias}
                   onChange={pFe('arbBias')} min={-50} max={50} leftLabel="FRONT HEAVY" rightLabel="REAR HEAVY"
-                  markers={[{value:0,color:'#94a3b8',label:'NEUTRAL'}]}
+                  refs={[{value:0,label:'NEUTRAL'}]}
                   hint={isNeutral&&fe.arbNeutralEqual
                     ?"Moves the ARB split off the springs' own proportion; centre leaves their balance untouched. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."
                     :isNeutral
@@ -11890,7 +11949,7 @@ function App(){
                   min={bottomGLo} max={bottomGHi} step={0.01} leftLabel={`${bottomGLo.toFixed(2)} g`} rightLabel={`${bottomGHi.toFixed(2)} g`}
                   // The Ride Stiffness bands, carried into g at this ride height, so both forms of
                   // the slider say ROAD / FIRM / RACE at the same spring rates.
-                  markers={HZ_MARKERS.map(m=>({...m,value:hzToBottomG(m.value)}))}
+                  bands={HZ_ZONES.map(([lo,hi,c,l])=>[hzToBottomG(lo),hzToBottomG(hi),c,l])}
                   // The box shows the g to 0.001, as the Hz grid does; the slider and the stored
                   // target keep full precision, so this changes only what is printed.
                   box={{unit:'g',value:Math.round(shownBottomG*1000)/1000}}
@@ -11901,7 +11960,7 @@ function App(){
                   value={primaryHz}
                   onChange={v=>pFe('rideStiffness')(hzToRs(v))}
                   min={HZ_MIN} max={HZ_MAX} step={0.01} leftLabel={`${HZ_MIN.toFixed(2)} Hz`} rightLabel={`${HZ_MAX.toFixed(2)} Hz`}
-                  markers={HZ_MARKERS}
+                  bands={HZ_ZONES}
                   box={{unit:'Hz'}}
                   hint={rRef==='rear'
                     ?'Rear spring frequency, the reference; the mode below derives the front. Typical: 1.0–1.8 Hz street, 1.8–2.6 Hz track.'
@@ -11983,7 +12042,7 @@ function App(){
                   value={fe.rearHzMult??1.20}
                   onChange={pFe('rearHzMult')} min={0.50} max={3.00} step={0.01}
                   leftLabel="×0.50" rightLabel="×3.00"
-                  markers={[{value:1.00,color:'#94a3b8',label:'MATCH'}]}
+                  refs={[{value:1.00,label:'MATCH'}]}
                   // The resulting Hz is in the FRONT/REAR strip right below, so no readout.
                   box={{unit:rRef==='rear'?'÷':'×'}}
                   hint={isShared
@@ -12130,23 +12189,14 @@ function App(){
                   onChange={pFe('settleTarget')} min={0.10} max={1.50} step={0.01}
                   leftLabel="0.10s" rightLabel="1.50s"
                   hint="Target settle time after a bump; the app back-solves the rebound ζ that hits it. Lower = tighter, more controlled. Higher = softer, more comfortable. Damping Bias skews the F/R timing."
-                  markers={[
-                    {value:0.35,color:CAT_RAMP[3],label:'PLANTED'},
-                    {value:0.60,color:CAT_RAMP[2],label:'RACE'},
-                    {value:0.90,color:CAT_RAMP[1],label:'SPORT'},
-                    {value:1.30,color:CAT_RAMP[0],label:'ROAD'},
-                  ]}
+                  bands={SETTLE_ZONES}
                   box={{unit:'s'}}
                   readout={`→ F ${Math.round(tune.zetaF??physics.zetaF)}% R ${Math.round(tune.zetaR??physics.zetaR)}%`} hintTerm="settle-time"/></Hide>
               : <Hide id="dampers.reboundZeta"><FeelSlider label={<>{dnaDot('reboundZeta')}Rebound ζ</>} value={fe.reboundZeta??70}
                   onChange={pFe('reboundZeta')} min={10} max={200} step={1}
                   leftLabel="10%" rightLabel="200%"
                   hint="Damping ratio for the rebound (extension) stroke. 55–70% is typical; 70% (default) is Butterworth. Above 70% feels planted but stiff; above 100% (overdamped) sluggish."
-                  markers={[
-                    {value:40, color:CAT_RAMP[1],label:'UNDER',lessThan:true},
-                    {value:70, color:CAT_RAMP[2],label:'BWORTH'},
-                    {value:100,color:CAT_RAMP[3],label:'OVER'},
-                  ]}
+                  bands={ZETA_ZONES}
                   box={{unit:'%'}}
                   readout={(()=>{
                     const z=fe.reboundZeta??70;
@@ -12182,7 +12232,7 @@ function App(){
                 <Hide id="dampers.bias"><FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
                   onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
-                  markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
+                  refs={[{value:0,label:'EQUAL'}]}
                   hint={hint} hintTerm="damping-bias"/></Hide>
               );
             })()}
@@ -12260,14 +12310,14 @@ function App(){
                     min={LANDING_PCT_MIN} max={LANDING_PCT_MAX} step={1}
                     leftLabel={`${LANDING_PCT_MIN}%`} rightLabel={`${LANDING_PCT_MAX}%`}
                     hint={`Drop height the ${ref} axle should absorb before the bump stops (the top ${Math.round(BUMP_STOP_ZONE*100)}% of travel), as a % of its ride height (now ${fmtLen(physics.landingDrop)}). Bump ζ solves to the softest that catches it, so it depends only on BOTTOM G's and this %. FLOOR means even 10% catches it.`}
-                    markers={null} box={{unit:'%'}} readout={readout} hintTerm="landing"/></Hide>;
+                    box={{unit:'%'}} readout={readout} hintTerm="landing"/></Hide>;
                 })()
               : dampingMode==='ratio'
               ? <Hide id="dampers.bumpRatio"><FeelSlider label={<>{dnaDot('bumpRatio')}Bump Ratio</>} value={fe.bumpRatio??56}
                   onChange={pFe('bumpRatio')} min={10} max={100} step={1}
                   leftLabel="10%" rightLabel="100%"
                   hint="Bump damping as a percentage of rebound. Lower = softer over sharp hits, more compliant on rough roads; higher = more consistent between strokes. 40–65% is typical."
-                  markers={[{value:30,color:CAT_RAMP[1],label:'UNDER',lessThan:true},{value:65,color:CAT_RAMP[2],label:'FIRM'}]}
+                  bands={BUMP_RATIO_ZONES}
                   box={{unit:'%'}}
                   readout={(()=>{
                     const ratio=Math.min(100,fe.bumpRatio??56);
@@ -12284,11 +12334,7 @@ function App(){
                   onChange={pFe('bumpZeta')} min={10} max={115} step={1}
                   leftLabel="10%" rightLabel="115%"
                   hint="Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear."
-                  markers={[
-                    {value:40, color:CAT_RAMP[1],label:'UNDER',lessThan:true},
-                    {value:70, color:CAT_RAMP[2],label:'BWORTH'},
-                    {value:100,color:CAT_RAMP[3],label:'OVER'},
-                  ]}
+                  bands={ZETA_ZONES}
                   readout={(()=>{
                     // Report what the axles actually run, not the raw typed number. Every
                     // Damping Balance Mode turns this into a front/rear pair, so the typed
@@ -12341,7 +12387,7 @@ function App(){
                 <Hide id="dampers.bumpBias"><FeelSlider label="Bump Bias" value={-(fe.bumpDampingBias??0)}
                   onChange={v=>pFe('bumpDampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
-                  markers={[{value:0,color:'#94a3b8',label:'EQUAL'}]}
+                  refs={[{value:0,label:'EQUAL'}]}
                   hint={hint} hintTerm="bump-balance"/></Hide>
               );
             })()}
@@ -12353,8 +12399,7 @@ function App(){
               // Balance Mode equalises is highlighted. physics.zeta* already reflect the active
               // REBOUND MODE + mode combination, so the table reads them rather than re-deriving.
               const worst=Math.max(tune.settleF,tune.settleR);
-              const[cat,col]=worst<0.35?['PLANTED',CAT_RAMP[3]]:worst<0.60?['RACE',CAT_RAMP[2]]:
-                             worst<0.90?['SPORT',C_TAG]:worst<1.30?['ROAD',C_TAG]:['SOFT',CAT_RAMP[0]];
+              const[cat,col]=settleGrade(worst); // SETTLE_ZONES, shared with the Settle Target slider
               const pct=v=>`${Math.round(v)}%`;
               // Relative front-rear difference; n>0 means front is larger.
               const rel=(f,r)=>{const a=(f+r)/2;return a>0?(f-r)/a:0;};
@@ -12518,7 +12563,7 @@ function App(){
               min={-10} max={10}
               leftLabel="STABLE"
               rightLabel="ROTATE"
-              markers={[{value:0,color:T_MUTED}]}
+              refs={[{value:0}]}
               hint={brakeGrip
                 ?`Shifts the GRIP brake bias (${gripBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`
                 :`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`}
@@ -12578,7 +12623,7 @@ function App(){
                     min={-50} max={50}
                     leftLabel="PUSH"
                     rightLabel="NEUTRAL"
-                    markers={[{value:0,color:T_MUTED}]}
+                    refs={[{value:0}]}
                     hint="Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation."
                     readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/></Hide>
                 </>}
@@ -12606,7 +12651,7 @@ function App(){
                   min={-50} max={50}
                   leftLabel="GRIP"
                   rightLabel="ROTATE"
-                  markers={[{value:0,color:T_MUTED}]}
+                  refs={[{value:0}]}
                   hint={(ch.layout==='FWD'
                     ?'Front accel lock. GRIP = more lock: exit traction, but more push. ROTATE = less lock, less understeer.'
                     :ch.layout==='RWD'
@@ -12623,7 +12668,7 @@ function App(){
                   min={-50} max={50}
                   leftLabel="STABLE"
                   rightLabel="LOOSE"
-                  markers={[{value:0,color:T_MUTED}]}
+                  refs={[{value:0}]}
                   hint={(ch.layout==='FWD'
                     ?'Front decel lock. STABLE = more lock, more entry understeer. LOOSE = less lock, freer corner entry.'
                     :ch.layout==='RWD'
@@ -12642,7 +12687,7 @@ function App(){
                     min={-30} max={AWD_CENTER_MAX-50}
                     leftLabel="FRONT"
                     rightLabel="REAR"
-                    markers={[{value:0,color:T_MUTED,label:'50/50'}]}
+                    refs={[{value:0,label:'50/50'}]}
                     hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
                     // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
                     box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',

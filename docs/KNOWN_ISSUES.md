@@ -13,6 +13,16 @@ entry is in this file, it still describes the app as it stands.
 
 ---
 
+## Open — the slider track paints as a 23 px bar, not the 3 px line its CSS describes
+
+`.sli` sets a 3 px track with 10 px of vertical padding and `background-clip:content-box`, so
+only a thin line would paint and the padding would be touch area. Every slider then sets its
+fill with an inline `background:` shorthand, which resets the clip to `border-box`, so the
+whole padded box paints. The thick bar is how every slider has looked since the file was
+first committed, so it is the design users know, and `SliderTrack`'s marker ticks (8–10 px)
+and active-region underline are sized to sit inside it. Setting `backgroundImage` instead of
+`background` would restore the thin line, and would need the markers re-sized with it.
+
 ## Open — a full browser storage is reported, not prevented
 
 The storage-full banner says when a write was refused, but nothing stops the garage reaching

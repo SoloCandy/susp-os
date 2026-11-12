@@ -161,7 +161,7 @@ the track can never contradict the number you type into the game.
 The bar and hollow dot turn amber when bump exceeds rebound, which is unusual enough
 to flag. The row prints `bump/rebound`.
 
-The zones are the Rebound ζ and Bump ζ sliders' marker thresholds, 40, 70 and 100:
+The zones are `ZETA_ZONES`, the same table the Rebound ζ and Bump ζ sliders draw their zones from, 40, 70 and 100:
 
 | Zone | Range | Label | Colour |
 |---|---|---|---|
@@ -174,8 +174,9 @@ A grey ramp, light for more damping: none of these zones is an error, and the ol
 blue/green/amber/red read as understeer, good, warning and danger. BWORTH+'s band is
 too narrow for its label at the 10-unit size, so only UNDER, →BW and OVER print.
 
-`tests-docs.js` fails if either slider's markers, or the Rebound slider's range, stop
-matching these. Change them together.
+The sliders show all four labels (their track is wider than this one).
+`tests-docs.js` fails if either slider stops passing `ZETA_ZONES`, or the Rebound slider's
+range stops matching the track's.
 
 ### Ghost rings
 

@@ -11,6 +11,33 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — slider markers lit backwards; one marker model for every slider
+
+`FeelSlider`'s `markers` lit a tick once the value reached it (`value >= m.value`, or below it
+with `lessThan`). That holds only for a label naming the region that *starts* at its tick, as
+Ride Stiffness's did. Settle Target's labels named the region *ending* at theirs, matching the
+DAMPERS table's grade (PLANTED below 0.35 s, …), so at 0.80 s the table said SPORT while the
+slider lit PLANTED and RACE and left SPORT dim; at 0.30 s it lit nothing. The thresholds were
+also a hand-typed second copy of the grade's. Three display faults had the same root:
+
+- An unlit tick was `#1e293b`, the track's own colour, so a tick ahead of the thumb vanished.
+- Labels whose colour was `#94a3b8` (ROAD, UNDER, NEUTRAL, MATCH, EQUAL, 50/50) were the same
+  lit or unlit.
+- A centre tick at 0 went dark whenever the value went below zero.
+
+Markers are now `bands` (zone rows, the active region underlined with its label bright) and
+`refs` (fixed points, never switched on or off, a labelled one clickable to set the slider). The
+graded sliders read the module-level Zone tables their readouts and VISUALS tracks use, which
+`tests-docs.js` enforces by name. Rebound ζ and Bump ζ now show `ZETA_ZONES`'s labels, the
+DAMPING ζ track's, rather than their own UNDER / BWORTH / OVER, and Ride Stiffness names SOFT.
+Labels that collide on a narrow track are hidden by priority; before, they overlapped.
+
+In the same change `Field` and `FeelSlider` share one `SliderTrack`, and `Field`'s box became a
+`NumBox`. That changed `Field`'s typing on purpose: leaving an unedited box no longer commits
+(it re-committed the shown value, clamping a stored out-of-range one), Escape now cancels,
+and a typed value is trimmed to 6 dp. Boxes now show the step's decimals (`1.60`, not `1.6`), as
+`FeelSlider`'s always did. No stored field, share code or codec id changed.
+
 ## Changed — Forza's output uses a wide panel again
 
 The 680 px cap on Forza's output column (see "Pinned UI" below) fixed one problem and made

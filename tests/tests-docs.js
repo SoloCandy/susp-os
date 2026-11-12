@@ -636,18 +636,18 @@ check('every tutorial focus key names a real zone- id', () => {
 // ── visuals ─────────────────────────────────────────────────────────────────
 section('VISUALS');
 
-// The DAMPING ζ track's zones are a second copy of the Rebound ζ / Bump ζ sliders' markers,
-// and its Hint promises the reader they are the same thresholds. Nothing ties the two in code,
-// so a marker moved on the slider would leave the track quietly describing the old scale.
-// The slider block is bounded by its label and the next `readout=`, which every FeelSlider has.
-const zetaSliderEdges = label => {
+// A slider's bands and the readout or VISUALS track grading the same quantity must read one
+// zone table (see "Zone tables" in index.html). The Settle Target slider once lit its markers
+// backwards because its thresholds were a second, hand-typed copy of the DAMPERS grade's. So:
+// each graded slider passes its table by name, and no slider passes a literal bands array.
+// The slider block is bounded by its label and the next `readout=`, which each of these has.
+const sliderBlock = label => {
   const at = SRC_NC.indexOf(label);
   if (at < 0) throw new Error(`cannot find the ${label} slider`);
   const block = SRC_NC.slice(at, SRC_NC.indexOf('readout=', at));
-  const mk = /markers=\{\[([\s\S]*?)\]\}/.exec(block);
-  if (!mk) throw new Error(`${label} slider has no markers`);
+  const bands = /bands=\{(\w+)\}/.exec(block);
   const range = /min=\{(\d+)\}\s*max=\{(\d+)\}/.exec(block);
-  return { edges: [...mk[1].matchAll(/value:\s*(\d+)/g)].map(m => +m[1]), min: range && +range[1], max: range && +range[2] };
+  return { bands: bands && bands[1], min: range && +range[1], max: range && +range[2] };
 };
 const ZETA_ZONES = (() => {
   const m = /const ZETA_ZONES=\[([^;]*)\];/.exec(SRC_NC);
@@ -656,18 +656,26 @@ const ZETA_ZONES = (() => {
   return [...m[1].matchAll(/\[(\d+),(\d+),(?:'[^']*'|\w+(?:\[\d+\])?),'([^']*)'\]/g)].map(z => [+z[1], +z[2], z[3]]);
 })();
 
-check('DAMPING ζ track zones match the Rebound ζ and Bump ζ slider markers', () => {
-  const inner = ZETA_ZONES.slice(1).map(z => z[0]);
+check('graded sliders read the shared zone tables, never a literal copy', () => {
+  const problems = [];
+  for (const [label, table] of [['}Rebound ζ<', 'ZETA_ZONES'], ['"Bump ζ"', 'ZETA_ZONES'],
+                                ['"Settle Target"', 'SETTLE_ZONES'], ['}Bump Ratio<', 'BUMP_RATIO_ZONES']]) {
+    const s = sliderBlock(label);
+    if (s.bands !== table) problems.push(`${label} slider bands ${s.bands ?? 'missing'}, expected ${table}`);
+  }
+  if ((SRC_NC.match(/bands=\{HZ_ZONES\}/g) || []).length < 2) problems.push('Ride Stiffness sliders no longer pass bands={HZ_ZONES}');
+  if (/\bbands=\{\[/.test(SRC_NC)) problems.push('a slider or track passes a literal bands array');
+  if (!/const\[cat,col\]=settleGrade\(worst\)/.test(SRC_NC)) problems.push('the DAMPERS Settle grade no longer uses settleGrade');
+  if (/\bmarkers=\{/.test(SRC_NC)) problems.push('a slider still passes the retired markers prop');
+  return problems.length === 0 || problems.join('; ');
+});
+
+check('DAMPING ζ track zones are contiguous and span the Rebound ζ slider', () => {
   const problems = [];
   for (let i = 1; i < ZETA_ZONES.length; i++)
     if (ZETA_ZONES[i][0] !== ZETA_ZONES[i - 1][1]) problems.push(`ZETA_ZONES has a gap/overlap at ${ZETA_ZONES[i][0]}`);
-  for (const label of ['}Rebound ζ<', '"Bump ζ"']) {
-    const s = zetaSliderEdges(label);
-    if (s.edges.join() !== inner.join())
-      problems.push(`${label} markers [${s.edges}] vs track zone edges [${inner}]`);
-  }
   // The track spans the Rebound slider's full range, so every reachable ζ lands on it.
-  const reb = zetaSliderEdges('}Rebound ζ<');
+  const reb = sliderBlock('}Rebound ζ<');
   const track = /<VisTrack title="DAMPING ζ" lo=\{(\d+)\} hi=\{(\d+)\}/.exec(SRC_NC);
   if (!track) problems.push('cannot find the DAMPING ζ VisTrack');
   else if (+track[1] !== reb.min || +track[2] !== reb.max)
