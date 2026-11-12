@@ -11,6 +11,56 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Tune Check's MEASURE tab reads as the trip into the game
+
+Nothing it stores or solves changed; the layout and wording did. Step 1 listed its four settings as
+separate stat rows *under* the Measure Hz field that produces them, so the first thing on the card
+was a knob most people never need. It now opens with a FRONT/REAR table of what to set, with
+Measure Hz below it as the fix for a game that won't take those rates, and a line explaining what
+natural balance is and what the reading replaces. Step 1's slider is gone: a reading off the
+game's screen is typed, and a stray drag committed a reading. Step 2's four readings, each with
+its own header and row, are one table: bars, box and a status column (NOT SET / SET / FITS /
+OFF / CHECK, CHECK winning over OFF). RESULT counts the readings typed so far.
+
+Step 1's table puts front and rear down the side and springs and bars across the top, the
+way the game's tuning screen reads.
+
+**Then five workflow fixes.** (1) Step 1 now warns when Measure Hz has moved since its reading:
+its table follows the live Hz, so it was printing springs the reading in use wasn't taken on,
+with only the small TAKEN AT line to say so. (2) Step 2's note prints the springs it needs —
+step 1's, at step 1's Hz — rather than pointing back up at a table that may show others.
+(3) Step 2's seeds re-fit from the readings typed so far (`arbPartialScaleOf`, one scale), since
+the scale in use is 540 on a car never measured and can be far off. (4) Enter in a reading box
+moves to the next. (5) Step 2's readings survive closing the window for the browser session
+(`suspos_ck_arb_reads_v1`), keyed to the step-1 reading; ✕ used to discard however many of the
+four trips into the game were done. Step 1 also says outright that its springs are only for the
+reading — the tune can run any Hz — which nothing on the card said before.
+
+**A retake at a new Measure Hz with the same number didn't save.** Step 1's box committed only
+when its text changed, so retaking 0.47 at 2.50 Hz over a 0.47 taken at 2.20 left the old Hz in
+place, mismatch and all. That box now commits on any edit (`commitOnEdit`). NumBox's "edited"
+flag reads `onInput`, because React swallows an `onChange` whose value equals the last one it saw.
+
+**Then the rest of Tune Check's work in progress.** DECODE's typed tune and a Measure Hz moved
+before step 1 is saved were component state too, lost to ✕ — a whole tune retyped, or the Hz
+the game finally accepted hunted for again. Both are now kept for the session
+(`suspos_ck_decode_v1`, `suspos_ck_probe_hz_v1`), the Hz keyed to the chassis so it doesn't
+follow you to another car. Since closing the window had been DECODE's only reset, step 1 got a
+START OVER button with it — otherwise an alignment typed for one tune stayed entered and was
+imported with the next.
+
+The four readings were also **reordered** to `1/H`, `H/H`, `H/1`, `h/h` from `1/H`, `H/1`, `H/H`,
+`h/h`, so each trip into the game moves one bar rather than both. The fit doesn't depend on order,
+and the readings are never stored, so nothing saved is affected.
+
+**Reading boxes start at the expected value.** Every unset box used to open on a flat 0.50, and
+`NumBox` only commits a draft that differs from what it opened with, so **a real reading of
+0.50, typed as shown, was silently dropped** — the box kept saying NOT SET. Each box now opens on
+what the app expects (step 1: its natural-balance estimate at Measure Hz; step 2: each row's
+balance with the scale in use), greyed as a placeholder, filled in on focus so a reading is
+usually a nudge. A seeded box commits only once edited, so tabbing past still leaves it unset
+and typing the expected value itself counts.
+
 ## Fixed — DNA codes had no checksum, and a deleted saved DNA lost its priority order
 
 **Checksum.** A DNA code cut short in transit used to decode: the missing axes came back at their

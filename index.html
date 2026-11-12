@@ -82,6 +82,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
      color:#e2e8f0;font-family:var(--font-mono);font-size:16px;padding:1px 2px;
      outline:none;text-align:right;transition:border-color .12s,background .12s}
 .num:hover{border-color:#334155}
+.num::placeholder{color:#64748b}
 .num:focus{border-color:#e2e8f033;background:#0a0f1a}
 .sli{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:1.5px;
      outline:none;margin-top:6px;cursor:pointer;display:block;border:none;padding:10px 0;
@@ -283,13 +284,18 @@ const fmtArbScale=ch=>arbScaleSplit(ch)
 const arbScaleStale=ch=>!!(ch.useMeasuredArbClick&&ch.measuredArbNat!=null&&(!ch.useMeasuredNatBal
   ||ch.measuredNatBal!==ch.measuredArbNat||(ch.measuredNatBalHz??NAT_BAL_REF_HZ)!==(ch.measuredArbNatHz??NAT_BAL_REF_HZ)));
 const ARB_SCALE_MIN=150,ARB_SCALE_MAX=1500;
-// MEASURE ARB's four setups, in the order the card lists them: rear bar at the ceiling, front at
-// the ceiling, both at the ceiling, both at half. The first two each pin mostly one axle's scale;
-// the last two read the axles against each other, which is what makes a front/rear split
-// solvable at all — with only the first two, each axle's scale rests on one 2dp reading and a
-// split solve is 3–5x worse than one averaged scale on a car whose axles match. Simulated against
-// fitArbScales, this set beat both H/half·half/H and H/H·1/1. See docs/PHYSICS.md.
-const arbProbesOf=H=>{const h=Math.round(H/2);return[[1,H],[H,1],[H,H],[h,h]];};
+// MEASURE ARB's four setups, in the order the card lists them: front at 1 with the rear at the
+// ceiling, both at the ceiling, rear at 1 with the front at the ceiling, both at half. The two
+// one-bar-at-1 setups each pin mostly one axle's scale; the two equal ones read the axles against
+// each other, which is what makes a front/rear split solvable at all — with only the first kind,
+// each axle's scale rests on one 2dp reading and a split solve is 3–5x worse than one averaged
+// scale on a car whose axles match. Simulated against fitArbScales, this set beat both
+// H/half·half/H and H/H·1/1. See docs/PHYSICS.md.
+// The ORDER is for the trip into the game, not the fit (fitArbScales is order-free): each setup
+// moves one bar from the one before — raise the front, drop the rear, then both to half — where
+// 1/H → H/1 moved both. The readings are modal state only, never stored, so reordering needs no
+// migration.
+const arbProbesOf=H=>{const h=Math.round(H/2);return[[1,H],[H,H],[H,1],[h,h]];};
 // Forza shows mech balance to 2dp, so a reading pins the true balance to within half a step.
 const ARB_READ_HALF_STEP=0.005;
 // Past this residual on any reading, no front/rear pair of scales explains the four readings —
@@ -597,6 +603,17 @@ const fitArbScales=(ch,hz,probes,reads)=>{
   }
   const res=resOf(sF,sR);
   return{split:true,sF,sR,res,misfit:Math.max(...res.map(Math.abs))>ARB_FIT_MISFIT};
+};
+// MEASURE ARB part-way through: the one scale that best explains the readings typed so far, so
+// the rows still to take can be seeded closer than the scale in use (540 on a car never measured,
+// which can be far off). One scale only — one or two readings can't separate the axles, and a
+// seed only has to be close. Readings no scale can produce are left out (they are marked CHECK);
+// null when nothing usable is typed. Not a measurement: nothing is stored from it.
+const arbPartialScaleOf=(ch,hz,probes,reads)=>{
+  const use=probes.map((p,i)=>[p,reads[i]]).filter(([[f,r],v])=>v!=null&&arbReadReachable(ch,hz,f,r,v));
+  if(!use.length)return null;
+  const bals=use.map(([[f,r],v])=>[arbProbeBalOf(ch,hz,f,r),v]);
+  return minLogScale(s=>bals.reduce((a,[b,v])=>a+(b(s,s)-v)**2,0),ARB_SCALE_MIN,ARB_SCALE_MAX);
 };
 // The ARB Balance Target's stored range. Every resolve and every solver funnels through here,
 // so the band is stated once. sanitizeTune clamps the STORED delta instead (MIN-nat..MAX-nat).
@@ -4549,7 +4566,15 @@ const Field=({label,value,onChange,min,max,step=0.01,unit='',hint=null,logScale=
 // blur commits clamped to min/max, Escape cancels. A draft left unedited never commits, so
 // focusing and leaving can't nudge a value. While it's focused and unedited it follows the value,
 // so the slider's own wheel stepping stays visible in the box.
-const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder})=>{
+// seed: for an entry that is not set yet (value NaN) but has an expected value — MEASURE's
+// readings. It shows greyed as the placeholder and fills the box on focus so only the last digit
+// needs nudging, but it is never committed by itself: a box with a seed commits only once it has
+// been edited, so tabbing through leaves it unset, and typing the seed's own value still commits
+// (the plain draft-differs rule would drop a reading that happens to equal the expectation).
+// commitOnEdit: use that edited rule even when a value is set — MEAS. NAT BAL, where retaking a
+// reading at a new Measure Hz can legitimately give the same number. onEnter runs after Enter
+// commits, for a box that hands focus on (MEASURE's readings).
+const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder,seed,commitOnEdit=false,onEnter})=>{
   const fmt=v=>{
     if(!Number.isFinite(v))return'';
     const raw=String(parseFloat(v.toFixed(6)));
@@ -4558,27 +4583,35 @@ const NumBox=({value,onCommit,min,max,dp=0,unit,label,disabled=false,placeholder
   const[draft,setDraft]=useState(null);
   const openedRef=useRef(null);
   const cancelRef=useRef(false);
+  const editedRef=useRef(false);
+  const seeded=!Number.isFinite(value)&&Number.isFinite(seed);
   useEffect(()=>{
     if(draft!==null&&draft===openedRef.current){const t=fmt(value);openedRef.current=t;setDraft(t);}
   },[value]); // eslint-disable-line
   const commit=()=>{
     const v=parseFloat(draft);
-    if(!cancelRef.current&&draft!==openedRef.current&&!isNaN(v))
+    if(!cancelRef.current&&(seeded||commitOnEdit?editedRef.current:draft!==openedRef.current)&&!isNaN(v))
       onCommit(parseFloat(Math.max(min,Math.min(max,v)).toFixed(6)));
     cancelRef.current=false;
+    editedRef.current=false;
     setDraft(null);
   };
   return(
     <span style={{display:'flex',alignItems:'center',gap:3}}>
       {/* Every .num box keeps its border, so an empty one still shows where it is. */}
-      <input type="number" className="num" aria-label={label} min={min} max={max} disabled={disabled} placeholder={placeholder}
+      <input type="number" className="num" aria-label={label} min={min} max={max} disabled={disabled} placeholder={seeded?fmt(seed):placeholder}
         step={dp>0?Number((1/10**dp).toFixed(dp)):1}
         value={draft??fmt(value)}
-        onFocus={e=>{const t=fmt(value);openedRef.current=t;setDraft(t);e.target.select();}}
+        onFocus={e=>{const t=fmt(seeded?seed:value);openedRef.current=t;editedRef.current=false;setDraft(t);
+          const el=e.target;requestAnimationFrame(()=>el.select());}}
+        // "Edited" is taken from onInput, not onChange: React drops an onChange whose value equals
+        // the one it last saw, so pasting (or autofilling) the box's own text over itself — the
+        // very case the edited rule exists for — would not count.
+        onInput={()=>{editedRef.current=true;}}
         onChange={e=>setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e=>{
-          if(e.key==='Enter')e.target.blur();
+          if(e.key==='Enter'){e.target.blur();onEnter?.();}
           else if(e.key==='Escape'){cancelRef.current=true;e.target.blur();}
         }}/>
       <span style={NUM_UNIT_STYLE}>{unit}</span>
@@ -5716,6 +5749,18 @@ const CkIntro=({children})=>(
   <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6,background:'#060c17',
                border:'1px solid #1e293b',borderRadius:2,padding:'8px 12px'}}>{children}</div>);
 
+// Tune Check's work in progress outlives the window for the browser session: DECODE's typed tune,
+// MEASURE's step-2 readings, and a Measure Hz moved before step 1 is saved. Each was component
+// state that ✕ threw away, mid-way through trips into the game to read numbers off it.
+// sessionStorage, not localStorage — none of it is a setting, and a half-done entry isn't worth
+// keeping across days. Every access guarded: storage can be blocked, and losing it only costs the
+// convenience. Keys in docs/PERSISTENCE.md.
+const ckSessGet=k=>{try{return JSON.parse(sessionStorage.getItem(k)||'null');}catch{return null;}};
+const ckSessSet=(k,v)=>{try{if(v==null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,JSON.stringify(v));}catch{}};
+// A stored object of numbers, taken only if it has every key the seed has, each finite.
+const ckNumsLike=(seed,v)=>v&&typeof v==='object'&&Object.keys(seed).every(k=>Number.isFinite(v[k]))
+  ?Object.fromEntries(Object.keys(seed).map(k=>[k,v[k]])):seed;
+
 const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,onImportDna,initialMode})=>{
   const mMass=units.mass==='kg',su=springUnit(units.spring);
   // A physical-unit game mode has no click ceiling, so the inputs here take BeamNG's own
@@ -5739,14 +5784,53 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
   // by default because the spring rate this asks for has to still exist in the game's range on
   // a heavy car; the field goes to 1.0 for anyone whose car allows it. NAT_BAL_REF_HZ stays
   // 2.5 — it is what unrecorded legacy readings were taken at, not this default.
-  const[probeHz,setProbeHz]=useState(()=>ch.useMeasuredNatBal?(ch.measuredNatBalHz??NAT_BAL_REF_HZ):NAT_BAL_PROBE_HZ);
+  // Before step 1 is saved, a Measure Hz moved off the default (usually because the game won't take
+  // the default's spring rates) is kept for the session, keyed to the car's mass and geometry so it
+  // doesn't follow you to another chassis — the softest Hz a car accepts is that car's. Once step 1
+  // is saved the reading's own Hz wins, as above.
+  const probeKey=[gameMode,ch.weight,ch.frontBias,natBalRefOf(ch).toFixed(4)].join('|');
+  const[probeHz,setProbeHz]=useState(()=>{
+    if(ch.useMeasuredNatBal)return ch.measuredNatBalHz??NAT_BAL_REF_HZ;
+    const s=ckSessGet('suspos_ck_probe_hz_v1');
+    return s&&s.key===probeKey&&Number.isFinite(s.hz)&&s.hz>=1&&s.hz<=3.5?s.hz:NAT_BAL_PROBE_HZ;
+  });
+  useEffect(()=>{
+    if(!ch.useMeasuredNatBal)ckSessSet('suspos_ck_probe_hz_v1',probeHz===NAT_BAL_PROBE_HZ?null:{key:probeKey,hz:probeHz});
+  },[probeHz]); // eslint-disable-line
   // MEASURE ARB: Forza's mech balance for each of arbProbesOf's four bar setups, in its order.
-  const[arbReads,setArbReads]=useState([null,null,null,null]);
+  // They outlive the window for the rest of the browser session (sessionStorage), because taking
+  // four of them means four trips into the game and ✕ used to throw away however many were done.
+  // Keyed to the step-1 reading they were taken on — its value, Hz and chassis fingerprint, plus
+  // the game and its bar ceiling — so they come back only for that reading: retake or clear step 1
+  // and they are someone else's springs. Session, not localStorage: a half-finished set is not
+  // worth keeping across days, and nothing here is a setting.
+  const arbReadsKey=ch.useMeasuredNatBal?[gameMode,lim?.arb,ch.measuredNatBal,ch.measuredNatBalHz??NAT_BAL_REF_HZ,
+    ch.measuredNatBalRef].join('|'):null;
+  const[arbReads,setArbReads]=useState(()=>{
+    const s=ckSessGet('suspos_ck_arb_reads_v1');
+    return s&&arbReadsKey&&s.key===arbReadsKey&&Array.isArray(s.reads)&&s.reads.length===4
+      ?s.reads.map(v=>typeof v==='number'&&v>=0.05&&v<=0.95?v:null):[null,null,null,null];
+  });
+  // Written only when the readings change, under the key they were typed against — not when the
+  // key moves under them, which would file old readings under a new step 1.
+  useEffect(()=>{
+    ckSessSet('suspos_ck_arb_reads_v1',!arbReadsKey||arbReads.every(v=>v==null)?null:{key:arbReadsKey,reads:arbReads});
+  },[arbReads]); // eslint-disable-line
   const setArbRead=i=>v=>setArbReads(p=>p.map((x,j)=>j===i?v:x));
-  const[ckSpr,setCkSpr]=useState(phys?{f:70000/LB_IN_TO_NM,r:200000/LB_IN_TO_NM}:{f:400,r:300});
-  const[ckDmp,setCkDmp]=useState(phys?{rebF:16000,rebR:10000,bumpF:6000,bumpR:4000}
-                                     :{rebF:5,rebR:5,bumpF:3,bumpR:3});
-  const[ckArb,setCkArb]=useState(phys?{f:40000,r:60000}:{f:20,r:20});
+  // Enter in a reading box hands focus to the next one, so the four (and step 1's before them)
+  // go in without reaching for the mouse. Deferred a frame: step 1's commit is what unlocks step 2.
+  const ckReadsRef=useRef(null);
+  const focusRead=i=>requestAnimationFrame(()=>ckReadsRef.current?.querySelectorAll('input.num')[i]?.focus());
+  // DECODE's typed tune, kept for the session (see ckSessGet). Keyed to the game mode, since the
+  // units — and the toe sign the alignment is typed in — follow it; a saved entry from another mode
+  // is ignored rather than read in the wrong units. A field that fails ckNumsLike takes its seed.
+  const decodeSaved=useMemo(()=>{const s=ckSessGet('suspos_ck_decode_v1');return s&&s.gameMode===gameMode?s:null;},[]); // eslint-disable-line
+  const seedSpr=phys?{f:70000/LB_IN_TO_NM,r:200000/LB_IN_TO_NM}:{f:400,r:300};
+  const seedDmp=phys?{rebF:16000,rebR:10000,bumpF:6000,bumpR:4000}:{rebF:5,rebR:5,bumpF:3,bumpR:3};
+  const seedArb=phys?{f:40000,r:60000}:{f:20,r:20};
+  const[ckSpr,setCkSpr]=useState(()=>ckNumsLike(seedSpr,decodeSaved?.spr));
+  const[ckDmp,setCkDmp]=useState(()=>ckNumsLike(seedDmp,decodeSaved?.dmp));
+  const[ckArb,setCkArb]=useState(()=>ckNumsLike(seedArb,decodeSaved?.arb));
   const[imported,setImported]=useState(false);
   const[dnaSet,setDnaSet]=useState(false);
   const flash=set=>{set(true);setTimeout(()=>set(false),2000);};
@@ -5757,15 +5841,26 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
   // makes with its NOT SET readings rather than letting 0.50 read as a measurement.
   // Vehicle Mass is excluded on purpose: it writes to ch and is shared with the sidebar, so editing
   // it is not entering a tune.
-  const[ckEntered,setCkEntered]=useState(false);
+  const[ckEntered,setCkEntered]=useState(decodeSaved?.entered===true);
   const pS=k=>v=>{setCkEntered(true);setCkSpr(p=>({...p,[k]:v}));};
   const pD=k=>v=>{setCkEntered(true);setCkDmp(p=>({...p,[k]:v}));};
   const pA=k=>v=>{setCkEntered(true);setCkArb(p=>({...p,[k]:v}));};
   // ALIGNMENT (INT+, Forza): optional, with its own gate, so an alignment can be decoded on its own
   // and a suspension decode never drags the seed angles in with it. Seeds are DEF_DR's MANUAL values.
   // Held as typed, in the game's sign; converted to the model's on import (alignInGame).
-  const[ckAl,setCkAl]=useState(()=>Object.fromEntries(ALIGN_KEYS.map(k=>[k,alignInGame(k,DEF_DR[alignManKey(k)],gameMode)])));
-  const[ckAlEntered,setCkAlEntered]=useState(false);
+  const seedAl=()=>Object.fromEntries(ALIGN_KEYS.map(k=>[k,alignInGame(k,DEF_DR[alignManKey(k)],gameMode)]));
+  const[ckAl,setCkAl]=useState(()=>ckNumsLike(seedAl(),decodeSaved?.al));
+  const[ckAlEntered,setCkAlEntered]=useState(decodeSaved?.alEntered===true);
+  // Back to the stock seeds with nothing entered. Needed once the typed tune outlived the window:
+  // closing it used to be the reset, and without one an alignment typed for one tune stayed
+  // "entered" and rode along on the next tune's IMPORT TUNE until the browser tab closed.
+  const decodeStartOver=()=>{setCkSpr(seedSpr);setCkDmp(seedDmp);setCkArb(seedArb);setCkAl(seedAl());
+    setCkEntered(false);setCkAlEntered(false);};
+  // Only what was typed is worth keeping: seeds alone are removed rather than stored.
+  useEffect(()=>{
+    ckSessSet('suspos_ck_decode_v1',ckEntered||ckAlEntered
+      ?{gameMode,spr:ckSpr,dmp:ckDmp,arb:ckArb,entered:ckEntered,al:ckAl,alEntered:ckAlEntered}:null);
+  },[ckSpr,ckDmp,ckArb,ckEntered,ckAl,ckAlEntered]); // eslint-disable-line
   const pAl=k=>v=>{setCkAlEntered(true);setCkAl(p=>({...p,[k]:v}));};
   const alIn=alignOk&&ckAlEntered;
   const masses=useMemo(()=>cornerMasses(ch),[ch]);
@@ -5825,8 +5920,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
   const probeMasses=useMemo(()=>cornerMasses(ch),[ch]);
   const probeRateF=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.front/LB_IN_TO_NM,[probeHz,probeMasses]);
   const probeRateR=useMemo(()=>(2*Math.PI*probeHz)**2*probeMasses.rear /LB_IN_TO_NM,[probeHz,probeMasses]);
-  // MEASURE ARB's four setups (arbProbesOf): one bar at the ceiling and the other at 1, swapped,
-  // then both at the ceiling and both at half. fitArbScales fits them together — one scale when
+  // MEASURE ARB's four setups (arbProbesOf): front at 1 / rear at the ceiling, both at the
+  // ceiling, the first swapped, then both at half — one bar moving per step. fitArbScales fits them together — one scale when
   // one explains all four to Forza's rounding, a front and a rear scale when it can't.
   // The ceiling, not the 70% of it this used, because the wider the bar spread the more of the
   // displayed balance the bars account for and the harder a 2dp reading pins the scale: ±5.3%
@@ -5853,9 +5948,10 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
   // The reading that fits worst, named by the misfit warning.
   const arbWorst=arbFit?arbFit.res.reduce((w,e,i)=>Math.abs(e)>Math.abs(arbFit.res[w])?i:w,0):null;
   return(
-    // No backdrop close here, unlike the other modals: MEASURE's two ARB readings live in this
-    // component's state and are taken one at a time with a trip into the game between them, so a
-    // stray click on the dim margin used to discard them silently. ✕ is the only way out.
+    // No backdrop close here, unlike the other modals: MEASURE's ARB readings are taken one at a
+    // time with a trip into the game between them, and a stray click on the dim margin used to
+    // discard them silently. ✕ is the only way out. (Work in progress now also survives ✕ for the
+    // session — ckSessGet — but a stray click shouldn't close the window mid-entry either way.)
     <div style={{position:'fixed',inset:0,background:'#000c',zIndex:999,
                  display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:2,
@@ -5898,9 +5994,13 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
               <Card title="STEP 1 · TUNE INPUTS" accent
                 headerRight={<CkChip on={ckEntered}>{ckEntered?'ENTERED':'NOT SET'}</CkChip>}>
                 <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
-                  Enter the tune's numbers as the game prints them; the fields open on stock figures, so
-                  overwrite them.
+                  {ckEntered||ckAlEntered
+                    ?"Enter the tune's numbers as the game prints them. What you type is kept until the browser tab closes; START OVER puts every field back to its stock figure."
+                    :"Enter the tune's numbers as the game prints them; the fields open on stock figures, so overwrite them."}
                 </div>
+                {(ckEntered||ckAlEntered)&&<button className="tbtn" style={{fontSize:10,marginTop:6,padding:'2px 8px'}}
+                  title="Put every field back to its stock figure and clear what was entered, to decode another tune."
+                  onClick={decodeStartOver}>START OVER</button>}
                 <CkNote>Vehicle Mass is the car, not the tune — set it before reading step 2.</CkNote>
                 <CkPhase>VEHICLE MASS — SHARED WITH THE SIDEBAR</CkPhase>
                 <Field noSlider label="Weight"
@@ -6042,130 +6142,197 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
             </div>);
           })()}
           {/* MEASURE is two procedures in a fixed order — natural balance first, because the ARB
-              scale is solved against it — so it reads as two numbered steps in one column rather
-              than the three side-by-side cards it used to be. Those put a HOW TO USE card beside
-              the thing it described, split one procedure's instructions across two places, and gave
-              no sense of which came first or how far through you were. The card titles are
-              unchanged below the step number: the tutorials and docs name them. */}
+              scale is solved against it — so it reads as two numbered steps in one column. Each
+              step is laid out as the trip into the game it describes: what to set (a FRONT/REAR
+              table, the way the game's own tuning screen pairs them), then the box for what the
+              game shows back. It used to list the four step-1 settings as separate stat rows under
+              the Hz field that produces them, and give each of step 2's four readings its own
+              header and row, so the one thing to do next was always a scroll away. The step titles
+              are unchanged below the step number: the tutorials and docs name them. */}
           {ckMode==='probe'&&(()=>{
             const natDone=!!ch.useMeasuredNatBal;
             const natStale=natBalStale(ch);
             const arbDone=!!ch.useMeasuredArbClick;
+            const arbStale=arbScaleStale(ch);
             // MEASURED is selectable once there is something to select: a fresh set of readings to
             // apply, or a scale already applied (so the toggle still reads as a pair when the modal
             // is reopened on a calibrated car and nothing has been typed yet).
             const arbCanMeasure=arbNew!=null||arbDone;
+            const arbTyped=arbReads.filter(v=>v!=null).length;
+            // One writer per stored state, so the reading, its Hz and its staleness fingerprint are
+            // always written together, and DEFAULT always nulls everything sanitizeTune expects null.
+            const setNat=v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz,
+              measuredNatBalRef:natBalRefOf(p)}));
+            const clearNat=()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}));
+            const useDefaultArb=()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbClickR:null,measuredArbNat:null,measuredArbNatHz:null}));
+            // What the app predicts this reading will be, on exactly the springs the card asks for —
+            // the number the reading replaces. Shown beside the box so it is clear what is being
+            // overridden, and so a reading far from it prompts a look at the setup before it is
+            // trusted. natDisplayModelOf answers the same question at NAT_BAL_PROBE_HZ; this follows
+            // Measure Hz instead, because that is what the springs above were solved for.
+            const natEst=isPhysical(gameMode)?natBalRefOf(ch)
+              :displayRsBalance(ch,axleRollStiffness(probeHz,probeMasses.front,ch.trackF),
+                axleRollStiffness(probeHz,probeMasses.rear,ch.trackR))+tireCorrOf(ch);
+            // What each step-2 row should read, on step 1's springs — the seed its box opens on. From
+            // the readings typed so far once there are any (arbPartialScaleOf), since they are this
+            // car; before that, from the scale in use (the default until one is measured).
+            const arbPartial=natDone&&arbTyped>0&&arbTyped<4?arbPartialScaleOf(ch,arbSolveHz,arbProbes,arbReads):null;
+            const arbExpect=arbProbes.map(([f,r])=>{
+              const b=arbProbeBalOf(ch,arbSolveHz,f,r)(arbPartial??arbScaleOf(ch,'F'),arbPartial??arbScaleOf(ch,'R'));
+              return Number.isFinite(b)?+Math.max(0.05,Math.min(0.95,b)).toFixed(2):undefined;});
+            // Step 1's springs as step 2 must keep them: at the Hz step 1 was read at, which is not
+            // the live Measure Hz once that has moved (arbHzMismatch).
+            const solveRate=m=>((2*Math.PI*arbSolveHz)**2*m/LB_IN_TO_NM*su.f).toFixed(Math.max(1,su.dp));
+            const massTxt=kg=>mMass?kg.toFixed(0)+' kg':(kg*KG_TO_LB).toFixed(0)+' lb';
+            const lead={fontSize:11,color:'#94a3b8',lineHeight:1.6};
+            const colHead={fontSize:10,letterSpacing:1,color:T_MUTED,textAlign:'right'};
+            const cell={fontFamily:'var(--font-mono)',fontSize:12,color:'#e2e8f0',textAlign:'right'};
+            const rowLbl={fontSize:11,color:'#9ca3af'};
+            const setBox={display:'grid',alignItems:'center',background:'#0a0f1a',border:'1px solid #1e293b',
+                          borderRadius:2,padding:'6px 10px'};
             return(
             <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:10}}>
               <CkIntro>
-                Two in-game readings per car that replace the app's predictions with what Forza shows —
-                take them in order, in one sitting. <TermLink id="measure-nat-bal"/>
+                Replaces the app's predictions for this car with what the game actually shows. Step 1
+                is one reading; step 2 is four more, on the same springs. Take them in order, in one
+                sitting, and change nothing on the car between readings except what each one asks
+                for. <TermLink id="measure-nat-bal"/>
               </CkIntro>
 
               <Card title="STEP 1 · NAT BAL SETUP" accent
                 headerRight={<CkChip on={natDone} warn={natStale}>
                   {natStale?'RE-MEASURE '+(ch.measuredNatBal??0).toFixed(2)
                     :natDone?'SET '+(ch.measuredNatBal??0).toFixed(2):'NOT SET'}</CkChip>}>
-                <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
-                  What this car's Mech Balance reads on the springs below with both bars at 1; it
-                  replaces the app's prediction.
+                <div style={lead}>
+                  Natural balance is the car's own Mech Balance — equal-frequency springs, both bars
+                  at 1 — before the tune moves it. The app estimates it from track widths; one
+                  reading from the game replaces that estimate.
                 </div>
-                <CkPhase>SPRINGS TO SOLVE FOR</CkPhase>
-                <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.01} unit="Hz"
-                  hint="The ride frequency the springs below are solved for. Softer is more accurate: use the lowest Hz whose spring rates the game accepts on this car." hintTerm="measure-nat-bal"/>
+                <CkPhase>1 · SET THIS IN THE GAME</CkPhase>
+                {/* Front and rear down the side, springs and bars across the top. */}
+                <div style={{...setBox,gridTemplateColumns:'minmax(0,1fr) auto auto',columnGap:18,rowGap:5}}>
+                  <span/>
+                  <span style={colHead}>SPRINGS <span style={{letterSpacing:0}}>{su.label}</span></span>
+                  <span style={colHead}>ANTI-ROLL BARS</span>
+                  <span style={rowLbl}>Front</span>
+                  <span style={cell}>{(probeRateF*su.f).toFixed(Math.max(1,su.dp))}</span>
+                  <span style={cell}>1</span>
+                  <span style={rowLbl}>Rear</span>
+                  <span style={cell}>{(probeRateR*su.f).toFixed(Math.max(1,su.dp))}</span>
+                  <span style={cell}>1</span>
+                </div>
+                <div style={{marginTop:6}}>
+                  <Field noSlider label="Measure Hz" value={probeHz} onChange={setProbeHz} min={1.0} max={3.5} step={0.01} unit="Hz"
+                    hint="The ride frequency the springs above are solved for. Softer is more accurate: use the lowest Hz whose spring rates the game accepts on this car." hintTerm="measure-nat-bal"/>
+                </div>
                 <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
-                  Corner mass {probeMasses.front.toFixed(0)} kg front, {probeMasses.rear.toFixed(0)} kg rear.
+                  Each rate is Measure Hz on that corner's mass ({massTxt(probeMasses.front)} front,
+                  {' '}{massTxt(probeMasses.rear)} rear). If the game won't go that soft, raise Measure Hz
+                  until it does. These springs are only for the reading — your tune can use any Hz.
                 </div>
-                <CkPhase>SET THESE FOUR IN FORZA</CkPhase>
-                <Stat label="Spring front" value={probeRateF*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
-                <Stat label="Spring rear"  value={probeRateR*su.f} unit={su.label} decimals={Math.max(1,su.dp)}/>
-                <Stat label="ARB front" value={1} unit=""/>
-                <Stat label="ARB rear"  value={1} unit=""/>
-                <CkPhase>THEN TYPE THE MECH BALANCE IT SHOWS</CkPhase>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MEAS. NAT BAL</span>
-                  <span style={{display:'flex',alignItems:'center',gap:6}}>
-                    {!natDone&&<span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>NOT SET</span>}
-                    <NumBox value={ch.measuredNatBal??0.50} min={0.30} max={0.90} dp={2} label="Measured natural balance"
-                      onCommit={v=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:v,measuredNatBalHz:probeHz,
-                        measuredNatBalRef:natBalRefOf(p)}))}/>
-                  </span>
+                <CkPhase>2 · TYPE THE MECH BALANCE THE GAME SHOWS</CkPhase>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                  <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,whiteSpace:'nowrap'}}>MEAS. NAT BAL</span>
+                  <NumBox value={ch.measuredNatBal??NaN} seed={+natEst.toFixed(2)} placeholder="—" min={0.30} max={0.90} dp={2}
+                    label="Measured natural balance" onCommit={setNat} commitOnEdit onEnter={()=>focusRead(0)}/>
                 </div>
-                <input type="range" className="sli" min={0.30} max={0.90} step={0.01}
-                  value={ch.measuredNatBal??0.50}
-                  onChange={e=>setCh(p=>({...p,useMeasuredNatBal:true,measuredNatBal:parseFloat(e.target.value),measuredNatBalHz:probeHz,
-                    measuredNatBalRef:natBalRefOf(p)}))}
-                  style={{width:'100%'}}/>
+                <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginTop:4}}>
+                  {natDone
+                    ?`The app estimates ${natEst.toFixed(2)} on these springs; your reading replaces it. A reading far from the estimate is worth a second look at the springs and bars.`
+                    :"The greyed number is the app's estimate on these springs — the box starts there. Type what the game shows; your reading replaces it. A reading far from the estimate is worth a second look at the springs and bars."}
+                </div>
+                {natDone&&<div style={{fontSize:10,color:T_MUTED,letterSpacing:1,marginTop:6,
+                                       display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                  <span>IN USE · TAKEN AT {(ch.measuredNatBalHz??NAT_BAL_REF_HZ).toFixed(2)} HZ</span>
+                  <button className="tbtn" style={{fontSize:10,padding:'2px 6px',color:'#6b7280'}}
+                    title="Clear this reading and go back to the app's prediction."
+                    onClick={clearNat}>CLEAR</button>
+                </div>}
+                {/* The table above follows the live Measure Hz; the reading in use was taken at the
+                    saved one. Without this the card printed one set of springs beside a reading taken
+                    on another, with only the small TAKEN AT line to tell them apart. */}
+                {arbHzMismatch&&<CkWarn>
+                  The springs above are for {probeHz.toFixed(2)} Hz, but this reading was taken at {arbSolveHz.toFixed(2)} Hz.
+                  To retake it at {probeHz.toFixed(2)}, set those springs and type the new reading; or set Measure Hz back
+                  to {arbSolveHz.toFixed(2)}.</CkWarn>}
                 {natStale&&<CkWarn>
                   The chassis has changed since this reading: the app predicted {ch.measuredNatBalRef.toFixed(2)} then
                   and {natBalRefOf(ch).toFixed(2)} now. It is still in use — retake it on the car as it stands, or CLEAR it.
                   {arbDone&&' The ARB scale below rests on it too.'}
                 </CkWarn>}
-                {natDone&&<div style={{fontSize:10,color:T_MUTED,letterSpacing:1,marginTop:6,
-                                       display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span>SAVED AT {(ch.measuredNatBalHz??NAT_BAL_REF_HZ).toFixed(2)} HZ</span>
-                  <button className="tbtn" style={{fontSize:10,padding:'2px 6px',color:'#6b7280'}}
-                    title="Clear this reading and go back to the app's prediction."
-                    onClick={()=>setCh(p=>({...p,useMeasuredNatBal:false,measuredNatBal:null,measuredNatBalHz:null,measuredNatBalRef:null}))}>CLEAR</button>
-                </div>}
               </Card>
 
               <Card title="STEP 2 · ARB SCALE SETUP" accent
                 headerRight={!lim?.arb?<CkChip>N/A</CkChip>
-                  :<CkChip on={arbDone} warn={arbScaleStale(ch)}>
-                    {arbScaleStale(ch)?'RE-MEASURE '+fmtArbScale(ch)
+                  :<CkChip on={arbDone} warn={arbStale}>
+                    {arbStale?'RE-MEASURE '+fmtArbScale(ch)
                       :arbDone?'SET '+fmtArbScale(ch):'DEFAULT '+ARB_RS_SCALE}</CkChip>}>
-                {!lim?.arb?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
-                :!natDone?<div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>Locked until step 1 is set — these readings are solved against it, on the same springs.
+                {!lim?.arb?<div style={lead}>Forza only — BeamNG's anti-roll values are already in physical units.</div>
+                :!natDone?<div style={lead}>Locked until step 1 is set — these readings are solved against it, on the same springs.
                   {/* A scale measured against a NAT BAL that has since been cleared is still being
                       applied, and this branch used to offer only the word RE-MEASURE — which needs
                       step 1 back. Dropping to the default was unreachable from anywhere, so the
                       stale scale stayed in force. DEFAULT is the escape hatch, so it lives here too. */}
-                  {arbScaleStale(ch)&&<>
+                  {arbStale&&<>
                     <CkWarn>A measured scale ({fmtArbScale(ch)}) is still in use but its NAT BAL was cleared.
                       Set step 1 again to re-measure, or drop to the default.</CkWarn>
                     <button className="tog on" style={{fontSize:10,marginTop:6}}
                       title={'Use the default click scale ('+ARB_RS_SCALE+'), the same for every car.'}
-                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbClickR:null,measuredArbNat:null,measuredArbNatHz:null}))}>
+                      onClick={useDefaultArb}>
                       USE DEFAULT {ARB_RS_SCALE}</button>
                   </>}</div>
                 :<>
-                  <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.6}}>
-                    Finds what one anti-roll bar click is worth on this car — Forza scales that slider
-                    differently on every car, and sometimes differently front and rear. <TermLink id="measure-arb-scale"/>
+                  <div style={lead}>
+                    One anti-roll bar click is worth a different stiffness on every car, sometimes
+                    different front and rear. Four readings find what it is worth on this one, so
+                    bar changes land where the game shows them. <TermLink id="measure-arb-scale"/>
                   </div>
-                  <CkNote>Keep step 1's springs, ride height and tyres unchanged through all four readings.</CkNote>
+                  <CkNote>Keep step 1's springs — {solveRate(probeMasses.front)} front, {solveRate(probeMasses.rear)} rear {su.label}, its {arbSolveHz.toFixed(2)} Hz
+                    — and its ride height and tyres. Change only the bars, one row at a time.</CkNote>
                   {arbHzMismatch&&<CkWarn>
-                    Measure Hz is {probeHz.toFixed(2)}, but step 1 was read at {arbSolveHz.toFixed(2)}, so these
-                    readings solve on step 1's springs, not the rates above. Retake step 1 to measure at {probeHz.toFixed(2)}.</CkWarn>}
-                  {/* Each reading shows how far it sits from the fitted scale(s), not just the
-                      result, because the result alone hid the one thing worth seeing: whether the
-                      readings agree. A fit through a good set and one mistyped reading is bad, and
-                      nothing said so. FITS means within Forza's own rounding; a small OFF is normal
-                      on a split fit, and only past ARB_FIT_MISFIT does it turn amber. */}
-                  {arbProbes.map(([f,r],i)=>{
-                    const val=arbReads[i],e=arbFit?arbFit.res[i]:null;
-                    return(
-                    <React.Fragment key={i}>
-                      <CkPhase>READING {i+1} — SET FRONT {f} · REAR {r}</CkPhase>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>MECH BALANCE SHOWN</span>
-                        <span style={{display:'flex',alignItems:'center',gap:6}}>
-                          {val==null&&<span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>NOT SET</span>}
-                          {arbBad[i]&&<span style={{fontSize:10,color:C_WARN,letterSpacing:1}}>CHECK</span>}
-                          {e!=null&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,
-                                                   color:Math.abs(e)>ARB_FIT_MISFIT?C_WARN:'#60a5fa'}}>
-                            {Math.abs(e)<=ARB_READ_HALF_STEP+1e-9?'FITS':'OFF '+(e>0?'+':'−')+Math.abs(e).toFixed(3)}</span>}
-                          {/* Starts at 0.50 with a NOT SET marker, exactly as step 1's box does — the
-                              readings are the same kind of entry and shouldn't open differently. An empty
-                              box (value NaN, placeholder "0.00") read as a reading of zero rather than as
-                              somewhere to type. NumBox only calls onCommit when the draft differs from
-                              what it opened with, so tabbing through a NOT SET box leaves it unset rather
-                              than committing a fictitious 0.50. */}
-                          <NumBox value={val??0.50} min={0.05} max={0.95} dp={2} label={'Mech balance with ARB '+f+' / '+r} onCommit={setArbRead(i)}/>
-                        </span>
-                      </div>
-                    </React.Fragment>);})}
+                    Measure Hz has moved to {probeHz.toFixed(2)} since step 1, so step 1's table no longer shows the springs
+                    these readings need. Use the ones listed here, or retake step 1 at {probeHz.toFixed(2)} first.</CkWarn>}
+                  <CkPhase>SET EACH ROW'S BARS, THEN TYPE THE MECH BALANCE</CkPhase>
+                  {/* One row per reading: the bars to set, the box, and a status. The status shows how
+                      far each reading sits from the fitted scale(s), not just the result, because the
+                      result alone hid the one thing worth seeing: whether the readings agree. A fit
+                      through a good set and one mistyped reading is bad, and nothing said so. FITS
+                      means within Forza's own rounding; a small OFF is normal on a split fit, and only
+                      past ARB_FIT_MISFIT does it turn amber. CHECK wins over OFF: a reading no bar
+                      stiffness can produce has no meaningful distance from the fit. */}
+                  <div ref={ckReadsRef} style={{...setBox,gridTemplateColumns:'auto auto auto auto minmax(0,1fr)',columnGap:12,rowGap:4}}>
+                    <span style={{...colHead,textAlign:'left'}}>#</span>
+                    <span style={colHead}>ARB F</span><span style={colHead}>ARB R</span>
+                    <span style={{...colHead,textAlign:'left'}}>MECH BAL</span><span/>
+                    {arbProbes.map(([f,r],i)=>{
+                      const val=arbReads[i],e=arbFit?arbFit.res[i]:null;
+                      const status=val==null?{t:'NOT SET',c:T_MUTED}
+                        :arbBad[i]?{t:'CHECK',c:C_WARN}
+                        :e!=null?{t:Math.abs(e)<=ARB_READ_HALF_STEP+1e-9?'FITS':'OFF '+(e>0?'+':'−')+Math.abs(e).toFixed(3),
+                                  c:Math.abs(e)>ARB_FIT_MISFIT?C_WARN:'#60a5fa'}
+                        :{t:'SET',c:T_MUTED};
+                      return(
+                      <React.Fragment key={i}>
+                        <span style={{...rowLbl,color:T_MUTED}}>{i+1}</span>
+                        <span style={cell}>{f}</span><span style={cell}>{r}</span>
+                        {/* An unset box shows, greyed, what the app expects this row to read with the
+                            scale in use, exactly as step 1's shows its estimate — so the reading is
+                            usually a nudge of the last digit, and a mistyped one stands out. NumBox's
+                            seed is never committed on its own: tabbing through leaves the row NOT SET,
+                            and typing the expected value itself still commits. These boxes used to open
+                            on a flat 0.50 under NumBox's draft-differs rule, so a real 0.50 typed as
+                            shown was silently dropped. */}
+                        <NumBox value={val??NaN} seed={arbExpect[i]} placeholder="—" min={0.05} max={0.95} dp={2}
+                          label={'Mech balance with ARB '+f+' / '+r} onCommit={setArbRead(i)} onEnter={()=>focusRead(i+1)}/>
+                        <span style={{fontFamily:'var(--font-mono)',fontSize:10,letterSpacing:1,color:status.c,
+                                      textAlign:'right',whiteSpace:'nowrap'}}>{status.t}</span>
+                      </React.Fragment>);})}
+                  </div>
+                  {arbTyped<4&&<div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginTop:4}}>
+                    {arbPartial!=null
+                      ?`Greyed numbers are predicted from the readings so far (about ${Math.round(arbPartial)} a click); each box starts there. Type what the game shows.`
+                      :`Greyed numbers are what the scale in use (${fmtArbScale(ch)}) predicts; each box starts there. Type what the game shows.`}
+                    {' '}Enter moves to the next box, and readings are kept until you close the browser tab.</div>}
                   {arbBad.some(Boolean)&&
                     <CkWarn>A reading marked CHECK doesn't fit any plausible bar stiffness. Check the bars, springs and MEAS. NAT BAL match this card.</CkWarn>}
                   {arbFit?.misfit&&
@@ -6175,7 +6342,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
                   <CkPhase>RESULT</CkPhase>
                   {arbFit==null
                     ?<div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
-                      All four readings are needed before a scale can be measured.</div>
+                      {arbTyped} of 4 readings typed — the scale appears once all four are in.</div>
                     :arbFit.split
                     ?<>
                       <Stat label="Front click scale" value={arbFit.sF} unit="" decimals={0}/>
@@ -6200,7 +6367,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
                   <div style={{display:'flex',gap:3}}>
                     <button className={'tog'+(arbDone?'':' on')} style={{fontSize:10}}
                       title={'Use the default click scale ('+ARB_RS_SCALE+'), the same for every car.'}
-                      onClick={()=>setCh(p=>({...p,useMeasuredArbClick:false,measuredArbClick:null,measuredArbClickR:null,measuredArbNat:null,measuredArbNatHz:null}))}>
+                      onClick={useDefaultArb}>
                       DEFAULT {ARB_RS_SCALE}</button>
                     <button className={'tog'+(arbDone?' on':'')} style={{fontSize:10,opacity:arbCanMeasure?1:0.35}} disabled={!arbCanMeasure}
                       title={arbCanMeasure?"Use the scale measured from these readings. Saved with the chassis and shared in its build code."
@@ -6209,6 +6376,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
                         measuredArbNat:p.measuredNatBal,measuredArbNatHz:p.measuredNatBalHz??NAT_BAL_REF_HZ}));}}>
                       MEASURED {arbNewTxt??(arbDone?fmtArbScale(ch):'—')}</button>
                   </div>
+                  <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5,marginTop:4}}>
+                    DEFAULT is the same {ARB_RS_SCALE} on every car. MEASURED is this car's own, saved with the chassis.</div>
                   {/* Both sides rounded: MEASURED stores Math.round, but ids 74/90 decode raw numbers,
                       so a fractional scale from an old or hand-made code would otherwise never compare
                       equal and this would nag forever on a car that is already exactly where it wants. */}
@@ -6216,7 +6385,7 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
                     <div style={{fontSize:10,color:'#60a5fa',lineHeight:1.5,marginTop:6}}>
                       The readings above now give {arbNewTxt}, and {fmtArbScale(ch)} is in use —
                       tap MEASURED again to move to it.</div>}
-                  {arbScaleStale(ch)&&<CkWarn>
+                  {arbStale&&<CkWarn>
                     MEAS. NAT BAL has changed since this scale was measured ({ch.measuredArbNat.toFixed(2)} at {(ch.measuredArbNatHz??NAT_BAL_REF_HZ).toFixed(2)} Hz).
                     It's still in use; take all four readings again and tap MEASURED.</CkWarn>}
                 </>}
@@ -7757,7 +7926,7 @@ const GLOSSARY=[
     {id:'arb',term:'ARB (Anti-Roll Bar)',tier:'beginner',def:"A bar linking the left and right wheels on one axle. It resists body roll without stiffening the ride vertically, because it only engages when one side compresses relative to the other. Stiffer bars mean less roll, but less compliance when one wheel hits a bump. The front/rear ARB split is the main lever for mechanical handling balance. A stiffer front gives more understeer and a stiffer rear more oversteer. In BEG the Balance slider moves it.\n\nIn Forza the card gives clicks from 1 up to the game's limit: 65 in Horizon, 40 in Motorsport. Values above 88% of the limit turn amber, and FLOOR or CEILING marks a bar pinned at 1 click or the limit. Each row also shows the bar's % of that axle's roll stiffness and the axle's % of total ARB. BeamNG gives Anti-Roll Spring Rate in N/m instead.\n\n[INT] In the ANTI-ROLL BARS section, Stiffness Mode sets the total and Balance Mode the split. MAN takes clicks directly.",see:['roll-stiffness','arb-scale','stiffness-mode','balance-mode']},
     {id:'mech-balance',term:'Mech Balance (Mechanical Balance)',tier:'beginner',short:'Mech Balance',def:"The rear axle's share of total roll stiffness (springs + ARBs), on a 0–1 scale where 0.50 is an even split. Higher means more rear roll resistance and more oversteer tendency; lower means more front and more understeer. Forza displays it as Mech Balance, and Tune Check's MEASURE steps ask you to type it in.\n\nForza's reading also counts each tyre flexing in series with the suspension, plus a small tyre-width term. So it moves less than the raw spring and bar split, and the app reports it the same way. It describes roll stiffness, not grip.\n\n[INT] The VISUALS roll split puts its divide where this reading sits.\n\n[PRO] GRIP BIAS is the separate at-the-limit grip tendency. The MECH chip shows Mech Balance with its Δ from natural: blue is more rear-biased than natural, amber more front-biased. The Mech Balance Target, MECH, CO-SOLVE and Hz MECH all aim at the displayed figure.",see:['natural-balance','balance-slider','tyre-compliance','mech-balance-target','grip-bias']},
     {id:'tyre-compliance',term:'Tyre Compliance',tier:'pro',def:"The tyre's own flex, acting like a spring. In Forza it adds to the suspension's the way two springs stacked end to end do, so an axle reads K·Kt/(K+Kt). The stiffer an axle's springs and bars, the more the tyre limits it, which compresses front/rear differences. Doubling a spring rate therefore moves Forza's Mech Balance less than you'd expect. The app models the tyre as a 3.94 Hz spring on a 269 kg corner, stiffening with the square root of load. That was fitted to 33 in-game readings on three cars, and tyre width showed no measurable effect. BeamNG stays suspension-only.\n\nThe FIT? badge on the Handling Balance bar shows where figures are extrapolated rather than wrong: spring Hz outside 2.5–3.5, corner mass outside 269–476 kg, or tyre width outside 215–335 mm. LIFT means an inside wheel unloads at 1 g, so more bar on that end stops moving the balance. CG (amber) means the ride-height CG estimate is clamped. Every reading holds only at the tyre pressures it was taken at.",see:['mech-balance','natural-balance','arb-scale']},
-    {id:'arb-scale',term:'ARB Scale',tier:'beginner',def:"How much roll stiffness one ARB click is worth. Forza scales its ARB slider differently on every car. Unless you measure yours, the app uses a shared default of 540 (N·m/rad per click per m² of track). The scale turns solved roll stiffness into clicks, so a measured scale moves the ARB outputs.\n\nMeasure it with STEP 2 · ARB SCALE SETUP in Tune Check's MEASURE tab. It is Forza only and comes after step 1. Keep step 1's springs, ride height and tyres. Take four readings: front 1 and rear at the game limit, the reverse, both at the limit, and both at half. Type the Mech Balance shown each time. If one scale (150–1500) explains all four within Forza's rounding, both axles share it; if not, the front and rear get their own scales. MEASURED on SCALE IN USE applies it, and DEFAULT returns to 540. It saves with the chassis; scales from before the tyre-model update were cleared.\n\nIt turns RE-MEASURE when the natural balance reading changes or is cleared.\n\n[PRO] The BALANCE section then also shows ARB SCALE: RE-MEASURE.",see:['arb','natural-balance','tune-check']},
+    {id:'arb-scale',term:'ARB Scale',tier:'beginner',def:"How much roll stiffness one ARB click is worth. Forza scales its ARB slider differently on every car. Unless you measure yours, the app uses a shared default of 540 (N·m/rad per click per m² of track). The scale turns solved roll stiffness into clicks, so a measured scale moves the ARB outputs.\n\nMeasure it with STEP 2 · ARB SCALE SETUP in Tune Check's MEASURE tab. It is Forza only and comes after step 1. Keep step 1's springs, ride height and tyres. Take four readings: front 1 and rear at the game limit, both at the limit, rear 1 and front at the limit, and both at half. Type the Mech Balance shown each time. If one scale (150–1500) explains all four within Forza's rounding, both axles share it; if not, the front and rear get their own scales. MEASURED on SCALE IN USE applies it, and DEFAULT returns to 540. It saves with the chassis; scales from before the tyre-model update were cleared.\n\nIt turns RE-MEASURE when the natural balance reading changes or is cleared.\n\n[PRO] The BALANCE section then also shows ARB SCALE: RE-MEASURE.",see:['arb','natural-balance','tune-check']},
     {id:'natural-balance',term:'Natural Balance (Natural Mech Balance)',tier:'beginner',short:'Natural balance',def:"The Mech Balance a car shows on equal front/rear ride frequency with the ARBs backed off: the chassis's own lean, and the baseline for everything else. Unmeasured, the app predicts it at 2.2 Hz springs from track widths, corner masses and tyres. A MEASURE NAT BAL reading, taken at your chosen Hz, replaces that.\n\nTo measure, open STEP 1 · NAT BAL SETUP in Tune Check's MEASURE tab. Set the listed springs for Measure Hz (1.0–3.5, default 2.20; softer pins it more precisely), with ARBs at 1. Then type the Mech Balance shown (0.30–0.90). It saves with its Hz, and CLEAR returns to the prediction. It turns RE-MEASURE once chassis edits move the prediction by 0.01 or more. A reading shifts the Handling Balance bar's CHAS contributor.\n\n[INT] VISUALS marks it as the NAT tick, and it trims the AWD CENTRE SPLIT recommendation.\n\n[PRO] It is the Balance Guide's NATURAL row and anchors NATURAL target mode, CHASSIS balance mode and MATCH CHASSIS; GRIP BIAS is read there. A reading hides the track widths; wheelbase stays.",see:['mech-balance','balance-slider','arb-scale','bal-chassis','balance-guide']},
   ]},
   {group:'ARB Modes',terms:[
@@ -7853,9 +8022,9 @@ const GLOSSARY=[
     {id:'dna-match',term:'DNA Match',tier:'pro',def:"After a Vehicle DNA is applied the tune stays linked to it: a chip in the sidebar names it, the sliders it set carry a mark, and VISUALS shows DNA MATCH with each axis's TARGET and NOW. ✓ means the axis still sits where APPLY left it; amber ≠ means it has moved beyond rounding since APPLY; MODE means that control is no longer in the mode the DNA set, so the value is not comparable.\n\nTARGET is the DNA's own target, which can differ from what APPLY achieved when an axis gave way or used its slack; drift is judged against the achieved value. Loading a garage build replaces the link with the DNA saved in that entry, if any. A FACTORY preset, a share code's feel or drivetrain parts, RESET, or leaving PRO removes it.",see:['dna','dna-priority','garage','share-code']},
   ]},
   {group:'Tools',terms:[
-    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its bars, springs and dampers exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, so MEASURE readings survive a stray click.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also opens with an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports convert the Anti-Roll Spring Rate to roll stiffness through the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
-    {id:'measure-nat-bal',term:'MEASURE NAT BAL',tier:'beginner',def:"Step 1 of Tune Check's MEASURE tab: an in-game reading of this car's natural mech balance that replaces the app's prediction. Set the spring rates it lists (solved for the Measure Hz from each corner's mass) and both bars to 1 in Forza, then type the Mech Balance the game shows (0.30–0.90). The reading and its Hz save with the chassis and travel in its share code; CLEAR returns to the prediction.\n\nMeasure Hz runs 1.0–3.5, default 2.20. Softer is more accurate: at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins this result, and step 2's ARB scale, more tightly. Use the lowest Hz whose rates the game accepts. If the chassis later changes enough to move the prediction by 0.01 or more, the step reads RE-MEASURE: a reading describes one car in one state and is used as-is until you retake or clear it.\n\n[PRO] MEASURE NAT BAL in the BALANCE section opens this step. Once set, the reading drives NATURAL, GRIP BIAS and every target measured from natural, and the track-width fields hide, since it already reflects the car's real geometry, track width upgrades included; wheelbase stays for flat ride and brake balance.",see:['natural-balance','measure-arb-scale','tune-check','mech-balance']},
-    {id:'measure-arb-scale',term:'ARB SCALE SETUP',tier:'beginner',def:"Step 2 of Tune Check's MEASURE tab, Forza only. Forza scales its ARB slider differently per car; this finds what one click is worth on this one, so bar-driven balance lands where the game shows it. It unlocks once step 1 is set and is solved against it: keep step 1's springs, ride height and tyres, set the bars each of the four readings lists (front 1 with rear at the ceiling, the reverse, both at the ceiling, both at half) and type the Mech Balance Forza shows.\n\nThe four are fitted together. If one scale puts every reading within Forza's two-decimal rounding, both axles share it, because the readings cannot tell them apart. If not, the front and rear each get their own scale. Each reading shows FITS, or how far it sits OFF the fit, so you can see whether they agree. When no front/rear pair explains them, a warning names the reading that fits worst; if all four are typed as Forza showed them, the fit is still the best estimate. SCALE IN USE: MEASURED applies the result, DEFAULT returns to the shared 540. A reading no plausible bar fits shows CHECK.\n\nThe scale saves with the chassis and travels in its share code. If step 1 is re-taken or cleared, it reads RE-MEASURE and stays in use until you re-measure or pick DEFAULT. Changing Measure Hz after step 1 does not move the solve, which stays at step 1's Hz.",see:['arb-scale','measure-nat-bal','tune-check','arb']},
+    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its bars, springs and dampers exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, and what you have typed in either tab is kept until the browser tab closes.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also opens with an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports convert the Anti-Roll Spring Rate to roll stiffness through the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
+    {id:'measure-nat-bal',term:'MEASURE NAT BAL',tier:'beginner',def:"Step 1 of Tune Check's MEASURE tab: an in-game reading of this car's natural mech balance that replaces the app's prediction. Set the spring rates it lists (solved for the Measure Hz from each corner's mass) and both bars to 1 in Forza, then type the Mech Balance the game shows (0.30–0.90). The box starts on the app's own estimate, greyed, so the reading is usually a small nudge; it only counts once you edit it. Those springs are only for the reading: your tune can use any Hz. The reading and its Hz save with the chassis and travel in its share code; CLEAR returns to the prediction.\n\nMeasure Hz runs 1.0–3.5, default 2.20. Softer is more accurate: at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins this result, and step 2's ARB scale, more tightly. Use the lowest Hz whose rates the game accepts. If the chassis later changes enough to move the prediction by 0.01 or more, the step reads RE-MEASURE: a reading describes one car in one state and is used as-is until you retake or clear it.\n\n[PRO] MEASURE NAT BAL in CHASSIS, under FROM THE GAME, opens this step. Once set, the reading drives NATURAL, GRIP BIAS and every target measured from natural, and the track-width fields hide, since it already reflects the car's real geometry, track width upgrades included; wheelbase stays for flat ride and brake balance.",see:['natural-balance','measure-arb-scale','tune-check','mech-balance']},
+    {id:'measure-arb-scale',term:'ARB SCALE SETUP',tier:'beginner',def:"Step 2 of Tune Check's MEASURE tab, Forza only. Forza scales its ARB slider differently per car; this finds what one click is worth on this one, so bar-driven balance lands where the game shows it. It unlocks once step 1 is set and is solved against it: keep step 1's springs, ride height and tyres, set the bars each of the four readings lists (front 1 with rear at the ceiling, both at the ceiling, rear 1 with front at the ceiling, both at half — one bar changes per step until the last) and type the Mech Balance Forza shows. Each box starts, greyed, on what the scale in use predicts for its row, refitted from your own readings once you have typed one, and counts only once you edit it. Enter moves to the next box, and the readings are kept until the browser tab closes, so closing the window between trips into the game loses nothing.\n\nThe four are fitted together. If one scale puts every reading within Forza's two-decimal rounding, both axles share it, because the readings cannot tell them apart. If not, the front and rear each get their own scale. Each reading shows FITS, or how far it sits OFF the fit, so you can see whether they agree. When no front/rear pair explains them, a warning names the reading that fits worst; if all four are typed as Forza showed them, the fit is still the best estimate. SCALE IN USE: MEASURED applies the result, DEFAULT returns to the shared 540. A reading no plausible bar fits shows CHECK.\n\nThe scale saves with the chassis and travels in its share code. If step 1 is re-taken or cleared, it reads RE-MEASURE and stays in use until you re-measure or pick DEFAULT. Changing Measure Hz after step 1 does not move the solve, which stays at step 1's Hz.",see:['arb-scale','measure-nat-bal','tune-check','arb']},
     {id:'dna',term:'Vehicle DNA',tier:'beginner',def:"A Vehicle DNA is a set of handling targets the app turns into a complete tune for the current car, so one character can move from car to car. Building and applying one is PRO; below PRO the DNA window only says so.\n\n[PRO] Nine axes: PLATFORM (front Hz), PITCH (rear ÷ front Hz), ARB SHARE (% of roll stiffness from bars), BALANCE (mech balance past grip-neutral, + toward oversteer), REBOUND ζ, BUMP RATIO, DAMP BIAS, DIFF EXIT, DIFF ENTRY. APPLY writes them through fixed modes (FRONT ride reference, Hz stiffness, MULTIPLIER, SHARE %, MECH balance on a GRIP target, CHARACTER, BUMP RATIO, TIME SYNC, AUTO diff), listed under SWITCHES when they change; it overwrites the tune once and ↩ undoes it.\n\n[PRO] The four archetypes (MOMENTUM, RALLY / B-ROAD, GT3, TAIL-HAPPY RWD) are hypotheses to tune in game, not calibration. MY DNA saves DNAs as garage entries (LOAD DNA fills the editor, it does not apply); CODE copies or pastes one DNA on its own code, separate from tune codes. Leaving PRO with a DNA applied changes the tune (BEG and INT cannot use MECH balance; BEG also loses TIME SYNC and damping bias) and removes the link, which returning to PRO does not restore.",see:['dna-priority','dna-match','grip-neutral','tune-check']},
     {id:'dna-priority',term:'DNA Priority & Slack',tier:'pro',short:'DNA priority',def:"How a Vehicle DNA resolves targets that the game's limits will not let it hit together. PRIORITY ranks the five axes that can give way (PLATFORM, BALANCE, ARB SHARE, PITCH, REBOUND ζ; BUMP RATIO rides with REBOUND ζ), most protected first. When an axis misses, APPLY tries moving less-protected axes, nearest clearing value first, and never breaks an axis ranked above the one it moves; if nothing clears the miss, the miss is accepted and reported. The setting axes (DAMP BIAS, DIFF EXIT, DIFF ENTRY) are written verbatim and always land.\n\nACCEPT ± is per-axis slack: how far an outcome axis may land from its target and still count as met, on top of the allowance for game rounding. 0 is a point target.\n\nON THIS CHASSIS previews every axis: ✓ on target (or within ± slack), moved to keep a higher-ranked axis, missed with the cause (such as the rear axle leaving the Hz band or bars at their limit), or not expressible with this diff (a SPORT diff has no ENTRY).",see:['dna','dna-match']},
     {id:'share-code',term:'Share Code',tier:'beginner',def:"SHARE → COPY CODE turns the tune into a compact text code; COPY LINK wraps it in a URL that opens SUSP.OS with it staged. Include any of CHASSIS (weight, bias, tyres, geometry, layout, MEASURE readings), FEEL (ride, damping, ARB, balance) and DRIVETRAIN (build type, diff, brakes). Codes never carry garage entries, and always record the author's tier.\n\nLOAD CODE: paste a code or link, READ CODE to stage it; nothing moves until APPLY SELECTED. Parts are CHASSIS, SPRINGS (which also carries the game mode), DAMPERS, ARB and DRIVETRAIN, each marked same as yours or from the code; only ticked parts are taken, and the ticks persist. TO GARAGE saves the merged result as a new entry and leaves the tune alone. A shared link stages the same way.\n\nThe sender's tier is shown, never applied. Taking ARB without SPRINGS from a code whose bars were set by hand in a game with different ARB units warns you, since the numbers would mean another quantity: tick SPRINGS too. Applying feel or drivetrain parts removes a DNA link; APPLY is one undo step.",see:['backup','garage','game-mode','undo-reset']},

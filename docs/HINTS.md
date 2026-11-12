@@ -1160,6 +1160,13 @@ and in BEG, which has no alignment controls, for either:
 
 ## Tune Check (CHECK)
 
+**STEP 1 · TUNE INPUTS** — its opening line before anything is typed, then once something has
+been (with a START OVER button under it, which puts every field back to its stock figure):
+
+> Enter the tune's numbers as the game prints them; the fields open on stock figures, so overwrite them.
+
+> Enter the tune's numbers as the game prints them. What you type is kept until the browser tab closes; START OVER puts every field back to its stock figure.
+
 **DECODE — the destination line** under the import buttons, with IMPORT AS DNA
 available (PRO), then without it:
 
@@ -1210,7 +1217,35 @@ Its ⓘ:
 
 **MEASURE → Measure Hz:**
 
-> The ride frequency the springs below are solved for. Softer is more accurate: use the lowest Hz whose spring rates the game accepts on this car.
+> The ride frequency the springs above are solved for. Softer is more accurate: use the lowest Hz whose spring rates the game accepts on this car.
+
+**MEASURE → under the MEAS. NAT BAL box**, before a reading and after one (`{n}` is the app's
+estimate on the springs the card lists):
+
+> The greyed number is the app's estimate on these springs — the box starts there. Type what the game shows; your reading replaces it. A reading far from the estimate is worth a second look at the springs and bars.
+
+> The app estimates {n} on these springs; your reading replaces it. A reading far from the estimate is worth a second look at the springs and bars.
+
+**MEASURE → the last sentence of the line under step 1's table:**
+
+> These springs are only for the reading — your tune can use any Hz.
+
+**MEASURE → when Measure Hz has moved since step 1's reading**, in step 1 then step 2:
+
+> The springs above are for {hz} Hz, but this reading was taken at {saved} Hz. To retake it at {hz}, set those springs and type the new reading; or set Measure Hz back to {saved}.
+
+> Measure Hz has moved to {hz} since step 1, so step 1's table no longer shows the springs these readings need. Use the ones listed here, or retake step 1 at {hz} first.
+
+**MEASURE → step 2's note** lists step 1's springs at the Hz it was read at:
+
+> Keep step 1's springs — {f} front, {r} rear {unit}, its {hz} Hz — and its ride height and tyres. Change only the bars, one row at a time.
+
+**MEASURE → under step 2's readings**, while any is unset — before any is typed, then once some are
+(each followed by *Enter moves to the next box, and readings are kept until you close the browser tab.*):
+
+> Greyed numbers are what the scale in use ({scale}) predicts; each box starts there. Type what the game shows.
+
+> Greyed numbers are predicted from the readings so far (about {scale} a click); each box starts there. Type what the game shows.
 
 ---
 

@@ -205,7 +205,7 @@ the per-car value. MEASURE presents the two procedures as numbered steps in one
 column, in the order they have to happen: step 2 is solved against step 1's
 reading, on step 1's springs, and is locked until that reading exists. On the NAT
 BAL springs, the user sets the bars to each of `arbProbesOf(H)` in turn — `1 / H`,
-`H / 1`, `H / H` and `h / h` (`H` = the ARB ceiling, `lim.arb`, 65 in Horizon and
+`H / H`, `H / 1` and `h / h`, an order that moves one bar per step until the last (`H` = the ARB ceiling, `lim.arb`, 65 in Horizon and
 40 in Motorsport; `h = round(H/2)`) — and types Forza's mech balance for each.
 `arbProbeBalOf` is the display model each reading is compared against (tyres,
 `tireCorr` and the MEASURE NAT BAL offset, which is why that must be set first),

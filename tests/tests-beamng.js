@@ -44,7 +44,7 @@ const M = new Function(
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
   'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf,' +
   'natGeomOf,natRsOf,natDisplayOf,natDisplayModelOf,measuredNatBalOf,natBalRefOf,natBalStale,NAT_BAL_STALE_TOL,resolveFeEffective,' +
-  'arbClickRsOf,arbScaleSplit,fmtArbScale,arbProbesOf,arbProbeBalOf,arbReadReachable,fitArbScales,ARB_FIT_MISFIT,ARB_READ_HALF_STEP,ARB_SCALE_MIN};'
+  'arbClickRsOf,arbScaleSplit,fmtArbScale,arbProbesOf,arbProbeBalOf,arbReadReachable,fitArbScales,arbPartialScaleOf,minLogScale,ARB_FIT_MISFIT,ARB_READ_HALF_STEP,ARB_SCALE_MIN};'
 )();
 
 let pass = 0, fail = 0;
@@ -471,10 +471,22 @@ t('arbClickRsOf is each axle\'s scale times its own track squared', () => {
   near(M.arbClickRsOf(ch, 'F'), 600 * 1.6 * 1.6, 1e-12, 'front');
   near(M.arbClickRsOf(ch, 'R'), 500 * 1.5 * 1.5, 1e-12, 'rear');
 });
-t('the probe set is the two swaps, both at the ceiling, and both at half', () => {
+t('the probe set is 1/H, H/H, H/1, half/half — one bar moving per step until the last', () => {
   const p = JSON.stringify(M.arbProbesOf(65)), q = JSON.stringify(M.arbProbesOf(40));
-  if (p !== '[[1,65],[65,1],[65,65],[33,33]]') throw new Error('horizon ' + p);
-  if (q !== '[[1,40],[40,1],[40,40],[20,20]]') throw new Error('motorsport ' + q);
+  if (p !== '[[1,65],[65,65],[65,1],[33,33]]') throw new Error('horizon ' + p);
+  if (q !== '[[1,40],[40,40],[40,1],[20,20]]') throw new Error('motorsport ' + q);
+});
+t('arbPartialScaleOf recovers one scale from any subset of the readings, and skips the unusable', () => {
+  const ch = fitCh({});
+  for (const s of [380, 540, 820]) {
+    const reads = readsFor(ch, P65, s, s);
+    for (const keep of [[0], [1], [2], [3], [0, 2], [1, 3]]) {
+      const part = reads.map((v, i) => keep.includes(i) ? v : null);
+      near(M.arbPartialScaleOf(ch, FIT_HZ, P65, part), s, s * 0.01, `${s} from ${keep}`);
+    }
+  }
+  if (M.arbPartialScaleOf(ch, FIT_HZ, P65, [null, null, null, null]) !== null) throw new Error('nothing typed');
+  if (M.arbPartialScaleOf(ch, FIT_HZ, P65, [0.05, null, null, null]) !== null) throw new Error('unreachable reading used');
 });
 t('fitArbScales recovers a known front/rear pair from exact readings', () => {
   for (const over of [{}, { frontBias: 62 }, { trackF: 1.52, trackR: 1.60 }])

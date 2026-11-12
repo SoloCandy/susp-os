@@ -64,6 +64,17 @@ Writes outside `usePersist` (the migration sentinels) are not tracked.
 | `suspos_builds_migrated_v1` | Sentinel, not data — `suspos_saves_v9` → `suspos_builds_v1` migration has run | *(absent)* |
 | `suspos_garage_unified_v2` | Sentinel, not data — the `_v1` → `suspos_garage_v2` migration has run | *(absent)* |
 
+## Session-only (sessionStorage)
+
+| Key | What | Default |
+|---|---|---|
+| `suspos_ck_arb_reads_v1` | Tune Check MEASURE step 2's four typed readings, `{key, reads}`: `reads` is four numbers or `null` in `arbProbesOf` order; `key` is the step-1 reading they were taken on (`gameMode`, bar ceiling, `measuredNatBal`, its Hz and `measuredNatBalRef`, joined with `\|`). Restored on open only when `key` matches, so a retaken or cleared step 1 starts fresh; values outside 0.05–0.95 come back unset. Written when the readings change, removed when all are unset. Lives until the browser tab closes — a half-finished set isn't worth keeping longer — and is not in the backup or share codes | *(absent)* |
+| `suspos_ck_probe_hz_v1` | MEASURE's Measure Hz, `{key, hz}`, while step 1 has no saved reading (once it does, the reading's own `measuredNatBalHz` wins). `key` is the game mode, weight, front bias and `natBalRefOf` to four places, so the Hz a car accepts doesn't follow you to another chassis. Removed when set back to `NAT_BAL_PROBE_HZ`; a value outside 1.0–3.5 is ignored | *(absent)* |
+| `suspos_ck_decode_v1` | DECODE's typed tune: `{gameMode, spr, dmp, arb, entered, al, alEntered}`, in the same internal units the fields hold (`spr` in lb/in). Ignored for any other game mode, since units and the toe sign follow it; a group missing a key or holding a non-finite number falls back to its seed (`ckNumsLike`). Written only while something was typed (`entered` or `alEntered`), removed otherwise | *(absent)* |
+
+All three go through `ckSessGet`/`ckSessSet`, which swallow storage errors: a blocked
+sessionStorage only loses the convenience.
+
 ## The compiled-code cache (IndexedDB, not localStorage)
 
 The bootstrap at the end of `index.html` keeps one record outside localStorage: IndexedDB
