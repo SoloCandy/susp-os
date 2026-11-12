@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — CI runs the test suites
+
+The ten suites existed but nothing ran them: a break was found only when someone thought to run
+`node tests/…` by hand, and several entries below were found by a docs review rather than a test
+run for that reason. `.github/workflows/tests.yml` now runs every `tests/*.js` file on each push
+to `main` and each pull request, all of them before failing, so one run names every broken suite.
+It globs the folder, so a new suite needs no workflow edit. It does not load the page: a render
+error or anything only the browser shows still needs the browser.
+
 ## Changed — slider markers say what they mark
 
 A follow-up audit of the labels themselves:

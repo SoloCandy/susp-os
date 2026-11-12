@@ -141,6 +141,10 @@ node tests/tests-garage.js   # garage auto-tags and their tier gating (reads ind
 node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots and resume points (reads index.html directly)
 ```
 
+GitHub Actions runs every suite in `tests/` on each push to `main` and each pull
+request (`.github/workflows/tests.yml`). It doesn't load the page, so the browser
+is still the check for anything the UI does.
+
 `tests-docs.js` fails when a fact stated in the docs stops matching the code:
 a codec id table that has drifted, an enum value no doc mentions, a storage key
 that vanished, a slider range that contradicts what `sanitizeTune` actually

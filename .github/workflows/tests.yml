@@ -1,0 +1,50 @@
+name: Tests
+
+# Runs every suite in tests/ on each push to main and each pull request.
+# The suites need nothing but Node's own fs and path: no install step.
+# A new tests/*.js file is picked up automatically.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+
+      # Every suite runs even when an earlier one fails, so one red run
+      # names every broken suite rather than only the first.
+      - name: Run test suites
+        run: |
+          failed=()
+          for t in tests/*.js; do
+            echo "::group::$t"
+            if node "$t"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$t::$t failed"
+              failed+=("$t")
+            fi
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Failed: ${failed[*]}"
+            exit 1
+          fi
+          echo "All suites passed."

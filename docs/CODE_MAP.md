@@ -68,8 +68,8 @@ Two consequences worth knowing when editing:
 - You can compile-check the app from the browser console without rendering it:
   `await compileAppSource()` compiles `#app-source` with the bootstrap's own settings,
   loading Babel first when this load was a cache hit, and rejects on a syntax error.
-  That is the cheapest gate available, and given there is no linter or CI it is worth
-  using after any JSX edit. A cache hit never needs Babel, so `Babel` itself is
+  That is the cheapest gate available, and since CI runs only the Node suites (none of
+  which compiles the JSX) and there is no linter, it is worth using after any JSX edit. A cache hit never needs Babel, so `Babel` itself is
   undefined after one.
 
 ---
@@ -885,8 +885,13 @@ bias and brake pressure remain absent. Retired codec ids are never reused — se
 The suites live in `tests/` and resolve `index.html` and `docs/` from the repo
 root, so they run from any working directory.
 
-There is **no CI, no linter, no type checker, no build step, and no git
-hooks.** `tests.js` tests a hand-maintained duplicate of the physics functions,
+**CI runs every suite** (`.github/workflows/tests.yml`) on each push to `main` and each
+pull request: it runs every `tests/*.js` file, so a new suite is picked up without editing
+the workflow, and it runs them all before failing, so one red run names every broken
+suite. The suites need only Node's own `fs` and `path`, so there is no install step. CI
+proves exactly what the suites prove and no more: it never loads the page, so a JSX error
+the suites' string slices skip, or a component that throws on render, still passes.
+There is **no linter, no type checker, no build step, and no git hooks.** `tests.js` tests a hand-maintained duplicate of the physics functions,
 and its final section — mirror vs app — lifts the real definitions out of
 `index.html` and fails if any mirror disagrees with its app counterpart. A tripwire
 fails the run if a mirror is added without a comparison, including one hidden inside
