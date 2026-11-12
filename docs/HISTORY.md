@@ -11,6 +11,16 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — SHARE → LOAD CODE crashed the app
+
+The alignment revamp (Phase 2) added an `align` part to `SHARE_PARTS`, but the LOAD CODE panel
+builds each part's row from a `summary` table keyed by part id, and that table never got an
+`align` entry. Opening LOAD CODE called `summary.align`, which was `undefined`, and the
+`ErrorBoundary` replaced the whole app with "Failed to load". No suite renders the panel, so it
+shipped. The row now lists the code's alignment offsets from AUTO, toe in the reader's game sign
+(`alignInGame`), or "AUTO · no offsets". Found by a browser click-through sweep while verifying
+that the app runs without `transform-block-scoping`.
+
 ## Changed — CI runs the test suites
 
 The ten suites existed but nothing ran them: a break was found only when someone thought to run

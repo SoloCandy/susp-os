@@ -13852,6 +13852,14 @@ function App(){
                     damp:t=>`${Math.round(t.fe.reboundZeta)}% ζ · bump ${Math.round(t.fe.bumpRatio)}% · ${up(t.fe.dampBalMode)}${ownBumpBalMode(t.fe.bumpBalMode,t.fe.dampingMode)?` / bump ${up(t.fe.bumpBalMode)}`:''}`,
                     arb: t=>`${up(t.fe.arbMode)} · bias ${Math.round(t.fe.arbBias)} · spring ${Math.round(t.fe.springShare)}%`,
                     dr:  t=>`${up(t.dr.buildType)} · ${up(t.dr.diffType)} diff`,
+                    // Offsets from AUTO, toe in the reader's game sign, since APPLY lands them
+                    // on the reader's own AUTO (mergeTune).
+                    align:t=>{
+                      const ofs=ALIGN_KEYS.map(k=>[k,t.dr[alignOfsKey(k)]??0]).filter(([,v])=>Math.abs(v)>=0.05);
+                      return ofs.length
+                        ?ofs.map(([k,v])=>`${ALIGN_LABEL[k]} ${fmtSigned(alignInGame(k,v,cur.fe.gameMode))}°`).join(' · ')
+                        :'AUTO · no offsets';
+                    },
                   };
                   // The ticks as they apply to THIS code: a part the code doesn't carry (the
                   // sender left it out under INCLUDE, id 85) counts as unticked. importSel itself
