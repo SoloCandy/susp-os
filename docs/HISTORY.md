@@ -11,6 +11,21 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — reads before declaration; `transform-block-scoping` dropped
+
+The bootstrap compiled with `transform-block-scoping` so that a `const`/`let` read above its
+declaration became a `var` read of `undefined` instead of a throw. A scan with Babel's own scope
+analysis (every referenced `const`/`let` whose reference sits before its declarator, split into
+reads that run at that point, reads inside a callback that runs synchronously there, and reads
+deferred to a callback or handler) found one read that actually ran early: `rearHzMode` in the
+dependency array of the effect that turns Hz MECH into MULTIPLIER under CANCEL. The array was
+always `[cancelOn, undefined]`, so the effect re-ran only when CANCEL toggled, never when the Hz
+mode changed. Loading only the SPRINGS part of a share code that carried Hz MECH onto a tune with
+CANCEL already on left Hz MECH live under CANCEL, the state the effect exists to prevent;
+reproduced in the browser before and after. `rearHzMode` is now declared above the effect, and
+the plugin is gone, so a read before declaration now throws rather than hides. The change to
+`OPTS` changes the compile cache key, so every visitor recompiles once.
+
 ## Fixed — SHARE → LOAD CODE crashed the app
 
 The alignment revamp (Phase 2) added an `align` part to `SHARE_PARTS`, but the LOAD CODE panel

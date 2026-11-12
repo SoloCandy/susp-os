@@ -9706,6 +9706,7 @@ function App(){
   // CO-SOLVE left over from before the switch, so its readouts and its hiding of Hz MODE go too.
   const coSolveOn=arbMode!=='man'&&arbBalMode==='coSolve';
   const cancelOn=neutralCancelOf(fe); // hides Hz MODE MECH (see neutralCancelOf)
+  const rearHzMode=fe.rearHzMode??'flatRide';
   // Hz MECH under CANCEL becomes MULTIPLIER at the ratio the car is sitting at, exactly as the
   // MULTIPLIER button seeds it, so the springs stay put. The CANCEL and NEUTRAL buttons apply it
   // in the same update, at the ratio from before the switch; the effect catches every other way
@@ -9716,7 +9717,6 @@ function App(){
   useEffect(()=>{
     if(cancelOn&&rearHzMode==='mech')setFeRaw(dropHzMech);
   },[cancelOn,rearHzMode]); // eslint-disable-line
-  const rearHzMode=fe.rearHzMode??'flatRide';
   const dampingMode=fe.dampingMode??'ratio';
   const dampCharMode=fe.dampCharMode??'zeta';
   const dampBalMode=fe.dampBalMode??'standard';
@@ -14881,10 +14881,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   }
   var BABEL_URL='https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js';
   var BABEL_SRI='sha384-x/ilTFv/u/eu6YSmkFDZl5V5Mm/pkxxcVv2cVJOrr1J0rvILhMvRBCy6yA75wYBj';
-  // JSX and block scoping only: every browser the app supports runs the rest natively, and the
-  // `env` preset cost ~5 s a load. Block scoping stays because parts of the source read a
-  // const/let above its declaration and rely on const→var making that undefined, not a throw.
-  var OPTS={presets:['react'],plugins:['transform-block-scoping'],filename:'susp-os.jsx'};
+  // JSX only: every browser the app supports runs the rest natively, and the `env` preset cost
+  // ~5 s a load. const/let reach the browser as written, so a read above its declaration throws
+  // (a TDZ error) instead of quietly yielding undefined: declare before you read.
+  var OPTS={presets:['react'],filename:'susp-os.jsx'};
   // Compiled-output cache. One IndexedDB record holds the compiled code beside the exact source
   // and settings it came from, and is reused only when both still match — so a push that touches
   // #app-source, or a new Babel version or option, recompiles. babel.min.js (~3 MB) is fetched

@@ -20,8 +20,7 @@ alignment). This one describes the *file*.
 ```
 
 A small bootstrap at the end of the file reads that element's `textContent`,
-runs it through `Babel.transform` (preset `react` plus the `transform-block-scoping`
-plugin), and evaluates the result with indirect `eval` — indirect specifically so
+runs it through `Babel.transform` (preset `react`, no plugins), and evaluates the result with indirect `eval` — indirect specifically so
 errors stay catchable on iOS WebKit.
 
 Two things about that compile are deliberate:
@@ -29,10 +28,14 @@ Two things about that compile are deliberate:
 - **No `env` preset.** Every supported browser runs the modern syntax natively
   (`?.`, `??` and `??=` set the floor at Chrome 85 / Firefox 79 / Safari 14), and `env`
   took about 5 s of every load. Only JSX needs compiling.
-- **`transform-block-scoping` is load-bearing — do not drop it.** It turns `const`/`let`
-  into `var`, and parts of the source read a binding above its declaration, which then
-  yields `undefined` rather than throwing. Without it the app dies on load with
-  "Cannot access 'rearHzMode' before initialization". See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+- **`const`/`let` reach the browser as written.** Nothing turns them into `var`, so
+  reading one above its declaration throws "Cannot access 'x' before initialization"
+  instead of quietly yielding `undefined`: declare before you read. A module-level read
+  blanks the page on load; a read in `App`'s render body, a dependency array or a
+  `useMemo` body throws on the first render that reaches it, which the `ErrorBoundary`
+  catches. A read inside a callback, effect or handler is fine as long as it runs after
+  the declaration. `transform-block-scoping` used to hide these; see HISTORY.md before
+  bringing it back.
 
 **The compiled output is cached.** The bootstrap keeps one IndexedDB record
 (database `susp-os-boot`, see [PERSISTENCE.md](PERSISTENCE.md)) holding the compiled
@@ -703,8 +706,8 @@ is a mouse-wheel run on a focused control.
 - bumps `restoreTick`, a dependency of the BEG/INT geometry scaling and tier
   fallback effects, so a snapshot taken in PRO and restored in BEG or INT
   is brought back inside that tier. It is declared right after the persisted
-  state because Babel's const→var would read it as `undefined` in those
-  effects' dependency arrays further down.
+  state because those effects' dependency arrays read it further down, and a
+  read above its declaration throws.
 
 The UI tier, section open state, units, the DNA editor draft and every garage
 entry are deliberately outside history — see KNOWN_ISSUES.md.
