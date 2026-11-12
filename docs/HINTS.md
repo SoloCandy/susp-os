@@ -17,7 +17,7 @@ math before.
 - **What's here.** Every ⓘ popover (the `Hint` component, and every `hint=` prop on
   `Field`, `FeelSlider`, `Toggle`, `Card`, `VisTrack`, `BiasSeg`, `DirSeg`), plus the
   inline guidance: the Handling Balance and RESPONSE correction tips, the SHARE
-  dialog's per-mode description, the manual diff's `typical:` lines, the BeamNG ARB
+  dialog's per-mode description, the BeamNG ARB
   caveat, and the FIT? badge's detail sentences.
 - **Hints are short; the depth is in the glossary.** A hint says what the control
   is and which way it pushes, then ends with a `TERMS: … ›` link to its `GLOSSARY`
@@ -207,10 +207,10 @@ Added while MATCH CHASSIS is on — in PRO, then in INT (the same INT sentence a
 
 ### MANUAL fields (PRO)
 
-Every lock field (not Centre Split) shows the selected diff type's typical range on a
-line of its own underneath (`RangeHint`); AWD Front Decel's always reads 0–0:
-
-> typical: {lo}–{hi}%
+Every lock field (not Centre Split) marks the selected diff type's typical range on its
+own slider, as a zone labelled `TYPICAL lo–hi%` (`typicalMarks`; see
+[SLIDERS.md](SLIDERS.md)). AWD Front Decel's is a single point, `TYPICAL 0%`. Centre Split
+marks the recommended split instead, as a `REC` point.
 
 AWD, **Front Accel / Front Decel / Rear Accel / Rear Decel / Centre Split:**
 

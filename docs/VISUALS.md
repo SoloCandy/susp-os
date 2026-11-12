@@ -165,16 +165,19 @@ The zones are `ZETA_ZONES`, the same table the Rebound ζ and Bump ζ sliders dr
 
 | Zone | Range | Label | Colour |
 |---|---|---|---|
-| under-damped, bouncy | 10–40 | UNDER | `CAT_RAMP[0]` |
-| approaching Butterworth | 40–70 | →BW | `CAT_RAMP[1]` |
-| at or past Butterworth | 70–100 | BWORTH+ | `CAT_RAMP[2]` |
-| overdamped, sluggish | 100–200 | OVER | `CAT_RAMP[3]` |
+| under-damped, bouncy | 10–40 | BOUNCY | `CAT_RAMP[0]` |
+| below Butterworth | 40–70 | SOFT | `CAT_RAMP[1]` |
+| at or past Butterworth | 70–100 | FIRM | `CAT_RAMP[2]` |
+| past critical, sluggish | 100–200 | OVERDAMPED | `CAT_RAMP[3]` |
 
 A grey ramp, light for more damping: none of these zones is an error, and the old
-blue/green/amber/red read as understeer, good, warning and danger. BWORTH+'s band is
-too narrow for its label at the 10-unit size, so only UNDER, →BW and OVER print.
+blue/green/amber/red read as understeer, good, warning and danger. The words match the
+text beside the Rebound ζ slider (FIRM, OVERDAMPED); they replaced UNDER / →BW / BWORTH+ /
+OVER, whose UNDER read as understeer. BOUNCY's band is too narrow for its label at the
+10-unit size, so only SOFT, FIRM and OVERDAMPED print.
 
-The sliders show all four labels (their track is wider than this one).
+The sliders show all four, and mark Butterworth itself (ζ≈70.7%, a point rather than a
+region) as a BUTTERWORTH point at the 70% edge (`ZETA_REFS`).
 `tests-docs.js` fails if either slider stops passing `ZETA_ZONES`, or the Rebound slider's
 range stops matching the track's.
 

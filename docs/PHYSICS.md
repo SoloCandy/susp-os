@@ -796,11 +796,19 @@ band (`e^(-πζ/√(1-ζ²)) = 0.1`). At 1.4 Hz the exact settling time steps fr
 The same algebra reproduces the classic ζ≈0.78 optimum for a 2% band, which
 is the standard check on this result.
 
-Two consequences worth keeping in view, neither of them addressed here:
+Two consequences worth keeping in view. The first is now marked on the slider; the second
+is still not addressed:
 
 - The settling-time-vs-ζ curve is genuinely **discontinuous** at ζ≈59.1%,
   so the DYNAMICS marker jumps between ζ=58% and 60%. That is the metric,
-  not the integration.
+  not the integration. The Rebound ζ slider marks it as a FASTEST SETTLE
+  point at 60%, the first whole step past it (`SETTLE_KNEE_ZETA`, computed
+  from `SETTLE_ENV`). Only rebound ζ moves it: `computeOscillation` starts
+  from a displaced, still body, so the first overshoot is entirely rebound
+  stroke, and once it stays in the band every later peak (bump stroke
+  included) is smaller. Measured off that model at 1.4, 1.75 and 2.5 Hz, with
+  bump at 56% and 100% of rebound, the step sits between 58% and 59% every
+  time and bump changes the settle by under 1%.
 - SETTLE TIME Rebound Mode clamps its back-solve at ζ=100% on the stated
   grounds that critical damping is "the true fastest achievable". That
   holds inside the envelope model it inverts, and is self-consistent, but

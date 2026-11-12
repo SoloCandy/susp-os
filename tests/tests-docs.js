@@ -647,7 +647,7 @@ const sliderBlock = label => {
   const block = SRC_NC.slice(at, SRC_NC.indexOf('readout=', at));
   const bands = /bands=\{(\w+)\}/.exec(block);
   const range = /min=\{(\d+)\}\s*max=\{(\d+)\}/.exec(block);
-  return { bands: bands && bands[1], min: range && +range[1], max: range && +range[2] };
+  return { raw: block, bands: bands && bands[1], min: range && +range[1], max: range && +range[2] };
 };
 const ZETA_ZONES = (() => {
   const m = /const ZETA_ZONES=\[([^;]*)\];/.exec(SRC_NC);
@@ -663,11 +663,28 @@ check('graded sliders read the shared zone tables, never a literal copy', () => 
     const s = sliderBlock(label);
     if (s.bands !== table) problems.push(`${label} slider bands ${s.bands ?? 'missing'}, expected ${table}`);
   }
+  if (!/bands=\{ZETA_ZONES\} refs=\{REBOUND_ZETA_REFS\}/.test(sliderBlock('}Rebound ζ<').raw)
+      || !/bands=\{ZETA_ZONES\} refs=\{ZETA_REFS\}/.test(sliderBlock('"Bump ζ"').raw))
+    problems.push('Rebound ζ / Bump ζ no longer mark their points with REBOUND_ZETA_REFS / ZETA_REFS');
+  if (!/const REBOUND_ZETA_REFS=\[\{value:Math\.ceil\(SETTLE_KNEE_ZETA\)[^\]]*\.\.\.ZETA_REFS\]/.test(SRC_NC))
+    problems.push('REBOUND_ZETA_REFS no longer puts FASTEST SETTLE at ceil(SETTLE_KNEE_ZETA) plus ZETA_REFS');
   if ((SRC_NC.match(/bands=\{HZ_ZONES\}/g) || []).length < 2) problems.push('Ride Stiffness sliders no longer pass bands={HZ_ZONES}');
   if (/\bbands=\{\[/.test(SRC_NC)) problems.push('a slider or track passes a literal bands array');
   if (!/const\[cat,col\]=settleGrade\(worst\)/.test(SRC_NC)) problems.push('the DAMPERS Settle grade no longer uses settleGrade');
   if (/\bmarkers=\{/.test(SRC_NC)) problems.push('a slider still passes the retired markers prop');
   return problems.length === 0 || problems.join('; ');
+});
+
+// FASTEST SETTLE's position is computed from SETTLE_ENV; PHYSICS.md and SLIDERS.md state it as
+// a number. A changed settle band must move the docs' figure with it.
+check('the stated fastest-settle ζ matches SETTLE_ENV', () => {
+  const env = /const SETTLE_ENV=([\d.]+)/.exec(SRC_NC);
+  if (!env) return 'cannot find SETTLE_ENV';
+  const L = Math.log(+env[1]), knee = -100 * L / Math.sqrt(Math.PI * Math.PI + L * L);
+  const fig = `${knee.toFixed(1)}%`, step = `${Math.ceil(knee)}%`;
+  const miss = ['PHYSICS.md', 'SLIDERS.md'].filter(f => !doc[f] || !doc[f].includes(fig));
+  if (!doc['SLIDERS.md'] || !doc['SLIDERS.md'].includes(`FASTEST SETTLE point at ${step}`)) miss.push(`SLIDERS.md "FASTEST SETTLE point at ${step}"`);
+  return miss.length === 0 || `knee ${fig} (marker ${step}) not stated in: ${miss.join(', ')}`;
 });
 
 check('DAMPING ζ track zones are contiguous and span the Rebound ζ slider', () => {

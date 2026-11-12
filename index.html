@@ -2884,15 +2884,49 @@ const hzCtx=hz=>{
 // A slider clips the table to its own min..max.
 const HZ_ZONES=[[HZ_MIN,HZ_BANDS[0],HZ_BAND_COLS[0],'SOFT'],[HZ_BANDS[0],HZ_BANDS[1],HZ_BAND_COLS[1],'ROAD'],
                 [HZ_BANDS[1],HZ_BANDS[2],HZ_BAND_COLS[2],'FIRM'],[HZ_BANDS[2],HZ_MAX,HZ_BAND_COLS[3],'RACE']];
-// Rebound / bump ζ (%): the Rebound ζ and Bump ζ sliders and the DAMPING ζ track.
-const ZETA_ZONES=[[10,40,CAT_RAMP[0],'UNDER'],[40,70,CAT_RAMP[1],'→BW'],[70,100,CAT_RAMP[2],'BWORTH+'],[100,200,CAT_RAMP[3],'OVER']];
+// Rebound / bump ζ (%): the Rebound ζ and Bump ζ sliders and the DAMPING ζ track. Plain words, the
+// same the text beside those sliders uses (FIRM above Butterworth, OVERDAMPED past critical); they
+// replaced UNDER / →BW / BWORTH+ / OVER, whose UNDER read as understeer. Butterworth (ζ≈70.7%) is
+// a point, not a region, so the sliders mark it with ZETA_REFS at the 70% edge — inside the
+// readout's 68–72% BUTTERWORTH neighbourhood, and the default Rebound ζ.
+const ZETA_ZONES=[[10,40,CAT_RAMP[0],'BOUNCY'],[40,70,CAT_RAMP[1],'SOFT'],[70,100,CAT_RAMP[2],'FIRM'],[100,200,CAT_RAMP[3],'OVERDAMPED']];
+const ZETA_REFS=[{value:70,label:'BUTTERWORTH'}];
+// The rebound ζ at which the first overshoot is exactly the settle band, solving
+// e^(-πζ/√(1-ζ²)) = SETTLE_ENV: ≈59.1% for ±10%. Above it the response is settled the first time
+// it returns to the band; below it that overshoot escapes and settle time nearly doubles. So it
+// is the fastest true settle — what the DYNAMICS chart and the Settle row's MEAS measure — not
+// what the envelope estimate shows (settleTimeFromZeta: the Settle row, Settle Target), which
+// keeps falling to 100%. See docs/PHYSICS.md. Rebound only: in computeOscillation the first
+// overshoot is all rebound stroke, so bump damping cannot move it.
+const SETTLE_KNEE_ZETA=(()=>{const L=Math.log(SETTLE_ENV);return -100*L/Math.sqrt(Math.PI*Math.PI+L*L);})();
+// The Rebound ζ slider's points: FASTEST SETTLE at the first whole step past the knee (60%; at
+// 59% the first overshoot still clears the band), then Butterworth. Listed first, it keeps its
+// label when the two collide and the value sits on neither.
+const REBOUND_ZETA_REFS=[{value:Math.ceil(SETTLE_KNEE_ZETA),label:'FASTEST SETTLE'},...ZETA_REFS];
+// What the centre of Damping Bias / Bump Bias holds equal, by balance mode (dampBalMode /
+// bumpBalMode): STANDARD keeps both axles on the anchor ζ, HYBRID sits halfway between TIME SYNC
+// and EQUAL FORCE, EQUAL CATCH (bump under LANDING) has each axle catch the same drop.
+const BIAS_CENTRE_LABEL={standard:'EQUAL ζ',sync:'EQUAL TIME',neutral:'EQUAL FORCE',hybrid:'HYBRID',catch:'EQUAL DROP'};
 // Settle time (s): the DAMPERS table's Settle grade (slower axle, through settleGrade) and the
 // Settle Target slider. Shorter is firmer, so the ramp runs light → dark left to right.
 const SETTLE_ZONES=[[0,0.35,CAT_RAMP[3],'PLANTED'],[0.35,0.60,CAT_RAMP[2],'RACE'],[0.60,0.90,C_TAG,'SPORT'],
                     [0.90,1.30,C_TAG,'ROAD'],[1.30,Infinity,CAT_RAMP[0],'SOFT']];
 const settleGrade=t=>{const z=SETTLE_ZONES.find(z=>t<z[1])??SETTLE_ZONES[SETTLE_ZONES.length-1];return[z[3],z[2]];};
-// Bump Ratio (% of rebound). The middle region is the ordinary one and goes unnamed.
-const BUMP_RATIO_ZONES=[[10,30,CAT_RAMP[1],'UNDER'],[30,65,CAT_RAMP[1],null],[65,100,CAT_RAMP[2],'FIRM']];
+// Front weight bias usual for each layout (%): the BEG panel's warning and the Front Weight Bias
+// slider's TYPICAL zone.
+const WEIGHT_BIAS_TYPICAL={FWD:[55,70],RWD:[38,55],AWD:[45,58]};
+// A zone table with one named region lo..hi and unnamed space either side, for a slider whose
+// guidance is a single band (a typical range, the recommended RANGE). SliderTrack clips the
+// infinite ends to the slider and drops a region left empty.
+const zoneAround=(lo,hi,label,col=C_TAG)=>[[-Infinity,lo,col,null],[lo,hi,col,label],[hi,Infinity,col,null]];
+// SliderTrack markers for a typical range r=[lo,hi] (DIFF_TYPE_RANGES): a TYPICAL zone, or a
+// point where the range is one value (Front Decel's [0,0]), which can't be a region. null r: none.
+// Bump Ratio (% of rebound): the 40–65% its hint and glossary call typical. Replaced UNDER below 30
+// and FIRM from 65, whose 30% edge matched no stated range and whose UNDER read as understeer.
+const BUMP_RATIO_ZONES=zoneAround(40,65,'TYPICAL 40–65%');
+const typicalMarks=(r,unit='%')=>!r?{}:r[0]===r[1]
+  ?{refs:[{value:r[0],label:`TYPICAL ${r[0]}${unit}`}]}
+  :{bands:zoneAround(r[0],r[1],`TYPICAL ${r[0]}–${r[1]}${unit}`)};
 // ── Vehicle DNA ─────────────────────────────────────────────────────────────
 // A chassis-portable handling personality: axis TARGETS, compiled into ordinary fe/dr fields in
 // PRO's target modes, never a change to feelToPhysics/computeTune. Pure functions only: App's DNA
@@ -4641,11 +4675,14 @@ const SliderEnds=({left,right})=>(left==null&&right==null)?null:(
 //           tick at each inner edge, every label centred in its own region, and the region the
 //           value is in underlined, its label bright. Colour is not used here: the active
 //           region is told by brightness, the same for every slider.
-//   refs  — [{value, label?}] fixed reference points (NEUTRAL, MATCH, 50/50, the AUTO point).
+//   refs  — [{value, label?, prio?}] fixed reference points (NAT, MATCH, 50/50, AUTO, REC).
 //           Always drawn, never switched on or off. A labelled one is a button that sets the
-//           slider to it.
-// Labels that would overlap are thinned by priority (the active region, then refs, then the
-// rest) after layout, and pulled inside the track's ends; see the layout effect.
+//           slider to it, its label bright while the value sits exactly on it.
+// Labels that would overlap are thinned by priority after layout, and pulled inside the track's
+// ends; see the layout effect. Lowest wins: a ref the value sits on (-1: more specific than the
+// region around it — Rebound ζ's default sits on BUTTERWORTH), the active region (0), refs
+// (`prio`, default 1; NAT on Mech Balance Target passes 3, below the RANGE band its value is
+// printed beside), the other regions (2).
 // `valueText` is the value as words for aria-valuetext; the active region's label is added.
 const SLI_EDGE='#94a3b8',SLI_REF='#e2e8f0',SLI_LBL_ON='#e2e8f0',SLI_LBL_OFF='#64748b';
 const SliderTrack=({value,min,max,step,onChange,scale=null,locked=false,bands=null,refs=null,
@@ -4660,12 +4697,12 @@ const SliderTrack=({value,min,max,step,onChange,scale=null,locked=false,bands=nu
   const rs=(refs||[]).filter(r=>r.value>=min&&r.value<=max);
   const labels=[
     ...zs.map((z,i)=>z.label&&{key:`z${i}`,text:z.label,t:(toT(z.lo)+toT(z.hi))/2,prio:i===act?0:2,on:i===act}),
-    ...rs.map((r,i)=>r.label&&{key:`r${i}`,text:r.label,t:toT(r.value),prio:1,ref:r}),
+    ...rs.map((r,i)=>r.label&&{key:`r${i}`,text:r.label,t:toT(r.value),prio:r.value===value?-1:(r.prio??1),on:r.value===value,ref:r}),
   ].filter(Boolean);
   const rowRef=useRef(null);
   // Positions depend only on the tables and the range, priorities on the active region, so
   // the overlap pass re-runs when those change or the track is resized, not on every drag step.
-  const layoutKey=`${act}|${labels.map(l=>`${l.text}@${l.t.toFixed(4)}`).join(',')}`;
+  const layoutKey=`${act}|${labels.map(l=>`${l.text}@${l.t.toFixed(4)}:${l.prio}`).join(',')}`;
   useLayoutEffect(()=>{
     const row=rowRef.current;
     if(!row)return;
@@ -4723,7 +4760,7 @@ const SliderTrack=({value,min,max,step,onChange,scale=null,locked=false,bands=nu
           ?<button key={l.key} type="button" data-prio={l.prio} tabIndex={-1} disabled={locked}
               title={`Set to ${l.text}`} onClick={()=>onChange(l.ref.value)}
               style={{...st,padding:0,border:'none',background:'none',fontFamily:'inherit',
-                      color:SLI_EDGE,cursor:locked?'default':'pointer'}}>{l.text}</button>
+                      color:l.on?SLI_LBL_ON:SLI_EDGE,cursor:locked?'default':'pointer'}}>{l.text}</button>
           :<span key={l.key} data-prio={l.prio} aria-hidden="true"
               style={{...st,color:l.on?SLI_LBL_ON:SLI_LBL_OFF}}>{l.text}</span>;
       })}
@@ -8033,10 +8070,10 @@ const GLOSSARY=[
   {group:'Damping',terms:[
     {id:'zeta',term:'ζ (Zeta / Damping Ratio)',tier:'beginner',short:'ζ damping ratio',def:"ζ (zeta), the damping ratio, is how quickly a bounce dies out, as a percentage of critical damping. 100% is critically damped: back to rest in one smooth motion with no overshoot. SUSP.OS defaults rebound to 70% (Butterworth): one small overshoot of about 4%, then done, without feeling harsh. Below about 40% feels bouncy and underdamped; above 100% feels sluggish and overdamped, and the DAMPERS card flags rebound below 40% and any value above 100%. No single ζ is best at everything: about 59% gives the quickest settle after one bump, about 70% the flattest response to a continuous rough surface, and 100% the quickest with no overshoot at all.\n\n[INT] The Rebound ζ slider runs 10–200%, with 55–70% typical. The text beside it reads BUTTERWORTH at 68–72%, FIRM above 72% (planted but stiff) and ⚠ OVERDAMPED above 100%.",see:['critical-damping','butterworth','rebound','settle-time']},
     {id:'critical-damping',term:'Critical Damping',tier:'beginner',def:"Critical damping is the exact amount of damping that stops a spring's oscillation as fast as possible without overshooting past rest. It is the reference ζ is measured against: ζ is always a percentage of this value for that corner's spring and mass, not an absolute number. Beyond it, above 100%, the suspension creeps back to rest more slowly rather than faster.\n\n[INT] That is why SETTLE TIME never back-solves above 100% ζ: past critical damping, more damping settles slower.",see:['zeta','settle-time']},
-    {id:'butterworth',term:'Butterworth (≈70% ζ)',tier:'intermediate',def:"Butterworth damping is the ratio of about 0.707, rounded to 70% here, that gives the flattest response with no resonant peak, borrowed from Butterworth filter design. That is a frequency-domain property: in the idealised model no road frequency is amplified more than the rest, which keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% overshoots about 4%, and the quickest ±10% settle sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why Rebound ζ defaults to 70%: firm enough to control the car, soft enough not to feel harsh over bumps. The Rebound ζ slider's BWORTH+ zone starts at 70%, and the text beside its box names only 68–72% BUTTERWORTH, since it is a point, not a region.",see:['zeta','settle-time']},
+    {id:'butterworth',term:'Butterworth (≈70% ζ)',tier:'intermediate',def:"Butterworth damping is the ratio of about 0.707, rounded to 70% here, that gives the flattest response with no resonant peak, borrowed from Butterworth filter design. That is a frequency-domain property: in the idealised model no road frequency is amplified more than the rest, which keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% overshoots about 4%, and the quickest ±10% settle sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why Rebound ζ defaults to 70%: firm enough to control the car, soft enough not to feel harsh over bumps. The Rebound ζ and Bump ζ sliders mark it as a BUTTERWORTH point at 70%, and the text beside the Rebound box names only 68–72% BUTTERWORTH, since it is a point, not a region.\n\nRebound ζ also marks FASTEST SETTLE at 60%. Just above 59%, the first overshoot after a bump stays inside the ±10% settle band, so the car is settled the first time it returns; just below, it escapes the band and settle time nearly doubles. That makes about 60% the quickest true settle, faster than critical damping, as the DYNAMICS chart shows. The Settle row's own figure is a simpler estimate that keeps falling all the way to 100%, so it does not show this; hover it for MEAS, which does.",see:['zeta','settle-time']},
     {id:'rebound',term:'Rebound',tier:'beginner',def:"Rebound is damping resistance as the suspension extends — the wheel dropping back after being compressed. It controls how fast the wheel returns after a bump or during weight transfer, and settle time is calculated from it. Bump damping is usually set as a share of it.\n\nThe DAMPERS card lists rebound and bump per axle with each value's ζ, plus the rebound settle time. Values above 88% of the game's limit turn amber; if either end of a stroke would leave the click range, that stroke's pair is scaled together so its front/rear ratio holds. The header names the Damping Balance Mode and where bump comes from; the brighter figures on each row (settle time, force share, catch) are the ones that mode evens out. Rebound ζ also feeds the RESPONSE bar; bump does not.",see:['bump','zeta','bump-ratio','response']},
     {id:'bump',term:'Bump (Compression)',tier:'beginner',def:"Bump is damping resistance as the suspension compresses — the wheel moving up into a bump or under load transfer. It is usually softer than rebound: soft bump absorbs sharp hits while rebound controls how fast the wheel extends back. Bump Ratio expresses it as a percentage of rebound.\n\n[INT] BUMP MODE INDEPENDENT sets a Bump ζ directly (10–115%, default 39%) for combinations the ratio cannot express, such as soft bump with firm rebound. It is an anchor, not a per-axle value: Damping Balance Mode splits it front/rear the same way it splits rebound, and the readout shows both axles when they differ. Keep it below rebound for normal handling; ⚠ CROSSED means an axle's bump ζ is above that axle's rebound ζ.",see:['rebound','bump-ratio','bump-mode']},
-    {id:'bump-ratio',term:'Bump Ratio',tier:'beginner',def:"Bump Ratio sets bump damping as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. Lower is softer over sharp hits and more compliant on rough roads; higher gives a more consistent feel between the two strokes. 40–65% is the typical range and 56% the default. The DAMPERS card header shows it.\n\n[INT] The slider runs 10–100%, marked UNDER below 30% and FIRM from 65%; the text beside it is the resulting bump ζ, which never exceeds rebound. Switching from INDEPENDENT seeds the ratio from the bump damping in force, clamped to 10–100%, so a crossed tune (bump above rebound) does change.",see:['bump','rebound','bump-mode','character']},
+    {id:'bump-ratio',term:'Bump Ratio',tier:'beginner',def:"Bump Ratio sets bump damping as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. Lower is softer over sharp hits and more compliant on rough roads; higher gives a more consistent feel between the two strokes. 40–65% is the typical range and 56% the default. The DAMPERS card header shows it.\n\n[INT] The slider runs 10–100%, with the typical 40–65% marked TYPICAL; the text beside it is the resulting bump ζ, which never exceeds rebound. Switching from INDEPENDENT seeds the ratio from the bump damping in force, clamped to 10–100%, so a crossed tune (bump above rebound) does change.",see:['bump','rebound','bump-mode','character']},
     {id:'settle-time',term:'Settle Time',tier:'beginner',def:"Settle time is the seconds until the suspension is back inside ±10% of the initial bump and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. The DAMPERS card shows it per axle, from rebound ζ and ride frequency.\n\n[INT] Two figures carry the name: the DAMPERS rows and the damper table's Settle row give a quick estimate from rebound ζ and Hz alone, while the DYNAMICS chart and the table's MEAS figure measure the drawn curve, which also sees bump damping, so they can differ. The table grades the slower axle PLANTED (under 0.35 s), RACE (0.60), SPORT (0.90), ROAD (1.30) or SOFT.\n\n[INT] Settle Target, under REBOUND MODE SETTLE TIME, runs 0.10–1.50 s (default 0.80) and back-solves rebound ζ on the reference axle against the quick estimate, so bump damping does not move it. The solve stops at 100% ζ, since past critical damping more damping settles slower. Damping Bias skews the front/rear timing.",see:['zeta','rebound-mode','dynamics-chart','damper-table']},
     {id:'character',term:'Character (Stable / Agile)',tier:'beginner',short:'Character',def:"Character sets damping feel in Beginner — how quickly the suspension settles after a bump or weight transfer — by moving rebound ζ and Bump Ratio together. STABLE (left) raises rebound ζ and lowers the bump ratio: more damped, settles quickly, planted and predictable. AGILE (right) lowers rebound ζ and raises the bump ratio: lighter, livelier and quicker to change direction. Centre is the defaults, 70% rebound ζ and a 56% bump ratio; start there and match it to your driving style.\n\nIt covers only part of the rebound ζ range, so a tune with very light or very heavy rebound damping shows the handle pinned at an end; moving it then overwrites both values.\n\n[INT] It is the Rebound ζ and Bump Ratio sliders in one. Beginner always runs CHARACTER rebound mode, STANDARD damping balance and zero Damping Bias.",see:['zeta','bump-ratio','rebound','settle-time']},
     {id:'rebound-mode',term:'Rebound Mode (CHARACTER / SETTLE TIME)',tier:'intermediate',short:'Rebound Mode',def:"REBOUND MODE decides how the anchor rebound ζ is obtained. CHARACTER: you type it on the Rebound ζ slider and nothing is back-solved. SETTLE TIME: you set a target settle time in seconds and the app back-solves the ζ that hits it on the ride-reference axle. Switching carries the value across — the time you were holding becomes the equivalent ζ and vice versa — so the car does not jump; above 100% ζ the round trip lands on the underdamped ζ with the same settle time, since time alone cannot tell the two apart.\n\nIt is independent of Damping Balance Mode, which decides how the anchor becomes a front/rear pair. Under SETTLE TIME only the anchored axle is guaranteed to hit the target: TIME SYNC matches the other axle to the same time at 0 Damping Bias, while STANDARD, HYBRID and EQUAL FORCE split differently, and the damper table shows the other axle's real time.",see:['settle-time','zeta','damping-balance-mode']},
@@ -8085,7 +8122,7 @@ const GLOSSARY=[
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Centre Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MEDIUM below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTRE SPLIT recommends a rear % with the build's reason and its own → USE. Once the diff matches a recommendation, its box shrinks to a single ✓ line.\n\n[PRO] CENTRE SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Centre Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings. The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever. While an axle's ARB Motion Ratio is 1.0 its row adds a ≈ figure, the rate at a typical 0.45 arm ratio, which is the closer starting point.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
-    {id:'ride-roll-damping',term:'RIDE · ROLL · DAMPING',tier:'intermediate',def:"The first VISUALS group; collapsed it reads R (rear % of roll stiffness), × (rear ÷ front Hz) and body roll. ROLL SPLIT is the car's front/rear share of roll stiffness as the game's Mech Balance counts it, each end shaded springs (solid) vs ARBs (light). The grey tick is NAT, the natural balance: a divide right of it means more front roll stiffness (toward understeer), left toward oversteer. Below: body roll at 1 g (plus your Roll Target in ROLL ° mode) and the springs / ARBs share of total roll stiffness.\n\nRIDE Hz puts front and rear on one SOFT to RACE scale (0.8–5.5 Hz), R/F × in the header, amber when the derived axle hit a limit. ARB runs 0 to the game's ceiling, bands at 50, 75 and 90%, amber past 88% (BeamNG: N/m, scaled to the stiffer bar, no bands). DAMPING ζ shows rebound (filled) and bump (hollow) on 10–200%, zoned UNDER below 40, →BW to 70, BWORTH+ to 100, OVER beyond; the header gives bump as a % of rebound, amber if bump exceeds rebound. Hollow grey rings on the derived axle (the one Ride Reference does not fix) show where it would sit for springs alone, or bars alone, to carry natural balance. Green ticks and rings mark the Balance Target (set in PRO's BALANCE section; 0.60 until set) when it differs from NAT.\n\n[PRO] The divide sits where the MECH BALANCE strip's CUR does.",see:['roll-stiffness','mech-balance','hz','zeta']},
+    {id:'ride-roll-damping',term:'RIDE · ROLL · DAMPING',tier:'intermediate',def:"The first VISUALS group; collapsed it reads R (rear % of roll stiffness), × (rear ÷ front Hz) and body roll. ROLL SPLIT is the car's front/rear share of roll stiffness as the game's Mech Balance counts it, each end shaded springs (solid) vs ARBs (light). The grey tick is NAT, the natural balance: a divide right of it means more front roll stiffness (toward understeer), left toward oversteer. Below: body roll at 1 g (plus your Roll Target in ROLL ° mode) and the springs / ARBs share of total roll stiffness.\n\nRIDE Hz puts front and rear on one SOFT to RACE scale (0.8–5.5 Hz), R/F × in the header, amber when the derived axle hit a limit. ARB runs 0 to the game's ceiling, bands at 50, 75 and 90%, amber past 88% (BeamNG: N/m, scaled to the stiffer bar, no bands). DAMPING ζ shows rebound (filled) and bump (hollow) on 10–200%, zoned BOUNCY below 40, SOFT to 70, FIRM to 100, OVERDAMPED beyond; the header gives bump as a % of rebound, amber if bump exceeds rebound. Hollow grey rings on the derived axle (the one Ride Reference does not fix) show where it would sit for springs alone, or bars alone, to carry natural balance. Green ticks and rings mark the Balance Target (set in PRO's BALANCE section; 0.60 until set) when it differs from NAT.\n\n[PRO] The divide sits where the MECH BALANCE strip's CUR does.",see:['roll-stiffness','mech-balance','hz','zeta']},
     {id:'dynamics-chart',term:'DYNAMICS Chart',tier:'intermediate',def:"A VISUALS chart of each axle's damped step response: the trace starts displaced, as after one bump or corner, and settles to ride height (front blue, rear orange). The shaded strip is ±10% of that initial displacement. The dashed line is settle time, the last moment the trace leaves the strip, measured off the drawn curve, so it reflects the bump/rebound split, not just rebound ζ. The ring is the first ride-height crossing, a rise-speed marker. Both read out below.\n\nTwo correct results look wrong: past roughly 60% ζ the dashed line can land before the ring, because the trace enters the strip on the way down and stays; and it falls in steps as rebound ζ rises, each step one overshoot peak dropping inside the strip. The quickest settle is not at critical damping.\n\nThe DAMPERS rows quote a quick estimate from rebound ζ and Hz alone, blind to bump damping: long below about 79% ζ, short above (about 40% at 100%). SETTLE TIME mode back-solves against it, so the two differ on purpose. RIDE / ROLL switches to roll response: the ARB adds stiffness without damping, so roll ζ = ζ × √(spring share) and roll Hz = Hz ÷ √(spring share); a comparison that ignores roll centres and chassis coupling.",see:['settle-time','zeta','rebound-mode','bump']},
     {id:'sag-vs-load',term:'SAG vs LOAD',tier:'intermediate',def:"A VISUALS chart of suspension compression against load, per axle, shown only with the RIDE HEIGHT CG source and both tyre sizes valid. The solid line is static sag times load factor (compression scales linearly with vertical wheel load; mass cancels out of the spring/frequency relation), with a ring at the static 1 g point. The dashed line is your ride height: where the solid line reaches it (filled dot, bottoms ≈ g) is the vertical load that bottoms that axle.\n\nThe faint short-dashed line adds the outside wheel's compression from cornering load transfer (the balance figures' model); its hollow ring gives the lateral g that bottoms that wheel from roll alone. FRONT and REAR tags rate static sag against ride height: LOW below 50%, MED from 50%, HIGH from 80%, BOTTOMED at 100%.\n\nThe shaded top 12% of travel is a reminder that real springs stiffen near the bump stop, so near the top this linear line reads softer than the real spring. It does not combine cornering with braking or bump load, and treats the axles independently.",see:['sag','bottoming','load-transfer','ride-ref']},
     {id:'dna-match',term:'DNA Match',tier:'pro',def:"After a Vehicle DNA is applied the tune stays linked to it: a chip in the sidebar names it, the sliders it set carry a mark, and VISUALS shows DNA MATCH with each axis's TARGET and NOW. ✓ means the axis still sits where APPLY left it; amber ≠ means it has moved beyond rounding since APPLY; MODE means that control is no longer in the mode the DNA set, so the value is not comparable.\n\nTARGET is the DNA's own target, which can differ from what APPLY achieved when an axis gave way or used its slack; drift is judged against the achieved value. Loading a garage build replaces the link with the DNA saved in that entry, if any. A FACTORY preset, a share code's feel or drivetrain parts, RESET, or leaving PRO removes it.",see:['dna','dna-priority','garage','share-code']},
@@ -10912,12 +10949,12 @@ function App(){
                   unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
                   hint="Total vehicle weight. Find this on the car's stat page." hintTerm="weight"/>
                 <Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')}
-                  min={30} max={70} step={1} unit="%"
+                  min={30} max={70} step={1} unit="%" {...typicalMarks(WEIGHT_BIAS_TYPICAL[ch.layout??'RWD'])} refs={[{value:50,label:'50/50'}]}
                   hint="Share of weight on the front axle, from the car selection screen. 50% = an even split." hintTerm="front-weight-bias"/>
                 </div>
                 {(()=>{
                   const weightOk=ch.weight>=1600&&ch.weight<=6500;
-                  const [bLo,bHi]={FWD:[55,70],RWD:[38,55],AWD:[45,58]}[ch.layout??'RWD']??[38,70];
+                  const [bLo,bHi]=WEIGHT_BIAS_TYPICAL[ch.layout??'RWD']??[38,70];
                   const biasOk=ch.frontBias>=bLo&&ch.frontBias<=bHi;
                   if(weightOk&&biasOk) return null;
                   return <div style={{fontSize:10,color:C_WARN,letterSpacing:0.3,
@@ -11060,7 +11097,7 @@ function App(){
               min={mMass?45:100} max={mMass?8165:18000} step={1}
               unit={mMass?'kg':'lb'} logScale={true} logMid={mMass?2722:6000}
               hint="Total vehicle weight, from the car's stat page. Scales the spring, damper and ARB outputs." hintTerm="weight"/></Hide>
-            <Hide id="chassis.frontBias"><Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%"
+            <Hide id="chassis.frontBias"><Field label="Front Weight Bias" value={ch.frontBias} onChange={pCh('frontBias')} min={30} max={70} step={1} unit="%" {...typicalMarks(WEIGHT_BIAS_TYPICAL[ch.layout??'RWD'])} refs={[{value:50,label:'50/50'}]}
               hint="Share of weight on the front axle, from the car selection screen. 50% = an even split; most front-engined cars are 52–58%." hintTerm="front-weight-bias"/></Hide>
             <Hide id="chassis.tyres">{(()=>{
               const tyreInput=(key,label,onCopyFront)=>{
@@ -11291,10 +11328,14 @@ function App(){
                 })()}</Hide>
                 {(()=>{
                   const _m=balTargetModeOf(fe);
+                  // The Balance Guide's RANGE band, drawn on the target sliders as the zone the
+                  // hints call the recommended band (balanceBandOf: the same call RANGE mode aims at).
+                  const _rb=balanceBandOf(natMechBalance,gripNeutral,ch.layout??'RWD',dr.buildType??'track');
                   if(_m==='natural')return(<Hide id="balance.targetNat">
                     <Field label="Mech Balance Target" value={fe.arbBalTarget??roundBalStep(MECH_BALANCE_TARGET-natMechBalance)}
                       onChange={v=>pFe('arbBalTarget')(roundBalStep(v))}
                       min={roundBalStep(BAL_TARGET_MIN-natMechBalance)} max={roundBalStep(BAL_TARGET_MAX-natMechBalance)} step={BAL_TARGET_STEP} unit="from NAT"
+                      refs={[{value:0,label:'NAT',prio:3}]} bands={zoneAround(_rb.lo-natMechBalance,_rb.hi-natMechBalance,'RANGE')}
                       hint="Offset from natural balance: 0 = natural, positive = more rear bias (oversteer), negative = more front (understeer). The BALANCE GUIDE's RANGE is the recommended band." hintTerm="mech-balance-target"/>
                     {/* NATURAL names the anchor, not the target. A fresh build stores no offset
                         (arbBalTarget null) and aims at MECH_BALANCE_TARGET itself, which the box
@@ -11308,10 +11349,12 @@ function App(){
                     <Field label="Mech Balance Target" value={fe.arbBalAbs??MECH_BALANCE_TARGET}
                       onChange={v=>pFe('arbBalAbs')(clampBalTarget(roundBalStep(v)))}
                       min={BAL_TARGET_MIN} max={BAL_TARGET_MAX} step={BAL_TARGET_STEP}
+                      refs={[{value:natMechBalance,label:'NAT',prio:3}]} bands={zoneAround(_rb.lo,_rb.hi,'RANGE')}
                       hint="The raw Mech Balance to solve toward, e.g. 0.60; it stays put when the chassis changes. Above 0.50 = oversteer tendency, below = understeer." hintTerm="mech-balance-target"/></Hide>);
                   return(<>
                     <Hide id="balance.offset"><Field label={<>{dnaDot('balanceOffset')}Balance Offset</>} value={fe.arbBalDelta??0} onChange={v=>pFe('arbBalDelta')(roundBalStep(v))}
                       min={-0.20} max={0.20} step={BAL_TARGET_STEP}
+                      refs={[{value:0,label:{range:'RANGE MID',phase:'PHASE TARGET'}[_m]??'GRIP TARGET'}]}
                       hint={_m==='range'
                         ?"Offset from the middle of the RANGE band: 0 = middle, positive = more rear bias (oversteer), negative = more front (understeer)."
                         :_m==='phase'
@@ -11611,7 +11654,7 @@ function App(){
                 <FeelSlider label={label} value={ofs} onChange={setOfs} min={-r} max={r} step={0.1}
                   leftLabel={left} rightLabel={right}
                   readout={alignRound(ofs)===0?'AUTO':alignFmt(g(ofs))}
-                  refs={[{value:0}]}
+                  refs={[{value:0,label:'AUTO'}]}
                   box={{value:g(align[alignRecKey(k)]),unit:'°',dp:1,min:lo,max:hi,
                     onCommit:v=>setOfs(g(v)-base)}}
                   hint={hint} hintTerm="align-intent"/>
@@ -11873,7 +11916,7 @@ function App(){
                 </div>}
                 <Hide id="arb.bias"><FeelSlider label="ARB Bias" value={fe.arbBias}
                   onChange={pFe('arbBias')} min={-50} max={50} leftLabel="FRONT HEAVY" rightLabel="REAR HEAVY"
-                  refs={[{value:0,label:'NEUTRAL'}]}
+                  refs={[{value:0,label:isNeutral?(fe.arbNeutralEqual?'EQUAL ROLL':'CANCEL'):isChassis?'NAT':'WEIGHT'}]}
                   hint={isNeutral&&fe.arbNeutralEqual
                     ?"Moves the ARB split off the springs' own proportion; centre leaves their balance untouched. FRONT HEAVY = stiffer front bar (more understeer). REAR HEAVY = stiffer rear bar (more oversteer)."
                     :isNeutral
@@ -12104,7 +12147,7 @@ function App(){
                   label={rRef==='rear'?'Front Hz':'Rear Hz'}
                   value={fe.rearHzMan??secHz}
                   onChange={pFe('rearHzMan')} min={HZ_MIN} max={HZ_MAX} step={0.01}
-                  leftLabel={HZ_MIN.toFixed(2)} rightLabel={HZ_MAX.toFixed(2)}
+                  leftLabel={HZ_MIN.toFixed(2)} rightLabel={HZ_MAX.toFixed(2)} bands={HZ_ZONES}
                   box={{value:secHz,unit:'Hz'}}
                   hint={rRef==='rear'
                     ?"Front spring frequency, set by hand; the stiffness slider above still sets the rear."
@@ -12196,7 +12239,7 @@ function App(){
                   onChange={pFe('reboundZeta')} min={10} max={200} step={1}
                   leftLabel="10%" rightLabel="200%"
                   hint="Damping ratio for the rebound (extension) stroke. 55–70% is typical; 70% (default) is Butterworth. Above 70% feels planted but stiff; above 100% (overdamped) sluggish."
-                  bands={ZETA_ZONES}
+                  bands={ZETA_ZONES} refs={REBOUND_ZETA_REFS}
                   box={{unit:'%'}}
                   readout={(()=>{
                     const z=fe.reboundZeta??70;
@@ -12232,7 +12275,7 @@ function App(){
                 <Hide id="dampers.bias"><FeelSlider label={<>{dnaDot('dampBias')}Damping Bias</>} value={-(fe.dampingBias??0)}
                   onChange={v=>pFe('dampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
-                  refs={[{value:0,label:'EQUAL'}]}
+                  refs={[{value:0,label:BIAS_CENTRE_LABEL[dampBalMode]??'EQUAL ζ'}]}
                   hint={hint} hintTerm="damping-bias"/></Hide>
               );
             })()}
@@ -12334,7 +12377,7 @@ function App(){
                   onChange={pFe('bumpZeta')} min={10} max={115} step={1}
                   leftLabel="10%" rightLabel="115%"
                   hint="Bump damping ratio set directly, independent of rebound. Keep it below rebound for normal handling; BUMP BALANCE (or, on SAME, Damping Balance Mode) splits it front/rear."
-                  bands={ZETA_ZONES}
+                  bands={ZETA_ZONES} refs={ZETA_REFS}
                   readout={(()=>{
                     // Report what the axles actually run, not the raw typed number. Every
                     // Damping Balance Mode turns this into a front/rear pair, so the typed
@@ -12387,7 +12430,7 @@ function App(){
                 <Hide id="dampers.bumpBias"><FeelSlider label="Bump Bias" value={-(fe.bumpDampingBias??0)}
                   onChange={v=>pFe('bumpDampingBias')(-v)} min={-50} max={50} step={1}
                   leftLabel="FRONT" rightLabel="REAR"
-                  refs={[{value:0,label:'EQUAL'}]}
+                  refs={[{value:0,label:BIAS_CENTRE_LABEL[bumpBalMode]??'EQUAL ζ'}]}
                   hint={hint} hintTerm="bump-balance"/></Hide>
               );
             })()}
@@ -12527,13 +12570,13 @@ function App(){
                 options={[{value:'rec',label:'REC'},{value:'grip',label:'GRIP'},{value:'entry',label:'ENTRY'}]}
                 hint="REC = the recommendation, with build offsets. GRIP = where both axles reach their braking limit together at the Decel below. Brake Bias shifts either. ENTRY = solved for trail braking: how turn-in on the brakes sits against mid-corner." hintTerm="brake-balance"/></Hide>
               {brakeEntry&&<Hide id="brakes.entryTarget"><Field label="Entry vs MID" value={dr.brakeEntryTarget??0} onChange={pDr('brakeEntryTarget')}
-                min={-5} max={5} step={0.25} unit="%"
+                min={-5} max={5} step={0.25} unit="%" refs={[{value:0,label:'= MID'}]}
                 hint="How much looser (+) or tighter (−) the car should be trail braking into the corner than mid-corner, in the expanded panel's grip-margin percent; the bias is solved for it. 0 = like mid-corner. The off-throttle diff and damping are not included." hintTerm="brake-balance"/></Hide>}
               {entrySolve?.clamped&&<div style={{fontSize:11,color:C_WARN,lineHeight:1.5,marginBottom:6}}>
                 {`Out of reach: brake bias stops at ${entrySolve.clamped==='rear'?BRAKE_BIAS_MIN:BRAKE_BIAS_MAX}%. Move Entry vs MID toward ${entrySolve.clamped==='rear'?'0 or below':'0 or above'}, or use the off-throttle diff for the rest.`}
               </div>}
               {brakeGrip&&<Hide id="brakes.decel"><Field label="Decel" value={dr.brakeDecel??DEF_DR.brakeDecel} onChange={pDr('brakeDecel')}
-                min={0.3} max={1.5} step={0.05} unit="g"
+                min={0.3} max={1.5} step={0.05} unit="g" refs={[{value:1.0,label:'THRESHOLD'}]}
                 hint="How hard GRIP assumes you brake. More decel moves more load forward, so GRIP moves forward: about 1.0 g for threshold braking, less for a lighter trail-brake." hintTerm="brake-balance"/></Hide>}
               <Hide id="brakes.refLine"><div style={{fontSize:11,color:T_MUTED,marginBottom:6}}>
                 REC {recBrakeBias}% · GRIP {gripBrakeBias}% at {(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g
@@ -12563,7 +12606,7 @@ function App(){
               min={-10} max={10}
               leftLabel="STABLE"
               rightLabel="ROTATE"
-              refs={[{value:0}]}
+              refs={[{value:0,label:brakeEntry?'ENTRY':brakeGrip?'GRIP':'REC'}]}
               hint={brakeGrip
                 ?`Shifts the GRIP brake bias (${gripBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`
                 :`Shifts the recommended brake bias (${recBrakeBias}% front). ROTATE moves it rearward for more rotation on the brakes; STABLE forward for a steadier entry. Stays within 40-68%.`}
@@ -12623,7 +12666,7 @@ function App(){
                     min={-50} max={50}
                     leftLabel="PUSH"
                     rightLabel="NEUTRAL"
-                    refs={[{value:0}]}
+                    refs={[{value:0,label:'AUTO'}]}
                     hint="Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation."
                     readout={`F.Accel ${diff.frontAccel}%`} hintTerm="exit-bias"/></Hide>
                 </>}
@@ -12651,7 +12694,7 @@ function App(){
                   min={-50} max={50}
                   leftLabel="GRIP"
                   rightLabel="ROTATE"
-                  refs={[{value:0}]}
+                  refs={[{value:0,label:'AUTO'}]}
                   hint={(ch.layout==='FWD'
                     ?'Front accel lock. GRIP = more lock: exit traction, but more push. ROTATE = less lock, less understeer.'
                     :ch.layout==='RWD'
@@ -12668,7 +12711,7 @@ function App(){
                   min={-50} max={50}
                   leftLabel="STABLE"
                   rightLabel="LOOSE"
-                  refs={[{value:0}]}
+                  refs={[{value:0,label:'AUTO'}]}
                   hint={(ch.layout==='FWD'
                     ?'Front decel lock. STABLE = more lock, more entry understeer. LOOSE = less lock, freer corner entry.'
                     :ch.layout==='RWD'
@@ -12687,7 +12730,7 @@ function App(){
                     min={-30} max={AWD_CENTER_MAX-50}
                     leftLabel="FRONT"
                     rightLabel="REAR"
-                    refs={[{value:0,label:'50/50'}]}
+                    refs={[{value:0,label:'50/50'},{value:recommendedCenter-50,label:'REC'}]}
                     hint="Share of drive sent to the rear. Toward REAR = more oversteer tendency; 60–70% rear is typical for track."
                     // The slider is centred on 50 (−30..+40); the box takes the rear % itself, whole.
                     box={{value:dr.diffCenter??65,min:20,max:AWD_CENTER_MAX,dp:0,unit:'% rear',
@@ -12702,14 +12745,9 @@ function App(){
               const ranges=DIFF_TYPE_RANGES[dt];
               // Each lock has a 0–100 slider; under it the diff type's typical range is drawn as a
               // band on the same scale, so where the value sits against it reads at a glance.
-              const RangeHint=({r})=>r?<div style={{marginTop:-6,marginBottom:8}}>
-                <div style={{position:'relative',height:4,background:'#0f172a',borderRadius:2}}>
-                  <div style={{position:'absolute',top:0,bottom:0,left:`${r[0]}%`,width:`${Math.max(1,r[1]-r[0])}%`,background:'#166534',borderRadius:2}}/>
-                </div>
-                <div style={{fontSize:11,color:'#94a3b8',marginTop:3}}>typical: {r[0]}–{r[1]}%</div>
-              </div>:null;
               // Accel/decel sit side by side only when the sidebar is wide enough for two
-              // Fields plus their "typical: n–n%" hints. Below that they stack, so the AWD
+              // Fields with their TYPICAL zone labels (typicalMarks, which replaced RangeHint's
+              // separate green strip and "typical: n–n%" line). Below that they stack, so the AWD
               // block reads front accel / front decel / rear accel / rear decel / center
               // split top to bottom instead of squeezing the labels and number boxes.
               const pairCols=dt!=='sport'&&sidebarWidth>=400?'1fr 1fr':'1fr';
@@ -12718,55 +12756,49 @@ function App(){
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                     <Hide id="drive.manFrontAccel"><div>
                       <Field label="Front Accel" value={dr.diffFrontAccel} onChange={pDr('diffFrontAccel')}
-                        min={0} max={100} step={1} unit="%"
+                        min={0} max={100} step={1} unit="%" {...typicalMarks(ranges.frontAccel)}
                         hint="Front lock under power. Higher = more front pull on exit, but more understeer." hintTerm="accel-lock"/>
-                      <RangeHint r={ranges.frontAccel}/>
                     </div></Hide>
                     {dt!=='sport'&&
                     <Hide id="drive.manFrontDecel"><div>
                       <Field label="Front Decel" value={dr.diffFrontDecel} onChange={pDr('diffFrontDecel')}
-                        min={0} max={100} step={1} unit="%"
+                        min={0} max={100} step={1} unit="%" {...typicalMarks([0,0])}
                         hint="Front lock off throttle. Keep it at 0: any more strongly adds entry understeer." hintTerm="decel-lock"/>
-                      <RangeHint r={[0,0]}/>
                     </div></Hide>}
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                     <Hide id="drive.manRearAccel"><div>
                       <Field label="Rear Accel" value={dr.diffRearAccel} onChange={pDr('diffRearAccel')}
-                        min={0} max={100} step={1} unit="%"
+                        min={0} max={100} step={1} unit="%" {...typicalMarks(ranges.rearAccel)}
                         hint="Rear lock under power. Higher = more exit oversteer." hintTerm="accel-lock"/>
-                      <RangeHint r={ranges.rearAccel}/>
                     </div></Hide>
                     {dt!=='sport'&&
                     <Hide id="drive.manRearDecel"><div>
                       <Field label="Rear Decel" value={dr.diffRearDecel} onChange={pDr('diffRearDecel')}
-                        min={0} max={100} step={1} unit="%"
+                        min={0} max={100} step={1} unit="%" {...typicalMarks(ranges.decel)}
                         hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
-                      <RangeHint r={ranges.decel}/>
                     </div></Hide>}
                   </div>
                   <Hide id="drive.manCenter"><Field label="Centre Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
-                    min={0} max={100} step={1} unit="% rear"
+                    min={0} max={100} step={1} unit="% rear" refs={[{value:recommendedCenter,label:'REC'}]}
                     hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/></Hide>
                 </>
               ):(
                 <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
                   <Hide id="drive.manAccel"><div>
                     <Field label="Accel Lock" value={dr.diffAccel} onChange={pDr('diffAccel')}
-                      min={0} max={100} step={1} unit="%"
+                      min={0} max={100} step={1} unit="%" {...typicalMarks(ranges.accel)}
                       hint={ch.layout==='RWD'
                         ?'Rear lock under power. Higher = more exit oversteer.'
                         :'Front lock under power. Higher = more exit understeer.'} hintTerm="accel-lock"/>
-                    <RangeHint r={ranges.accel}/>
                   </div></Hide>
                   {dt!=='sport'&&
                   <Hide id="drive.manDecel"><div>
                     <Field label="Decel Lock" value={dr.diffDecel} onChange={pDr('diffDecel')}
-                      min={0} max={100} step={1} unit="%"
+                      min={0} max={100} step={1} unit="%" {...typicalMarks(ranges.decel)}
                       hint={ch.layout==='RWD'
                         ?'Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry.'
                         :'Front lock off throttle. Lower = less entry understeer.'} hintTerm="decel-lock"/>
-                    <RangeHint r={ranges.decel}/>
                   </div></Hide>}
                 </div>
               );

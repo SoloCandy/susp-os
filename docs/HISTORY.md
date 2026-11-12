@@ -11,6 +11,42 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — slider markers say what they mark
+
+A follow-up audit of the labels themselves:
+
+- **ζ zones.** Rebound ζ, Bump ζ and the DAMPING ζ track read UNDER / →BW / BWORTH+ / OVER. In an
+  app where US and UNDERSTEER are everywhere, UNDER read as understeer; the arrows were cryptic;
+  and the text beside the Rebound box used other words for the same slider. They are now BOUNCY
+  / SOFT / FIRM / OVERDAMPED, and Butterworth, a point rather than a region, is a BUTTERWORTH
+  reference point at 70%, which the default Rebound ζ sits on.
+- **Bump Ratio** read UNDER below 30% and FIRM from 65%. The 30% edge matched no stated range;
+  its hint and glossary say 40–65% is typical, so that is now a TYPICAL 40–65% zone.
+- **Centre points named for what they are.** ARB Bias's NEUTRAL was the Balance Mode's anchor —
+  and in WEIGHT mode, where NEUTRAL is also another mode's name, actively misleading. It now
+  reads WEIGHT, CANCEL, EQUAL ROLL or NAT. Damping Bias and Bump Bias's EQUAL now say what is
+  equal: ζ, TIME, FORCE, the HYBRID midpoint, or DROP.
+- **Unlabelled ticks got names**, which also makes them clickable: AUTO on the ALIGNMENT intents
+  and the diff EXIT / ENTRY sliders, and Brake Bias's REC, GRIP or ENTRY.
+- **FASTEST SETTLE.** Rebound ζ marks 60%, the first step past ζ≈59.1%, where the measured
+  ±10% settle is quickest (critical damping is about 1.65× slower) and below which it nearly
+  doubles. It disagrees with the Settle row's envelope estimate, which keeps falling to 100%;
+  the marker follows the measured figure, and the glossary says so.
+- **Priority.** A point the value sits on now outranks its region's label and turns bright, and
+  NAT on Mech Balance Target gives way to the RANGE band it sits beside, which on most cars is
+  about 0.03 wide and lost its label to NAT every time.
+
+## Changed — more sliders carry markers; the diff's typical ranges moved onto the sliders
+
+Nine sliders had guidance elsewhere in the app but nothing on the track. Independent Hz now
+shows the SOFT / ROAD / FIRM / RACE zones its axle is graded by on the SPRINGS card. Front
+Weight Bias shows the layout's usual range, from the table the BEG warning reads. Mech
+Balance Target shows the Balance Guide's RANGE band and a NAT point, Balance Offset its mode's
+anchor, Centre Split and Power Split the recommended split as REC, and Entry vs MID and Decel
+the points their hints describe. The MANUAL diff locks' typical ranges were a separate green
+strip and a `typical: n–n%` line under each slider (`RangeHint`); they are now a TYPICAL zone on
+the slider itself, so the range sits on the scale the value is set on.
+
 ## Fixed — slider markers lit backwards; one marker model for every slider
 
 `FeelSlider`'s `markers` lit a tick once the value reached it (`value >= m.value`, or below it
