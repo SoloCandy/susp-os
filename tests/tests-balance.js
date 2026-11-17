@@ -17,9 +17,9 @@
 //   2. Scale invariance — only the Kf/Kr RATIO matters to the LLT model.
 //   3. Mirror symmetry — a front/rear-mirrored chassis gives the mirrored balance.
 //   4. Continuity / no saturation — no clamp cliff anywhere in the realistic envelope.
-//   5. Band direction — an overshoot fraction (>1) always overshoots toward OVERSTEER,
-//      under either sign of the natural-to-grip gap, and a band always contains its own
-//      interior extreme.
+//   5. Band order — every RANGE band edge sits at its grip margin, margin 0 is GRIP TARGET,
+//      and a build that asks for more rotation never lands further toward understeer, on
+//      any chassis, under either sign of the natural-to-grip gap.
 //   6. Crossover behaviour — the gap changes sign just under 50% front bias, and nothing
 //      downstream may jump as it does.
 //   7. Calibration envelope — balanceEnvelope flags exactly the fitted bounds it should.
@@ -29,8 +29,9 @@
 //  11. PHASE target — never worse than GRIP across the three phases, and it leans the way the
 //      drivetrain says.
 //
-// Properties 5 and 6 are the ones with history: the drift-band sign inversion and the
-// balanceBandRange V-shape miss were both failures of exactly these (docs/HISTORY.md).
+// Properties 5 and 6 are the ones with history: the drift-band sign inversion, the V-shape miss
+// and the build ordering that ran backwards on rear-biased cars were all failures of the old
+// gap-fraction band against exactly these (docs/HISTORY.md).
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -53,7 +54,7 @@ const M = new Function(
   '\nreturn{DEF_CH,DEF_FE,cornerMasses,tyreWidths,tireCorrOf,parseTyre,' +
   'axleRollStiffness,rollCenterHeight,latLoadTransfer,mechBalanceLLT,balanceFromRsBal,' +
   'displayRsBalance,natGeomOf,natRsOf,natDisplayOf,gripNeutralOf,clampBalTarget,' +
-  'balanceBandDelta,balanceBandRange,balanceBandFracs,BALANCE_BAND_FRACS,' +
+  'balanceBandOf,balanceBandMargins,BALANCE_BAND_MARGINS,BAL_BAND_MIN_WIDTH,bandSplitOf,splitDisplayOf,' +
   'balanceEnvelope,cgEstMmOf,FIT_HZ,FIT_CORNER_KG,FIT_TYRE_W,CG_EST_MIN,CG_EST_MAX,' +
   'MECH_BALANCE_TARGET,isPhysical,gripNeutralSplitOf,solveTune,resolveFeEffective,' +
   'axleLatG,gripMargin,phaseMargins,natOffsetOf,ENTRY_G,EXIT_G,loadTransferOf,' +
@@ -368,61 +369,6 @@ t('latLoadTransfer shifts load transfer toward the stiffer axle', () => {
 // -- 5. Balance band direction -----------------------------------------------
 console.log('\nBalance band');
 
-const GAPS = [-0.18, -0.09, -0.03, -0.004, 0, 0.004, 0.03, 0.09, 0.18];
-
-t('balanceBandDelta is monotone in frac on a positive gap, V-shaped on a negative one', () => {
-  for (const gap of GAPS) {
-    let prev = null, prevF = null;
-    for (let f = 0; f <= 1.6001; f += 0.02) {
-      const d = M.balanceBandDelta(f, gap);
-      if (gap >= 0) {
-        if (prev != null) ok(d >= prev - 1e-12,
-          `gap ${gap}: delta fell from ${prev} (frac ${prevF}) to ${d} (frac ${f})`);
-      } else if (f <= 1) {
-        if (prev != null) ok(d <= prev + 1e-12, `gap ${gap}: delta rose before grip-neutral (frac ${f})`);
-      } else {
-        ok(d >= M.balanceBandDelta(1, gap) - 1e-12,
-          `gap ${gap}: overshoot at frac ${f} landed short of grip-neutral`);
-      }
-      prev = d; prevF = f;
-    }
-  }
-});
-
-t('an overshoot fraction always overshoots toward OVERSTEER, whatever the gap sign', () => {
-  // This is the drift-band inversion, as a property. frac>1 is a direction ("past
-  // grip-neutral, into rotation"), so its delta must sit on the oversteer side of the
-  // grip-neutral delta for a negative gap just as it does for a positive one.
-  for (const gap of GAPS) {
-    const atNeutral = M.balanceBandDelta(1, gap);
-    for (const f of [1.05, 1.3, 1.55]) {
-      const d = M.balanceBandDelta(f, gap);
-      ok(d >= atNeutral - 1e-12,
-        `gap ${gap}, frac ${f}: overshoot delta ${d} is on the understeer side of grip-neutral ${atNeutral}`);
-      near(d - atNeutral, (f - 1) * Math.abs(gap), 1e-12,
-        `gap ${gap}, frac ${f}: overshoot magnitude must scale with |gap|`);
-    }
-  }
-});
-
-t('balanceBandRange contains both endpoints AND every interior fraction', () => {
-  // Endpoint min/max was the bug: on a negative gap the low extreme lies BETWEEN the
-  // endpoints, at frac=1. Sampling the whole interval is the property that catches it.
-  for (const gap of GAPS) {
-    for (const [lo, hi] of [[0.15, 0.35], [0.35, 0.65], [0.55, 0.95], [0.6, 1.05], [0.9, 1.55], [0.75, 1.3]]) {
-      const [dlo, dhi] = M.balanceBandRange(lo, hi, gap);
-      ok(dlo <= dhi + 1e-12, `gap ${gap}, fracs ${lo}-${hi}: range is inverted`);
-      const steps = 80;
-      for (let i = 0; i <= steps; i++) {
-        const f = lo + (hi - lo) * i / steps;
-        const d = M.balanceBandDelta(f, gap);
-        ok(d >= dlo - 1e-9 && d <= dhi + 1e-9,
-          `gap ${gap}, fracs ${lo}-${hi}: frac ${f.toFixed(3)} gives delta ${d}, outside the reported band [${dlo}, ${dhi}]`);
-      }
-    }
-  }
-});
-
 // The Balance Guide's gap: grip-neutral (gripNeutralOf, the mech balance the grip model reads
 // neutral at) minus the DISPLAY-space natural the band is drawn around. The app takes grip-neutral
 // at the current tune's roll stiffness; with no tune here it is taken at the MEASURE NAT BAL probe
@@ -431,26 +377,79 @@ t('balanceBandRange contains both endpoints AND every interior fraction', () => 
 const NAT = ch => M.natDisplayOf(ch, 'horizon');
 const gapOf = ch => M.gripNeutralOf(ch, 'horizon') - NAT(ch);
 
-t('every shipped BALANCE_BAND_FRACS pair produces a usable band on every chassis', () => {
-  for (const { name, ch } of CHASSIS) {
-    const gap = gapOf(ch);
-    for (const layout of Object.keys(M.BALANCE_BAND_FRACS))
-      for (const build of Object.keys(M.BALANCE_BAND_FRACS[layout])) {
-        const [lo, hi] = M.balanceBandFracs(layout, build);
-        const [dlo, dhi] = M.balanceBandRange(lo, hi, gap);
-        ok(Number.isFinite(dlo) && Number.isFinite(dhi), `${name} ${layout}/${build}: non-finite band`);
-        ok(dlo <= dhi + 1e-12, `${name} ${layout}/${build}: inverted band`);
-        const c = v => M.clampBalTarget(NAT(ch) + v);
-        ok(c(dlo) >= 0.05 && c(dhi) <= 0.95, `${name} ${layout}/${build}: band escapes clampBalTarget`);
-      }
+const BUILD_ORDER = ['offroad', 'rally', 'street', 'track', 'drift'];
+const bandOf = (ch, build) => M.balanceBandOf(ch, 'horizon', undefined, build);
+const mid = b => (b.lo + b.hi) / 2;
+// Front bias from tail-heavy to nose-heavy, across every CHASSIS shape: the old band ran backwards
+// on the low half of this, so the sweep has to cross the gap's sign on every shape.
+const SWEEP = [];
+for (const { name, ch } of CHASSIS) for (const fb of [36, 42, 48, 50, 52, 58, 64])
+  for (const layout of ['FWD', 'RWD', 'AWD'])
+    SWEEP.push({ name: `${name} ${layout} ${fb}%`, ch: { ...ch, frontBias: fb, layout } });
+
+t('BALANCE_BAND_MARGINS is ordered by rotation on every layout', () => {
+  for (const [layout, row] of Object.entries(M.BALANCE_BAND_MARGINS)) {
+    for (const [build, [lo, hi]] of Object.entries(row)) ok(lo < hi, `${layout}/${build}: ${lo} is not below ${hi}`);
+    for (let i = 1; i < BUILD_ORDER.length; i++) {
+      const a = row[BUILD_ORDER[i - 1]], b = row[BUILD_ORDER[i]];
+      ok(a[0] <= b[0] && a[1] <= b[1], `${layout}: ${BUILD_ORDER[i]} [${b}] is not on the rotation side of ${BUILD_ORDER[i - 1]} [${a}]`);
+    }
+    ok(row.drag[0] >= row.street[0] && row.drag[1] <= row.drift[1], `${layout}: DRAG [${row.drag}] is not between STREET and DRIFT`);
   }
 });
 
-t('balanceBandFracs falls back to RWD for an unknown layout and to a default for a build', () => {
-  const rwd = M.BALANCE_BAND_FRACS.RWD.track;
-  ok(JSON.stringify(M.balanceBandFracs('6WD', 'track')) === JSON.stringify(rwd), 'unknown layout fallback');
-  const fb = M.balanceBandFracs('RWD', 'hovercraft');
-  ok(Array.isArray(fb) && fb.length === 2 && fb[0] < fb[1], 'unknown build fallback is a usable pair');
+t('a band edge sits at its grip margin, and margin 0 is GRIP TARGET', () => {
+  for (const { name, ch } of CHASSIS) {
+    near(M.splitDisplayOf(ch, 'horizon', undefined, M.bandSplitOf(ch, 0)), M.gripNeutralOf(ch, 'horizon'), 1e-9, `${name}: margin 0`);
+    for (const m of [-3.3, -1.3, 0, 1.1, 2.1]) {
+      const s = M.bandSplitOf(ch, m);
+      if (s <= 1e-4 + 1e-9 || s >= 1 - 1e-4 - 1e-9) continue; // saturated: no split gives this margin
+      near(M.gripMargin(ch, s), m, 1e-6, `${name}: margin ${m}`);
+    }
+  }
+});
+
+t('more rotation never lands further toward understeer, on any chassis', () => {
+  // The defect this replaced, as a property: at 38% front the gap-fraction band gave OFFROAD the
+  // most rotation and DRIFT almost the least.
+  for (const { name, ch } of SWEEP) {
+    const bands = BUILD_ORDER.map(b => bandOf(ch, b));
+    for (let i = 1; i < bands.length; i++)
+      ok(mid(bands[i]) >= mid(bands[i - 1]) - 1e-9,
+        `${name}: ${BUILD_ORDER[i]} middle ${mid(bands[i]).toFixed(3)} is below ${BUILD_ORDER[i - 1]}'s ${mid(bands[i - 1]).toFixed(3)}`);
+    // Clamped: on a heavy stagger GRIP TARGET itself can sit past the 0.05-0.95 target range.
+    const gn = M.clampBalTarget(M.gripNeutralOf(ch, 'horizon'));
+    const st = bandOf(ch, 'street'), dr = bandOf(ch, 'drift');
+    ok(mid(st) <= gn + M.BAL_BAND_MIN_WIDTH / 2 + 1e-9, `${name}: STREET middle ${mid(st).toFixed(3)} is past GRIP TARGET ${gn.toFixed(3)}`);
+    ok(dr.hi >= gn - 1e-9, `${name}: DRIFT never reaches GRIP TARGET ${gn.toFixed(3)}`);
+  }
+});
+
+t('every shipped band is usable on every chassis', () => {
+  for (const { name, ch } of SWEEP)
+    for (const build of Object.keys(M.BALANCE_BAND_MARGINS[ch.layout])) {
+      const b = bandOf(ch, build);
+      ok([b.lo, b.hi, b.dlo, b.dhi].every(Number.isFinite), `${name}/${build}: non-finite band`);
+      ok(b.lo >= 0.05 - 1e-12 && b.hi <= 0.95 + 1e-12, `${name}/${build}: band escapes clampBalTarget`);
+      ok(b.hi - b.lo >= M.BAL_BAND_MIN_WIDTH - 1e-12, `${name}/${build}: band narrower than the minimum`);
+    }
+});
+
+t('a narrow band is widened about its middle, not toward either side', () => {
+  let seen = 0;
+  for (const { name, ch } of SWEEP) for (const build of BUILD_ORDER) {
+    const b = bandOf(ch, build), nat = M.natDisplayOf(ch, 'horizon');
+    const rawLo = nat + b.dlo, rawHi = nat + b.dhi;
+    if (rawHi - rawLo >= M.BAL_BAND_MIN_WIDTH || rawLo < 0.07 || rawHi > 0.93) continue;
+    seen++;
+    near(mid(b), (rawLo + rawHi) / 2, 1e-12, `${name}/${build}: widening moved the middle`);
+  }
+  ok(seen > 0, 'no narrow band in the sweep, so the widening went untested');
+});
+
+t('balanceBandMargins falls back to RWD for an unknown layout and to STREET for a build', () => {
+  ok(JSON.stringify(M.balanceBandMargins('6WD', 'track')) === JSON.stringify(M.BALANCE_BAND_MARGINS.RWD.track), 'unknown layout fallback');
+  ok(JSON.stringify(M.balanceBandMargins('RWD', 'hovercraft')) === JSON.stringify(M.BALANCE_BAND_MARGINS.RWD.street), 'unknown build fallback');
 });
 
 // -- 6. The gap's sign crossover ---------------------------------------------
@@ -481,19 +480,16 @@ t('the natural-to-grip gap changes sign exactly once, near an even weight split'
 });
 
 t('nothing downstream of the gap jumps as it crosses zero', () => {
-  // The crossover is where balanceBandDelta switches branch. A discontinuity in the resulting
-  // target band there would mean a 0.01% weight-bias edit could move a recommendation visibly.
-  for (const [lo, hi] of [[0.35, 0.65], [0.55, 0.95], [0.9, 1.55], [0.6, 1.05]]) {
+  // The old band switched formula at the crossover. The margin band has no branch there, and a
+  // jump would mean a 0.01% weight-bias edit could move a recommendation visibly.
+  ok(crossover != null, 'no crossover to scan across');
+  for (const build of BUILD_ORDER) {
     let prev = null, prevB = null;
-    ok(crossover != null, 'no crossover to scan across');
     for (let b = crossover - 1.5; b <= crossover + 1.5; b += 0.01) {
-      const ch = { ...M.DEF_CH, useRideHeightCG: false, frontBias: b };
-      const nat = NAT(ch);
-      const gap = gapOf(ch);
-      const [dlo, dhi] = M.balanceBandRange(lo, hi, gap);
-      const cur = [nat + dlo, nat + dhi];
+      const band = bandOf({ ...M.DEF_CH, useRideHeightCG: false, frontBias: b }, build);
+      const cur = [band.lo, band.hi];
       if (prev) for (const i of [0, 1]) ok(Math.abs(cur[i] - prev[i]) < 0.005,
-        `fracs ${lo}-${hi}: band edge ${i} jumped ${(cur[i] - prev[i]).toFixed(5)} between ${prevB.toFixed(2)}% and ${b.toFixed(2)}% front bias`);
+        `${build}: band edge ${i} jumped ${(cur[i] - prev[i]).toFixed(5)} between ${prevB.toFixed(2)}% and ${b.toFixed(2)}% front bias`);
       prev = cur; prevB = b;
     }
   }

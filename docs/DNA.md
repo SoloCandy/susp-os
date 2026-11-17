@@ -168,7 +168,7 @@ a resolver move made for the old chassis no longer fits the new one.
 
 The first design stored balance as a fraction `f` of the gap between the chassis's
 natural mech balance and grip-neutral — the normalisation the Balance Guide's
-`BALANCE_BAND_FRACS` uses — anchored at grip-neutral with a floor:
+the Balance Guide's old `BALANCE_BAND_FRACS` used — anchored at grip-neutral with a floor:
 `gripTarget + (f − 1)·max(gap, 0.03)`. It was accepted, then rejected once real
 chassis were run through the natural balance and `balanceFromRsBal`.
 
@@ -202,14 +202,14 @@ Flooring `abs(gap)` instead keeps the proportionality and makes `f = 0` stop mea
 removing it. Proportionality to a chassis's own bias *is* the part that does not port,
 so the axis dropped it.
 
-The Balance Guide uses the same fraction and has run into the same fold. Its DRIFT
-overshoot pointed at understeer on rear-biased cars until `balanceBandDelta` anchored
-fractions above 1.0 at grip-neutral — the same anchor this design tried first — which
-made the delta V-shaped, so `balanceBandRange` now has to include grip-neutral
-explicitly. Its fractions at or below 1.0 still rank builds by how much natural
-tendency they cancel rather than by rotation, which is recorded as open in
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md). An absolute offset has neither problem, because
-it never multiplies by the chassis's own gap.
+The Balance Guide used the same fraction and ran into the same fold. Its DRIFT
+overshoot pointed at understeer on rear-biased cars until fractions above 1.0 were
+anchored at grip-neutral — the same anchor this design tried first — and its
+fractions at or below 1.0 kept ranking builds by how much natural tendency they
+cancelled rather than by rotation. It now measures its band from grip-neutral too,
+in grip margin rather than mech balance ([PHYSICS.md](PHYSICS.md) "Balance Guide
+RANGE"). An absolute offset has neither problem, because it never multiplies by
+the chassis's own gap.
 
 ### ARB share rather than roll degrees
 
@@ -700,7 +700,7 @@ even when the DNA sits outside it.
 ## Archetypes (seed values)
 
 **These are hypotheses to test in-game, not calibration.** Seeded from the factory
-presets and `BALANCE_BAND_FRACS`'s RWD bands. An archetype ships at the midpoint of each range
+presets and the Balance Guide's old gap-fraction RWD bands (`BALANCE_BAND_FRACS`, since replaced by grip-margin bands). An archetype ships at the midpoint of each range
 unless testing says otherwise; `arbShare` is a single measured value, not a range.
 
 Unconfirmed values do not block implementation. `DNA_ARCHETYPES` is data, and a
@@ -727,7 +727,7 @@ values converted to slider convention per [Sign conventions](#sign-conventions)
 (stored `diffBiasEntry −15` reads +15 LOOSE), and GT3's `dampBias` is MOTORSPT's. The
 other damping and diff seeds are judgement calls with no preset behind them.
 
-The balance seeds are the earlier gap-fraction ranges (from `BALANCE_BAND_FRACS`'s RWD bands:
+The balance seeds are the earlier gap-fraction ranges (from the old `BALANCE_BAND_FRACS` RWD bands:
 rally 0.30–0.55, track 0.55–0.95, drift 0.90–1.55) converted at the default chassis,
 whose gap is 0.061, and rounded to 0.005. They are small because that chassis is
 nearly balanced to begin with, and several sit inside the resolver's own 0.01

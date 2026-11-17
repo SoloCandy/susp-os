@@ -134,7 +134,7 @@ t('RANGE mode resolves to the middle of the Balance Guide RANGE + Balance Offset
   for (const over of Object.values(FIXTURES)) for (const build of ['track', 'drift', 'drag'])
     for (const mode of ['horizon', 'beamng']) {
       const ch = chOf(over);
-      const b = M.balanceBandOf(M.natDisplayOf(ch, mode), M.gripNeutralOf(ch, mode), ch.layout, build);
+      const b = M.balanceBandOf(ch, mode, undefined, build);
       for (const arbBalDelta of [-0.2, 0, 0.05]) {
         const got = M.resolveFeEffective(ch, feOf(mode, { arbBalTargetMode: 'range', arbBalDelta }), build).arbBalTarget;
         const want = M.clampBalTarget((b.lo + b.hi) / 2 + arbBalDelta);
@@ -193,7 +193,7 @@ t('solveTune: Forza RANGE aims at the band middle at the tune stiffness', () => 
   for (const rideStiffness of [2.0, 3.6]) {
     const fe = M.resolveFeEffective(ch, feOf('horizon', { arbBalMode: 'mech', arbBalTargetMode: 'range', arbBalDelta: 0, rideStiffness }), 'track');
     const { tune, target } = M.solveTune(ch, fe, 'horizon', 'track');
-    const b = M.balanceBandOf(M.natDisplayOf(ch, 'horizon'), M.gripNeutralOf(ch, 'horizon', M.rollKOf(tune)), ch.layout, 'track');
+    const b = M.balanceBandOf(ch, 'horizon', M.rollKOf(tune), 'track');
     near(target, (b.lo + b.hi) / 2, 1e-9, `${rideStiffness} Hz target`);
     if (!tune.mechBalClamped) near(tune.mechBalance, target, 0.01, `${rideStiffness} Hz landed`);
   }

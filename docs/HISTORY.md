@@ -11,6 +11,34 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Balance Guide RANGE in grip margin; build order no longer inverts on rear-biased cars
+
+- **The defect.** The RANGE band was a fraction of the gap from NATURAL to GRIP TARGET
+  (`BALANCE_BAND_FRACS`, `balanceBandDelta`, `balanceBandRange`). A fraction at or below 1 meant
+  "cancel this share of the chassis's lean". On a rear-biased chassis the lean is oversteer, so a
+  larger fraction meant *less* rotation and the build table ran backwards. At 38% front RWD the
+  RANGE-mode targets were OFFROAD 0.545, RALLY 0.509, STREET 0.494, DRIFT 0.448, TRACK 0.443, DRAG
+  0.433. That covered every car under about 49.5% front, not the narrow strip near the crossover
+  that KNOWN_ISSUES described; its claim that RWD DRIFT's band "clears TRACK's outright" below that
+  strip was also wrong, since at 45%, 40% and 38% DRIFT's band contained TRACK's.
+- **The change.** The band is now a grip-margin band per layout and build (`BALANCE_BAND_MARGINS`,
+  PRO's Handling Balance unit), carried to mech balance through `gripMarginSplitOf` and
+  `splitDisplayOf` at the tune's roll stiffness, as GRIP TARGET is. Every band is measured from
+  grip-neutral, so the order holds on every chassis; `tests-balance.js` now asserts it across
+  front bias, layout and chassis shape. Grip margin rather than a fixed mech-balance step, because
+  the same step is about twice the understeer on a tall-CG car as on a staggered one.
+- **Calibration.** The figures are the old fractions converted on `DEF_CH` at 55% front, so cars
+  near there keep their band. Others move: at 62% front STREET went from 0.459–0.521 to
+  0.537–0.567, at 38% from 0.463–0.524 to 0.331–0.362. The latter needs CO-SOLVE to reach
+  (KNOWN_ISSUES).
+- **Minimum width.** A band under 0.03 wide used to be widened by raising its top edge only, which
+  moved narrow bands and RANGE mode's target toward oversteer (the default car's STREET band
+  reached past GRIP TARGET). It is now widened about its middle.
+- **GRIP GAP** suggested tyre widths that would carry GRIP TARGET into the band. With the band
+  measured from GRIP TARGET no tyre change can do that, so it now compares GRIP mode's actual target
+  (GRIP TARGET + Balance Offset) with the band and gives the Balance Offset that reaches its middle.
+- **The RANGE row's caption** shows the band's grip margins instead of its edges as deltas from NAT.
+
 ## Changed — AWD split on the grip model; MATCH CHASSIS retired for SOLVE EXIT
 
 - **The recommended centre split** was a fixed base per build trimmed by three hand-set factors:

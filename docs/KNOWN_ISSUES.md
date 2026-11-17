@@ -199,59 +199,22 @@ condition — see [HISTORY.md](HISTORY.md).
 
 ---
 
-## Open — Balance Guide RANGE's sub-1 fractions rank builds by correction, not by rotation
+## Open — RANGE bands on strongly rear-biased cars need CO-SOLVE to reach
 
-The RANGE band scales its deltas with `balanceBandDelta(frac, gap)` (collected
-over each fraction pair by `balanceBandRange`), where
-`gap = gripNeutral - natMechBalance` (see
-[PHYSICS.md](PHYSICS.md)'s Balance Guide RANGE section). A fraction above 1.0
-now overshoots toward oversteer under either sign of `gap`, which is what fixed
-the DRIFT-points-at-understeer defect in [HISTORY.md](HISTORY.md). A fraction at
-or below 1.0 was deliberately left alone, and that leaves a narrower version of
-the same tension.
+The Balance Guide RANGE band is a grip-margin band about GRIP TARGET
+([PHYSICS.md](PHYSICS.md) "Balance Guide RANGE"), so every build asks for the same
+at-limit balance whatever the chassis's own lean. On a tail-heavy car that means a
+large move away from natural toward the front: at 38% front on `DEF_CH` natural is
+0.595 and the STREET band 0.331–0.362. ARB MECH bottoms out near 0.465 there and
+Hz MECH near 0.417; only CO-SOLVE reaches the band, by dropping the rear springs to
+about 1.1 Hz. The bands are what the grip model says those builds want, so the
+limit is reach, not direction — the old gap-fraction band avoided it only by
+leaving most of the natural oversteer in place, which is what ranked its builds
+backwards ([HISTORY.md](HISTORY.md)).
 
-`frac ≤ 1` means "cancel this much of the chassis's natural tendency". On a
-front-biased chassis (`gap > 0`) that reads as a rotation scale by accident:
-OFFROAD at 0.15 barely corrects the natural understeer and TRACK at 0.95 nearly
-erases it, so a higher fraction looks like more rotation. On a strongly
-oversteering chassis (`gap` well negative) the same fractions run the other way
-— a higher fraction cancels more of the *oversteer*, so it recommends less
-rotation. The build table's intended ordering is only preserved by the
-`frac > 1` entries.
-
-This is visible where a build's whole pair sits below 1.0 while a more aggressive
-build's pair straddles it. AWD is the layout where the two overlap enough to
-invert: DRIFT is 0.75–1.30 against TRACK's 0.45–0.80, and on **every** chassis
-with a negative gap — anything under about 49.5% front on `DEF_CH` — AWD DRIFT's band
-hi sits below AWD TRACK's. At AWD 36% front (`nat` 0.631, `gap` −0.332) TRACK
-recommends 0.365–0.481 and DRIFT 0.299–0.398: the drift band is the more
-conservative of the two.
-
-FWD and RWD hold their ordering across 30–70% front bias except in a narrow strip
-just under the crossover, 47.1–49.5% front on `DEF_CH`. There `|gap|` is under
-0.03, every band is squeezed to the 0.03 minimum width around grip-neutral, and
-DRIFT and TRACK differ by about 0.001 (at 48.3%: DRIFT 0.478–0.508, TRACK
-0.479–0.509) — an ordering with nothing left to order. Below that strip their
-DRIFT pair (0.90–1.55) clears TRACK's (0.55–0.95) outright.
-
-This entry first quoted AWD DRIFT at 36% as 0.382–0.412 and put the AWD inversion
-"below about 45%". Both came from a separate defect since fixed — the band dropped
-grip-neutral when a fraction pair straddled 1.0, and the 0.03 floor then inflated
-it (see [HISTORY.md](HISTORY.md)) — which also happened to keep FWD/RWD ordered
-near the crossover.
-
-Every band still lands on or past grip-neutral on the oversteer side for such a
-chassis, so no recommendation is *backwards* in the way the fixed defect was — the
-ordering between two builds is what is off: for AWD on any rear-biased chassis,
-and for FWD/RWD only where the bands have collapsed to the minimum width anyway.
-
-Fixing it properly means deciding what a sub-1 fraction is supposed to mean:
-a fraction of the correction (today), or a position on an absolute rotation
-scale anchored at grip-neutral. The second reading would move STREET, TRACK,
-RALLY and OFFROAD on every rear-biased chassis, so it is a re-calibration of
-published guidance rather than a bug fix, and wants a decision before code.
-`tests-docs.js` cannot see this; the pinned characterisation lives in the
-scratch verification described in [HISTORY.md](HISTORY.md)'s entry.
+The band figures themselves are judgement: the old fractions converted on `DEF_CH`
+at 55% front. Nothing in-game has confirmed them, and the grip model behind GRIP
+TARGET has no measured ground truth either.
 
 ---
 
