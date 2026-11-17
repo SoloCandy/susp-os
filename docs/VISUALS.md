@@ -65,7 +65,7 @@ banner in `index.html`, and used everywhere rather than retyped:
 
 Red is no longer a balance colour, so a large oversteer number doesn't read as a fault.
 Character axes that are neither balance nor good/bad — RESPONSE, the Balance Guide's
-stability label, spring and damper categories, diff lock amount — use `C_TAG` and
+FOOTPRINT tag, spring and damper categories, diff lock amount — use `C_TAG` and
 `CAT_RAMP`. Front blue (`VIS_COL_F`) is the same hex as `C_US` but means *front axle*; the
 two never share a chart element. No text anywhere is smaller than 10 px on screen: SVG
 labels are sized in viewBox units so they reach 10 px at the narrowest sidebar (about
@@ -118,9 +118,9 @@ One horizontal bar, front on the left and rear on the right.
   model-space shading are never compared with each other.
 - **Ticks:** grey = NAT (`natMechBalance`, from `natDisplayOf`); green = the Balance
   Target (`feEffective.arbBalTarget`), drawn only when it differs from NAT by at
-  least 0.005 so the two don't sit on top of each other. It is not tier-gated, so INT,
-  which has no control that sets a target, sees the untouched default (0.60) here — see
-  [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+  least 0.005 so the two don't sit on top of each other. An untouched target is NAT
+  itself, so it draws nothing. It is not tier-gated, so INT, which has no control that
+  sets a target, still sees one set earlier in PRO — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - **Footer**, two lines so each label fits at 10 px. The first line has `roll` on the
   left and `spr … arb` on the right; the second has `nat … tgt …` centred.
   - `roll X.XX°`: body roll at 1 g (`tune.rollDeg`, two decimals), amber when `tune.rollClamped`. In

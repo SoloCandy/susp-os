@@ -304,22 +304,24 @@ is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
 
 > How hard you drive out of a corner, in g. PHASE balances EXIT at this load against ENTRY's 0.3 g of braking: more load makes the drivetrain's push or rotation larger, so the target moves further to offset it.
 
-**BALANCE GUIDE**, and its rows NATURAL, GRIP BIAS, GRIP TARGET, PHASE TARGET (PHASE
-mode only), RANGE and the target row:
+**BALANCE GUIDE**, and its rows NATURAL, GRIP BIAS, FOOTPRINT, GRIP TARGET, PHASE TARGET
+(PHASE mode only), RANGE and the target row:
 
 > Compares your suspension's mech balance to the chassis's natural, uncorrected balance. Tap each row's ⓘ for details.
 
 > The chassis's own mech balance before any spring or ARB correction: predicted from geometry, or your MEASURE NAT BAL reading.
 
-> At-limit grip balance at the natural point. Below 0.5 the front lets go first (understeer-prone); above, the rear does (oversteer-prone).
+> At-limit grip balance at the natural point, on its own scale where 0.50 is neutral grip. It is not a mech balance, so it is not on the strip. Below 0.50 the front lets go first (understeer-prone); above, the rear does (oversteer-prone).
+
+> Average track and tyre width against a 1.6 m, 265 mm reference, which reads 1.00. Wider feels more planted, narrower more agile. A character, not a balance: it leans the car neither way, and ignores mass, CG and wheelbase.
 
 > The mech balance at which the grip model reads neutral for this chassis: what GRIP mode targets at a 0 offset.
 
 > The mech balance that spreads ENTRY, MID and EXIT evenly about neutral, given your brake bias, drive split and EXIT Load: what PHASE mode targets at a 0 offset.
 
-> Recommended target band for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, given below as grip margin. RANGE mode aims at its middle.
+> Recommended target band for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, given below as grip margin. RANGE mode aims at its middle. It moves slightly with spring stiffness, as GRIP TARGET does.
 
-> TARGET when MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural.
+> TARGET when MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural. If the springs and bars can't reach a TARGET, an orange line gives what they reach.
 
 MEASURE NAT BAL sits in CHASSIS (see above), not here.
 

@@ -11,6 +11,51 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — an untouched Balance Target aims at natural, not 0.60
+
+- **The old default.** A fresh build sits in NATURAL Balance Target mode but stores no offset
+  (`fe.arbBalTarget: null`), and `resolveArbBalTarget` sent `null` to `MECH_BALANCE_TARGET`, a fixed
+  0.60 from the Forza community's road/circuit window, on every car. Switching ARB Balance Mode to
+  MECH or CO-SOLVE moved the car there, and the NATURAL box showed it as an offset (+0.125 on the
+  default car) with "fixed at 0.60 until you set an offset".
+- **Why it moved.** The in-game skidpad test (KNOWN_ISSUES, "GRIP TARGET misses the game's
+  grip-neutral") measured four cars. 0.60 was neutral on none: loose on the 240SX (neutral 0.534)
+  and very loose on the Mustang Cobra R (0.456), short on the 930 (0.638), and out of reach on the
+  Scirocco. Natural understeered on all four, by 0.044–0.067 on the three RWD cars. GRIP TARGET and
+  RANGE come from the grip model, which missed by up to 0.14, so they were not candidates.
+- **The change.** `null` now resolves as a 0 offset: natural itself, measured or predicted. The
+  NATURAL box shows 0 and the "fixed at 0.60" line is gone. `MECH_BALANCE_TARGET` stays as MANUAL's
+  raw default and the solvers' fallback for an unresolved `fe`. Natural + 0.05 would sit nearer
+  neutral on the RWD cars, but that rule was found after the runs and the Scirocco breaks it.
+- **What moves.** A saved tune or share code that never set a target, and that solves toward it
+  (MECH, CO-SOLVE or Hz MODE MECH), now aims at its natural instead of 0.60: on most cars a lower
+  target, toward understeer. A side effect: VISUALS no longer shows INT a green 0.60 mark on a
+  fresh build.
+
+## Changed — Balance Guide: GRIP BIAS off the strip, FOOTPRINT recentred, achieved balance, gap fallback
+
+- **GRIP BIAS was drawn on a scale it is not on.** It is a grip-model reading where 0.50 is
+  neutral grip, but it was a blue triangle on the mech-balance strip, so on a 38%-front car it
+  sat at 0.650 beside NATURAL and read like a target. It is now off the strip (and out of the
+  zoom's marker list); its row gives the value against 0.50 and names the end that lets go first.
+- **The stability tag was off-centre and on the wrong row.** Its index is 1.00 for the
+  1.6 m / 265 mm reference car, which read STABLE because BALANCED (0.85–0.97) lay wholly below
+  it, and it sat on the GRIP BIAS row although it has nothing to do with grip balance. It is now
+  its own FOOTPRINT row with the index shown, and the tags are symmetric about 1.00
+  (`STAB_BANDS`): AGILE, NIMBLE (new), BALANCED 0.94–1.06, STABLE, PLANTED.
+- **TARGET showed the request, not the result.** ✓ could show while the springs and bars missed
+  the target. When they miss by more than 0.01 (the `mechBalClamped` test) an orange line under
+  TARGET now gives the achieved balance with its own ✓, ↑ or ↓.
+- **GEOMETRY GAP measured to 0.50 when nothing solves.** 0.50 is an even roll-stiffness split,
+  neutral for nothing in the model. It now measures to the middle of the RANGE band, what RANGE
+  mode would aim at.
+- **`buildType` fallbacks said TRACK.** `dr.buildType ?? 'track'` (and the matching label, brake
+  and camber fallbacks) disagreed with `DEF_DR.buildType = 'street'`. Unreachable after
+  `sanitizeTune`, but misleading; all now fall back to STREET. Fallbacks for an *unknown* build
+  string inside the per-build tables (`[build] ?? …`) are unchanged.
+- **The RANGE hint** now says the band moves slightly with spring stiffness, as GRIP TARGET does;
+  "for your layout and build" read like a chassis property.
+
 ## Changed — Balance Guide RANGE in grip margin; build order no longer inverts on rear-biased cars
 
 - **The defect.** The RANGE band was a fraction of the gap from NATURAL to GRIP TARGET
