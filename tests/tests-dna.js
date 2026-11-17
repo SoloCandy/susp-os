@@ -118,6 +118,17 @@ t("NATURAL mode resolves through resolveArbBalTarget — and so does a stored le
   assert(M.sanitizeTune({ fe: { arbBalTargetMode: 'manual' } }).fe.arbBalTargetMode === 'natural', "sanitizeTune keeps 'manual'");
 });
 
+t('an untouched NATURAL target is natural itself, on every chassis and game', () => {
+  // It was a fixed MECH_BALANCE_TARGET (0.60), which in-game was loose on two of four cars and
+  // short on two; natural understeered mildly on all four (docs/KNOWN_ISSUES.md).
+  for (const over of Object.values(FIXTURES)) for (const gm of ['horizon', 'motorsport', 'beamng']) {
+    const ch = chOf(over), fe = feOf(gm, { arbBalTargetMode: 'natural', arbBalTarget: null });
+    const nat = M.clampBalTarget(M.natDisplayOf(ch, gm));
+    assert(M.resolveFeEffective(ch, fe).arbBalTarget === nat, `${gm}: ${M.resolveFeEffective(ch, fe).arbBalTarget} vs NAT ${nat}`);
+    assert(M.resolveArbBalTarget(ch, fe) === M.resolveArbBalTarget(ch, { ...fe, arbBalTarget: 0 }), `${gm}: null and 0 differ`);
+  }
+});
+
 t('MANUAL mode resolves to the raw arbBalAbs, clamped 0.05..0.95', () => {
   for (const over of Object.values(FIXTURES)) {
     const ch = chOf(over);

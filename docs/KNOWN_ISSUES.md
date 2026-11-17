@@ -236,7 +236,8 @@ neutral; close to it, on the RWD cars, it ran slightly ahead (below).
   ratio). The model's MID phase has none, but measuring the game on cornering slip
   alone moves the RWD neutrals the wrong way to close the gap.
 - **The community 0.60 baseline** (`MECH_BALANCE_TARGET`) is not neutral either: it is
-  loose on the 240SX and the Mustang, and short on the 930.
+  loose on the 240SX and the Mustang, and short on the 930. Natural understeers on all
+  four cars (by 0.044–0.067 on the RWD three), so an untouched target now aims at natural.
 - **Slides lead B on RWD.** On all three RWD cars the slides turned rear-led before the
   balance index crossed 0.5 (on the Mustang already at 0.43, B 0.447), which fits drive
   force using rear grip at the limit.
@@ -901,10 +902,11 @@ solves toward it.
 The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
 under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks
 draw the green target tick, label and rings whenever `feEffective.arbBalTarget` differs from NAT,
-and `resolveFeEffective` always resolves it: an untouched target falls back to
-`MECH_BALANCE_TARGET` (0.60). So INT, which cannot set a target, sees a green 0.60 mark on most
-cars. The `ride-roll-damping` glossary entry explains it at INT rather than hiding it; making the
-two displays agree is a code change not yet made.
+and `resolveFeEffective` always resolves it. An untouched target is natural itself, so on a
+fresh build there is no mark. A target set in PRO (any offset, or RANGE, GRIP, PHASE or MANUAL)
+still draws in INT, which cannot set one, and while nothing solves toward it. The
+`ride-roll-damping` glossary entry explains it at INT rather than hiding it; making the two
+displays agree is a code change not yet made.
 
 ## Open — three brake-bias models disagree
 
