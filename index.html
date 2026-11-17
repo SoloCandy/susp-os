@@ -682,15 +682,33 @@ const balTargetModeOf=fe=>{const m=fe?.arbBalTargetMode;return m==='range'||m===
 // RANGE, GRIP and PHASE are anchored on a grip-model split, which in a Forza mode displays
 // differently at different total roll stiffness — solveTune re-evaluates them at each run's K.
 const balTargetAnchoredMode=fe=>{const m=balTargetModeOf(fe);return m==='range'||m==='grip'||m==='phase';};
-// The Balance Guide RANGE band in display space, from natural and grip-neutral. The RANGE row, the
-// GRIP GAP widget and RANGE mode's target all read this, so none of them can disagree on where the
-// band sits. dlo/dhi are the band edges as deltas from natural before the clampBalTarget clamp.
-const balanceBandOf=(nat,gn,layout,build)=>{
-  const[fLo,fHi]=balanceBandFracs(layout??'RWD',build??'track');
-  const[dlo,dhi]=balanceBandRange(fLo,fHi,gn-nat);
-  const lo=Math.max(BAL_TARGET_MIN,Math.min(BAL_TARGET_MAX-0.03,nat+dlo));
-  const hi=Math.max(lo+0.03,Math.min(BAL_TARGET_MAX,nat+dhi));
-  return{lo,hi,dlo,dhi};
+// The Balance Guide RANGE band in display space: the build's grip-margin band (BALANCE_BAND_MARGINS)
+// carried to mech balance at total roll stiffness K, the way GRIP TARGET is — a margin's split
+// (gripMarginSplitOf) through splitDisplayOf. Margin 0 is grip-neutral, so the band sits a set
+// amount of at-limit understeer or oversteer from GRIP TARGET on every chassis, and a build that
+// asks for more rotation lands further toward oversteer whatever the car's natural lean. The RANGE
+// row, the slider zones, GRIP GAP and RANGE mode's target all read this, so none of them can
+// disagree on where the band sits. No K = the MEASURE NAT BAL probe springs, as gripNeutralOf.
+//
+// It replaced a fraction of the NATURAL→GRIP TARGET gap, which ranked builds backwards on every
+// rear-biased chassis (docs/HISTORY.md). A margin and not a fixed mech-balance step because one
+// step of mech balance is not one unit of handling: the same margin takes about twice the step on
+// staggered tyres as on a tall-CG car.
+//
+// Under 0.03 wide the band is widened about its middle, so a narrow band is not moved toward either
+// side; the 0.05–0.95 clamp applies after. mLo/mHi are the margins; dlo/dhi the edges as deltas
+// from natural before any widening or clamp.
+const BAL_BAND_MIN_WIDTH=0.03;
+const balanceBandOf=(ch,gameMode,K,build)=>{
+  const[mLo,mHi]=balanceBandMargins(ch.layout??'RWD',build??'street');
+  const nat=natDisplayOf(ch,gameMode);
+  const eLo=splitDisplayOf(ch,gameMode,K,bandSplitOf(ch,mLo)),eHi=splitDisplayOf(ch,gameMode,K,bandSplitOf(ch,mHi));
+  let lo=Math.max(BAL_TARGET_MIN,eLo),hi=Math.min(BAL_TARGET_MAX,eHi);
+  if(hi-lo<BAL_BAND_MIN_WIDTH){
+    const mid=Math.max(BAL_TARGET_MIN+BAL_BAND_MIN_WIDTH/2,Math.min(BAL_TARGET_MAX-BAL_BAND_MIN_WIDTH/2,(eLo+eHi)/2));
+    lo=mid-BAL_BAND_MIN_WIDTH/2;hi=mid+BAL_BAND_MIN_WIDTH/2;
+  }
+  return{lo,hi,dlo:eLo-nat,dhi:eHi-nat,mLo,mHi};
 };
 // RANGE / GRIP / PHASE anchor at total roll stiffness K (see gripNeutralOf; no K = probe springs):
 // the grip neutral, the middle of the RANGE band built from it, or PHASE's split (ph: phaseInOf's
@@ -699,7 +717,7 @@ const balTargetAnchorOf=(ch,mode,gameMode,build,K,ph)=>{
   if(mode==='phase')return phaseNeutralOf(ch,gameMode,K,ph);
   const gn=gripNeutralOf(ch,gameMode,K);
   return mode==='range'
-    ?(b=>(b.lo+b.hi)/2)(balanceBandOf(natDisplayOf(ch,gameMode),gn,ch.layout,build))
+    ?(b=>(b.lo+b.hi)/2)(balanceBandOf(ch,gameMode,K,build))
     :gn;
 };
 // RANGE / GRIP / PHASE target: the anchor plus Balance Offset. ph is App's phase inputs (brake bias
@@ -711,7 +729,7 @@ const balTargetAnchoredOf=(ch,fe,gameMode,build,K,ph)=>
 // to. This is the single funnel that resolves every Balance Target mode to the absolute value the
 // physics engine and every downstream display read. It was inline in App until Vehicle DNA's
 // compiler needed the identical resolution — keep one copy, not two (docs/DNA.md). RANGE needs the
-// build type (dr.buildType) for its band; it defaults to TRACK. PHASE needs the brakes and drive
+// build type (dr.buildType) for its band; it defaults to STREET, as DEF_DR does. PHASE needs the brakes and drive
 // split (ph, see phaseInOf). RANGE, GRIP and PHASE in a Forza mode resolve at the probe springs
 // here; solveTune moves them to the tune's own stiffness and returns the value it used as `target`,
 // which App reads back into feEffective.
@@ -1514,52 +1532,35 @@ const balanceEnvelope=(ch,tune,gameMode)=>{
     detail:`the ride-height CG estimate (${Math.round(est)} mm) is outside the ${CG_EST_MIN}-${CG_EST_MAX} mm CG Height range, so it is clamped and ride-height edits no longer move CG`});
   return out;
 };
-// Balance Guide RANGE / GRIP GAP band edge: how far from NATURAL one fraction of the
-// NATURAL→GRIP TARGET gap sits. Both widgets call this so their bands cannot drift apart.
+// Balance Guide RANGE band per layout and build, in grip-margin percent (gripMargin: PRO's Handling
+// Balance unit, + = the rear runs out first). 0 is grip-neutral, GRIP TARGET; inside ±PHASE_NEUTRAL
+// (1%) the Handling Balance reads NEUTRAL. Ordered by rotation: OFFROAD < RALLY < STREET < TRACK <
+// DRIFT on every layout, with DRAG between STREET and DRIFT, so a build that asks for more rotation
+// never lands further toward understeer. DRIFT and RWD DRAG reach past neutral on purpose.
 //
-// frac ≤ 1 interpolates from natural toward grip-neutral and is direction-correct under
-// either sign of gap — it is a partial correction of whatever the chassis does.
-// frac > 1 is a different thing: DRIFT (0.90–1.55) and RWD DRAG (0.60–1.05) use it to
-// recommend overshooting *past* grip-neutral into rotation, which is a direction, not a
-// magnitude. Plain frac*gap carried gap's sign, so on a negative gap it aimed that
-// overshoot at understeer instead — backwards, and on the DRIFT band large enough to
-// invert the whole build table (see docs/HISTORY.md). Anchoring the overshoot at
-// grip-neutral and adding |gap| keeps it pointed at oversteer whatever the sign.
-//
-// A negative gap is ordinary, not an edge case: the sign tracks front weight bias and
-// flips just under 50% front (about 49.5% on DEF_CH — it moves with calibration, so no exact figure is kept), so every mid- and rear-engined car is
-// on that side, as is any chassis a wide front tyre stagger puts there. docs/PHYSICS.md
-// carries the crossover measurements.
-//
-// The gap>=0 guard is load-bearing, not decoration: the overshoot branch spells |gap|
-// as -gap, which is the absolute value only on the branch that runs it. The guard-free
-// Math.abs form is algebraically identical for gap>=0 but not bit-identical (~1 ULP),
-// and keeping the positive branch on the literal frac*gap means no band that exists
-// today can move, .toFixed(2) rounding boundaries included.
-const balanceBandDelta=(frac,gap)=>frac<=1||gap>=0?frac*gap:gap+(frac-1)*(-gap);
-// The delta range a fraction PAIR covers: [lowest, highest] over every fraction from fracLo to
-// fracHi. Both widgets call this rather than taking min/max of the two endpoint deltas, because
-// on a negative gap balanceBandDelta is V-shaped in frac and bottoms out at frac=1 (grip-neutral):
-// a pair that straddles 1 has its low extreme BETWEEN its endpoints. Endpoint min/max dropped
-// grip-neutral from DRIFT's band (0.90–1.55 / AWD 0.75–1.30) and RWD DRAG's (0.60–1.05) on every
-// rear-biased chassis, and the 0.03 minimum width then pushed the truncated band further toward
-// oversteer — AWD DRIFT at 45% front shipped 0.457–0.487 when its fractions only reach 0.430–0.463
-// (docs/HISTORY.md). On a gap >= 0 the delta is monotonic and 1·gap lies strictly between the
-// endpoint deltas, so min/max still return those endpoints exactly: no front-biased band moves.
-const balanceBandRange=(fracLo,fracHi,gap)=>{
-  const ds=[balanceBandDelta(fracLo,gap),balanceBandDelta(fracHi,gap)];
-  if(fracLo<1&&fracHi>1)ds.push(balanceBandDelta(1,gap));
-  return[Math.min(...ds),Math.max(...ds)];
+// The figures are the old gap-fraction bands (frac f) on DEF_CH at 55% front, where the natural sits
+// at −3.75%: (f − 1) × 3.75, rounded to 0.1. A front-engined car near there keeps the band it had;
+// cars further from neutral, either way, now get the same at-limit balance instead of a share of
+// their own lean. docs/PHYSICS.md "Balance Guide RANGE".
+const BALANCE_BAND_MARGINS={
+  FWD:{offroad:[-3.2,-2.4],rally:[-2.6,-1.7],street:[-2.4,-1.3],drag:[-2.1,-0.8],track:[-1.7,-0.2],drift:[-0.4,2.1]},
+  RWD:{offroad:[-3.2,-2.4],rally:[-2.6,-1.7],street:[-2.4,-1.3],drag:[-1.5,0.2],track:[-1.7,-0.2],drift:[-0.4,2.1]},
+  AWD:{offroad:[-3.3,-2.7],rally:[-2.8,-2.1],street:[-2.6,-1.7],drag:[-2.4,-1.3],track:[-2.1,-0.8],drift:[-0.9,1.1]},
 };
-// Per-layout/build fraction pair for the Balance Guide RANGE band and the GRIP GAP widget.
-// One table so the two widgets cannot disagree on what "in range" means. Fractions >1
-// (DRIFT, RWD DRAG) overshoot past grip-neutral on purpose — see docs/PHYSICS.md.
-const BALANCE_BAND_FRACS={
-  FWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.45,0.80]},
-  RWD:{street:[0.35,0.65],track:[0.55,0.95],drift:[0.90,1.55],rally:[0.30,0.55],offroad:[0.15,0.35],drag:[0.60,1.05]},
-  AWD:{street:[0.30,0.55],track:[0.45,0.80],drift:[0.75,1.30],rally:[0.25,0.45],offroad:[0.12,0.28],drag:[0.35,0.65]},
+const balanceBandMargins=(layout,build)=>((BALANCE_BAND_MARGINS[layout]??BALANCE_BAND_MARGINS.RWD)[build])
+  ??BALANCE_BAND_MARGINS.RWD.street;
+// gripMarginSplitOf for a band edge, remembered per chassis object. The split depends only on the
+// chassis and the margin (not on K), and RANGE mode reaches it on every solveTune run and twice per
+// render; each is a ten-evaluation root find. Chassis objects are replaced, never mutated, so the
+// WeakMap cannot serve a stale split.
+const BAND_SPLIT_MEMO=new WeakMap();
+const bandSplitOf=(ch,m)=>{
+  let byM=BAND_SPLIT_MEMO.get(ch);
+  if(!byM){byM=new Map();BAND_SPLIT_MEMO.set(ch,byM);}
+  let s=byM.get(m);
+  if(s===undefined){s=gripMarginSplitOf(ch,m);byM.set(m,s);}
+  return s;
 };
-const balanceBandFracs=(layout,build)=>((BALANCE_BAND_FRACS[layout]??BALANCE_BAND_FRACS.RWD)[build])??[0.55,0.95];
 // Rear Hz Mode MECH (outside CO-SOLVE): the part both Ride Reference paths of feelToPhysics
 // share. Converts the absolute ARB Balance target into a physical spring rsBalance target,
 // works out how much WEIGHT/CHASSIS-split bars will dilute it (share p at their own split), and
@@ -8070,12 +8071,12 @@ const GLOSSARY=[
   ]},
   {group:'Balance Target',terms:[
     {id:'mech-balance-target',term:'Mech Balance Target',tier:'pro',def:"The Mech Balance the solvers aim for, as the game displays it. MECH and CO-SOLVE ARB balance modes solve toward it, and so does Hz MODE MECH. Above 0.50 is rear-biased roll stiffness (oversteer tendency), and below is front-biased (understeer tendency). It stays inside 0.05–0.95 in 0.005 steps, and a fresh build targets 0.60. A target the car can't reach is flagged under the ANTI-ROLL BARS card.\n\nIt applies only when ARB Balance Mode is MECH or CO-SOLVE (with Stiffness Mode not MAN), or when Hz MODE is MECH. Otherwise the controls hide and the Balance Guide shows CURRENT balance. CHASSIS anchors on natural balance and doesn't solve to it.\n\nThe mode sets what it is measured from. NATURAL is an offset from natural balance, so it follows the chassis. RANGE, GRIP and PHASE add Balance Offset to their anchor. MANUAL is a raw value, e.g. 0.60, that stays put. A fresh build is in NATURAL but stores no offset, so it aims at 0.60 itself: the box shows that as its offset from natural (+0.125 on the default car), and it stays at 0.60 until you set an offset. Picking NATURAL from another mode, or RANGE, GRIP or PHASE, starts at a 0 offset, on that mode's own anchor; switching to MANUAL keeps the target where it is. Switching ARB Balance Mode to MECH or CO-SOLVE moves the car to the target, so the switch says from where to where, and an orange box in BALANCE and ANTI-ROLL BARS says when a bar on its floor or ceiling stops the target, or anything beyond it, being reached. The alignment MECH nudge also reads it.",see:['mech-balance','balance-offset','target-range','target-grip','target-phase']},
-    {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build. It is set as a fraction of the gap from NATURAL toward GRIP TARGET, not as a flat offset. So the further a chassis sits from grip-neutral, the further its band sits from natural. TRACK, for example, uses 0.55–0.95 of that gap on FWD and RWD, and 0.45–0.80 on AWD.\n\nDRIFT (0.90–1.55, AWD 0.75–1.30) and RWD DRAG (0.60–1.05) deliberately go past grip-neutral toward oversteer. The band is at least 0.03 wide and stays inside 0.05–0.95. On most mid- and rear-engined cars, grip-neutral sits below natural. The RANGE row shows the band, with its edges as deltas from NAT.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
-    {id:'target-grip',term:'GRIP (Balance Target Mode)',tier:'pro',short:'GRIP target',def:"A Balance Target mode that aims at GRIP TARGET plus Balance Offset. GRIP TARGET is the mech balance at which the grip model reads exactly neutral for this chassis. At 0 offset the suspension cancels the chassis's own understeer or oversteer tendency instead of reinforcing it. GRIP TARGET is not GRIP BIAS mirrored about 0.50. The two use different units, and the model isn't symmetric enough for a mirror to land on neutral.\n\nIn Forza modes each tyre flexes in series with its axle, so GRIP TARGET shifts slightly with total roll stiffness. The solver uses the value at the tune's own stiffness. When GRIP TARGET falls outside the RANGE band, GRIP GAP appears.",see:['grip-neutral','grip-bias','balance-offset','grip-gap']},
+    {id:'target-range',term:'RANGE (Balance Target Mode)',tier:'pro',short:'RANGE target',def:"A Balance Target mode that aims at the middle of the Balance Guide's RANGE band, plus Balance Offset. The band is the recommended target for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, in grip margin (PRO's Handling Balance unit, where 0 is grip-neutral and + means the rear lets go first). STREET, for example, is −2.4 to −1.3% on FWD and RWD, TRACK −1.7 to −0.2%, and DRIFT −0.4 to +2.1%.\n\nBecause the band is measured from grip-neutral, a build that asks for more rotation always lands further toward oversteer, whatever the car's own lean. The RANGE row shows the band as mech balance with its margins underneath. It is at least 0.03 wide, widened about its middle, and stays inside 0.05–0.95. In Forza modes it moves slightly with total roll stiffness, as GRIP TARGET does.",see:['balance-offset','target-grip','grip-neutral','balance-guide']},
+    {id:'target-grip',term:'GRIP (Balance Target Mode)',tier:'pro',short:'GRIP target',def:"A Balance Target mode that aims at GRIP TARGET plus Balance Offset. GRIP TARGET is the mech balance at which the grip model reads exactly neutral for this chassis. At 0 offset the suspension cancels the chassis's own understeer or oversteer tendency instead of reinforcing it. GRIP TARGET is not GRIP BIAS mirrored about 0.50. The two use different units, and the model isn't symmetric enough for a mirror to land on neutral.\n\nIn Forza modes each tyre flexes in series with its axle, so GRIP TARGET shifts slightly with total roll stiffness. The solver uses the value at the tune's own stiffness. When the GRIP target falls outside the RANGE band, GRIP GAP gives the Balance Offset that brings it in.",see:['grip-neutral','grip-bias','balance-offset','grip-gap']},
     {id:'balance-offset',term:'Balance Offset',tier:'pro',def:"In RANGE, GRIP and PHASE target modes, how far the Mech Balance Target sits from that mode's anchor: −0.20 to +0.20 in 0.005 steps, default 0. Positive means more rear roll stiffness (oversteer tendency), and negative more front (understeer tendency). At 0 it is the middle of the recommended band in RANGE, grip-neutral in GRIP, or PHASE TARGET in PHASE.\n\nThe three modes share one value. Switching to one of them resets it to 0, so the target starts on the new mode's own anchor. The Balance Guide shows the resulting target.",see:['target-range','target-grip','target-phase','mech-balance-target']},
     {id:'target-phase',term:'PHASE (Balance Target Mode)',tier:'pro',short:'PHASE target',def:"A Balance Target mode that aims at PHASE TARGET plus Balance Offset. GRIP is neutral mid-corner only. PHASE picks the mid-corner balance that spreads the three Handling Balance phases evenly about neutral: ENTRY (mid-corner plus the brake bias at 0.3 g braking), MID, and EXIT (mid-corner plus the drive split at the EXIT Load), so the worst of the three is as small as a roll-stiffness split can make it.\n\nIn practice it is GRIP moved by half the brakes' and drivetrain's own lean. RWD puts the power through the rear, so EXIT leans loose and PHASE sets mid-corner a little tight; FWD the reverse; AWD by its centre split. It counts the brake bias and power split as you set them, so moving either moves the bars. Diff lock and damping are not counted: they have no calibrated size.\n\nEXIT Load (0.05–0.60 g, default 0.2) is how hard you drive out of a corner. More load makes the drive term larger and moves PHASE TARGET further from GRIP TARGET. While PHASE is solving, the Handling Balance EXIT row is read at this load too. Weight transfer from braking and accelerating (PITCH) is left out, as it is in the readout. Under BRAKES' ENTRY Centre, PHASE takes the ENTRY target as BRK.",see:['target-grip','phase-verdict','balance-offset','grip-neutral']},
     {id:'balance-guide',term:'Balance Guide',tier:'pro',def:"The panel in PRO's BALANCE section that compares your suspension's mech balance with the chassis's natural balance. Its strip zooms to fit its markers, at least 0.10 wide, since on most cars they all sit within a few hundredths of 0.50; SHOW FULL spans the whole 0.05–0.95 target range. A grey bar marks NATURAL, a blue triangle GRIP BIAS, a teal dot GRIP TARGET, a violet diamond PHASE TARGET (PHASE mode only) and a green band RANGE. The top marker is TARGET, or CURRENT when nothing solves toward a target. It is green inside the band, orange above it (the oversteer side) and blue below.\n\nThe TARGET/CURRENT row gives the value with ✓, ↑ or ↓ against the band, and its Δ from NAT, marked OS, US or ≈nat (within 0.015). GEOMETRY GAP, below, is a different distance: from NAT to the target, or to 0.50 when nothing solves, and it names both ends. GRIP BIAS carries a stability tag: AGILE below 0.85, BALANCED below 0.97, STABLE below 1.10, otherwise PLANTED. The tag's index is the square root of (average track ÷ 1.6 m) × (average tyre width ÷ 265 mm).",see:['natural-balance','grip-bias','grip-neutral','target-range']},
-    {id:'grip-gap',term:'GRIP GAP / GEOMETRY GAP',tier:'pro',short:'Geometry gap',def:"A panel under the Balance Guide that suggests chassis changes toward the target. In GRIP target mode it is GRIP GAP. It appears when GRIP TARGET sits more than 0.005 outside the RANGE band. It gives the extra front or rear tyre width that brings it inside, in 5 mm steps up to 80 mm. A wider front lowers GRIP TARGET, and a wider rear raises it. Beyond that reach, use Balance Offset.\n\nIn the other modes it is GEOMETRY GAP. It appears when the target is more than 0.015 from natural balance; when nothing solves toward a target, 0.50 stands in. It suggests track changes within ±65 mm, in 5 mm steps. A wider rear track or narrower front raises rear roll stiffness, and the reverse raises the front's. Beyond that, use ARBs or tyre widths.",see:['target-grip','track-width','tyre-size','balance-offset']},
+    {id:'grip-gap',term:'GRIP GAP / GEOMETRY GAP',tier:'pro',short:'Geometry gap',def:"A panel under the Balance Guide. In GRIP target mode it is GRIP GAP. It appears when the GRIP target, GRIP TARGET plus Balance Offset, sits more than 0.005 outside the RANGE band. It gives the Balance Offset that puts the target in the middle of the band, which RANGE mode does by itself. Tyre width cannot close this gap, because the band moves with GRIP TARGET.\n\nIn the other modes it is GEOMETRY GAP. It appears when the target is more than 0.015 from natural balance; when nothing solves toward a target, 0.50 stands in. It suggests track changes within ±65 mm, in 5 mm steps. A wider rear track or narrower front raises rear roll stiffness, and the reverse raises the front's. Beyond that, use ARBs or tyre widths.",see:['target-grip','track-width','tyre-size','balance-offset']},
   ]},
   {group:'Alignment',terms:[
     {id:'camber',term:'Camber',tier:'beginner',def:"Camber is the wheel's tilt seen from the front; negative camber leans the top of the tyre inward. It keeps more of the contact patch flat on the road once the body rolls in a corner.\n\nThe ALIGNMENT card gives a static camber chosen so the tyre reaches a dynamic target for your build at the tune's body roll: STREET −1.0°, TRACK −1.5°, DRIFT −2.5°, RALLY −0.8°, OFFROAD −0.3°, DRAG −0.2°. More roll means more static negative camber, and a low-CG car gets more correction per degree of roll. The rear takes only part of the front's roll correction (FWD 0.50, AWD 0.70, RWD 0.75), and FWD front camber is reduced by 0.3° to protect traction. The recommendation stays within −4.0° to 0° front and −3.5° to 0° rear, and rounds to 0.1°, the precision the game accepts.\n\n[INT] The Camber F and Camber R sliders move each axle up to 2.0° off the AUTO value, and MANUAL takes camber directly, both across the game's full −5.0° to +5.0°.",see:['toe','caster','align-mode','align-intent']},
@@ -8164,7 +8165,7 @@ const GLOSSARY=[
     {id:'grip-bias',term:'Grip Bias',tier:'pro',def:"Grip Bias is the car's at-the-limit lateral grip balance at its natural point, from the load-transfer grip model: tyre widths, track widths, CG height and weight split at the chassis's natural roll-stiffness split, before any tuning. Below 0.5 the front grips out first (understeer-prone); above 0.5 the rear does (oversteer-prone). A MEASURE NAT BAL reading shifts it along with natural balance.\n\nIt is not Mech Balance: two cars with identical mech balance can have different grip bias if their tyre widths or load transfer differ. The Balance Guide shows it as the GRIP BIAS row, which also carries a stability tag (AGILE, BALANCED, STABLE or PLANTED) from average track and tyre width. PRO's Handling Balance figure, grip margin, is the same model's front-minus-rear difference, quoted in percent rather than on the 0–1 scale.",see:['grip-neutral','mech-balance','natural-balance','phase-verdict']},
     {id:'load-transfer',term:'Load Transfer',tier:'beginner',def:"Load transfer is weight shifting between tyres as the car corners, brakes or accelerates: onto the outside tyres in a corner, onto the fronts under braking, onto the rears under power. Tyres gain grip more slowly than they gain load, so an axle carrying more transfer has less total grip left. A lower CG and wider track reduce cornering transfer; a lower CG and longer wheelbase reduce fore-aft transfer.\n\nHow roll stiffness is split front to rear decides which axle takes more of the cornering transfer, which is why that split sets handling balance. Forward transfer under braking is also why the recommended brake balance sits in front of the weight split.\n\n[PRO] LOAD TRANSFER, the last group in the VISUALS card, reads the balance model's own transfer at 1 g cornering, so springs and bars move it. FRONT TAKES is the front axle's share of the total transfer beside the weight split: more on the front than its weight share leans understeer. A top-down sketch shades each wheel by its load in a left turn. CORNER is static corner mass; XFER is each axle's transfer per g, split into SPR+ARB (through the springs and bars, the part the tune moves) and GEOMETRY (through the roll centre, fixed); OUT / IN are the outer and inner wheel loads. LIFTS (amber) marks an inner wheel unloaded before 1 g: past that, more roll stiffness on that end stops shifting balance. FORE-AFT gives the axle loads under the ENTRY and EXIT phase loads (0.3 g braking, 0.2 g drive). Use it to see which end the bars load and how much camber the loaded outer tyre needs.",see:['roll-stiffness','brake-balance','sag-vs-load','grip-bias']},
     {id:'grip-use',term:'Grip Use',tier:'pro',def:"GRIP USE, a PRO group in the VISUALS card, predicts how much of each axle's grip is in use when the car reaches its limit, from the same grip model as the Handling Balance bar, so it needs no laps. The axle that runs out first reads 100% and LIMIT, with its wheels outlined; the other shows what it has to spare. A front limit means understeer at the limit, a rear limit oversteer, and within 2% the axles run out together.\n\nMID is steady cornering. ENTRY adds 0.3 g of braking at the computed brake bias, EXIT 0.2 g of drive at the drive split; each axle's line then shows how much of its grip the braking or drive takes, through the friction circle. Unlike the bar's ENTRY and EXIT figures, these include the car's own weight transfer, so the two can differ: the bar isolates what the tune adds, this predicts what the tyres see.\n\nThe model has no tyre friction coefficient, so it cannot give the limit in g, only the shares. Both tyres on an axle run the same slip angle, so in the model they use the same share of their grip; an unloaded inner wheel reads LIFT.",see:['load-transfer','phase-verdict','brake-balance','grip-bias']},
-    {id:'grip-neutral',term:'Grip-Neutral',tier:'pro',def:"Grip-Neutral is the mech balance at which the grip model reads exactly neutral (0.50) for this chassis at the current springs and bars, shown as GRIP TARGET in the Balance Guide. Targeting it cancels the chassis's built-in push or looseness instead of reinforcing it.\n\nGRIP target mode aims here plus Balance Offset, so it lands exactly on grip-neutral only at a 0 offset. It is not the mirror of GRIP BIAS: the two are in different units, and the model is not symmetric enough for a mirror to land on neutral. The Balance Guide's RANGE is scaled between natural balance and this point, and a Vehicle DNA's BALANCE axis is measured from it.",see:['grip-bias','target-grip','target-range','mech-balance-target']},
+    {id:'grip-neutral',term:'Grip-Neutral',tier:'pro',def:"Grip-Neutral is the mech balance at which the grip model reads exactly neutral (0.50) for this chassis at the current springs and bars, shown as GRIP TARGET in the Balance Guide. Targeting it cancels the chassis's built-in push or looseness instead of reinforcing it.\n\nGRIP target mode aims here plus Balance Offset, so it lands exactly on grip-neutral only at a 0 offset. It is not the mirror of GRIP BIAS: the two are in different units, and the model is not symmetric enough for a mirror to land on neutral. The Balance Guide's RANGE is measured in grip margin from this point, and a Vehicle DNA's BALANCE axis is measured from it.",see:['grip-bias','target-grip','target-range','mech-balance-target']},
     {id:'response',term:'Response (Planted / Reactive)',tier:'beginner',def:"Response is a separate bar from understeer/oversteer that rates transient character: how quickly the car reacts to steering, not which end lets go. PLANTED (left) is settled and damped, predictable but slower to change direction; REACTIVE (right) turns in immediately but can feel nervous. Within ±15 it reads BALANCED. A car can be perfectly neutral and still sit at either extreme.\n\nThe score weights front Hz 35%, rear Hz 20%, front toe 15%, caster 10%, front rebound damping 12% and rear rebound damping 8%. Higher Hz, lower rebound damping, more front toe-out and lower caster all read reactive. Anti-roll bars and weight bias are left out: they set balance, not response speed.\n\nBump damping is deliberately absent. At low shaft speed it resists roll initiation (planted); over bumps it deflects the car instead of absorbing them (skittish). One damping ratio cannot separate the two, so any sign here would be wrong on some surface.",see:['response-factors','hz','rebound','toe']},
   ]},
   {group:'Readouts & Visuals',terms:[
@@ -9558,6 +9559,9 @@ function App(){
   // tune's roll stiffness. Not 1 − natGripBalance — that mirrors a grip reading into a mech
   // balance; see gripNeutralOf.
   const gripNeutral=gripNeutralOf(ch,fe.gameMode,rollKOf(tune));
+  // The Balance Guide RANGE band at the same stiffness: the RANGE row, the target sliders' zones and
+  // GRIP GAP all read this one value.
+  const balanceBand=balanceBandOf(ch,fe.gameMode,rollKOf(tune),dr.buildType);
   // PHASE TARGET, at the same stiffness: the Balance Guide's PHASE row and marker, PHASE mode only.
   const phaseNeutral=phaseOn?phaseNeutralOf(ch,fe.gameMode,rollKOf(tune),phaseInOf(ch,fe,phaseIn)):null;
   hzRatioRef.current=physics.frontHz>0?physics.rearHz/physics.frontHz:1.20;
@@ -10248,7 +10252,6 @@ function App(){
     return{natBal,stabIdx,targetBal,hasMechTarget,
            trackF_rec,trackR_rec,dTrackF,dTrackR,trackFfeas,trackRfeas};
   })();
-  const{twF:_twF,twR:_twR}=tyreWidths(ch);
   // Display space: the NAT that targets, the Balance Guide, the MECH BALANCE strip and the VISUALS
   // roll-split ticks and ghost rings are all measured against.
   const natMechBalance=natDisplayOf(ch,fe.gameMode);
@@ -11403,7 +11406,7 @@ function App(){
                   const _m=balTargetModeOf(fe);
                   // The Balance Guide's RANGE band, drawn on the target sliders as the zone the
                   // hints call the recommended band (balanceBandOf: the same call RANGE mode aims at).
-                  const _rb=balanceBandOf(natMechBalance,gripNeutral,ch.layout??'RWD',dr.buildType??'track');
+                  const _rb=balanceBand;
                   if(_m==='natural')return(<Hide id="balance.targetNat">
                     <Field label="Mech Balance Target" value={fe.arbBalTarget??roundBalStep(MECH_BALANCE_TARGET-natMechBalance)}
                       onChange={v=>pFe('arbBalTarget')(roundBalStep(v))}
@@ -11443,19 +11446,11 @@ function App(){
             {(()=>{
               if(uiMode!=='pro')return null;
               const _layout=ch.layout??'RWD';
-              const _build=dr.buildType??'track';
-              // RANGE is a fraction of the NATURAL→GRIP TARGET gap, not a flat delta, so the
-              // band scales with how biased this particular chassis actually is. Fractions >1
-              // (DRIFT) overshoot past grip-neutral on purpose. See docs/PHYSICS.md's "Balance
-              // Guide RANGE". The fraction table is BALANCE_BAND_FRACS, shared with GRIP GAP below.
-              // balanceBandOf carries the band math (balanceBandDelta for the >1 fractions' sign,
-              // balanceBandRange for which endpoint is low when the gap is negative — see those
-              // helpers' comments) and is the same call RANGE mode aims at, so the band drawn here
-              // is the band that mode targets the middle of.
-              const{lo:_lo,hi:_hi,dlo:_dlo,dhi:_dhi}=balanceBandOf(natMechBalance,gripNeutral,_layout,_build);
-              // Signed: _dlo/_dhi go negative whenever _gap does, and a hardcoded '+' in the
-              // caption below rendered "Δ+-0.17 → +-0.10" on every rear-biased chassis.
-              const _dfmt=v=>(v>=0?'+':'')+v.toFixed(2);
+              const _build=dr.buildType??'street';
+              // RANGE is the build's grip-margin band carried to mech balance (balanceBandOf, the
+              // same value RANGE mode aims at the middle of, the slider zones draw and GRIP GAP
+              // compares against). See docs/PHYSICS.md's "Balance Guide RANGE".
+              const{lo:_lo,hi:_hi,mLo:_mLo,mHi:_mHi}=balanceBand;
               const _hasMechTarget=hasBalTargetSolve(fe);
               const _cur=_hasMechTarget?(feEffective.arbBalTarget??natMechBalance):tune.mechBalance;
               // ZOOM (default) fits the strip to the markers: on most cars NATURAL, GRIP BIAS, GRIP
@@ -11566,11 +11561,11 @@ function App(){
                     </>}
                     <span style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
                       <span style={{display:'inline-block',width:12,height:4,background:'#14532d',borderRadius:1,flexShrink:0}}/> RANGE
-                      <Hint text="Recommended target band for your layout and build, set from NATURAL toward GRIP TARGET. RANGE mode aims at its middle." term="target-range"/>
+                      <Hint text="Recommended target band for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, given below as grip margin. RANGE mode aims at its middle." term="target-range"/>
                     </span>
                     <span style={{textAlign:'right',display:'flex',flexDirection:'column',alignItems:'flex-end',gap:1}}>
                       <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#16a34a'}}>{_lo.toFixed(2)} – {_hi.toFixed(2)}</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:10,color:T_MUTED,letterSpacing:0.3}}>Δ{_dfmt(_dlo)} → {_dfmt(_dhi)}</span>
+                      <span style={{fontFamily:'var(--font-mono)',fontSize:10,color:T_MUTED,letterSpacing:0.3}}>grip {fmtSigned(_mLo,1)}% → {fmtSigned(_mHi,1)}%</span>
                     </span>
                     <span style={{fontSize:13,color:'#cbd5e1',display:'flex',alignItems:'center',gap:5,fontWeight:600}}>
                       <span style={{display:'inline-block',width:0,height:0,borderLeft:'6px solid transparent',borderRight:'6px solid transparent',borderTop:`9px solid ${_tc}`,flexShrink:0}}/> {_curLabel}
@@ -11609,37 +11604,17 @@ function App(){
               const{targetBal,dTrackF,dTrackR,trackFfeas,trackRfeas}=chassisAnalysis;
               const nm=natMechBalance;
               const showGeoGap=gap>0.015;
-              // GRIP GAP — how much tyre width change brings GRIP neutral into range.
-              // Mirrors the RANGE band above: same fraction-of-(NATURAL→GRIP TARGET-gap) math,
-              // so the two widgets agree on what "in range" means. See the RANGE block for the
-              // rationale on gap-scaling instead of a flat delta.
-              const _ggNeutral=gripNeutral;
-              // balanceBandOf, the same call as the RANGE block above, so the two widgets cannot
-              // disagree on what "in range" means.
-              const{lo:_ggLo,hi:_ggHi}=balanceBandOf(nm,_ggNeutral,ch.layout??'RWD',dr.buildType??'track');
-              const _ggGap=_ggNeutral>_ggHi?_ggNeutral-_ggHi:_ggNeutral<_ggLo?_ggLo-_ggNeutral:0;
+              // GRIP GAP — how far GRIP mode's target (GRIP TARGET + Balance Offset) sits outside the
+              // RANGE band, and the Balance Offset that puts it in the middle. It used to suggest tyre
+              // widths that carried GRIP TARGET into the band, back when the band was a fraction of
+              // the NATURAL→GRIP TARGET gap; the band is now a grip margin about GRIP TARGET, so it
+              // moves with it and a tyre change cannot close the gap. Only the offset can.
               const _isGripMode=balTargetModeOf(fe)==='grip';
-              const showGripGap=_isGripMode&&_ggGap>0.005;
-              let _ggTyreF=null,_ggTyreR=null;
-              if(showGripGap){
-                // GRIP TARGET on hypothetical tyre widths. The display tyre term (tireCorr) is held
-                // at the current tyres' value: the band it is compared against is built from
-                // today's natural, so letting only one side move with it would count it once.
-                const _tc0=tireCorrOf(ch);
-                const _gnAt=(twF,twR)=>{const c={...ch,tyreF:`${Math.round(twF)}/35R18`,tyreR:`${Math.round(twR)}/35R18`};
-                  return gripNeutralOf(c,fe.gameMode,rollKOf(tune))-tireCorrOf(c)+_tc0;};
-                if(_ggNeutral>_ggHi){
-                  let lo2=_twF,hi2=_twF+200,best2=null;
-                  for(let i=0;i<25;i++){const mid=(lo2+hi2)/2;if(_gnAt(mid,_twR)<=_ggHi+0.001){best2=mid;hi2=mid;}else lo2=mid;}
-                  const d=best2!=null?Math.ceil((best2-_twF)/5)*5:null;
-                  if(d!=null&&d>=5&&d<=80)_ggTyreF=d;
-                }else{
-                  let lo2=_twR,hi2=_twR+200,best2=null;
-                  for(let i=0;i<25;i++){const mid=(lo2+hi2)/2;if(_gnAt(_twF,mid)>=_ggLo-0.001){best2=mid;hi2=mid;}else lo2=mid;}
-                  const d=best2!=null?Math.ceil((best2-_twR)/5)*5:null;
-                  if(d!=null&&d>=5&&d<=80)_ggTyreR=d;
-                }
-              }
+              const{lo:_ggLo,hi:_ggHi}=balanceBand;
+              const _ggTarget=clampBalTarget(gripNeutral+(fe.arbBalDelta??0));
+              const _ggGap=_ggTarget>_ggHi?_ggTarget-_ggHi:_ggTarget<_ggLo?_ggTarget-_ggLo:0;
+              const showGripGap=_isGripMode&&Math.abs(_ggGap)>0.005;
+              const _ggOffset=Math.max(-0.20,Math.min(0.20,roundBalStep((_ggLo+_ggHi)/2-gripNeutral)));
               const fmtD=d=>(d>=0?'+':'')+Math.round(d);
               // gap is Math.abs(_sgap), so the sign has to come from _sgap itself — testing
               // gap here always yielded '+'. Positive = target is more rear-biased (oversteer)
@@ -11650,23 +11625,12 @@ function App(){
                 if(!showGripGap)return null;
                 return(<Hide id="balance.gap">
                   <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'7px 8px',marginTop:8}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:(_ggTyreF||_ggTyreR)?5:4}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4}}>
                       <span style={{fontSize:11,color:'#94a3b8',letterSpacing:2}}>GRIP GAP</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:T_MUTED}}>+{_ggGap.toFixed(2)}</span>
+                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:T_MUTED}}>{fmtSigned(_ggGap,3)}</span>
                     </div>
-                    {(_ggTyreF||_ggTyreR)&&<div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:4}}>
-                      <span style={{fontSize:11,color:'#94a3b8',letterSpacing:1,width:42,flexShrink:0}}>TYRE</span>
-                      <span style={{flex:1,display:'flex',gap:9,fontFamily:'var(--font-mono)',fontSize:11}}>
-                        {_ggTyreF&&<span style={{color:'#e2e8f0'}}>F +{_ggTyreF}mm</span>}
-                        {_ggTyreR&&<span style={{color:'#e2e8f0'}}>R +{_ggTyreR}mm</span>}
-                      </span>
-                    </div>}
                     <div style={{fontSize:11,color:'#94a3b8',lineHeight:1.4}}>
-                      {(_ggTyreF||_ggTyreR)
-                        ?(_ggNeutral>_ggHi
-                          ?'Wider front tyre shifts grip-neutral target into recommended range.'
-                          :'Wider rear tyre shifts grip-neutral target into recommended range.')
-                        :'Grip-neutral gap exceeds tyre range — use Balance Offset to adjust.'}
+                      {`Balance Offset ${fmtSigned(_ggOffset,3)} puts the GRIP target in the middle of the RANGE band; RANGE mode aims there itself.`}
                     </div>
                   </div></Hide>
                 );

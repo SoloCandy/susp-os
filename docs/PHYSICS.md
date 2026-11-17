@@ -24,7 +24,7 @@ Key empirical constants calibrated from real Forza data:
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
 | `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale). Scales only the 0–1 figures; PRO's grip-margin percent leaves it out |
 | `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent. Uncalibrated, and since the CHASSIS contributor it sets how large a tyre stagger reads on the Handling Balance bar — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
-| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md) |
+| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md). Measured in-game, 0.60 was neutral on neither RWD car tested (loose on a 240SX, short on a 911 Turbo) — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
 | `DIFF_TYPE_SCALE` | race 1.00 / sport 0.88 / rally 0.76 / offroad 0.52 / drift 1.10 | Effective lock per lock %, per diff type: the model says the same slider % produces less effective lock on Rally/Offroad than Race, more on Drift. **Unverified.** The code calls the values community-estimated, but no source or in-game measurement is on record, and the published guides checked describe the types as differing only in which sliders they unlock — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). AUTO divides its wanted (Race-equivalent) lock by it, so gentler types get more %; the balance multiplies the % by it — see [FORMULAS.md](FORMULAS.md). Sport is accel-only (no decel slider in-game) |
 | `BRAKE_BIAS_SCALE` | 0.20 | Brake balance deviation → handling bias contribution |
@@ -1301,76 +1301,68 @@ clamped band, the same numbers the RANGE row draws, so its target sits in the mi
 of the band on screen.
 
 **Balance Guide RANGE.** The PRO Balance Guide's recommended mech-balance
-band is a fraction of the gap between `natMechBalance` (NATURAL) and
-`gripNeutral` (GRIP TARGET — `gripNeutralOf(ch, gameMode, rollKOf(tune))`, the mech
-balance at which the grip model reads exactly 0.5, taken at the current tune's roll
-stiffness), not a flat offset:
+band is a band of **grip margin** per layout and build, carried to mech balance
+the way GRIP TARGET is. Grip margin is `gripMargin`, PRO's Handling Balance unit:
+the front axle's spare lateral grip over the rear's, in percent, `+` = the rear
+runs out first. Margin 0 is grip-neutral, so the band sits a set amount of
+at-limit understeer or oversteer either side of GRIP TARGET:
 
 ```js
-gap = gripNeutral - natMechBalance
-[dlo, dhi] = balanceBandRange(fracLo, fracHi, gap)
-lo, hi = natMechBalance + dlo, natMechBalance + dhi   // clamped to 0.05-0.95, hi ≥ lo + 0.03
-// all of the above is balanceBandOf(nat, gn, layout, build)
-
-balanceBandDelta = (frac, gap) => frac <= 1 || gap >= 0 ? frac*gap
-                                                        : gap + (frac-1)*(-gap)
-balanceBandRange = (fracLo, fracHi, gap) =>
-  min/max of balanceBandDelta at fracLo, at fracHi, and at 1 when fracLo < 1 < fracHi
+[mLo, mHi] = balanceBandMargins(layout, build)          // BALANCE_BAND_MARGINS, %
+edge(m)    = splitDisplayOf(ch, gameMode, K, gripMarginSplitOf(ch, m))
+lo, hi     = edge(mLo), edge(mHi), clamped to 0.05-0.95
+// under BAL_BAND_MIN_WIDTH (0.03) wide: widened about the middle, then kept inside 0.05-0.95
+// all of the above is balanceBandOf(ch, gameMode, K, build)
 ```
 
-`fracLo`/`fracHi` come from a per-layout/build table (`BALANCE_BAND_FRACS`,
-read through `balanceBandFracs(layout, build)` in `index.html`) generally in the 0.3-1.0 range, so the band
-scales with how understeer/oversteer-prone the specific chassis actually
-is instead of recommending a constant push regardless of gap size.
-Fractions can exceed 1.0 — DRIFT on all three layouts (1.55 on FWD/RWD, 1.30
-on AWD) and RWD DRAG at 1.05 — to intentionally recommend overshooting past
-full grip-neutral for sustained rotation.
+`K` is the tune's total roll stiffness (`rollKOf(tune)`), as for GRIP TARGET, so
+in a Forza mode the band moves slightly with springs and bar budget; `edge(0)` is
+exactly `gripNeutralOf(ch, gameMode, K)`. The split for each edge depends only on
+the chassis and the margin, so `bandSplitOf` remembers it per chassis object.
 
-`balanceBandDelta` is why those two cases are not the same expression.
-A fraction at or below 1.0 interpolates from natural toward grip-neutral,
-which is a *magnitude* — correct under either sign of `gap`, since it just
-under-corrects whatever the chassis already does. A fraction above 1.0 is a
-*direction*: "past grip-neutral, into rotation". Multiplying it straight
-through as `frac*gap` carries the gap's sign, so on a negative gap the
-overshoot pointed at understeer instead — backwards for the only builds
-that ask for it. Anchoring the overshoot at grip-neutral and adding
-`(frac-1)*|gap|` keeps it aimed at oversteer whatever the sign.
+| Layout | OFFROAD | RALLY | STREET | DRAG | TRACK | DRIFT |
+|---|---|---|---|---|---|---|
+| FWD | −3.2 … −2.4 | −2.6 … −1.7 | −2.4 … −1.3 | −2.1 … −0.8 | −1.7 … −0.2 | −0.4 … +2.1 |
+| RWD | −3.2 … −2.4 | −2.6 … −1.7 | −2.4 … −1.3 | −1.5 … +0.2 | −1.7 … −0.2 | −0.4 … +2.1 |
+| AWD | −3.3 … −2.7 | −2.8 … −2.1 | −2.6 … −1.7 | −2.4 … −1.3 | −2.1 … −0.8 | −0.9 … +1.1 |
 
-The `gap >= 0` guard is load-bearing, not decoration: the overshoot branch
-spells `|gap|` as `-gap`, which is only the absolute value on the branch
-that runs it. Writing the helper guard-free as
-`frac <= 1 ? frac*gap : gap + (frac-1)*Math.abs(gap)` would be algebraically
-identical — for `gap >= 0` the second form reduces to `frac*gap` — but not
-*bit*-identical, and the two differ by up to one ULP (~1.1e-16 measured).
-Keeping the positive branch on the literal `frac*gap` it has always used
-means no existing band can shift, including across the `.toFixed(2)`
-rounding boundaries the widget displays.
+The table is ordered by rotation on every layout — OFFROAD < RALLY < STREET <
+TRACK < DRIFT, DRAG between STREET and DRIFT — and since every band is measured
+from the same point, that order holds on every chassis. DRIFT and RWD DRAG reach
+past neutral on purpose.
 
-That makes the delta **V-shaped in `frac` on a negative gap**, bottoming out at
-`frac = 1` — grip-neutral. So the band is not simply the two endpoint deltas:
-`balanceBandRange` takes the lowest and highest delta over the whole fraction
-pair, which for a pair straddling 1.0 (DRIFT on every layout, RWD DRAG) means
-including `frac = 1` itself. Taking `min`/`max` of the endpoints alone, as the
-sign fix first did, dropped grip-neutral from those bands on every rear-biased
-chassis, and the `hi ≥ lo + 0.03` floor then pushed the truncated band further
-toward oversteer: AWD DRIFT at 45% front showed 0.457–0.487 when its fractions
-only reach 0.430–0.463 (see [HISTORY.md](HISTORY.md)). On a `gap ≥ 0` the delta
-is monotonic and `1·gap` sits strictly between the endpoint deltas, so the
-extra point cannot move any front-biased band.
+**Why a margin.** The band used to be a fraction of the gap from NATURAL to
+GRIP TARGET (`BALANCE_BAND_FRACS`). A fraction at or below 1 meant "cancel this
+share of the chassis's own lean", which on a rear-biased chassis means *less*
+rotation for a larger fraction, so the build table ran backwards there: at 38%
+front RWD, OFFROAD's band sat furthest toward oversteer and DRIFT's nearly the
+least ([HISTORY.md](HISTORY.md)). Measuring from grip-neutral removes the
+chassis's lean from the definition. The unit is grip margin, not a fixed step of
+mech balance, because one step of mech balance is not one unit of handling: a
+−2% margin takes −0.026 on a 0.60 m CG car and −0.059 on 245/305 stagger, so a
+fixed step would give one about twice the understeer of the other. Grip margin
+leaves out `MECH_BAL_GAIN`, so the band claims nothing the uncalibrated gain adds.
 
-The `min`/`max` (rather than a fixed `lo=natMechBalance+fracLo*gap`
-assignment) matters for a chassis whose natural balance already sits past
-its own grip target, where `gap` goes negative: multiplying a negative gap
-by the *larger* fraction (`fracHi`) gives the more-negative delta, so a
-fixed assignment put `lo` above `hi` in that case — caught by the
-`hi≥lo+0.03` floor, but that collapsed the whole band to a fixed
-0.03-wide sliver instead of properly widening on the correct (downward)
-side of natural. `min`/`max` picks the right delta for each bound
-regardless of `gap`'s sign, so the band keeps scaling correctly there too.
-The GRIP GAP sub-widget (tyre-width suggestions to bring GRIP TARGET into
-range) computes its band the same way — the same `balanceBandFracs` lookup
-and the same `balanceBandRange` call — so the two widgets cannot disagree on
-what "in range" means.
+The figures are the old gap-fraction bands converted on `DEF_CH` at 55% front,
+where the natural sits at −3.75% margin: `(f − 1) × 3.75`, rounded to 0.1. A
+front-engined car near 55% keeps the band it had (STREET 0.480–0.510 before,
+0.479–0.509 after). Further from neutral either way, cars now get the same
+at-limit balance instead of a share of their own lean: at 62% front STREET moved
+from 0.459–0.521 to 0.537–0.567, at 38% from 0.463–0.524 to 0.331–0.362.
+
+**Reach.** On a strongly rear-biased car the bands ask for a lot of front roll
+stiffness. At 38% front on `DEF_CH`, ARB MECH bottoms out near 0.465 and Hz MECH
+near 0.417; CO-SOLVE reaches the 0.33–0.36 STREET band by dropping the rear
+springs to about 1.1 Hz. Measured in-game, though, GRIP TARGET is not where the game
+is neutral, and on a rear-heavy car it is far too low, so much of that move is the
+model's error ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Where a margin is beyond the grip model altogether,
+`gripMarginSplitOf` saturates at the end of the split range and the edge lands on
+the 0.05–0.95 clamp.
+
+GRIP GAP compares GRIP mode's target (GRIP TARGET + Balance Offset) with this
+band and gives the Balance Offset that reaches its middle. It used to suggest
+tyre widths that carried GRIP TARGET into the band; the band now moves with GRIP
+TARGET, so only the offset can close the gap.
 
 **A negative `gap` is ordinary, not an edge case.** Its sign tracks front
 weight bias almost exactly. With symmetric tyres and near-equal track
@@ -1380,11 +1372,10 @@ any chassis a wide front tyre stagger pushes there. Track width moves the
 crossover a point or so either way (51.61% at 1500F/1600R track, 48.39% at
 1600F/1500R); tyre stagger moves it several (44.34% front with 245F/295R,
 54.71% with 295F/245R); CG height and total weight do not move it at all.
-Code reading `gap` must treat both signs as normal inputs. The `fracHi>1`
-overshoot got this wrong until `balanceBandDelta` was introduced (see
-[HISTORY.md](HISTORY.md)); the `frac ≤ 1` build ordering on a strongly
-oversteering chassis is a related open question in
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+Code reading `gap` must treat both signs as normal inputs. The old
+gap-fraction RANGE band failed this twice, first with its DRIFT overshoot and
+then with its build ordering, which is why the band is now measured from
+grip-neutral and never multiplies by `gap` (see [HISTORY.md](HISTORY.md)).
 
 ---
 

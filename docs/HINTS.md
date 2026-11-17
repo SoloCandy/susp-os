@@ -317,7 +317,7 @@ mode only), RANGE and the target row:
 
 > The mech balance that spreads ENTRY, MID and EXIT evenly about neutral, given your brake bias, drive split and EXIT Load: what PHASE mode targets at a 0 offset.
 
-> Recommended target band for your layout and build, set from NATURAL toward GRIP TARGET. RANGE mode aims at its middle.
+> Recommended target band for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, given below as grip margin. RANGE mode aims at its middle.
 
 > TARGET when MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural.
 

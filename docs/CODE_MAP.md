@@ -143,8 +143,9 @@ computeAlignment(ch, tune, layout, …)  → camber/toe/caster, from the tune
 ```
 
 Balance Target helpers: `balTargetModeOf` (normalises the mode, legacy `'manual'` → NATURAL),
-`balanceBandOf` (the Balance Guide RANGE band — the RANGE row, GRIP GAP and RANGE mode all
-read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP/PHASE anchor at a given K — Balance Offset is
+`balanceBandOf` (the Balance Guide RANGE band: the build's grip-margin band from
+`BALANCE_BAND_MARGINS` carried to mech balance at a given K — the RANGE row, the target sliders'
+zones, GRIP GAP and RANGE mode all read it; App holds one `balanceBand` at the tune's K), `balTargetAnchorOf` (the unclamped RANGE/GRIP/PHASE anchor at a given K — Balance Offset is
 measured from it),
 `balTargetAnchoredOf` (RANGE/GRIP/PHASE target at a given K: anchor + offset, clamped).
 PHASE: `phaseInOf` (normalises the brake bias or ENTRY BRK target, drive split and EXIT Load
@@ -230,13 +231,10 @@ both axles reach their limit together), `entryBrakeBiasFor` (BRAKES' ENTRY Centr
 puts ENTRY's BRK on a target) and `driveFrontOf` (the front axle's share of drive, shared with `phaseMargins`),
 `gripNeutralSplitOf` (the roll-stiffness split at which the grip model reads neutral — the
 reference `computeTune`'s `bChassis` measures from; see [FORMULAS.md](FORMULAS.md)),
-`balanceBandDelta` (one edge of the PRO Balance
-Guide's recommended band — module-level rather than inline because the RANGE
-block and the GRIP GAP sub-widget both call it, and a band they disagreed on
-would make "in range" mean two different things in one panel) and
-`balanceBandRange` (the delta range a fraction pair covers — not just its two
-endpoints, since a negative gap makes the delta V-shaped with its minimum at
-grip-neutral),
+`gripMarginSplitOf` (the split at which the grip margin reads a given value — PHASE's target
+and the RANGE band's edges), `balanceBandMargins` / `BALANCE_BAND_MARGINS` (the RANGE band per
+layout and build, in grip-margin percent) and `bandSplitOf` (`gripMarginSplitOf` for a band edge,
+remembered per chassis object in a `WeakMap`, since RANGE mode reaches it on every solve),
 `resolveArbBalTarget`, `gripNeutralOf` (grip-neutral mech
 balance — what GRIP's Balance Offset and DNA's `balanceOffset` measure from; in a Forza mode it
 depends on total roll stiffness, passed as `rollKOf(tune)`, and falls back to the MEASURE NAT BAL
@@ -951,12 +949,13 @@ here — that is the check the split exists to keep honest.
 **`tests-balance.js` reads `index.html` the same way**, and is the only suite that
 tests a model rather than a mechanism. It asserts the mech-balance chain's *shape* —
 monotonicity, Kf/Kr scale invariance, front/rear mirror symmetry, continuity and
-non-saturation, the balance band's overshoot direction, and continuity across the
+non-saturation, the RANGE band's build order on every chassis, and continuity across the
 gap's sign crossover just under 50% front bias — rather than expected values, because
 most of that chain has no measured ground truth and pinning today's numbers would make
-every legitimate recalibration a failure. The two properties with history are the
-DRIFT band's sign inversion and `balanceBandRange`'s V-shape miss; both are now
-properties rather than anecdotes. It also covers `balanceEnvelope`. Writing it found
+every legitimate recalibration a failure. The band properties have history: the old
+gap-fraction band's DRIFT sign inversion, its V-shape miss and its backwards build
+ordering on rear-biased cars; the band that replaced it is held to the ordering as a
+property rather than an anecdote. It also covers `balanceEnvelope`. Writing it found
 a live bug on its first run — `mechBalanceLLT` reversing direction past inside-wheel
 lift, since fixed with a transfer cap; see [HISTORY.md](HISTORY.md). Its monotonicity
 test carries **no** exemption for the lifted region, and must not be given one again.

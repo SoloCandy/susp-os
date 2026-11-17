@@ -4,3 +4,6 @@
 # Superseded planning docs — implementation reasoning kept locally, not in the repo
 docs/BEAMNG_PLAN.md
 docs/OUTPUT_RESTRUCTURE_PLAN.md
+BALANCE_GUIDE_PLAN.md
+GRIP_NEUTRAL_TEST_PLAN.md
+calibration/
