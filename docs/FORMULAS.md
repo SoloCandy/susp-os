@@ -87,7 +87,7 @@ camber =  ALIGN_BAL_CAMBER * (|dynR - targetR| - |dynF - targetF|)
 - **Tiers.** BEG counts none (no alignment controls; its card is pure AUTO). INT sizes it: camber in
   MID, toe in the lanes, rows in the breakdown. PRO shows its direction only (arrows in the lanes
   and on the MID bar, direction rows in the phase breakdown), because the grip model can't size it.
-- **Not in `bNet` or `bTotFull`.** BEG's headline and `recommendedDiffType` are unchanged by it.
+- **Not in `bNet`.** BEG's headline is unchanged by it.
 
 ## Brakes (`bBrakeEntry`)
 
@@ -145,6 +145,19 @@ bDiffDecel = bFD + bRD;
 ```
 
 - `DIFF_BIAS_SCALE = 0.14`.
+- **AUTO's starting locks** come from the build: `accelBase` / `decelBase` on FWD and RWD,
+  `AWD_LOCK_BASE` (front accel, rear accel, rear decel) on AWD. AWD's TRACK row is 28 / 48 / 8,
+  which AWD used for every build before; the other rows scale it by the FWD table's front-accel
+  ratio to TRACK and the RWD table's rear-accel and decel ratios, DRAG's rear capped at AUTO's 70.
+  DRIFT is the exception on RWD and on the AWD rear: `DRIFT_LOCK`, 100 accel and 90 decel
+  effective, near full lock both ways as published drift tunes run, with both ceilings raised to
+  `DRIFT_LOCK_MAX` (100). FWD's DRIFT row is unchanged.
+- **Recommended type** (`recommendedDiffType`, Horizon only) comes from Build Type alone: STREET
+  Sport, TRACK and DRAG Race, DRIFT / RALLY / OFFROAD their own type.
+- **SPORT on AWD** has no centre lock, so `C` is `SPORT_AWD_CENTER` (65% rear) whatever split is
+  stored, a placeholder; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+- **Diff type by game.** `diffTypeOf(dr, gameMode)` is the type that applies: the stored one in
+  Horizon, RACE in Motorsport and BeamNG (`DIFF_TYPES_BY_GAME`), which have one plain diff.
 - **Diff type.** `DIFF_TYPE_SCALE` is effective lock per lock % (Race 1.00, Sport 0.88,
   Rally 0.76, Offroad 0.52, Drift 1.10). The balance above reads *effective* lock, in AUTO and
   MANUAL alike, so the same typed % counts for less on a gentler diff. AUTO works the other way
@@ -199,11 +212,10 @@ const bChassis = -100 * (gripNeutralSplitOf(ch) - natOffset - (1 - nf));
   see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 - Saturates when no split can neutralise the car (only absurd stagger, e.g. 200/400).
 
-## NET (`bNet`) and the full total (`bTotFull`)
+## NET (`bNet`)
 
 ```js
-const bNet     = tune.bTot + tune.bChassis;   // tune.bTot = bSp + bAb
-const bTotFull = bNet + diff.bDiffAccel + diff.bDiffDecel + bBrakeEntry + bDampBias;
+const bNet = tune.bTot + tune.bChassis;   // tune.bTot = bSp + bAb
 ```
 
 `bNet` is the Handling Balance headline (and its colour-coded OS/US label) in **BEG**, with ±3
@@ -225,10 +237,10 @@ Correction Tip judges MID. PRO's headline is the same three words from its phase
 the bar draws them as ENTRY and EXIT lanes stacked off NET instead of adding them in. The
 Correction Tip judges `bNet` too.
 
-`bTotFull` is not shown. BEG draws only NET; INT adds the ENTRY and EXIT lanes but no TOTAL
-line, since summing the uncalibrated diff, brake and damping points into the steady state adds
-precision it does not have. It is computed in every tier because `recommendedDiffType` reads it
-(RACE → SPORT above +8). PRO's TOTAL line is its own sum, MID + BRK + DRIVE. PRO shows the phase margins below instead.
+Nothing sums every contributor into one figure. BEG draws only NET; INT adds the ENTRY and EXIT
+lanes but no TOTAL line, since summing the uncalibrated diff, brake and damping points into the
+steady state adds precision it does not have. PRO's TOTAL line is its own sum, MID + BRK + DRIVE.
+PRO shows the phase margins below instead.
 
 ---
 

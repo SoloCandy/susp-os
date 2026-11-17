@@ -2735,13 +2735,23 @@ const computeAlignment=(ch,tune,layout,buildType)=>{
 const DIFF_BIAS_SCALE=0.14; // slightly higher — AWD contributions now split by center fraction
 const DIFF_TYPE_ENC={'race':0,'sport':1,'rally':2,'offroad':3,'drift':4};
 const DIFF_TYPE_DEC=['race','sport','rally','offroad','drift'];
+// The diff types each game offers. Horizon fits one of five. Motorsport has a single adjustable
+// race-level diff, and BeamNG's diffs (open, LSD, locked, viscous) are none of Horizon's five, so
+// both get one plain adjustable diff with no type scaling. Keyed by game rather than isPhysical:
+// this is about which parts the game has, not its units.
+const DIFF_TYPES_BY_GAME={horizon:DIFF_TYPE_DEC,motorsport:['race'],beamng:['race']};
+const diffTypesOf=gm=>DIFF_TYPES_BY_GAME[gm]??DIFF_TYPE_DEC;
+// The diff type that applies: the stored one where the game offers it, else the game's only one.
+// dr.diffType itself is never rewritten, so going back to Horizon restores the pick.
+const diffTypeOf=(dr,gm)=>{const ts=diffTypesOf(gm),t=dr?.diffType??'race';return ts.includes(t)?t:ts[0];};
 // Community-estimated scale factors: same lock % on Race produces more effective lock than Rally/Offroad.
 // Rally ≈ 76% of Race, Offroad ≈ 52% of Race. Sport is accel-only and slightly softer than Race.
 // Drift is more aggressive than Race — faster lock engagement, tuned for rotation over stability.
 // So a scale is EFFECTIVE lock per lock %: effective = % × scale, and the % that gives a wanted
 // effective lock is effective ÷ scale. computeDiff's AUTO divides by it and its balance multiplies
 // by it; DIFF_TYPE_RANGES below are Race's ranges divided by it, except Offroad's accel tops,
-// capped at 90 (÷0.52 would pass 100), and Drift's decel, kept low on purpose for rotation.
+// capped at 90 (÷0.52 would pass 100), and Drift's rear accel and decel, which follow published
+// drift tunes (both near full lock, so the rears stay locked together through transitions).
 // lockPct caps AUTO at 100%, so on Offroad a high-lock intent saturates and its balance then
 // reads less than Race's would (docs/KNOWN_ISSUES.md). AUTO used to MULTIPLY, which
 // asked a gentler diff for LESS % and compounded the softness (see docs/HISTORY.md).
@@ -2751,14 +2761,46 @@ const DIFF_TYPE_SCALE={race:1.00,sport:0.88,rally:0.76,offroad:0.52,drift:1.10};
 const AWD_CENTER_MIN=45, AWD_CENTER_MAX=90;
 // The AWD centre split (% rear) computeDiff applies: typed as-is under MANUAL, clamped and rounded
 // otherwise. App's PHASE inputs read it before the diff is computed, so it lives here, once.
-const awdCenterOf=dr=>dr.diffManual?(dr.diffCenter??65)
+// A SPORT diff has no centre lock, so the split it runs at is the game's, not the tune's, and no
+// source says what Forza uses. SPORT_AWD_CENTER stands in for it — the app's default split — so
+// a value typed before switching to SPORT, with no control left on screen, no longer moves the
+// balance and PHASE. A placeholder, not a measurement (docs/KNOWN_ISSUES.md).
+const SPORT_AWD_CENTER=65;
+const awdCenterOf=(dr,gm)=>diffTypeOf(dr,gm)==='sport'?SPORT_AWD_CENTER
+  :dr.diffManual?(dr.diffCenter??65)
   :Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,Math.round(dr.diffCenter??65)));
+// The recommended AWD centre split (% rear): the build's base trimmed by three chassis factors,
+// clamped to AUTO's range so → USE never offers a value that won't apply. Returns the parts too,
+// for the DIFFERENTIAL card's PRO breakdown. Build Type changes carry the split with it (App's
+// setBuildType), so this is where AUTO's split starts.
+const AWD_CENTER_BASE={street:65,track:70,drift:80,rally:60,offroad:55,drag:75};
+const recommendedCenterOf=(ch,build,gameMode)=>{
+  const base=AWD_CENTER_BASE[build??'track']??65;
+  const diamRatio=(parseTyre(ch.tyreR)?.diameter??642)/(parseTyre(ch.tyreF)?.diameter??642);
+  const weight =Math.round((1-ch.frontBias/100-0.50)*30);              // +3% per 10% extra rear weight
+  const tyres  =Math.round((diamRatio-1)*50);                           // +2.5% per 5% larger rear diam
+  const balance=Math.round(-(natDisplayOf(ch,gameMode)-0.50)*20);       // −2% per 0.1 above neutral natBal
+  return{center:Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,base+weight+tyres+balance)),base,weight,tyres,balance};
+};
+// AUTO's AWD starting locks by build, in effective (Race-equivalent) %, before the EXIT / ENTRY
+// intents: front accel (fa), rear accel (ra), rear decel (rd). TRACK keeps 28/48/8, which AWD used
+// for every build before. The others take the FWD table's front-accel ratio to TRACK and the RWD
+// table's rear-accel and decel ratios (DRAG's rear capped at 70, AUTO's ceiling), so AWD follows the
+// same shape: DRAG locks harder on power, RALLY and OFFROAD softer, DRAG with no decel. DRIFT's
+// rear is the RWD DRIFT row (DRIFT_LOCK). Unvalidated, like the FWD / RWD tables it is scaled from.
+// DRIFT, RWD and AWD rear: near full lock on power AND off it, as published drift tunes run, so the
+// rear wheels stay locked together through transitions; effective %, raised ceilings (DRIFT_LOCK_MAX)
+// so it can get there. It once ran 48 / 3 on RWD for rotation, the opposite of practice. FWD keeps
+// its row: a front-drive car does not drift on the diff.
+const DRIFT_LOCK={accel:100,decel:90}, DRIFT_LOCK_MAX=100;
+const AWD_LOCK_BASE={street:{fa:21,ra:38,rd:10},track:{fa:28,ra:48,rd:8},drift:{fa:17,ra:DRIFT_LOCK.accel,rd:DRIFT_LOCK.decel},
+                     rally:{fa:17,ra:34,rd:5},offroad:{fa:14,ra:25,rd:3},drag:{fa:28,ra:70,rd:0}};
 const DIFF_TYPE_RANGES={
   race:   {accel:[25,60],frontAccel:[18,32],rearAccel:[25,60],decel:[8,25]},
   sport:  {accel:[28,68],frontAccel:[20,36],rearAccel:[28,68],decel:null},
   rally:  {accel:[33,79],frontAccel:[24,42],rearAccel:[33,79],decel:[11,33]},
   offroad:{accel:[48,90],frontAccel:[35,62],rearAccel:[48,90],decel:[15,48]},
-  drift:  {accel:[23,55],frontAccel:[16,29],rearAccel:[23,55],decel:[0,8]},
+  drift:  {accel:[80,100],frontAccel:[16,29],rearAccel:[80,100],decel:[60,100]},
 };
 
 const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
@@ -2768,7 +2810,7 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
   const biasEntry=dr.diffBiasEntry??0;     // entry intent (−50=loose, +50=stable)
   const frontExitBias=dr.diffFrontExitBias??0; // AWD front exit push intent
   const build=dr.buildType??'track';
-  const diffType=dr.diffType??'race';
+  const diffType=diffTypeOf(dr,fe?.gameMode);
   const typeScale=DIFF_TYPE_SCALE[diffType]??1.0;
   // AUTO works in effective (Race-equivalent) lock: each formula below, and its clamp, is the
   // lock a Race diff would need. lockPct turns that into the % to enter on the fitted diff type.
@@ -2807,34 +2849,36 @@ const computeDiff=(ch,fe,dr,natMechBalOverride=null)=>{
       ?{layout:'AWD',
         frontAccel:dr.diffFrontAccel??25, frontDecel:dr.diffFrontDecel??0,
         rearAccel: dr.diffRearAccel??50,  rearDecel: dr.diffRearDecel??10,
-        center:    awdCenterOf(dr)}
+        center:    awdCenterOf(dr,fe?.gameMode)}
       :{layout:ch.layout,
         accel:dr.diffAccel??35, decel:dr.diffDecel??10};
   } else if(ch.layout==='AWD'){
-    const center=awdCenterOf(dr); // slider-driven; default 65 is sensible across builds
+    const center=awdCenterOf(dr,fe?.gameMode); // slider-driven; Build Type moves it with the recommendation
+    const b=AWD_LOCK_BASE[build]??AWD_LOCK_BASE.track, drift=build==='drift';
     vals={layout:'AWD',
-      frontAccel:lockPct(clE(28-effBiasExit*0.10+frontExitBias*0.12,10,40)),
+      frontAccel:lockPct(clE(b.fa-effBiasExit*0.10+frontExitBias*0.12,10,40)),
       frontDecel:0,
-      rearAccel: lockPct(clE(48+effBiasExit*0.25,20,70)),
-      rearDecel: diffType==='sport'?0:lockPct(clE(8+(rB-0.5)*15+effBiasEntry*0.15,0,20)),
+      rearAccel: lockPct(clE(b.ra+effBiasExit*0.25,20,drift?DRIFT_LOCK_MAX:70)),
+      rearDecel: diffType==='sport'?0:lockPct(clE(b.rd+(rB-0.5)*15+effBiasEntry*0.15,0,drift?DRIFT_LOCK_MAX:20)),
       center};
   } else {
     const isRWD=ch.layout==='RWD';
     const accelBase=isRWD
-      ?{street:28,track:35,drift:48,rally:25,offroad:18,drag:65}[build]??35
+      ?{street:28,track:35,drift:DRIFT_LOCK.accel,rally:25,offroad:18,drag:65}[build]??35
       :{street:15,track:20,drift:12,rally:12,offroad:10,drag:20}[build]??20;
     const decelBase=isRWD
-      ?{street:15,track:12,drift:3,rally:8,offroad:5,drag:0}[build]??12
+      ?{street:15,track:12,drift:DRIFT_LOCK.decel,rally:8,offroad:5,drag:0}[build]??12
       :{street:8, track:5, drift:2,rally:4,offroad:2,drag:0}[build]??5;
     // FWD's +effBiasExit*0.15 is intentionally the SAME sign as RWD's — do not flip it.
     // FWD's EXIT slider UI already inverts the stored value (the EXIT FeelSlider's value/onChange) so
     // "more effBiasExit" means the same thing (more lock) on every layout; the UI flip is
     // what makes the slider's right side mean oversteer-leaning despite FWD's opposite
     // lock-to-balance polarity. Flipping the sign here too would double-cancel that fix.
+    const rwdDrift=isRWD&&build==='drift';
     const accel=isRWD
-      ? lockPct(clE(accelBase+effBiasExit*0.20, 10, 65))
+      ? lockPct(clE(accelBase+effBiasExit*0.20, 10, rwdDrift?DRIFT_LOCK_MAX:65))
       : lockPct(clE(accelBase+effBiasExit*0.15,  5, 35));
-    const decel=diffType==='sport'?0:lockPct(clE(decelBase+(rB-0.5)*(isRWD?15:5)+effBiasEntry*0.15, 0, isRWD?30:15));
+    const decel=diffType==='sport'?0:lockPct(clE(decelBase+(rB-0.5)*(isRWD?15:5)+effBiasEntry*0.15, 0, rwdDrift?DRIFT_LOCK_MAX:isRWD?30:15));
     vals={layout:ch.layout,accel,decel};
   }
 
@@ -3110,7 +3154,7 @@ const measureDNA=(ch,tune,fe,dr)=>({
   dampBias:fe.dampBalMode==='sync'?dnaNeg(fe.dampingBias??0):null,
   diffExit:dr.diffManual?null:(ch.layout==='FWD'?dnaNeg(dr.diffBiasExit??0):(dr.diffBiasExit??0)),
   // Sport has no decel lock in-game, so ENTRY is inexpressible there, not merely different.
-  diffEntry:dr.diffManual||dr.diffType==='sport'?null:dnaNeg(dr.diffBiasEntry??0),
+  diffEntry:dr.diffManual||diffTypeOf(dr,fe.gameMode)==='sport'?null:dnaNeg(dr.diffBiasEntry??0),
 });
 
 // measureDNA turned into a DNA you can edit and apply — what TUNE CHECK's IMPORT AS DNA button
@@ -3697,7 +3741,10 @@ const autoTagsOf=e=>{
     out.push({label:(e.dr.buildType??'track').toUpperCase(),color:'#94a3b8'});
     // "… DIFF", or a RALLY build's RALLY diff would read as the same chip twice. Ungated:
     // MANUAL below PRO still applies the author's locks (see the DIFFERENTIAL card's note).
-    out.push({label:(e.dr.diffType??DEF_DR.diffType).toUpperCase()+' DIFF',color:'#94a3b8'});
+    // The type the entry's game applies (a Motorsport or BeamNG tune has one plain diff); a
+    // build-only entry has no game, so it shows the stored pick.
+    const dt=e.dr.diffType??DEF_DR.diffType;
+    out.push({label:(e.fe?diffTypeOf({diffType:dt},e.fe.gameMode):dt).toUpperCase()+' DIFF',color:'#94a3b8'});
     if(e.dr.diffManual)out.push({label:'MANUAL DIFF',color:C_WARN});
     // BRAKES, gated the way App's brakeBias applies them in the tier the entry was saved
     // in: BEG ignores both the shift and the centre, INT ignores the centre, and PRO's
@@ -3786,7 +3833,7 @@ const entrySummary=(e,metric)=>{
       ?`${e.fe.landingPct??LANDING_PCT_DEF}% landing`
       :`${e.fe.bumpRatio??56}% bump`);
   }
-  if(e?.dr)bits.push((e.dr.diffType??DEF_DR.diffType).toUpperCase());
+  if(e?.dr){const dt=e.dr.diffType??DEF_DR.diffType;bits.push((e.fe?diffTypeOf({diffType:dt},e.fe.gameMode):dt).toUpperCase());}
   return bits.join(' · ');
 };
 
@@ -3841,7 +3888,7 @@ const DEF_FE={rideStiffness:1.75,arbBias:0,dampingBias:0,dampBalMode:'standard',
 // street→sport, track→race (index.html, search recommendedDiffType), so these two
 // must move together or a fresh INT/PRO install shows a spurious RECOMMENDED
 // mismatch banner on the DIFFERENTIAL card. diffCenter:65 already equals
-// _baseCenterLookup.street, so no change needed there for the (AWD-only) center
+// AWD_CENTER_BASE.street, so no change needed there for the (AWD-only) center
 // split recommendation to stay matched.
 const DEF_DR={buildType:'street',diffType:'sport',
               diffManual:false,diffComplement:false,
@@ -4022,20 +4069,20 @@ const HIDE_ITEMS=[
   {id:'brakes.entryBrk',         sec:'brakes', tiers:['pro']},
   {id:'brakes.bias',             sec:'brakes', fields:['dr',['brakeBiasShift']], live:(st,tier)=>!st.dr.brakeStock&&(tier!=='pro'||st.dr.brakeCentre!=='entry')},
   // DRIVETRAIN. The AUTO sliders apply only off MANUAL, the typed locks only on it.
-  {id:'drive.diffType',          sec:'drivetrain', fields:['dr',['diffType']]},
+  {id:'drive.diffType',          sec:'drivetrain', fields:['dr',['diffType']], live:st=>diffTypesOf(st.fe.gameMode).length>1},
   {id:'drive.diffMode',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffManual']]},
   {id:'drive.frontExit',         sec:'drivetrain', fields:['dr',['diffFrontExitBias']], live:st=>!st.dr.diffManual&&st.ch.layout==='AWD'},
   {id:'drive.matchChassis',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffComplement']], live:st=>!st.dr.diffManual},
   {id:'drive.exit',              sec:'drivetrain', fields:['dr',['diffBiasExit']],  live:st=>!st.dr.diffManual},
-  {id:'drive.entry',             sec:'drivetrain', fields:['dr',['diffBiasEntry']], live:st=>!st.dr.diffManual&&st.dr.diffType!=='sport'},
-  {id:'drive.powerSplit',        sec:'drivetrain', fields:['dr',['diffCenter']],    live:st=>!st.dr.diffManual&&st.ch.layout==='AWD'&&st.dr.diffType!=='sport'},
+  {id:'drive.entry',             sec:'drivetrain', fields:['dr',['diffBiasEntry']], live:st=>!st.dr.diffManual&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
+  {id:'drive.powerSplit',        sec:'drivetrain', fields:['dr',['diffCenter']],    live:st=>!st.dr.diffManual&&st.ch.layout==='AWD'&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
   {id:'drive.manFrontAccel',     sec:'drivetrain', tiers:['pro'], fields:['dr',['diffFrontAccel']], live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
-  {id:'drive.manFrontDecel',     sec:'drivetrain', tiers:['pro'], fields:['dr',['diffFrontDecel']], live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manFrontDecel',     sec:'drivetrain', tiers:['pro'], fields:['dr',['diffFrontDecel']], live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
   {id:'drive.manRearAccel',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffRearAccel']],  live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
-  {id:'drive.manRearDecel',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffRearDecel']],  live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
-  {id:'drive.manCenter',         sec:'drivetrain', tiers:['pro'], fields:['dr',['diffCenter']],     live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'},
+  {id:'drive.manRearDecel',      sec:'drivetrain', tiers:['pro'], fields:['dr',['diffRearDecel']],  live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
+  {id:'drive.manCenter',         sec:'drivetrain', tiers:['pro'], fields:['dr',['diffCenter']],     live:st=>!!st.dr.diffManual&&st.ch.layout==='AWD'&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
   {id:'drive.manAccel',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffAccel']],      live:st=>!!st.dr.diffManual&&st.ch.layout!=='AWD'},
-  {id:'drive.manDecel',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffDecel']],      live:st=>!!st.dr.diffManual&&st.ch.layout!=='AWD'},
+  {id:'drive.manDecel',          sec:'drivetrain', tiers:['pro'], fields:['dr',['diffDecel']],      live:st=>!!st.dr.diffManual&&st.ch.layout!=='AWD'&&diffTypeOf(st.dr,st.fe.gameMode)!=='sport'},
   // VISUALS: display only.
   {id:'visuals.dna',             sec:'visuals'},
   {id:'visuals.ride',            sec:'visuals'},
@@ -4112,6 +4159,8 @@ const sectionDefaults=key=>{
 const liveKeys=(sec,keys,st,tier)=>{
   if(sec==='balance'&&!hasBalTargetSolve(st.fe))return[];
   if(sec==='brakes'&&st.dr?.brakeStock)return keys.filter(k=>k==='brakeStock');
+  // Motorsport and BeamNG have one plain diff, so a stored Horizon diff type does nothing there.
+  if(sec==='drivetrain'&&diffTypesOf(st.fe?.gameMode).length<2)keys=keys.filter(k=>k!=='diffType');
   // ALIGNMENT applies its MANUAL values or its offsets, never both.
   if(sec==='alignment')return keys.filter(k=>k==='alignManual'||(st.dr?.alignManual?k.startsWith('alignMan'):k.startsWith('alignOfs')));
   return sec==='brakes'&&tier!=='pro'?keys.filter(k=>k==='brakeBiasShift'||k==='brakeStock'):keys;
@@ -7785,6 +7834,7 @@ const TUTORIALS={
      glossary:['align-mode','align-intent']},
     {title:'Diff Type',
      focus:['drivetrain'],spot:['drive.diffType'],
+     skip:st=>diffTypesOf(st.fe.gameMode).length<2,
      body:'DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.',
      glossary:['diff-type']},
     {title:'Corner Exit & Entry',
@@ -7795,7 +7845,7 @@ const TUTORIALS={
      focus:['drivetrain','output'],spot:['drive.powerSplit','drive.frontExit','out.diff.recCenter','out.card.center'],sidebar:'open',
      skip:st=>st.ch.layout!=='AWD',
      absent:{ids:['drive.powerSplit'],text:'A Sport diff has no center control: pick another Diff Type to see POWER SPLIT and → USE.'},
-     body:'AWD adds POWER SPLIT under CENTRE (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card\'s CENTRE SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
+     body:'AWD adds POWER SPLIT under CENTRE (not with a Sport diff): more rear means more oversteer. The DIFFERENTIAL card\'s CENTRE SPLIT box recommends a value and → USE applies it; changing Build Type moves the split with the recommendation, keeping any nudge. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
      glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
      focus:['visuals'],spot:['visuals.ride','visuals.dynamics','visuals.sag'],
@@ -7999,7 +8049,7 @@ const tutResumeStep=(mode,p)=>{
 const GLOSSARY=[
   {group:'Geometry & Weight',terms:[
     {id:'layout',term:'Layout (FWD / RWD / AWD)',tier:'beginner',def:"Which wheels the engine drives: FWD the fronts, RWD the rears, AWD all four. The recommendations follow each layout's needs: FWD protects front grip, RWD rear traction, and AWD sits between. Layout sets how the differential is calculated and shifts the alignment targets. FWD and RWD have one differential, shown as Accel Lock and Decel Lock. AWD has front, rear and centre differentials, so the DIFFERENTIAL card lists both axles and a Centre Split.\n\nThe BEG panel warns when Front Weight Bias is unusual for the layout. Typical is 55–70% on FWD, 38–55% on RWD and 45–58% on AWD.\n\n[INT] AWD unlocks FRONT AXLE EXIT and CENTER POWER SPLIT in DRIVETRAIN. On FWD, more front accel lock means more push, so the EXIT slider works in reverse there: right means more rotation on every layout.\n\n[PRO] Layout also picks the Balance Guide's RANGE band and, in the phase readout, which axle carries the drive on EXIT.",see:['build-type','front-weight-bias','accel-lock','power-split']},
-    {id:'build-type',term:'Build Type',tier:'beginner',def:"The car's intended use: STREET (the default), TRACK, DRIFT, RALLY, OFFROAD or DRAG. It shifts the alignment targets, the differential's automatic locks on FWD and RWD, and the brake balance recommendation. For brakes it adds front bias: TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, and 0 points for STREET and RALLY. It also picks which FACTORY preset gets the ★ FOR YOUR BUILD mark.\n\n[INT] The DIFFERENTIAL card's RECOMMENDED diff type comes from it: Street suggests Sport, Track and Drag suggest Race, and the others suggest the type of the same name. On AWD it is also the starting point for the recommended CENTRE SPLIT.\n\n[PRO] It picks the Balance Guide's recommended RANGE band, which RANGE target mode aims at.",see:['layout','diff-type','brake-balance','target-range']},
+    {id:'build-type',term:'Build Type',tier:'beginner',def:"The car's intended use: STREET (the default), TRACK, DRIFT, RALLY, OFFROAD or DRAG. It shifts the alignment targets, the differential's automatic locks on every layout, the AWD centre split, and the brake balance recommendation. For brakes it adds front bias: TRACK +3, DRIFT −5, OFFROAD −3, DRAG −8, and 0 points for STREET and RALLY. It also picks which FACTORY preset gets the ★ FOR YOUR BUILD mark.\n\n[INT] The DIFFERENTIAL card's RECOMMENDED diff type comes from it: Street suggests Sport, Track and Drag suggest Race, and the others suggest the type of the same name. On AWD it is also the starting point for the recommended CENTRE SPLIT.\n\n[PRO] It picks the Balance Guide's recommended RANGE band, which RANGE target mode aims at.",see:['layout','diff-type','brake-balance','target-range']},
     {id:'weight',term:'Weight',tier:'beginner',def:"Total vehicle weight. Take it from the car's stat page or car selection screen, not the tuning menu. The box takes 100–18000 lb (45–8165 kg); the default is 3200 lb. Weight sets each corner's mass, so it directly scales spring rates, damper forces and ARB stiffness. Ride frequency in Hz stays put, because spring rate scales with corner mass times Hz squared.\n\nThe BEG panel warns outside the typical Forza range of 1600–6500 lb (725–2950 kg). Treat that as a prompt to recheck the stat screen, not as a limit.\n\nIn BEG and INT, changing Weight also rescales wheelbase and track widths from the default car. CG Height is rescaled too, unless it is estimated from ride height.\n\n[PRO] PRO keeps the wheelbase, track widths and CG you enter. Dropping to INT or BEG rescales them from Weight again.",see:['front-weight-bias','corner-mass','spring-rate','cg-height']},
     {id:'front-weight-bias',term:'Front Weight Bias',tier:'beginner',def:"The share of total weight on the front axle, 30–70% in 1% steps; the default is 52%. Take it from the car selection screen, not the tuning menu. 50% is an even split, and most front-engined cars sit at 52–58%. The BEG panel flags a value outside the usual range for the layout: 55–70% on FWD, 38–55% on RWD and 45–58% on AWD.\n\nIt splits the weight into front and rear corner masses. Those set each axle's spring and damper rates and the car's natural balance. It is the base of the brake balance recommendation and, in BEG, of the ARB split. More rear weight also raises the automatic decel lock.\n\n[INT] WEIGHT balance mode splits the ARBs from it. On AWD the recommended CENTRE SPLIT moves about 3% rearward for every 10% of extra rear weight.",see:['weight','corner-mass','layout','bal-weight']},
     {id:'cg-source',term:'CG Height Source',tier:'intermediate',def:"Chooses where CG height comes from. RIDE HEIGHT, the default, estimates it from the front and rear ride heights Forza shows, plus tyre radius. MANUAL takes a CG Height you type in.\n\nThe estimate is the average tyre radius plus the two ride heights weighted by Front Weight Bias. It is held inside 200–1500 mm. It is a rough heuristic, because real CG also depends on engine position, body height and mass distribution, which the app has no inputs for. It still beats a guess. It needs valid tyre sizes, entered just above it.\n\nRIDE HEIGHT also enables STIFFNESS BOTTOM G's and SHARED Hz mode in RIDE, and the SAG vs LOAD chart in VISUALS.\n\n[PRO] The FIT? badge flags CG when the raw estimate falls outside 200–1500 mm. Past that point, ride-height edits stop moving CG.",see:['cg-height','ride-height','tyre-size','sag-vs-load']},
@@ -8094,11 +8144,11 @@ const GLOSSARY=[
   {group:'Differential',terms:[
     {id:'accel-lock',term:'Accel Lock',tier:'beginner',def:"How much the differential locks the driven wheels together under throttle. More lock puts more power down, but it also changes how the car rotates on exit. On a driven rear axle (RWD, AWD rear), more accel lock gives more power-on oversteer. On a driven front axle (FWD, AWD front), it resists rotation, giving more exit understeer and push.\n\nThe DIFFERENTIAL card's value is a starting point; fine-tune by feel in 1% steps. Its tag reads OFF at 0, LOW below 20%, MEDIUM below 45%, HIGH below 70% and MAX above that. The Handling Balance DIFF row counts rear accel lock toward oversteer and front toward understeer. Each is weighted by that axle's share of the weight and, on AWD, by the centre split.\n\n[INT] AUTO sets it from layout, diff type, the EXIT sliders and, on FWD and RWD, build type, within 10–65% on RWD, 5–35% on FWD, and 10–40% front and 20–70% rear on AWD.\n\n[PRO] MANUAL takes 0–100%, with the diff type's typical range under each field.",see:['decel-lock','exit-bias','diff-type','power-split']},
     {id:'decel-lock',term:'Decel Lock',tier:'beginner',def:"Locking under lift-off and braking. More decel lock resists rotation on corner entry, so the car is steadier on lift-off but understeers more on entry. Less lock lets the car rotate more freely into the corner and under trail-braking. On a rear-drive axle that includes more lift-off oversteer. On a front-drive axle, less means less entry understeer. On AWD the automatic front decel stays at 0, because any front decel strongly adds entry understeer.\n\nA SPORT diff has no decel lock, so its decel rows read N/A. The Handling Balance DIFF row counts decel lock on either axle toward understeer.\n\n[INT] AUTO sets it from the ENTRY slider plus a little with rear weight; on FWD and RWD also from build type and diff type. The limits are 0–30% on RWD, 0–15% on FWD and 0–20% on the AWD rear.\n\n[PRO] MANUAL takes 0–100%. Typical decel is 8–25% for Race, 11–33% for Rally, 15–48% for Offroad and 0–8% for Drift.",see:['accel-lock','entry-bias','diff-type']},
-    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. A Race suggestion becomes Sport when the Handling Balance total is above +8. BeamNG shows the same box (on CENTRE SPLIT for AWD), since the type scales its locks too.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock.",see:['accel-lock','decel-lock','diff-mode','build-type']},
+    {id:'diff-type',term:'Diff Type',tier:'beginner',def:"The differential fitted to the car: Race, Sport, Rally, Offroad or Drift, named in the DIFFERENTIAL card's header. Each has its own lock curve, so the same lock % gives a different effective lock. Race is aggressive, and Drift is more so, for maximum rotation. Rally and Offroad are gentler, suited to low-traction surfaces. Sport is accel-only, with no decel lock and no centre split, so those rows read N/A.\n\nThe automatic lock values are scaled per type: Race 1.00, Sport 0.88, Rally 0.76, Offroad 0.52 and Drift 1.10.\n\n[INT] Choose it under DIFF TYPE in DRIVETRAIN; the default is SPORT. The card's RECOMMENDED box suggests a type from Build Type, and → USE applies it. For a car that oversteers, move ENTRY toward STABLE rather than changing the type.\n\nThe five types are Forza Horizon's. Forza Motorsport has one adjustable race diff, and BeamNG's diffs are a different set, so in both the picker and the RECOMMENDED box are gone and the locks are worked out for one plain diff at Race's scale. Your Horizon pick is kept for when you switch back.\n\n[PRO] MANUAL's typical ranges run higher for Rally and Offroad, because their gentler curves need more % for the same lock. Drift's sit near full lock, accel and decel both, as drift tunes run; a DRIFT build's automatic locks aim there too.",see:['accel-lock','decel-lock','diff-mode','build-type']},
     {id:'diff-mode',term:'Differential Mode (AUTO / MANUAL)',tier:'pro',short:'Diff mode',def:"Chooses whether the differential's locks are calculated or typed in. AUTO, the default, works out every lock value from layout, build type, weight bias, diff type and the EXIT, ENTRY and POWER SPLIT sliders. MANUAL hides those sliders and shows each lock % instead. FWD and RWD get Accel Lock and Decel Lock. AWD gets Front and Rear Accel and Decel, plus Centre Split. The diff type's typical range sits under each field.\n\nSwitching to MANUAL copies in the current AUTO values, so nothing jumps. MATCH CHASSIS has no effect in MANUAL. Leaving PRO returns the diff to AUTO, because MANUAL's fields exist only in PRO. A share code or garage load can still bring MANUAL in below PRO; the locks it carries stay in use, and DRIVETRAIN lists them.",see:['accel-lock','decel-lock','match-chassis','diff-type']},
     {id:'exit-bias',term:'EXIT (Diff Slider)',tier:'intermediate',short:'Diff EXIT',def:"The automatic differential's on-throttle intent, from GRIP (left) to ROTATE (right), −50 to +50, default 0. Right means more rotation on every layout, but the lock moves differently. On RWD and AWD, ROTATE adds rear accel lock for more power oversteer, and GRIP removes it for cleaner exit traction. On FWD, GRIP adds front accel lock for exit traction at the cost of push. ROTATE removes it for a freer pivot and less understeer. On AWD, ROTATE also trims front accel lock.\n\nAWD adds a second EXIT under FRONT AXLE, from PUSH to NEUTRAL. Toward PUSH adds front accel lock, for more front pull and exit understeer. It suits AWD cars with strong rear rotation. Each slider shows the resulting lock %, and the Handling Balance DIFF row moves with it.\n\n[PRO] MATCH CHASSIS can add a further offset from your Mech Balance Target.",see:['accel-lock','entry-bias','match-chassis','power-split']},
     {id:'entry-bias',term:'ENTRY (Diff Slider)',tier:'intermediate',short:'Diff ENTRY',def:"The automatic differential's lift-off and trail-braking intent, from STABLE (left) to LOOSE (right), −50 to +50, default 0. Toward STABLE raises decel lock. On RWD and AWD that resists lift-off oversteer; on FWD it adds entry understeer. Toward LOOSE lowers it for freer rotation into the corner. It moves the rear decel lock on RWD and AWD and the front decel on FWD. AWD front decel stays at 0. It is hidden for a SPORT diff, which has no decel lock.\n\n[PRO] MATCH CHASSIS adds half its offset here.",see:['decel-lock','exit-bias','match-chassis']},
-    {id:'power-split',term:'Centre Power Split',tier:'beginner',short:'Centre split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Centre Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTRE POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTRE SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
+    {id:'power-split',term:'Centre Power Split',tier:'beginner',short:'Centre split',def:"On AWD, the share of drive torque sent to the rear axle, shown as Centre Split in % rear. More rear means more oversteer tendency. It also gives the rear diff's locks more weight in the Handling Balance DIFF row, and the front's less. A SPORT diff has no centre lock, so it reads N/A.\n\n[INT] CENTRE POWER SPLIT in DRIVETRAIN sets it: 20–90% rear, default 65%, with 60–70% typical for track. Changing Build Type moves it with the recommendation and keeps any nudge: 5% behind the old build's recommendation stays 5% behind the new one's (MANUAL's typed split is left alone). The calculation uses 45–90%, and the slider shows the value in use (→) when yours falls outside that. The card's CENTRE SPLIT box recommends a value, and → USE applies it. The recommendation starts from Build Type: Street 65, Track 70, Drift 80, Rally 60, Offroad 55, Drag 75. It adds about 3% per 10% of extra rear weight and moves rearward with larger rear tyres. It comes 2% forward for every 0.1 of natural balance above 0.50.\n\n[PRO] The box lists that breakdown. MANUAL takes 0–100%.",see:['layout','accel-lock','natural-balance','tyre-size']},
     {id:'match-chassis',term:'MATCH CHASSIS',tier:'pro',def:"An automatic-differential option, off by default. When on, it biases the diff by how far your Mech Balance Target sits from natural balance. A target set for more oversteer leans the diff toward rotation, and one set for understeer leans it toward stability. The offset is 150× that gap, capped at ±25 points. It is added to the EXIT intent, and half of it to ENTRY. It is flipped on FWD, because more lock there means more push. The sliders don't move; their hints say when the bias is on.\n\nIt acts only while an ARB or Hz mode solves toward the target; otherwise the button dims and the diff is unchanged. It has no effect in MANUAL. Leaving PRO turns it off. If a share code or garage load brings it in below PRO, the EXIT and ENTRY hints say so.",see:['mech-balance-target','natural-balance','exit-bias','entry-bias']},
   ]},
   {group:'Handling Balance',terms:[
@@ -8118,7 +8168,7 @@ const GLOSSARY=[
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
     {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from 0.20° toe-in (planted) to 0.20° toe-out (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
-    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows the Race lock it acts like, the lock × the type's scale (eff on BeamNG).\n\nIn Horizon and Motorsport the headers are written out in words, any warnings are listed above the cards (click one to jump to its card), and every value the last edit, load or undo moved carries a blue left edge until the next change; hover it for the old value.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
+    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and MATCH CHASSIS; on a non-Race type each lock row shows the Race lock it acts like, the lock × the type's scale.\n\nIn Horizon and Motorsport the headers are written out in words, any warnings are listed above the cards (click one to jump to its card), and every value the last edit, load or undo moved carries a blue left edge until the next change; hover it for the old value.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Centre Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MEDIUM below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTRE SPLIT recommends a rear % with the build's reason and its own → USE. Once the diff matches a recommendation, its box shrinks to a single ✓ line.\n\n[PRO] CENTRE SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Centre Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings. The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever. While an axle's ARB Motion Ratio is 1.0 its row adds a ≈ figure, the rate at a typical 0.45 arm ratio, which is the closer starting point.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
@@ -9477,7 +9527,7 @@ function App(){
   // never re-run it.
   const phaseOn=balTargetModeOf(fe)==='phase';
   const _phaseBrk=brakeEntry?(dr.brakeEntryTarget??0):null;
-  const _phaseDriveF=driveFrontOf({layout:ch.layout,center:awdCenterOf(dr)});
+  const _phaseDriveF=driveFrontOf({layout:ch.layout,center:awdCenterOf(dr,fe.gameMode)});
   const phaseIn=useMemo(()=>_phaseBrk!=null?{brk:_phaseBrk,driveF:_phaseDriveF}:{brakeBias:brakeBiasSet,driveF:_phaseDriveF},
     [_phaseBrk,brakeBiasSet,_phaseDriveF]);
   const phaseInLive=phaseOn?phaseIn:null;
@@ -9644,11 +9694,10 @@ function App(){
   const bDampBias=-(tune.zetaF-tune.zetaR)*16/effectiveAvgZeta; // more front rebound → understeer (−)
   // tune.bChassis is the chassis's own lean (see computeTune); without it the total measured the
   // stiffness split against the weight split, which is not where the car is actually neutral.
-  const bTotFull=tune.bTot+(tune.bChassis??0)+diff.bDiffAccel+diff.bDiffDecel+bBrakeEntry+bDampBias;
   // NET: the steady-state part — the car's own lean plus springs and bars. Brakes, diff lock and
   // damping act on the way in or out of a corner, so the bar shows them as ENTRY / EXIT lanes off
-  // NET rather than folding them into it. bTotFull keeps them all and stays recommendedDiffType's
-  // input in every tier.
+  // NET rather than folding them into it. Nothing sums them all into one figure any more: the
+  // full total's last reader was recommendedDiffType's RACE → SPORT switch (docs/HISTORY.md).
   const bNet=tune.bTot+(tune.bChassis??0);
   // Alignment's lean (alignBalanceOf), INT and PRO. BEG reads none: it has no alignment controls,
   // its card is pure AUTO, and its bar draws NET only.
@@ -9658,8 +9707,8 @@ function App(){
     return alignBalanceOf(align,autoAlign.target,tune.rollDeg,camberGain,rearGainMult);
   },[uiMode,ch,align,autoAlign,tune.rollDeg]);
   // INT's three phases, in points, for its headline: MID is NET plus camber (the steady state);
-  // ENTRY and EXIT add exactly what their lanes draw. bNet itself, BEG's headline and
-  // recommendedDiffType's bTotFull, leave alignment out.
+  // ENTRY and EXIT add exactly what their lanes draw. bNet itself and BEG's headline leave
+  // alignment out.
   const intPhase=uiMode==='intermediate'?(()=>{
     const mid=bNet+alignBal.camber;
     return{mid,entry:mid+bBrakeEntry+(diff.bDiffDecel??0)+bDampBias+alignBal.toeF+alignBal.toeR,
@@ -9672,12 +9721,16 @@ function App(){
   const phase=useMemo(()=>uiMode==='pro'?phaseMargins(ch,tune,brakeBias,diff,exitG):null,[uiMode,ch,tune,brakeBias,diff,exitG]);
   // The headline: MID % in PRO, NET points elsewhere, each against its own NEUTRAL band.
   const hbVal=phase?phase.mid.total:intPhase?intPhase.mid:bNet,hbBand=phase?PHASE_NEUTRAL:3;
+  // The diff type that applies in this game (diffTypeOf): Motorsport and BeamNG have one plain
+  // diff, so the picker, the RECOMMENDED type box and the type in the card headers go there.
+  const diffType=diffTypeOf(dr,fe.gameMode);
+  const diffTypePick=diffTypesOf(fe.gameMode).length>1;
   const recommendedDiffType=(()=>{
     const build=dr.buildType??'track';
-    const base={track:'race',street:'sport',drift:'drift',rally:'rally',offroad:'offroad',drag:'race'}[build]??'race';
-    // strongly oversteery track/drift/drag builds benefit from a softer type
-    if(bTotFull>8&&base==='race') return 'sport';
-    return base;
+    // The build alone decides. A RACE → SPORT switch for strongly oversteery cars used to sit here;
+    // SPORT drops the decel lock, the one diff term that resists oversteer, so it made the car it
+    // was meant to calm read looser still (docs/HISTORY.md). Oversteer is ENTRY's job (toward STABLE).
+    return{track:'race',street:'sport',drift:'drift',rally:'rally',offroad:'offroad',drag:'race'}[build]??'race';
   })();
   // limitsOf, not GAME_LIMITS[...], for the same reason computeTune uses it: everything below
   // and the whole output column dereference this without a guard. See docs/HISTORY.md.
@@ -10045,14 +10098,15 @@ function App(){
   // row's meta is the effective lock (% × the type's scale), which AUTO holds across diff types and
   // the balance reads; RACE's scale is 1, so it would only repeat the value there.
   const diffView=(()=>{
-    const type=dr.diffType??'race',manual=!!dr.diffManual,scale=DIFF_TYPE_SCALE[type]??1;
-    const TYPE={race:'RACE',sport:'SPORT',rally:'RALLY',offroad:'OFFROAD',drift:'DRIFT'}[type]??'RACE';
+    const type=diffType,manual=!!dr.diffManual,scale=DIFF_TYPE_SCALE[type]??1;
+    // A game with one diff has no type to name.
+    const TYPE=diffTypePick?({race:'RACE',sport:'SPORT',rally:'RALLY',offroad:'OFFROAD',drift:'DRIFT'}[type]??'RACE'):null;
     // computeDiff skips MATCH CHASSIS while nothing solves toward the Balance Target; PRO shows that.
     const match=manual||!dr.diffComplement?null:hasBalTargetSolve(feEffective)?'MATCH CHASSIS'
       :uiMode==='pro'?'MATCH CHASSIS IDLE':null;
     return{header:[manual?'MANUAL':'AUTO',TYPE,match].filter(Boolean).join(' · '),
-      head:[manual?'MANUAL locks':'AUTO locks',`${TYPE} diff`,match==='MATCH CHASSIS IDLE'?'MATCH CHASSIS idle':match].filter(Boolean).join(' · '),
-      meta:v=>type==='race'?[]:[{text:`eff ${Math.round(v*scale)}%`,on:!manual}],
+      head:[manual?'MANUAL locks':'AUTO locks',TYPE&&`${TYPE} diff`,match==='MATCH CHASSIS IDLE'?'MATCH CHASSIS idle':match].filter(Boolean).join(' · '),
+      // Forza Horizon only: BeamNG has one diff at RACE's scale (diffTypeOf), so it has no such row.
       // The Forza card's form: what the lock does on this diff type, named rather than "eff".
       metaF:v=>type==='race'?[]:[{text:`acts like ${Math.round(v*scale)}% RACE`,on:!manual}]};
   })();
@@ -10187,16 +10241,19 @@ function App(){
   const _sgap=chassisAnalysis.targetBal-natMechBalance;
   const gap=Math.abs(_sgap);
   // Recommended AWD center split (rear %) — build type baseline trimmed by three chassis factors.
-  const _baseCenterLookup={street:65,track:70,drift:80,rally:60,offroad:55,drag:75};
-  const _baseCenter=_baseCenterLookup[dr.buildType??'track']??65;
-  const _rearBias=1-ch.frontBias/100;
-  const _parsedTyreF=parseTyre(ch.tyreF);
-  const _parsedTyreR=parseTyre(ch.tyreR);
-  const _diamRatio=(_parsedTyreR?.diameter??642)/(_parsedTyreF?.diameter??642);
-  const _weightAdj=Math.round((_rearBias-0.50)*30);          // +3% per 10% extra rear weight
-  const _diamAdj  =Math.round((_diamRatio-1)*50);             // +2.5% per 5% larger rear diam
-  const _natAdj   =Math.round(-(natMechBalance-0.50)*20);     // −2% per 0.1 above neutral natBal
-  const recommendedCenter=Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,_baseCenter+_weightAdj+_diamAdj+_natAdj));
+  const{center:recommendedCenter,base:_baseCenter,weight:_weightAdj,tyres:_diamAdj,balance:_natAdj}
+    =recommendedCenterOf(ch,dr.buildType,fe.gameMode);
+  // Build Type carries an AUTO centre split with the recommendation: however far POWER SPLIT sat
+  // from the old build's REC, it lands that far from the new one's, so AUTO starts from the
+  // recommended split and the slider stays a nudge off it. MANUAL's typed split is left alone.
+  const setBuildType=b=>setDr(p=>{
+    if(p.diffManual||b===p.buildType)return{...p,buildType:b};
+    // From the stored split, not awdCenterOf: on SPORT that is the fixed stand-in.
+    const cur=Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,Math.round(p.diffCenter??65)));
+    const nudge=cur-recommendedCenterOf(ch,p.buildType,fe.gameMode).center;
+    const to=recommendedCenterOf(ch,b,fe.gameMode).center+nudge;
+    return{...p,buildType:b,diffCenter:Math.max(AWD_CENTER_MIN,Math.min(AWD_CENTER_MAX,to))};
+  });
 
   const loadPreset=i=>{
     const s=PRESET_SAVES[i];if(!s)return;
@@ -10937,7 +10994,7 @@ function App(){
                   hint={HINT_LAYOUT} hintTerm="layout"/>
                 </div>
                 <div id="zone-build-type" style={dim('build-type')}>
-                <Toggle label="Build" value={dr.buildType??'track'} onChange={pDr('buildType')}
+                <Toggle label="Build" value={dr.buildType??'track'} onChange={setBuildType}
                   options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
                   hint={HINT_BUILD_TYPE} hintTerm="build-type"/>
                 </div>
@@ -11261,7 +11318,7 @@ function App(){
           </Sec></div>
 
           <div id="zone-build" style={dim('build')}><Sec title="BUILD" open={open.build} onToggle={tog('build')} {...secProps('build')}>
-            <Hide id="build.type"><Toggle label="Build Type" value={dr.buildType??'track'} onChange={pDr('buildType')}
+            <Hide id="build.type"><Toggle label="Build Type" value={dr.buildType??'track'} onChange={setBuildType}
               options={[{value:'street',label:'STREET'},{value:'track',label:'TRACK'},{value:'drift',label:'DRIFT'},{value:'rally',label:'RALLY'},{value:'offroad',label:'OFFROAD'},{value:'drag',label:'DRAG'}]}
               hint={HINT_BUILD_TYPE} hintTerm="build-type"/></Hide>
           </Sec></div>
@@ -12615,12 +12672,13 @@ function App(){
 
           <div id="zone-drivetrain" style={dim('drivetrain')}><Sec title="DRIVETRAIN" open={open.drivetrain} onToggle={tog('drivetrain')} {...secProps('drivetrain')}
             onReset={()=>setDr(p=>({...p,...sectionDefaults('drivetrain')}))}>
-            {uiMode!=='beginner'&&<Hide id="drive.diffType"><div style={{marginTop:4,marginBottom:9}}>
+            {/* Horizon only: Motorsport and BeamNG have one plain diff (DIFF_TYPES_BY_GAME). */}
+            {uiMode!=='beginner'&&diffTypePick&&<Hide id="drive.diffType"><div style={{marginTop:4,marginBottom:9}}>
               <span style={{fontSize:12,color:'#94a3b8',display:'flex',alignItems:'center',gap:4,marginBottom:3}}>Diff Type
               <Hint text="Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide." term="diff-type"/></span>
               <OptionSeg label="Diff Type">
-                {['race','sport','rally','offroad','drift'].map(t=>(
-                  <button key={t} className={`tog${(dr.diffType??'race')===t?' on':''}`} style={{minHeight:28}}
+                {diffTypesOf(fe.gameMode).map(t=>(
+                  <button key={t} className={`tog${diffType===t?' on':''}`} style={{minHeight:28}}
                     onClick={()=>setDr(p=>({...p,diffType:t}))}>
                     {t.toUpperCase()}
                   </button>
@@ -12640,14 +12698,15 @@ function App(){
                       ...(d.layout==='AWD'
                         ?{diffFrontAccel:d.frontAccel,diffFrontDecel:d.frontDecel,
                           diffRearAccel:d.rearAccel,diffRearDecel:d.rearDecel,
-                          diffCenter:d.center}
+                          // SPORT's split is the fixed stand-in, not the tune's: keep the stored one.
+                          diffCenter:diffType==='sport'?p.diffCenter:d.center}
                         :{diffAccel:d.accel,diffDecel:d.decel})}));
                   }}>MANUAL</button>
               </OptionSeg>
             </div></Hide>}
             {!dr.diffManual&&(()=>{
               const groupHdr={fontSize:10,color:'#94a3b8',letterSpacing:2,marginBottom:3,marginTop:6};
-              const dt=dr.diffType??'race';
+              const dt=diffType;
               // Same left/right vocabulary (GRIP↔ROTATE) regardless of layout — previously FWD
               // used PUSH↔ROTATION for the same slider, which read as a different control when
               // switching layouts. What is consistent is the BALANCE direction: right = more
@@ -12741,7 +12800,7 @@ function App(){
               </>);
             })()}
             {uiMode==='pro'&&dr.diffManual&&(()=>{
-              const dt=dr.diffType??'race';
+              const dt=diffType;
               const ranges=DIFF_TYPE_RANGES[dt];
               // Each lock has a 0–100 slider; under it the diff type's typical range is drawn as a
               // band on the same scale, so where the value sits against it reads at a glance.
@@ -12779,9 +12838,9 @@ function App(){
                         hint="Rear lock off throttle. Lower = more entry rotation (and lift-off oversteer); higher = a more stable entry." hintTerm="decel-lock"/>
                     </div></Hide>}
                   </div>
-                  <Hide id="drive.manCenter"><Field label="Centre Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
+                  {dt!=='sport'&&<Hide id="drive.manCenter"><Field label="Centre Split" value={dr.diffCenter} onChange={pDr('diffCenter')}
                     min={0} max={100} step={1} unit="% rear" refs={[{value:recommendedCenter,label:'REC'}]}
-                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/></Hide>
+                    hint="Share of drive sent to the rear. Higher = more oversteer; 60–70% is typical for track." hintTerm="power-split"/></Hide>}
                 </>
               ):(
                 <div style={{display:'grid',gridTemplateColumns:pairCols,gap:'0 10px'}}>
@@ -12807,7 +12866,7 @@ function App(){
                 The tune keeps the author's locks, so say what they are instead of leaving the section
                 blank: the AUTO sliders don't apply and the MANUAL fields are PRO-only. */}
             {uiMode!=='pro'&&dr.diffManual&&(()=>{
-              const dec=v=>(dr.diffType??'race')==='sport'?'':`, decel ${v}%`; // SPORT has no decel lock
+              const dec=v=>diffType==='sport'?'':`, decel ${v}%`; // SPORT has no decel lock
               const locks=diff.layout==='AWD'
                 ?`front accel ${diff.frontAccel}%${dec(diff.frontDecel)}, rear accel ${diff.rearAccel}%${dec(diff.rearDecel)}, centre ${diff.center}% rear`
                 :`accel ${diff.accel}%${dec(diff.decel)}`;
@@ -13425,12 +13484,12 @@ function App(){
               ?'Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.'
               :diff.layout==='RWD'
               ?'Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.'
-              :`Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Centre ${diff.center}% rear.`}
+              :`Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation.${diffType==='sport'?'':` Centre ${diff.center}% rear.`}`}
             headerRight={diffView.head} hintTerm="diff-output">
             {(()=>{
               // SPORT is accel-only in-game, so every decel field reads N/A rather than a
               // number the tuning menu won't accept.
-              const isSport=(dr.diffType??'race')==='sport';
+              const isSport=diffType==='sport';
               const LOCK_HID={'Front Accel':'out.diff.frontAccel','Front Decel':'out.diff.frontDecel',
                 'Rear Accel':'out.diff.rearAccel','Rear Decel':'out.diff.rearDecel','Centre Split':'out.diff.center',
                 'Accel Lock':'out.diff.accel','Decel Lock':'out.diff.decel'};
@@ -13475,7 +13534,7 @@ function App(){
               // CENTER SPLIT is its own box to the right of RECOMMENDED rather than a
               // section stacked inside it. FWD/RWD (and SPORT, which has no centre lock)
               // have no split, so RECOMMENDED simply keeps the full width there.
-              const showSplit=isAWD&&(dr.diffType??'race')!=='sport';
+              const showSplit=isAWD&&diffType!=='sport';
               const box={flex:'1 1 240px',minWidth:0,padding:'6px 8px',
                          background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'};
               // Once the diff already matches, the call-out shrinks to one quiet line: repeating the
@@ -13487,10 +13546,10 @@ function App(){
               if(uiMode==='beginner')return null;
               return(
                 <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:6}}>
-                  <Hide id="out.diff.rec" style={{flex:'1 1 240px',minWidth:0}}>{(dr.diffType??'race')===recommendedDiffType
+                  {diffTypePick&&<Hide id="out.diff.rec" style={{flex:'1 1 240px',minWidth:0}}>{diffType===recommendedDiffType
                     ?<div style={ok}>{okLine(<>{recommendedDiffType.toUpperCase()} is the recommended diff for a {buildLabel} build.</>)}</div>
-                    :<DiffTypeRec cur={dr.diffType??'race'} rec={recommendedDiffType} buildType={dr.buildType}
-                      onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...box,borderColor:'#f59e0b44'}}/>}</Hide>
+                    :<DiffTypeRec cur={diffType} rec={recommendedDiffType} buildType={dr.buildType}
+                      onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...box,borderColor:'#f59e0b44'}}/>}</Hide>}
                   {showSplit&&<Hide id="out.diff.recCenter" style={{flex:'1 1 240px',minWidth:0}}>{centerMatch
                     ?<div style={ok}>{okLine(<>CENTRE SPLIT {recommendedCenter}% rear is the recommended split for a {buildLabel} build.</>)}</div>
                     :<div style={{...box,borderColor:'#f59e0b44'}}>
@@ -13526,7 +13585,7 @@ function App(){
             const isAWD=diff.layout==='AWD';
             const isFWD=diff.layout==='FWD';
             const isRWD=diff.layout==='RWD';
-            const isSport=(dr.diffType??'race')==='sport';
+            const isSport=diffType==='sport';
 
             // Cross-axle callouts lifted out of the ARB/SPRINGS/DAMPERS cards being merged/
             // split below — these compare front vs rear, so they don't belong to one axle.
@@ -13602,14 +13661,14 @@ function App(){
               if(isSport&&/Decel|Split/.test(label))return <OutRow key={label} hid={hid} label={label} value="N/A" unit=""/>;
               const c=diffCtx(v);
               return <OutRow key={label} hid={hid} label={label} value={v} unit={unit} decimals={0}
-                note={c?c[0]:null} noteColor={c?c[1]:undefined} meta={unit==='%'?diffView.meta(v):[]}/>;
+                note={c?c[0]:null} noteColor={c?c[1]:undefined}/>;
             };
             // Header and hint as on Forza's DIFFERENTIAL card: the diff type scales the locks and
             // makes SPORT's decel N/A here too (docs/KNOWN_ISSUES.md, DIFF TYPE in BEAMNG), so the
             // card names it, and the RECOMMENDED type box sits on the one card that covers the whole
             // drivetrain: the single diff on FWD/RWD, CENTER SPLIT on AWD.
             const recBox={padding:'6px 8px',background:'#0f172a',borderRadius:2,border:'1px solid #1e293b'};
-            const diffRec=uiMode!=='beginner'&&<Hide id="out.diff.rec"><DiffTypeRec cur={dr.diffType??'race'} rec={recommendedDiffType}
+            const diffRec=uiMode!=='beginner'&&diffTypePick&&<Hide id="out.diff.rec"><DiffTypeRec cur={diffType} rec={recommendedDiffType}
               buildType={dr.buildType} onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...recBox,marginTop:isAWD?0:6,marginBottom:isAWD&&!isSport?5:0}}/></Hide>;
             const frontDiff=(isAWD||isFWD)&&<DiffCard hid="out.card.diffF" title="FRONT DIFFERENTIAL" headerRight={diffView.header} hintTerm="diff-output"
               hint={isAWD?'Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; more front accel lock pulls the nose out of the corner.'
@@ -14309,9 +14368,9 @@ function App(){
                 // TOTAL (PRO only): MID + brakes + drive, in the same ×5 units; its phases are separate
                 // loads, so read it as a sum, not a phase. BEG/INT do not draw it: their sum would add
                 // the uncalibrated diff, brake and damping points to the steady state, and NET is the
-                // number to read there. bTotFull is still computed for recommendedDiffType.
-                const total=phase?(phase.mid.total+phase.entry.brk+phase.exit.drive)*5:bTotFull;
-                const totalTxt=phase?fmtPct(total/5):`${bTotFull>=0?'+':''}${bTotFull.toFixed(1)}`;
+                // number to read there. phase exists exactly in PRO, the one tier that draws it.
+                const total=phase?(phase.mid.total+phase.entry.brk+phase.exit.drive)*5:0;
+                const totalTxt=phase?fmtPct(total/5):'';
                 // Arrows for the direction-only terms, outward from where the lane's segments end.
                 const arrows=(l,start)=>{
                   const end=cl(start+l.segs.reduce((a,x)=>a+x.val,0));

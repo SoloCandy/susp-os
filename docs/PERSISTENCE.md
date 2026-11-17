@@ -167,7 +167,9 @@ in. A BEG entry shows none, STOCK shows only STOCK BRAKES, an INT entry shows th
 PRO ENTRY Centre replaces the shift, because ENTRY ignores it. An entry with no
 `tier` has nothing to gate by, so it shows what it stores. MANUAL DIFF is not gated:
 a MANUAL diff loaded below PRO still applies its locks. The diff chip carries the
-`DIFF` suffix so a RALLY build with a RALLY diff doesn't show two identical chips.
+`DIFF` suffix so a RALLY build with a RALLY diff doesn't show two identical chips, and names
+the type the entry's game applies (`diffTypeOf`): a Motorsport or BeamNG car reads RACE DIFF
+whatever Horizon type it stores. A build-only entry has no game, so it shows the stored type.
 Chips that need the full solve, such as a handling verdict, were left out on
 purpose: they depend on values App computes inline (brake bias, grip balance), and
 a second copy of those would drift. `tests-garage.js` covers the gating.

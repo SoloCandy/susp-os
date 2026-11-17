@@ -11,6 +11,50 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — diff recommendations: no RACE → SPORT switch, DRIFT locks, a fixed SPORT AWD split
+
+Three diff behaviours that worked against the app's own model or against practice.
+
+- **RACE → SPORT above +8 is gone.** `recommendedDiffType` turned a Race suggestion into Sport
+  when `bTotFull` passed +8, "to calm a strongly oversteery car". Sport has no decel lock, and in
+  `computeDiff` rear decel lock is the term that resists oversteer, so taking the suggestion
+  dropped the stabilising term: a TRACK RWD's `bDiffDecel` went from −0.81 to 0 and the car read
+  looser. The recommendation now comes from Build Type alone, and the `diff-type` glossary points
+  oversteer at ENTRY toward STABLE. `bTotFull` had no other live reader (PRO's TOTAL always has
+  phase margins) and was removed.
+- **DRIFT ran grip-style locks.** A DRIFT build's AUTO gave RWD 48 effective accel and 3 decel
+  (about 44% and 2% on a Drift diff), and the Drift type's MANUAL typical decel was 0–8%,
+  "kept low on purpose for rotation". Published Horizon drift tunes run both near 100% so the
+  rear wheels stay locked together through transitions. `DRIFT_LOCK` (100 / 90 effective, RWD and
+  the AWD rear, ceilings raised to 100) and the Drift typical ranges (accel 80–100, decel 60–100)
+  now follow that. Every DRIFT-build tune in AUTO gets much higher locks.
+- **A Sport AWD diff kept using a hidden split.** With CENTRE POWER SPLIT hidden, a split typed
+  before switching to SPORT still weighted the DIFF balance and PHASE's drive split. `awdCenterOf`
+  now uses `SPORT_AWD_CENTER` (65%) on Sport, MANUAL's Centre Split hides there too, and
+  switching to MANUAL on Sport keeps the stored split rather than writing the stand-in over it.
+
+## Changed — drivetrain: AWD AUTO by build, the centre split follows Build Type, one diff outside Horizon
+
+Three gaps in the drivetrain, changed together.
+
+- **AWD AUTO ignored Build Type.** FWD and RWD started their AUTO locks from per-build tables,
+  but AWD used 28 / 48 / 8 (front accel, rear accel, rear decel) for every build, so DRIFT,
+  RALLY and DRAG all locked like TRACK. `AWD_LOCK_BASE` now gives each build its own row. TRACK
+  keeps 28 / 48 / 8; the others scale it by the existing FWD and RWD tables' ratios to TRACK.
+  Every non-TRACK AWD tune in AUTO gets new locks; STREET, the default build, goes to 21 / 38 / 10.
+- **The recommended centre split was only reachable through → USE**, and BEG, which has no
+  POWER SPLIT and no recommendation box, never saw it. Changing Build Type now moves an AUTO
+  split with the recommendation, keeping its offset from REC (`setBuildType`). Nothing new is
+  stored: a saved tune keeps its split until its build changes, and MANUAL is left alone.
+  Following the recommendation continuously, through chassis edits too, was weighed and left
+  out: it needed a new share-code field, and every load path would have had to keep old tunes'
+  splits from moving.
+- **The five Horizon diff types applied in every game.** Forza Motorsport has one adjustable
+  race diff and BeamNG's diffs are a different set, yet a stored SPORT or OFFROAD scaled their
+  locks and dropped their decel. `diffTypeOf` now applies RACE outside Horizon; the picker, the
+  RECOMMENDED box and the type in the card headers go there, and the stored pick returns in
+  Horizon.
+
 ## Fixed — reads before declaration; `transform-block-scoping` dropped
 
 The bootstrap compiled with `transform-block-scoping` so that a `const`/`let` read above its

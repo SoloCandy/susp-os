@@ -46,6 +46,7 @@ const M = new Function(
   slice('const BUMP_BAL_MODE_DEC=', '\n') + '\n' +
   slice('const ownBumpBalMode=', '\n') + '\n' +
   slice('const hasBalTargetSolve=', '// rideStiffness now stores') + '\n' +
+  slice('const DIFF_TYPE_DEC=', '// Community-estimated scale factors') + '\n' + // diffTypesOf, diffTypeOf
   slice('const DEF_CH=', '// ── Section visibility') + '\n' +
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
   slice('const TUTORIALS={', '// Standalone reference') +

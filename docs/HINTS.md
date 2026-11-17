@@ -146,7 +146,7 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 ## DRIVETRAIN
 
-**DIFF TYPE** (INT/PRO):
+**DIFF TYPE** (INT/PRO, Horizon only):
 
 > Match the diff fitted to the car: the same lock % locks harder on RACE or DRIFT than on RALLY or OFFROAD. SPORT is accel-only, so its decel controls hide.
 
@@ -650,13 +650,14 @@ intent offset; terms under 0.005° left out except the build base), e.g. `Camber
 
 It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on STOCK (INT+) the Balance row reads `STOCK`.
 
-**DIFFERENTIAL** — FWD, RWD, then AWD (`{rear %}` is the centre split):
+**DIFFERENTIAL** — FWD, RWD, then AWD (`{rear %}` is the centre split; a Sport diff has no
+centre lock, so its AWD text stops before "Centre"):
 
 > Starting point; fine-tune in 1% steps. More accel lock adds exit traction and understeer. Decel near zero frees entry rotation.
 
 > Starting point; fine-tune in 1% steps. More accel lock adds exit rotation. Low decel helps entry rotation; raise it for lift-off stability.
 
-> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation. Centre {rear %}% rear.
+> Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation.{not on Sport:} Centre {rear %}% rear.
 
 **Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
 summary strip keeps the short `header`. By card:
@@ -677,10 +678,11 @@ summary strip keeps the short `header`. By card:
 
 **Row figures** — Forza spells out what the BeamNG cards abbreviate: ARB rows read
 `{n}% of axle roll` and `{n}% of both bars` (`% roll` / `% ARB` on BeamNG), SPRINGS rows
-`{n}% of axle roll`, and a non-Race diff's lock rows `acts like {n}% RACE` (BeamNG: `eff {n}%`).
+`{n}% of axle roll`, and a non-Race diff's lock rows `acts like {n}% RACE` (Horizon only: BeamNG's one diff is at Race's scale).
 Lock tags are OFF, LOW, MEDIUM, HIGH and MAX.
 
-**RECOMMENDED / CENTRE SPLIT** (INT+) — while the diff type or centre split differs from the
+**RECOMMENDED / CENTRE SPLIT** (INT+) — RECOMMENDED shows in Horizon only, the one game with a
+diff type to pick. While the diff type or centre split differs from the
 recommendation, a box with the recommended value, the reason and → USE; once it matches, one line after a green ✓.
 There is no CENTRE SPLIT box on a Sport diff, which has no centre lock:
 
@@ -731,7 +733,7 @@ sentence:
 
 > Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.
 
-Under it (INT+) sit the RECOMMENDED diff-type box and the RECOMMENDED split box. On a Sport
+Under it (INT+) sit the RECOMMENDED diff-type box (Horizon only) and the RECOMMENDED split box. On a Sport
 diff Base Torque Split reads N/A and the split box is left out, as on the Forza card.
 
 **FRONT / REAR ALIGNMENT** — the Forza ALIGNMENT text above (as `{forza text}`), then:

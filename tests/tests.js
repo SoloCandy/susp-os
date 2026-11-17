@@ -112,7 +112,9 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   const biasEntry = dr.diffBiasEntry ?? 0;
   const frontExitBias = dr.diffFrontExitBias ?? 0;
   const build = dr.buildType ?? 'track';
-  const diffType = dr.diffType ?? 'race';
+  // Horizon offers five diff types; Motorsport and BeamNG one plain diff, which is RACE's scale.
+  const stored = dr.diffType ?? 'race';
+  const diffType = (fe.gameMode ?? 'horizon') === 'horizon' ? stored : 'race';
   const typeScale = DIFF_TYPE_SCALE[diffType] ?? 1.0;
   // AUTO solves in effective (Race-equivalent) lock, then converts to the fitted type's %.
   const clE = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -143,28 +145,33 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
       ? { layout: 'AWD',
           frontAccel: dr.diffFrontAccel ?? 25, frontDecel: dr.diffFrontDecel ?? 0,
           rearAccel: dr.diffRearAccel ?? 50, rearDecel: dr.diffRearDecel ?? 10,
-          center: dr.diffCenter ?? 65 }
+          center: diffType === 'sport' ? 65 : dr.diffCenter ?? 65 }
       : { layout: ch.layout, accel: dr.diffAccel ?? 35, decel: dr.diffDecel ?? 10 };
   } else if (ch.layout === 'AWD') {
-    const center = cl(dr.diffCenter ?? 65, 45, 90);
+    // SPORT has no centre lock: a fixed 65% rear stands in, whatever split is stored.
+    const center = diffType === 'sport' ? 65 : cl(dr.diffCenter ?? 65, 45, 90);
+    // Per-build starting locks: [front accel, rear accel, rear decel], effective %.
+    const [fa, ra, rd] = ({ street: [21, 38, 10], track: [28, 48, 8], drift: [17, 100, 90],
+      rally: [17, 34, 5], offroad: [14, 25, 3], drag: [28, 70, 0] }[build] ?? [28, 48, 8]);
     vals = { layout: 'AWD',
-      frontAccel: lockPct(clE(28 - effBiasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
+      frontAccel: lockPct(clE(fa - effBiasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
       frontDecel: 0,
-      rearAccel: lockPct(clE(48 + effBiasExit * 0.25, 20, 70)),
-      rearDecel: diffType === 'sport' ? 0 : lockPct(clE(8 + (rB - 0.5) * 15 + effBiasEntry * 0.15, 0, 20)),
+      // DRIFT runs near full lock both ways, so its ceilings rise to 100.
+      rearAccel: lockPct(clE(ra + effBiasExit * 0.25, 20, build === 'drift' ? 100 : 70)),
+      rearDecel: diffType === 'sport' ? 0 : lockPct(clE(rd + (rB - 0.5) * 15 + effBiasEntry * 0.15, 0, build === 'drift' ? 100 : 20)),
       center };
   } else {
     const isRWD = ch.layout === 'RWD';
     const accelBase = isRWD
-      ? ({ street: 28, track: 35, drift: 48, rally: 25, offroad: 18, drag: 65 }[build] ?? 35)
+      ? ({ street: 28, track: 35, drift: 100, rally: 25, offroad: 18, drag: 65 }[build] ?? 35)
       : ({ street: 15, track: 20, drift: 12, rally: 12, offroad: 10, drag: 20 }[build] ?? 20);
     const decelBase = isRWD
-      ? ({ street: 15, track: 12, drift: 3, rally: 8, offroad: 5, drag: 0 }[build] ?? 12)
+      ? ({ street: 15, track: 12, drift: 90, rally: 8, offroad: 5, drag: 0 }[build] ?? 12)
       : ({ street: 8, track: 5, drift: 2, rally: 4, offroad: 2, drag: 0 }[build] ?? 5);
     const accel = isRWD
-      ? lockPct(clE(accelBase + effBiasExit * 0.20, 10, 65))
+      ? lockPct(clE(accelBase + effBiasExit * 0.20, 10, build === 'drift' ? 100 : 65))
       : lockPct(clE(accelBase + effBiasExit * 0.15, 5, 35));
-    const decel = diffType === 'sport' ? 0 : lockPct(clE(decelBase + (rB - 0.5) * (isRWD ? 15 : 5) + effBiasEntry * 0.15, 0, isRWD ? 30 : 15));
+    const decel = diffType === 'sport' ? 0 : lockPct(clE(decelBase + (rB - 0.5) * (isRWD ? 15 : 5) + effBiasEntry * 0.15, 0, isRWD ? (build === 'drift' ? 100 : 30) : 15));
     vals = { layout: ch.layout, accel, decel };
   }
 
@@ -883,6 +890,72 @@ console.log('\ncomputeDiff — diff type scaling');
   assertEq('SPORT diff has zero decel lock (accel-only)', sport.decel, 0);
 }
 
+// ── computeDiff — the game decides which diff types exist ──────────────────────
+
+console.log('\ncomputeDiff — diff types by game');
+{
+  const ch = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'RWD' };
+  const race = computeDiff(ch, { gameMode: 'horizon' }, { buildType: 'track', diffType: 'race' });
+  for (const gameMode of ['motorsport', 'beamng']) {
+    // One plain diff: a stored Horizon type neither scales the locks nor drops the decel lock.
+    const off = computeDiff(ch, { gameMode }, { buildType: 'track', diffType: 'offroad' });
+    const sport = computeDiff(ch, { gameMode }, { buildType: 'track', diffType: 'sport' });
+    assertEq(`${gameMode}: a stored OFFROAD locks like the one plain diff`, [off.accel, off.decel].join('/'), [race.accel, race.decel].join('/'));
+    assertEq(`${gameMode}: a stored SPORT keeps its decel lock`, sport.decel, race.decel);
+  }
+}
+
+// ── computeDiff — AWD AUTO starts from the build ───────────────────────────────
+
+console.log('\ncomputeDiff — AWD locks by build');
+{
+  const ch = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'AWD' };
+  const at = buildType => computeDiff(ch, { gameMode: 'horizon' }, { buildType, diffType: 'race', diffCenter: 65 });
+  const [street, track, drift, rally, offroad, drag] = ['street', 'track', 'drift', 'rally', 'offroad', 'drag'].map(at);
+  assertEq('TRACK keeps the locks AWD used for every build (28/48/8 at 50% front)',
+    [track.frontAccel, track.rearAccel, track.rearDecel].join('/'), '28/48/8');
+  assertEq('rear accel: DRIFT > DRAG > TRACK > STREET > RALLY > OFFROAD',
+    drift.rearAccel > drag.rearAccel && drag.rearAccel > track.rearAccel && track.rearAccel > street.rearAccel
+      && street.rearAccel > rally.rearAccel && rally.rearAccel > offroad.rearAccel, true);
+  assertEq('DRAG carries no rear decel', drag.rearDecel, 0);
+  assertEq('STREET runs more rear decel than TRACK, as on RWD', street.rearDecel > track.rearDecel, true);
+}
+
+// ── computeDiff — DRIFT runs near full lock, on power and off it ───────────────
+
+console.log('\ncomputeDiff — DRIFT locks');
+{
+  const fe = { gameMode: 'horizon' };
+  const rwd = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'RWD' };
+  const awd = { ...rwd, layout: 'AWD' };
+  const race = computeDiff(rwd, fe, { buildType: 'drift', diffType: 'race' });
+  const drift = computeDiff(rwd, fe, { buildType: 'drift', diffType: 'drift' });
+  assertEq('RWD DRIFT on a Race diff: 100% accel, 90% decel', `${race.accel}/${race.decel}`, '100/90');
+  // 100 / 1.10 and 90 / 1.10: the Drift diff locks harder per %, so it needs fewer.
+  assertEq('RWD DRIFT on a Drift diff: 91% accel, 82% decel', `${drift.accel}/${drift.decel}`, '91/82');
+  assertEq('…inside the Drift diff\'s new typical ranges (accel 80–100, decel 60–100)',
+    drift.accel >= 80 && drift.decel >= 60, true);
+  const loose = computeDiff(rwd, fe, { buildType: 'drift', diffType: 'race', diffBiasEntry: -50 });
+  assertEq('ENTRY toward LOOSE still lowers it', loose.decel < race.decel, true);
+  const a = computeDiff(awd, fe, { buildType: 'drift', diffType: 'race', diffCenter: 80 });
+  assertEq('AWD DRIFT rear: 100% accel, 90% decel', `${a.rearAccel}/${a.rearDecel}`, '100/90');
+  // Other builds keep their old ceilings.
+  const trackMax = computeDiff(rwd, fe, { buildType: 'track', diffType: 'race', diffBiasExit: 50, diffBiasEntry: 50 });
+  assertEq('TRACK keeps its 65 / 30 ceilings', trackMax.accel <= 65 && trackMax.decel <= 30, true);
+}
+
+// ── computeDiff — SPORT's centre split is a fixed stand-in ─────────────────────
+
+console.log('\ncomputeDiff — SPORT AWD centre');
+{
+  const fe = { gameMode: 'horizon' };
+  const awd = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'AWD' };
+  const at = (diffCenter, extra = {}) => computeDiff(awd, fe, { buildType: 'track', diffType: 'sport', diffCenter, ...extra });
+  assertEq('a stored split no longer moves a SPORT AWD (AUTO)', [at(45).center, at(90).center, at(45).bDiffRear === at(90).bDiffRear].join('/'), '65/65/true');
+  assertEq('…nor under MANUAL', at(20, { diffManual: true }).center, 65);
+  assertEq('a RACE diff still uses the stored split', computeDiff(awd, fe, { buildType: 'track', diffType: 'race', diffCenter: 80 }).center, 80);
+}
+
 // ── computeDiff — MATCH CHASSIS correction (regression guard for the FWD-polarity bug) ──
 
 console.log('\ncomputeDiff — MATCH CHASSIS correction');
@@ -1183,8 +1256,8 @@ console.log('\nmirror vs app (reads index.html)');
   // ── differential
   const DR = grid({
     layout: ['RWD', 'FWD', 'AWD'], diffType: ['race', 'sport', 'rally', 'offroad', 'drift'],
-    buildType: ['street', 'track', 'drift', 'drag'], bias: [-50, 0, 35],
-    mode: ['auto', 'manual', 'complement'], override: [null, 0.55], gameMode: ['horizon', 'beamng'],
+    buildType: ['street', 'track', 'drift', 'rally', 'offroad', 'drag'], bias: [-50, 0, 35],
+    mode: ['auto', 'manual', 'complement'], override: [null, 0.55], gameMode: ['horizon', 'motorsport', 'beamng'],
     target: [{}, { arbBalTarget: 0.05 }, { arbBalTarget: -0.2 }, { arbBalTargetMode: 'grip', arbBalDelta: 0 }, { arbBalTargetMode: 'grip', arbBalDelta: 0.06 }],
     // MATCH CHASSIS is gated on a target solve, so the grid has to include modes that solve.
     solve: [{}, { arbBalMode: 'mech' }, { arbBalMode: 'weight', rearHzMode: 'mech' }, { arbBalMode: 'coSolve', arbMode: 'man' }],

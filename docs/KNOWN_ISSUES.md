@@ -518,10 +518,9 @@ coefficient would move the balance figure on every tune anyone has saved.
 BEG and INT only. PRO reads Handling Balance as grip-margin percent by phase
 (`phaseMargins`, [FORMULAS.md](FORMULAS.md) "Phase margins"), where springs, ARBs, chassis,
 brakes and drive all come out of one grip model in one unit, and diff and damping — the two with
-no defensible size — show a direction only. The point bar below is still what BEG/INT show and
-what `recommendedDiffType` reads. The headline is only NET (car, springs, bars) now; diff, brakes
+no defensible size — show a direction only. The point bar below is still what BEG/INT show. The headline is only NET (car, springs, bars) now; diff, brakes
 and damping sit in the bar's ENTRY / EXIT lanes, so the mismatch shows as lane length rather than
-as a shift in the headline. `recommendedDiffType` still reads the full sum.
+as a shift in the headline. Nothing sums them into one figure any more.
 
 [FORMULAS.md](FORMULAS.md) documents each contributor's *sign* (oversteer
 vs understeer direction) but never claims they're comparable in
@@ -922,59 +921,38 @@ same car, at the same lock %, with Race, then Rally, then Off-Road fitted, run t
 power-on corner, gives the wheel-speed split each type allows. Until then the safe neutral is every
 scale at 1.00. That would change every non-Race AUTO output, so it waits for a decision.
 
-## Open — the RACE → SPORT switch above +8 works against its own model
-
-`recommendedDiffType` turns a Race recommendation into Sport when `bTotFull` is above +8, to calm a
-strongly oversteery car. In `computeDiff`, rear decel lock is the term that resists oversteer
-(`bDiffDecel` is negative), and Sport forces decel to 0. AUTO keeps the accel term the same across
-types, so the net effect of taking the suggestion is to drop the stabilising term: on the default
-chassis a TRACK RWD's `bDiffDecel` goes from −0.81 to 0, and the car reads more oversteery than
-before. The suggestion's reason, "clean exit traction without decel snap", does not match how the
-app models decel lock either. The rule needs replacing, not retuning, and nothing better has been
-chosen yet.
-
-## Open — DRIFT's typical decel and the DRIFT build's AUTO locks run against drift practice
-
-`DIFF_TYPE_RANGES.drift.decel` is 0–8%, "kept low on purpose for rotation", and a DRIFT build's AUTO
-on RWD gives about 44% accel and 2% decel on a Drift diff. Published Horizon drift guides commonly
-run accel and decel both at or near 100%, so the rear wheels stay locked together through
-transitions. The app's MANUAL typical line, and the AUTO starting point, sit at the opposite end.
-Whether a grip-style lock is a deliberate choice for the DRIFT build or an oversight is not
-recorded; until it is, the range should not be read as community practice.
-
 ## Open — a SPORT diff's decel lock is assumed to be 0
 
 Sport has no decel slider in-game, so `computeDiff` writes 0 for every decel lock on a Sport diff
 and the balance counts no decel term. The game must use some fixed decel value it does not show,
-and nothing here says what that value is. It is the same gap as the Sport centre split below.
+and nothing here says what that value is. It is the same gap as the Sport centre split below,
+which at least has a stated stand-in.
 
-## Open — DIFF TYPE applies in MOTORSPORT and BEAMNG
+## Open — BeamNG's diffs are output as one plain lock-% diff
 
-`computeDiff` never reads the game mode, so the five Horizon diff types, their scale factors and
-Sport's N/A rows apply in every mode, the BeamNG DIFFERENTIAL output included. Forza Motorsport's
-tuning needs a single adjustable, race-level diff, and no Rally, Off-Road or Drift diff was found
-there. BeamNG's diffs are a different set (open, LSD, locked, viscous) and map onto none of these.
-Since the picker and the scaling apply there, the BeamNG diff cards name the type in their header
-and show the same RECOMMENDED box as Forza; the mapping question above is still open.
+BeamNG's differentials are a different set from Horizon's (open, LSD, locked, viscous), set per
+vehicle with their own parameters such as preload. The app gives BeamNG one plain diff at Race's
+scale (`DIFF_TYPES_BY_GAME`) and prints accel and decel lock % for it, the same model as Forza. How
+those numbers map onto a given BeamNG LSD's settings is not measured, and an open, locked or
+viscous diff has nothing here that matches it.
 
 ## Open — AUTO diff locks saturate at 100% on an Offroad diff
 
 AUTO solves in effective (Race-equivalent) lock and divides by `DIFF_TYPE_SCALE`, then
 `lockPct` caps the result at 100%. Offroad's 0.52 puts anything above 52 effective past
 that cap: RWD accel tops out at 65 effective (125%) and AWD rear accel at 70 (135%), both
-entered as 100%. Two things then stop holding at those extremes: the diff balance reads
+entered as 100%, and a DRIFT build's 100-effective accel and 90 decel saturate at any EXIT. Two things then stop holding at those extremes: the diff balance reads
 100 × 0.52 = 52 effective, less than the same intent on Race, and the % can sit above
 Offroad's `DIFF_TYPE_RANGES` typical top of 90. It takes a far-ROTATE EXIT or MATCH
 CHASSIS push to get there. No higher % exists in the game, so the cap itself is right; the
 open question is only whether the balance should say the diff is out of lock instead.
 
-## Open — a SPORT diff's hidden centre split still weights the AWD DIFF balance
+## Open — a SPORT AWD diff's centre split is a stand-in
 
-A Sport diff has no centre lock: CENTRE POWER SPLIT hides and the card's Centre Split reads N/A.
-`computeDiff` still clamps `dr.diffCenter` to 45–90 and uses it as `C`, the front/rear weighting
-of the AWD DIFF balance terms, so a split set before switching to SPORT keeps moving the DIFF row
-with no control on screen. What Forza actually splits a Sport AWD diff at is unknown here, so there
-is no better fixed `C` to use yet.
+A Sport diff has no centre lock: CENTRE POWER SPLIT and MANUAL's Centre Split hide and the card
+reads N/A. The DIFF balance terms and PHASE's drive split still need a front/rear split, so
+`awdCenterOf` uses `SPORT_AWD_CENTER` (65% rear, the app's default split) for every Sport AWD tune.
+What Forza actually splits a Sport AWD diff at is not known; 65 is a placeholder, not a reading.
 
 ## Open — the RIDE Hz track marks the rear row amber whichever axle clamped
 

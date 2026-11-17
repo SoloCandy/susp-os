@@ -352,7 +352,7 @@ the Welcome card and live in the glossary.
 | 7 | Dampers | `damping` | `dampers.reboundZeta` / `.bumpRatio` / `.bias` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
 | 8 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
 | 9 | Alignment | `alignment` | `align.mode` / `.ofsCamberF` / `.ofsCamberR` / `.ofsToeF` / `.ofsToeR` / `.ofsCaster` | | AUTO's five intent sliders (Camber F / R, Turn-in, Rear stability, Steering feel) and MANUAL; switching carries the numbers across. Absent note under MANUAL. Moved here from PRO's Alignment Mode when the section came down to INT. |
-| 10 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. |
+| 10 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. Skipped outside Horizon, which has no type to pick. |
 | 11 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
 | 12 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
 | 13 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD, ALIGNMENT. |
@@ -533,7 +533,7 @@ Absent note (shown while its controls are not on screen):
 
 #### 12. AWD Centre Diff
 
-> AWD adds POWER SPLIT under CENTRE (not with a Sport diff): default 65% rear, and more rear means more oversteer. The DIFFERENTIAL card's CENTRE SPLIT box recommends a value and → USE applies it. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
+> AWD adds POWER SPLIT under CENTRE (not with a Sport diff): more rear means more oversteer. The DIFFERENTIAL card's CENTRE SPLIT box recommends a value and → USE applies it; changing Build Type moves the split with the recommendation, keeping any nudge. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
 
 Absent note (no POWER SPLIT on screen):
 
