@@ -24,7 +24,7 @@ Key empirical constants calibrated from real Forza data:
 | `TIRE_MECH_SCALE` | 0.08 | Tyre width rear/front ratio → mech balance offset via `0.08 × ln(twR/twF)`. Forza's displayed mech balance incorporates tyre width asymmetry; this correction ensures the calculator's output matches Forza's reading. Calibrated from Stage 2 testing (same suspension, tyre widths swapped) across MX-5, Ultima, and Scirocco |
 | `MECH_BAL_GAIN` | 1.8 | Axle grip-capacity delta → balance offset (calibrated to the 0.5-neutral scale). Scales only the 0–1 figures; PRO's grip-margin percent leaves it out |
 | `WIDTH_GRIP_EXP` | 0.4 | Tyre width → grip capacity, sub-linear exponent. Uncalibrated, and since the CHASSIS contributor it sets how large a tyre stagger reads on the Handling Balance bar — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
-| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md) |
+| `MECH_BALANCE_TARGET` | 0.60 | Default absolute Mech Balance Target when the user hasn't set one. Not a physics constant — a default *goal*. Set from the Forza community's published road/circuit window of 0.55–0.65, whose neutral baseline is ~0.60 (0.62–0.65 is a rotation-biased touge setting). Was 0.65 until it was checked against that window — see [HISTORY.md](HISTORY.md). Measured in-game, 0.60 was neutral on neither RWD car tested (loose on a 240SX, short on a 911 Turbo) — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 | `DIFF_BIAS_SCALE` | 0.14 | Diff lock % → handling bias contribution |
 | `DIFF_TYPE_SCALE` | race 1.00 / sport 0.88 / rally 0.76 / offroad 0.52 / drift 1.10 | Effective lock per lock %, per diff type: the model says the same slider % produces less effective lock on Rally/Offroad than Race, more on Drift. **Unverified.** The code calls the values community-estimated, but no source or in-game measurement is on record, and the published guides checked describe the types as differing only in which sliders they unlock — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). AUTO divides its wanted (Race-equivalent) lock by it, so gentler types get more %; the balance multiplies the % by it — see [FORMULAS.md](FORMULAS.md). Sport is accel-only (no decel slider in-game) |
 | `BRAKE_BIAS_SCALE` | 0.20 | Brake balance deviation → handling bias contribution |
@@ -1353,7 +1353,9 @@ from 0.459–0.521 to 0.537–0.567, at 38% from 0.463–0.524 to 0.331–0.362.
 **Reach.** On a strongly rear-biased car the bands ask for a lot of front roll
 stiffness. At 38% front on `DEF_CH`, ARB MECH bottoms out near 0.465 and Hz MECH
 near 0.417; CO-SOLVE reaches the 0.33–0.36 STREET band by dropping the rear
-springs to about 1.1 Hz. Where a margin is beyond the grip model altogether,
+springs to about 1.1 Hz. Measured in-game, though, GRIP TARGET is not where the game
+is neutral, and on a rear-heavy car it is far too low, so much of that move is the
+model's error ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Where a margin is beyond the grip model altogether,
 `gripMarginSplitOf` saturates at the end of the split range and the edge lands on
 the 0.05–0.95 clamp.
 

@@ -199,6 +199,73 @@ condition — see [HISTORY.md](HISTORY.md).
 
 ---
 
+## Open — GRIP TARGET misses the game's grip-neutral, by a different amount on each car
+
+GRIP TARGET (`gripNeutralOf`) is the mech balance at which the grip model reads
+neutral. It was checked in Forza Horizon 5 on 2026-11-17, on three cars, against
+the balance at which the front and rear tyres actually reach their limit together:
+
+| Car | Front weight | Natural (measured) | GRIP TARGET | In-game neutral |
+|---|---|---|---|---|
+| 1993 Nissan 240SX (RWD, 215/45R17 square) | 52% | 0.49 | 0.510 | **0.534 ± 0.015** |
+| 1982 Porsche 911 Turbo 3.3 (RWD, 225/50R16 square) | 44% | 0.57 | 0.496 | **0.637 ± 0.010** |
+| 2011 VW Scirocco R (FWD, 235/35R19 square) | 65% | 0.36 | 0.64–0.67 | **not reached**: still understeering at 0.51 |
+
+**Method.** Each car was tuned with CO-SOLVE to four to six MANUAL targets, with the
+bars nudged where needed until the game displayed each one, and driven at a steady
+35–40 mph on a fixed circle, both directions, just under the limit. Forza's Data Out telemetry gives
+each tyre's normalized combined slip (0 = full grip, 1 = at the limit). The balance
+index `rear ÷ (front + rear)`, taken at the busier axle at 80% of its limit, was
+fitted against the displayed balance; neutral is where it crosses 0.5. Which axle led
+each slide past the limit was a second, independent measure. It agreed away from
+neutral; close to it, on the RWD cars, it ran slightly ahead (below).
+
+**What it shows.**
+- **The error is not one constant.** +0.02 on the 240SX, +0.14 on the 930. On the
+  930 the model puts neutral *below* natural (0.496 against 0.57); the game needed
+  it well *above*. One offset cannot fix that.
+- **Not `TIRE_LOAD_SENS`.** GRIP TARGET barely moves across 0.01–0.15 (the 930:
+  0.495–0.499).
+- **Not the display model, where it matters.** On the 930 the app's tunes read within
+  0.01 of their targets in-game, against a 0.14 miss, so that miss is in the grip
+  model. The display model did drift on the Scirocco's stiffest rear-bar tunes: 0.51
+  needed 38.0 rear bar clicks in-game against the app's 21.1.
+- **No simple replacement.** "Natural + a few hundredths" fitted the two RWD cars
+  (+0.044, +0.067) and failed on the Scirocco, which was still clearly understeering
+  at natural + 0.15.
+- **The community 0.60 baseline** (`MECH_BALANCE_TARGET`) is not neutral either: it is
+  loose on the 240SX and short on the 930.
+- **Slides lead B on RWD.** On both RWD cars the slides turned rear-led a few
+  hundredths of balance before the balance index crossed 0.5, which fits drive force
+  using rear grip at the limit, something the model's MID phase leaves out.
+
+**What depends on it.** Everything measured from grip-neutral: GRIP target mode, the
+RANGE bands ([PHYSICS.md](PHYSICS.md) "Balance Guide RANGE"), PHASE (which starts
+from `gripNeutralSplitOf`), Vehicle DNA's balance axis, and the CHAS contributor's
+reference. On the 930 every RANGE band, DRIFT included, falls on the understeer
+side of the measured curve (balance index about 0.41–0.43 at their middles). The build *ordering* the bands fixed is unaffected; their *position* is only
+as good as GRIP TARGET.
+
+Fixing it needs a cause first. The model's MID phase has steady lateral load transfer
+and tyre width, but no drive force, steering geometry, camber or suspension travel
+limits; any of those could be what the 930 and the 240SX differ in.
+
+---
+
+## Open — the model has no suspension travel limit, so balance saturates before its LIFT warning
+
+The grip model caps lateral load transfer at the axle's static load
+(`mechBalanceLLT`), and `balanceEnvelope` flags LIFT when an inside wheel would leave
+the ground. Real suspension runs out of extension travel first. On the Scirocco R
+above (65% front, rear springs up to 3.8 Hz), the inside rear's normalized suspension
+travel fell from 0.17 at a 0.31 balance to 0.04 at 0.51, nearly fully extended, and
+the car's balance stopped responding: the balance index rose to 0.40 at 0.46 and
+fell back at 0.51. The app put LIFT at 0.56 and showed nothing at 0.46–0.51. More
+rear bar past that point changes the displayed balance and little else; reaching
+0.51 took 38.0 rear bar clicks against the app's 21.1.
+
+---
+
 ## Open — RANGE bands on strongly rear-biased cars need CO-SOLVE to reach
 
 The Balance Guide RANGE band is a grip-margin band about GRIP TARGET
@@ -213,8 +280,11 @@ leaving most of the natural oversteer in place, which is what ranked its builds
 backwards ([HISTORY.md](HISTORY.md)).
 
 The band figures themselves are judgement: the old fractions converted on `DEF_CH`
-at 55% front. Nothing in-game has confirmed them, and the grip model behind GRIP
-TARGET has no measured ground truth either.
+at 55% front, and nothing in-game has confirmed them. GRIP TARGET, which every band
+sits on, has now been measured against the game and misses by a different amount on
+each car (the entry above): on a 44%-front 911 Turbo the game's neutral was 0.14
+above it, so there the "large move toward the front" is the model's error, not what
+the car needs.
 
 ---
 
