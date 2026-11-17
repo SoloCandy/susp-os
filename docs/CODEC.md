@@ -63,7 +63,6 @@ future version might not carry.
 | 42 | dr | diffFrontExitBias | raw number |
 | 43 | fe | springShare | raw number |
 | 44 | fe | rideRef | enum (`RIDE_REF_ENC/DEC`) |
-| 45 | dr | diffComplement | bool |
 | 46 | fe | arbManF | raw number — **units depend on id 10**, see note |
 | 47 | fe | arbManR | raw number — **units depend on id 10**, see note |
 | 48 | fe | settleBias | raw number — **decode-only**, see semantic-change note below |
@@ -112,8 +111,10 @@ future version might not carry.
 | 93 | dr | alignOfsToeF | raw number — front toe offset from AUTO (Turn-in), ±0.3° |
 | 94 | dr | alignOfsToeR | raw number — rear toe offset from AUTO (Rear stability), ±0.3° |
 | 95 | dr | alignOfsCaster | raw number — caster offset from AUTO (Steering feel), ±1.5° |
+| 96 | dr | diffSplitMode | enum `{set:0, exit:1}` — POWER SPLIT's Split Mode (PRO, AWD); `exit` = SOLVE EXIT, applied only in PRO |
+| 97 | dr | diffExitTarget | raw number — SOLVE EXIT's Exit vs MID target, grip %, −5…+10 |
 
-**Next available id: 96.**
+**Next available id: 98.**
 
 Ids 91–95 carry the alignment as **intent**, not angles: offsets that the reader's own AUTO
 recommendation takes on top. Like the BRAKES shift (id 80), a code lands on the reader's car
@@ -311,7 +312,7 @@ choice, decided after the code is read.
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
-| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffComplement, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeStock, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
+| `dr` (DRIVETRAIN) | `dr` | buildType, diffType, diffManual, diffSplitMode, diffExitTarget, diffBiasEntry, diffBiasExit, diffFrontExitBias, diffAccel, diffDecel, diffFrontAccel, diffFrontDecel, diffRearAccel, diffRearDecel, diffCenter, brakeStock, brakeBiasShift, brakeCentre, brakeDecel, brakeEntryTarget |
 | `align` (ALIGNMENT) | `dr` | alignOfsCamberF, alignOfsCamberR, alignOfsToeF, alignOfsToeR, alignOfsCaster — applying it also sets the reader's `alignManual` to false |
 | `tier` (TIER) | `meta` | tier — **`applies:false`**: listed so the reader sees what the code records, never merged |
 | `carries` (CARRIES) | `meta` | carries — **`applies:false`**: decides which of the parts above can be ticked at all (`partCarried` / `carriedSel`), never merged or shown as a row |
@@ -401,6 +402,12 @@ Both paths decode through `safeDecodeURI`, not bare `decodeURIComponent`: a link
   about half what ids 73/74 mean. Removed from `CODEC_FIELDS`, so decoding skips
   them as unknown ids and `sanitizeTune` does not carry the old keys over: read as
   the new scale they would halve every bar. The user re-measures.
+
+- **45** — `diffComplement`, MATCH CHASSIS. It biased the AUTO diff intents by the Mech Balance
+  Target's gap from natural while the springs and bars were already solving to that target, so
+  it pushed the car past it. Removed from `CODEC_FIELDS`, so decoding skips it as unknown and a
+  code that carried it loads without the bias; `sanitizeTune` does not carry the key over.
+  POWER SPLIT's SOLVE EXIT (ids 96/97) took over its job for AWD.
 
 (No other field has been deleted since the codec's v1 sparse-table redesign;
 ids that predate it were never individually numbered.)

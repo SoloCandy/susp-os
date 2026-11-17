@@ -800,6 +800,15 @@ grip balance least. Past that point no split balances the phases: PHASE TARGET f
 bars run to their limit. The EXIT Load range (0.05–0.60) allows this deliberately rather than
 hiding it. PHASE has no in-game data behind it yet, so treat it as a hypothesis to drive.
 
+## Open — the AWD split's recommendation and SOLVE EXIT rest on the same unmeasured grip model
+
+The recommended centre split starts from the traction-neutral split (`idealDriveFOf`), and SOLVE
+EXIT solves the split against `phaseTermsAt`'s DRIVE. Both come from the friction-circle model PRO's
+phase margins use, which has no in-game data behind it (above). The traction-neutral split is plain
+statics and should hold; how far a given grip % of EXIT-vs-MID feels on track is not measured, and
+each build's rotation bias (`AWD_SPLIT_BIAS`) is a choice of character set so the default chassis
+lands where the old fixed bases did, not a reading.
+
 ## Open — GRIP USE predicts shares, not the limit itself
 
 GRIP USE says which axle runs out of grip first and how much the other has spare, but not at
@@ -812,8 +821,8 @@ check it against the car on track.
 
 ## Open — VISUALS shows the Balance Target when nothing solves toward it
 
-Only the displays are affected: MATCH CHASSIS, which also reads the
-target, acts only while `hasBalTargetSolve` holds (see [FORMULAS.md](FORMULAS.md)).
+Only the displays are affected: nothing that sets an output reads the target while nothing
+solves toward it.
 
 The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
 under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks

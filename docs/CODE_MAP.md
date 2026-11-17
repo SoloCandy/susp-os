@@ -148,7 +148,11 @@ read it), `balTargetAnchorOf` (the unclamped RANGE/GRIP/PHASE anchor at a given 
 measured from it),
 `balTargetAnchoredOf` (RANGE/GRIP/PHASE target at a given K: anchor + offset, clamped).
 PHASE: `phaseInOf` (normalises the brake bias or ENTRY BRK target, drive split and EXIT Load
-App hands in as `ph`; without `ph`, BRK 0 and the layout's own drive split), `phaseTermsAt` (BRK and
+App hands in as `ph`; without `ph`, BRK 0 and the layout's own drive split), `idealDriveFOf` (the
+traction-neutral drive split, which the recommended AWD split also starts from), `phaseRsOf` (the
+roll-stiffness fraction the margins read from a tune), `exitSplitOf` (POWER SPLIT's SOLVE EXIT:
+the whole split whose DRIVE is nearest a target, solved in App and handed to `computeDiff` in
+place of the stored split, PRO only and idle under PHASE), `phaseTermsAt` (BRK and
 DRIVE at a split — `phaseMargins` reads it too, so the target balances the figures the panel
 shows), `phaseMidOf`, `gripMarginSplitOf` (the split at a given grip margin), `phaseSplitOf`
 (PHASE's split, a short fixed point with a one-entry memo) and `phaseNeutralOf`, which carries it
@@ -387,7 +391,7 @@ interpolated value runs long doesn't fail the suite; the targets above are the h
 **The tier-context rule.** A hint names only controls and readouts that every tier
 rendering it can see — a control shown at INT and PRO must not tell an INT user to use a
 PRO-only setting. Where a hint genuinely differs by tier, the existing `uiMode` branches in
-the hint expression stay (the EXIT and ENTRY sliders' MATCH CHASSIS clauses, the ARB
+the hint expression stay (the ARB
 Balance Mode hint's PRO-only modes, `HandlingVerdict`'s BEG/INT tips); do not collapse them into one string. The glossary does the reverse: its
 untagged paragraphs must hold for the entry's own tier, and anything higher goes in an
 `[INT] `/`[PRO] ` paragraph.
@@ -429,7 +433,7 @@ Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
   overwrote a typed value on every weight edit and every load.
 - **The tier fallback** is one effect with one write per store: `fe` (BEG's simple-mode lock, then
   ARB Balance Mode MECH / CO-SOLVE / CHASSIS → WEIGHT and Hz MODE MECH → MULTIPLIER), `dr`
-  (`diffManual` and `diffComplement` off). Alignment has no entry: INT has the whole section, and
+  (`diffManual` off; POWER SPLIT's SOLVE EXIT needs no reset, since below PRO it is not applied). Alignment has no entry: INT has the whole section, and
   `alignOut` reads pure AUTO at BEG without touching what is stored. **Keep it one write per store**, so the lock and
   the fallback land together. The BEG lock was once a separate effect, and back when `usePersist`'s
   `set` applied updaters to the render-time value it was erased on every switch to BEG. Same-tick
@@ -437,8 +441,7 @@ Two effects in `App` run on `uiMode` and `restoreTick` below PRO:
 
 Nothing is restored on returning to PRO. A PRO-only setting that arrives *below* PRO by a share
 code or garage load (neither changes `uiMode`) stays until the next tier change, so the loaded
-tune computes as its author made it. The screen says so instead of hiding it: the EXIT/ENTRY
-hints keep their "A PRO-only diff setting is also biasing this" branch for MATCH CHASSIS, and a
+tune computes as its author made it. The screen says so instead of hiding it: a
 MANUAL diff below PRO, which has neither the AUTO sliders nor the PRO-only lock fields, gets a
 note in DRIVETRAIN listing the locks in use instead of a blank diff section.
 

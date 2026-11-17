@@ -378,7 +378,7 @@ the Welcome card and live in the glossary.
 | 7 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. Absent note until MECH or CO-SOLVE is picked. |
 | 8 | Hz MODE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
 | 9 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY; ENTRY BRK. |
-| 10 | Manual Differential | `drivetrain` | `drive.diffMode` / `.matchChassis` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); MATCH CHASSIS in AUTO. Absent note until the diff is MANUAL. |
+| 10 | Manual Differential | `drivetrain` | `drive.diffMode` / `.splitMode` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); Split Mode's SOLVE EXIT in AUTO. Absent note until the diff is MANUAL. |
 | 11 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
 | 12 | Mech Balance & Response | `balance-bar` | `bar.mechHead` / `.mechStrip` / `.response` | | The MECH BALANCE strip (NAT, CUR, TGT on the game's scale) and RESPONSE. |
 | 13 | Load Transfer | `visuals` | `visuals.load` / `.grip` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
@@ -627,7 +627,7 @@ Absent note (shown while its controls are not on screen):
 
 #### 10. Manual Differential
 
-> MANUAL swaps the diff sliders for lock % fields, with your diff type's typical range under each; AWD adds front, rear and Centre Split. In AUTO, MATCH CHASSIS biases the diff to reinforce your Mech Balance Target.
+> MANUAL swaps the diff sliders for lock % fields, with your diff type's typical range under each; AWD adds front, rear and Centre Split. In AUTO on AWD, Split Mode's SOLVE EXIT picks the centre split so corner exit sits where you set it against mid-corner.
 
 Absent note (shown while its controls are not on screen):
 

@@ -4,8 +4,8 @@
 //
 // Covers spring/damper solving, settle-mode ride-reference anchoring, the
 // mechBalanceLLT grip model, computeDiff (layout-dependent lock/balance signs,
-// diff type scaling, SPORT decel lockout, and the MATCH CHASSIS FWD-polarity
-// regression — see docs/KNOWN_ISSUES.md for the bug this guards against), and
+// diff type scaling, SPORT decel lockout, DRIFT locks, the SPORT AWD split, and the
+// AWD centre split's recommendation and SOLVE EXIT), and
 // computeAlignment (camber/toe/caster target derivation, roll/CG compensation,
 // per-build/layout baselines, and the Drift/Drag frozen-camber regression).
 //
@@ -105,7 +105,7 @@ const resolveArbBalTarget = (ch, fe) => fe.arbBalTarget == null
   ? MECH_BALANCE_TARGET
   : Math.max(0.05, Math.min(0.95, natDisplayOf(ch, fe.gameMode) + fe.arbBalTarget));
 
-const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
+const computeDiff = (ch, fe, dr) => {
   const rB = 1 - ch.frontBias / 100;
   const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
   const biasExit = dr.diffBiasExit ?? 0;
@@ -120,24 +120,7 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   const clE = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const lockPct = eff => Math.min(100, Math.round(eff / typeScale));
 
-  let effBiasExit = biasExit, effBiasEntry = biasEntry;
-  // Only while something solves toward the Balance Target (the app's hasBalTargetSolve, inline).
-  const solvesTarget = ((fe.arbMode ?? 'auto') !== 'man' && (fe.arbBalMode === 'mech' || fe.arbBalMode === 'coSolve'))
-    || (fe.rearHzMode ?? 'flatRide') === 'mech';
-  if (dr.diffComplement && !dr.diffManual && solvesTarget) {
-    // Display space, like the target — the app's natDisplayOf fallback, not an inline geometry copy.
-    const natMechBal = natMechBalOverride != null ? natMechBalOverride : natDisplayOf(ch, fe.gameMode);
-    // fe is feEffective, exactly as the app passes it: arbBalTarget is already the RESOLVED
-    // absolute target (TARGET or GRIP mode), not the stored delta. This mirror resolved a raw fe
-    // itself for a long time after the app moved to feEffective — the older contract — and
-    // agreed with the app only when the two happened to coincide. Callers resolve first.
-    const tgt = fe.arbBalTarget;
-    const gap = tgt - natMechBal;
-    const correction = Math.max(-25, Math.min(25, gap * 150));
-    const signedCorrection = ch.layout === 'FWD' ? -correction : correction;
-    effBiasExit = Math.max(-50, Math.min(50, biasExit + signedCorrection));
-    effBiasEntry = Math.max(-50, Math.min(50, biasEntry + signedCorrection * 0.5));
-  }
+  // The intents go in as set: MATCH CHASSIS, which added to them, is retired.
 
   let vals;
   if (dr.diffManual) {
@@ -154,11 +137,11 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
     const [fa, ra, rd] = ({ street: [21, 38, 10], track: [28, 48, 8], drift: [17, 100, 90],
       rally: [17, 34, 5], offroad: [14, 25, 3], drag: [28, 70, 0] }[build] ?? [28, 48, 8]);
     vals = { layout: 'AWD',
-      frontAccel: lockPct(clE(fa - effBiasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
+      frontAccel: lockPct(clE(fa - biasExit * 0.10 + frontExitBias * 0.12, 10, 40)),
       frontDecel: 0,
       // DRIFT runs near full lock both ways, so its ceilings rise to 100.
-      rearAccel: lockPct(clE(ra + effBiasExit * 0.25, 20, build === 'drift' ? 100 : 70)),
-      rearDecel: diffType === 'sport' ? 0 : lockPct(clE(rd + (rB - 0.5) * 15 + effBiasEntry * 0.15, 0, build === 'drift' ? 100 : 20)),
+      rearAccel: lockPct(clE(ra + biasExit * 0.25, 20, build === 'drift' ? 100 : 70)),
+      rearDecel: diffType === 'sport' ? 0 : lockPct(clE(rd + (rB - 0.5) * 15 + biasEntry * 0.15, 0, build === 'drift' ? 100 : 20)),
       center };
   } else {
     const isRWD = ch.layout === 'RWD';
@@ -169,9 +152,9 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
       ? ({ street: 15, track: 12, drift: 90, rally: 8, offroad: 5, drag: 0 }[build] ?? 12)
       : ({ street: 8, track: 5, drift: 2, rally: 4, offroad: 2, drag: 0 }[build] ?? 5);
     const accel = isRWD
-      ? lockPct(clE(accelBase + effBiasExit * 0.20, 10, build === 'drift' ? 100 : 65))
-      : lockPct(clE(accelBase + effBiasExit * 0.15, 5, 35));
-    const decel = diffType === 'sport' ? 0 : lockPct(clE(decelBase + (rB - 0.5) * (isRWD ? 15 : 5) + effBiasEntry * 0.15, 0, isRWD ? (build === 'drift' ? 100 : 30) : 15));
+      ? lockPct(clE(accelBase + biasExit * 0.20, 10, build === 'drift' ? 100 : 65))
+      : lockPct(clE(accelBase + biasExit * 0.15, 5, 35));
+    const decel = diffType === 'sport' ? 0 : lockPct(clE(decelBase + (rB - 0.5) * (isRWD ? 15 : 5) + biasEntry * 0.15, 0, isRWD ? (build === 'drift' ? 100 : 30) : 15));
     vals = { layout: ch.layout, accel, decel };
   }
 
@@ -197,6 +180,14 @@ const computeDiff = (ch, fe, dr, natMechBalOverride = null) => {
   }
 
   return { ...vals, bDiffAccel, bDiffDecel, bDiffFront, bDiffRear };
+};
+
+// The recommended AWD centre split: traction-neutral at 0.2 g of drive (each axle driven in
+// proportion to its load, rearward pitch transfer included) plus the build's rotation bias.
+const recommendedCenterOf = (ch, build) => {
+  const neutral = 100 * (1 - Math.max(0, Math.min(1, ch.frontBias / 100 - 0.2 * ch.cgHeight / ch.wheelbase)));
+  const bias = { street: 13, track: 18, drift: 28, rally: 8, offroad: 3, drag: 23 }[build ?? 'track'] ?? 18;
+  return { center: Math.max(45, Math.min(90, Math.round(neutral + bias))), neutral: Math.round(neutral), bias };
 };
 
 // ── computeAlignment model (must mirror app: camber/toe/caster targets) ────────
@@ -956,44 +947,16 @@ console.log('\ncomputeDiff — SPORT AWD centre');
   assertEq('a RACE diff still uses the stored split', computeDiff(awd, fe, { buildType: 'track', diffType: 'race', diffCenter: 80 }).center, 80);
 }
 
-// ── computeDiff — MATCH CHASSIS correction (regression guard for the FWD-polarity bug) ──
+// ── computeDiff — MATCH CHASSIS is retired ─────────────────────────────────────
 
-console.log('\ncomputeDiff — MATCH CHASSIS correction');
+console.log('\ncomputeDiff — retired MATCH CHASSIS');
 {
-  // Chassis whose natural balance (≈0.49 here) sits below the default target, so MATCH CHASSIS
-  // sees gap>0 ("wants more oversteer") and pushes a nonzero correction on every layout.
-  const chRWD = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'RWD' };
-  const chFWD = { ...chRWD, layout: 'FWD' };
-  const dr = { buildType: 'track', diffType: 'race', diffComplement: true, diffBiasExit: 0, diffBiasEntry: 0 };
-  const drOff = { ...dr, diffComplement: false };
-  // computeDiff takes feEffective, like the app's only call site: an untouched target resolves
-  // to MECH_BALANCE_TARGET (0.60), which is what puts gap > 0 on this chassis.
-  // MECH ARB balance mode: MATCH CHASSIS acts only while something solves toward the target.
-  const feEff = ch => ({ arbBalMode: 'mech', arbBalTarget: resolveArbBalTarget(ch, {}) });
-
-  const rwdOn = computeDiff(chRWD, feEff(chRWD), dr);
-  const rwdOff = computeDiff(chRWD, feEff(chRWD), drOff);
-  assertEq('RWD + MATCH CHASSIS wanting oversteer → MORE accel lock than baseline', rwdOn.accel > rwdOff.accel, true);
-
-  const fwdOn = computeDiff(chFWD, feEff(chFWD), dr);
-  const fwdOff = computeDiff(chFWD, feEff(chFWD), drOff);
-  assertEq('FWD + MATCH CHASSIS wanting oversteer → LESS front lock than baseline (not more)', fwdOn.accel < fwdOff.accel, true);
-
-  // MANUAL mode bypasses MATCH CHASSIS entirely — accel is whatever the user typed, unchanged
-  const manualDr = { ...dr, diffManual: true, diffAccel: 40 };
-  const manualOn = computeDiff(chRWD, feEff(chRWD), manualDr);
-  assertEq('MANUAL mode ignores MATCH CHASSIS (accel unchanged)', manualOn.accel, 40);
-
-  // Nothing solving toward the target (WEIGHT ARB balance, Hz MODE not MECH): the target is the
-  // hidden fallback, so MATCH CHASSIS must not move the locks. MAN stiffness bypasses MECH too.
-  for (const fe of [{ arbBalMode: 'weight' }, { arbBalMode: 'chassis' }, { arbBalMode: 'mech', arbMode: 'man' }]) {
-    const f = { ...fe, arbBalTarget: resolveArbBalTarget(chRWD, {}) };
-    assertEq(`MATCH CHASSIS is inert without a target solve (${JSON.stringify(fe)})`,
-      computeDiff(chRWD, f, dr).accel, computeDiff(chRWD, f, drOff).accel);
-  }
-  // Hz MODE MECH solves toward the target even under WEIGHT ARB balance.
-  const feHz = { arbBalMode: 'weight', rearHzMode: 'mech', arbBalTarget: resolveArbBalTarget(chRWD, {}) };
-  assertEq('MATCH CHASSIS acts under Hz MODE MECH', computeDiff(chRWD, feHz, dr).accel > computeDiff(chRWD, feHz, drOff).accel, true);
+  // Saved tunes and garage entries still carry diffComplement: true. It must do nothing.
+  const ch = { weight: 3200, frontBias: 50, trackF: 1.55, trackR: 1.52, layout: 'RWD' };
+  const fe = { arbBalMode: 'mech', arbBalTarget: resolveArbBalTarget(ch, {}) };
+  const dr = { buildType: 'track', diffType: 'race', diffBiasExit: 10, diffBiasEntry: -5 };
+  const on = computeDiff(ch, fe, { ...dr, diffComplement: true }), off = computeDiff(ch, fe, dr);
+  assertEq('a stored diffComplement no longer moves the locks', `${on.accel}/${on.decel}`, `${off.accel}/${off.decel}`);
 }
 
 // ── computeAlignment — camber roll/CG compensation ─────────────────────────────
@@ -1155,7 +1118,8 @@ console.log('\nmirror vs app (reads index.html)');
     'solveDampRaw,solveTune,resolveFeEffective,dampRate,settleTimeFromZeta,rateToZeta,settleZetas,' +
     'balancedZetas,forceZetas,impliedZeta,DAMP_BAL_MODE_DEC,migrateDampBalMode,' +
     'peakCompressionFactor,landingTravel,landingCatchDrop,landingBumpZeta,landingRef,clampLandingPct,LANDING_PCT_MIN,LANDING_PCT_MAX,LANDING_ZETA_MIN,LANDING_ZETA_MAX,' +
-    'BUMP_STOP_ZONE,floorDampPair,splitDampZetas,catchZetas,casterSteerCamber,CASTER_REF_STEER};'
+    'BUMP_STOP_ZONE,floorDampPair,splitDampZetas,catchZetas,casterSteerCamber,CASTER_REF_STEER,' +
+    'recommendedCenterOf,exitSplitOf,phaseRsOf,phaseTermsAt,EXIT_G};'
   )();
 
   // Structural equality with a relative numeric tolerance. Objects are compared over the
@@ -1257,21 +1221,47 @@ console.log('\nmirror vs app (reads index.html)');
   const DR = grid({
     layout: ['RWD', 'FWD', 'AWD'], diffType: ['race', 'sport', 'rally', 'offroad', 'drift'],
     buildType: ['street', 'track', 'drift', 'rally', 'offroad', 'drag'], bias: [-50, 0, 35],
-    mode: ['auto', 'manual', 'complement'], override: [null, 0.55], gameMode: ['horizon', 'motorsport', 'beamng'],
-    target: [{}, { arbBalTarget: 0.05 }, { arbBalTarget: -0.2 }, { arbBalTargetMode: 'grip', arbBalDelta: 0 }, { arbBalTargetMode: 'grip', arbBalDelta: 0.06 }],
-    // MATCH CHASSIS is gated on a target solve, so the grid has to include modes that solve.
-    solve: [{}, { arbBalMode: 'mech' }, { arbBalMode: 'weight', rearHzMode: 'mech' }, { arbBalMode: 'coSolve', arbMode: 'man' }],
+    // 'stale' carries the retired MATCH CHASSIS flag, which both sides must ignore.
+    mode: ['auto', 'manual', 'stale'], gameMode: ['horizon', 'motorsport', 'beamng'],
   });
   check('computeDiff', ['computeDiff'], DR, c => {
     const ch = { ...CH[0], layout: c.layout, frontBias: c.layout === 'FWD' ? 62 : c.layout === 'AWD' ? 56 : 52 };
     const dr = { ...A.DEF_DR, diffType: c.diffType, buildType: c.buildType,
       diffBiasExit: c.bias, diffBiasEntry: -c.bias, diffFrontExitBias: c.bias / 2, diffCenter: c.bias === 0 ? 65 : 45,
-      diffManual: c.mode === 'manual', diffComplement: c.mode === 'complement' };
+      diffManual: c.mode === 'manual', diffComplement: c.mode === 'stale' };
     // Both sides get what the app's only call site passes: feEffective, resolved from a full
     // fe. A partial fe is not a real input — the app returns NaN for {} and never sends one.
-    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, gameMode: c.gameMode, ...c.solve, ...c.target });
-    return diff(computeDiff(ch, fe, dr, c.override), A.computeDiff(ch, fe, dr, c.override));
+    const fe = A.resolveFeEffective(ch, { ...A.DEF_FE, gameMode: c.gameMode });
+    return diff(computeDiff(ch, fe, dr), A.computeDiff(ch, fe, dr));
   });
+
+  // ── AWD centre split: the recommendation and SOLVE EXIT
+  const SPLIT_CH = [52, 45, 60].flatMap(frontBias => [0.35, 0.45, 0.6].map(cgHeight =>
+    ({ ...A.DEF_CH, layout: 'AWD', frontBias, cgHeight })));
+  check('recommendedCenterOf', ['recommendedCenterOf'],
+    SPLIT_CH.flatMap(ch => ['street', 'track', 'drift', 'rally', 'offroad', 'drag'].map(build => ({ ch, build }))),
+    ({ ch, build }) => diff(recommendedCenterOf(ch, build), A.recommendedCenterOf(ch, build)));
+  {
+    const def = A.recommendedCenterOf({ ...A.DEF_CH, layout: 'AWD' }, 'track');
+    assertEq('default chassis: traction-neutral 51%, TRACK recommends 69% as before', `${def.neutral}/${def.center}`, '51/69');
+    const tall = A.recommendedCenterOf({ ...A.DEF_CH, layout: 'AWD', cgHeight: 0.6 }, 'track').center;
+    const nose = A.recommendedCenterOf({ ...A.DEF_CH, layout: 'AWD', frontBias: 60 }, 'track').center;
+    assertEq('a taller CG moves the recommendation rearward (more load transfer)', tall > def.center, true);
+    assertEq('a nose-heavy car moves it forward, 1:1 with weight', def.center - nose, 8);
+  }
+  {
+    const ch = { ...A.DEF_CH, layout: 'AWD' };
+    const rs = A.phaseRsOf(ch, A.solveTune(ch, A.resolveFeEffective(ch, A.DEF_FE), 'horizon').tune);
+    const at = c => A.phaseTermsAt(ch, rs, null, 1 - c / 100, A.EXIT_G).drive;
+    const zero = A.exitSplitOf(ch, rs, 0);
+    assertEq('SOLVE EXIT 0 lands on the traction-neutral split (EXIT = MID)', Math.abs(zero.center - 51) <= 1 && Math.abs(zero.drive) < 0.2, true);
+    const two = A.exitSplitOf(ch, rs, 2);
+    assertEq('SOLVE EXIT +2: the nearest whole split, DRIVE within half a step of 2',
+      Math.abs(two.drive - 2) <= Math.abs(at(two.center + 1) - at(two.center)) / 2 + 1e-9 && !two.limit, true);
+    assertEq('a looser target takes more rear', A.exitSplitOf(ch, rs, 4).center > two.center, true);
+    const hi = A.exitSplitOf(ch, rs, 10), lo = A.exitSplitOf(ch, rs, -5);
+    assertEq('past either end: the end of 45–90, flagged', `${lo.center}/${lo.limit} ${hi.center}/${hi.limit}`, '45/FRONT 90/REAR');
+  }
 
   // ── alignment: both the minimal stub tunes this file's own tests use and a real solved tune
   const tunes = [{ fHz: 1.8, rHz: 1.8, rollDeg: 2.0 }, { fHz: 5.5, rHz: 5.5, rollDeg: 0 }];

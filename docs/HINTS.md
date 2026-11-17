@@ -160,10 +160,6 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 > Front accel lock. Toward PUSH = more front pull and exit understeer; useful on AWD cars with strong rear rotation.
 
-**MATCH CHASSIS** (PRO):
-
-> Off by default. On, it biases the auto diff by how far your Mech Balance Target sits from natural: toward oversteer adds rotation, toward understeer stability. Needs MECH, CO-SOLVE or Hz MECH; not MANUAL.
-
 **EXIT** — FWD, RWD, then AWD (the rear axle's EXIT):
 
 > Front accel lock. GRIP = more lock: exit traction, but more push. ROTATE = less lock, less understeer.
@@ -171,16 +167,6 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 > Rear accel lock. ROTATE = more lock, more power oversteer on exit. GRIP = less lock, cleaner exit traction.
 
 > Rear accel lock. ROTATE = more lock, more exit oversteer. GRIP = less lock, more traction.
-
-Added while MATCH CHASSIS is on — in PRO, then in INT (where the toggle is not shown). Leaving
-PRO turns MATCH CHASSIS off, so the INT sentence is reached only by a share code or garage load
-that carries it in below PRO. Either way the bias applies only while something solves toward the
-Balance Target (`hasBalTargetSolve`), as the MATCH CHASSIS hint above says, and the button is
-dimmed while it doesn't:
-
-> MATCH CHASSIS is on and adds a bias from your mech target.
-
-> A PRO-only diff setting is also biasing this; switch to PRO to turn it off.
 
 **MANUAL diff below PRO** — a note under the diff controls, in place of the AUTO sliders, when a
 share code or garage load brings a MANUAL diff in at BEG or INT. It reads "This tune's diff locks
@@ -197,9 +183,17 @@ center split on AWD; decel left out on a Sport diff), then:
 
 > Rear decel lock. STABLE = more lock, resists lift-off oversteer. LOOSE = less lock, more rear rotation on entry.
 
-Added while MATCH CHASSIS is on — in PRO, then in INT (the same INT sentence as EXIT's):
+**Split Mode** (PRO, AWD, not on a Sport diff):
 
-> MATCH CHASSIS is on and adds half its bias here.
+> SET takes the POWER SPLIT slider. SOLVE EXIT picks the split for you, from the springs and bars as they are, so corner exit sits where you put it against mid-corner. Idle while the Balance Target is PHASE, which balances exit itself.
+
+Under SOLVE EXIT while the Balance Target is PHASE, a note under the buttons:
+
+> PHASE is balancing EXIT with the springs and bars, so SOLVE EXIT is idle and POWER SPLIT below sets the split.
+
+**Exit vs MID** (SOLVE EXIT, in place of POWER SPLIT):
+
+> How much looser (right) or tighter (left) corner exit sits than mid-corner, in grip %. 0 is traction-neutral; REC is where the recommended split puts it. The split it takes shows on the right.
 
 **POWER SPLIT** (AWD):
 
@@ -674,7 +668,7 @@ summary strip keeps the short `header`. By card:
   `bump set to {n}% ζ`), plus `bump balanced by {mode}` under an own BUMP BALANCE.
 - BRAKES: `centred on the recommended bias`, `centred on GRIP at {g} g`,
   `solved for ENTRY {t}% vs mid-corner`, or `STOCK — leave the game value`.
-- DIFFERENTIAL: `{AUTO | MANUAL} locks · {TYPE} diff`, plus `MATCH CHASSIS` (or `MATCH CHASSIS idle`).
+- DIFFERENTIAL: `{AUTO | MANUAL} locks · {TYPE} diff`, plus `SOLVE EXIT {target}%` while it sets the split (or `SOLVE EXIT idle (PHASE)`).
 
 **Row figures** — Forza spells out what the BeamNG cards abbreviate: ARB rows read
 `{n}% of axle roll` and `{n}% of both bars` (`% roll` / `% ARB` on BeamNG), SPRINGS rows

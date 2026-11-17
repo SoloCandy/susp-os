@@ -11,6 +11,26 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — AWD split on the grip model; MATCH CHASSIS retired for SOLVE EXIT
+
+- **The recommended centre split** was a fixed base per build trimmed by three hand-set factors:
+  +3% per 10% of extra rear weight, a tyre-diameter term, and −2% per 0.1 of natural balance
+  above 0.50. The weight term was about a third of what load transfer says, and CG height did not
+  enter at all. It is now the traction-neutral split PRO's EXIT already measured DRIVE from
+  (`idealDriveFOf`: weight bias, CG height and wheelbase at 0.2 g) plus a per-build rotation bias
+  (`AWD_SPLIT_BIAS`), set so the default chassis lands where the old bases did. Other chassis move:
+  a nose-heavy or tall car now gets a split that follows its weight and CG.
+- **MATCH CHASSIS is retired** (codec id 45). It added `(target − natural) × 150`, capped at ±25
+  intent points, to the AUTO diff's EXIT and half to ENTRY, but only while the springs and bars were
+  already solving to that target, so it pushed the car past the target the user set; under PHASE
+  the target already included the drive split, so it counted twice. The ×150 had no calibration,
+  and the locks it moved have no size in PRO. A saved tune or code that had it on loads with the
+  intents as set, which can move its locks.
+- **SOLVE EXIT** takes its job where the model can size it: PRO's Split Mode (AWD AUTO, not
+  Sport) solves the centre split from the tune so EXIT sits a chosen grip % off MID (`exitSplitOf`,
+  codec ids 96/97). Solved each render, not stored, like BRAKES' ENTRY Centre; idle under PHASE,
+  which balances EXIT with the springs and bars, so two solvers never fight over one margin.
+
 ## Changed — diff recommendations: no RACE → SPORT switch, DRIFT locks, a fixed SPORT AWD split
 
 Three diff behaviours that worked against the app's own model or against practice.

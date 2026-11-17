@@ -169,10 +169,17 @@ bDiffDecel = bFD + bRD;
   (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). AUTO used to multiply by the scale, which did the
   opposite (see [HISTORY.md](HISTORY.md)). The scale values themselves are unverified, and
   everything above follows them; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
-- **MATCH CHASSIS** adds `clamp(±25, (feEffective.arbBalTarget − natDisplayOf(ch)) × 150)` to the
-  EXIT intent and half of it to ENTRY (negated on FWD), in AUTO only, and only while
-  `hasBalTargetSolve(fe)`. With nothing solving toward the target it is the hidden
-  `MECH_BALANCE_TARGET` fallback, so MATCH CHASSIS does nothing and its button is dimmed.
+- **The EXIT / ENTRY intents go in as set.** MATCH CHASSIS, which added
+  `(target − natural) × 150` to them while the springs and bars already solved to that target, is
+  retired (see [HISTORY.md](HISTORY.md)).
+- **AWD centre split.** The recommendation (`recommendedCenterOf`) is
+  `100 × (1 − idealDriveFOf(ch, EXIT_G)) + AWD_SPLIT_BIAS[build]`, clamped to 45–90: the
+  traction-neutral split, `front share = nf − g × h/L` at 0.2 g of drive, plus the build's
+  rotation bias (STREET 13, TRACK 18, DRIFT 28, RALLY 8, OFFROAD 3, DRAG 23). On the default
+  chassis the neutral split is about 51%, so TRACK recommends 69%. PRO's **SOLVE EXIT**
+  (`exitSplitOf`) instead takes the whole split in 45–90 whose `phaseTermsAt` DRIVE is nearest
+  `dr.diffExitTarget`, so EXIT = MID + target in grip %; `limit` flags a target past either end.
+  It is idle under PHASE, and computeDiff receives the solved split in place of the stored one.
 - Decel lock always pushes **understeer**, regardless of which axle is
   driven — it models "decel lock resists rotation" (matches the EXIT/ENTRY
   slider hint text, e.g. "STABLE = more lock, resists lift-off
