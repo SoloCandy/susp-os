@@ -202,13 +202,14 @@ condition — see [HISTORY.md](HISTORY.md).
 ## Open — GRIP TARGET misses the game's grip-neutral, by a different amount on each car
 
 GRIP TARGET (`gripNeutralOf`) is the mech balance at which the grip model reads
-neutral. It was checked in Forza Horizon 5 on 2026-11-17, on three cars, against
+neutral. It was checked in Forza Horizon 5 on 2026-11-17, on four cars, against
 the balance at which the front and rear tyres actually reach their limit together:
 
 | Car | Front weight | Natural (measured) | GRIP TARGET | In-game neutral |
 |---|---|---|---|---|
 | 1993 Nissan 240SX (RWD, 215/45R17 square) | 52% | 0.49 | 0.510 | **0.534 ± 0.015** |
 | 1982 Porsche 911 Turbo 3.3 (RWD, 225/50R16 square) | 44% | 0.57 | 0.496 | **0.637 ± 0.010** |
+| 1993 Ford Mustang SVT Cobra R (RWD, 245/45R17 square) | 56% | 0.41 | 0.495 | **0.456 ± 0.007** |
 | 2011 VW Scirocco R (FWD, 235/35R19 square) | 65% | 0.36 | 0.64–0.67 | **not reached**: still understeering at 0.51 |
 
 **Method.** Each car was tuned with CO-SOLVE to four to six MANUAL targets, with the
@@ -221,34 +222,74 @@ each slide past the limit was a second, independent measure. It agreed away from
 neutral; close to it, on the RWD cars, it ran slightly ahead (below).
 
 **What it shows.**
-- **The error is not one constant.** +0.02 on the 240SX, +0.14 on the 930. On the
-  930 the model puts neutral *below* natural (0.496 against 0.57); the game needed
-  it well *above*. One offset cannot fix that.
+- **The error is not one constant, nor one sign.** +0.02 on the 240SX, +0.14 on the
+  930, −0.04 on the Mustang. On the 930 the model puts neutral *below* natural (0.496
+  against 0.57); the game needed it well *above*.
 - **Not `TIRE_LOAD_SENS`.** GRIP TARGET barely moves across 0.01–0.15 (the 930:
-  0.495–0.499).
+  0.495–0.499); the diagnosis below shows why it cancels.
 - **Not the display model, where it matters.** On the 930 the app's tunes read within
   0.01 of their targets in-game, against a 0.14 miss, so that miss is in the grip
   model. The display model did drift on the Scirocco's stiffest rear-bar tunes: 0.51
   needed 38.0 rear bar clicks in-game against the app's 21.1.
-- **No simple replacement.** "Natural + a few hundredths" fitted the two RWD cars
-  (+0.044, +0.067) and failed on the Scirocco, which was still clearly understeering
-  at natural + 0.15.
+- **Not drive force.** Holding speed on the circle used about 8–9% of the rear tyres'
+  grip on the RWD cars and 2–3% of the fronts' on the Scirocco (normalized slip
+  ratio). The model's MID phase has none, but measuring the game on cornering slip
+  alone moves the RWD neutrals the wrong way to close the gap.
 - **The community 0.60 baseline** (`MECH_BALANCE_TARGET`) is not neutral either: it is
-  loose on the 240SX and short on the 930.
-- **Slides lead B on RWD.** On both RWD cars the slides turned rear-led a few
-  hundredths of balance before the balance index crossed 0.5, which fits drive force
-  using rear grip at the limit, something the model's MID phase leaves out.
+  loose on the 240SX and the Mustang, and short on the 930.
+- **Slides lead B on RWD.** On all three RWD cars the slides turned rear-led before the
+  balance index crossed 0.5 (on the Mustang already at 0.43, B 0.447), which fits drive
+  force using rear grip at the limit.
+
+**Diagnosis: a static load-sensitivity term.** `axleGrip` scores each axle's grip per
+unit of its own weight, with load sensitivity measured against the *car-average*
+wheel load (`FzRef`). For small `TIRE_LOAD_SENS`, grip-neutral is where
+
+    tF²/wF − tR²/wR = wR − wF        (t = lateral transfer per wheel, w = static wheel load)
+
+`TIRE_LOAD_SENS` cancels, which is why it never moves GRIP TARGET. The right side is
+a static term: the heavier axle's tyres count as weaker before the car turns, which
+on the 930 drags neutral below natural. Varying the model one assumption at a time
+against the measured cars:
+
+| Model change | Scirocco | 240SX | 930 |
+|---|---|---|---|
+| None (the app) | 0.657 | 0.510 | 0.499 |
+| Transfer at the measured 1.4–1.5 g | 0.778 | 0.516 | 0.464 |
+| Roll centre 0 / 0.40 × CG height | 0.587 / 0.820 | 0.505 / 0.519 | 0.511 / 0.478 |
+| **Static term removed** (each axle against its own wheel load) | 0.365 | 0.483 | 0.568 |
+
+Only removing the static term moves the 930 the right way. It puts neutral at about
+natural on every car, too low, and with it one constant front-grip shortfall fits both
+fitted RWD cars (2.9% and 4.2%); with the static term kept, no single value does (1.4%
+against 8.7%). The static term is the one structural error this test identified. The
+remaining bias has no identified cause: camber, steering geometry and Forza's own tyre
+model all lie outside the grip model.
+
+**A candidate fix failed a pre-registered test.** The candidate removed the static
+term and cut front lateral capacity by 3.55% (the mean of the two fitted values). It
+was frozen before a fourth car was chosen, its prediction for the Mustang (0.478,
+pass within ±0.02) was recorded before driving, and the pass rule was fixed in
+advance. The Mustang measured 0.456 on the registered line fit and 0.450 between the
+two tunes either side of 0.5, so it failed. It was closer than the app (−0.022
+against −0.039) but missed its own band, and it never explained the Scirocco (0.422
+against more than 0.51).
 
 **What depends on it.** Everything measured from grip-neutral: GRIP target mode, the
 RANGE bands ([PHYSICS.md](PHYSICS.md) "Balance Guide RANGE"), PHASE (which starts
 from `gripNeutralSplitOf`), Vehicle DNA's balance axis, and the CHAS contributor's
-reference. On the 930 every RANGE band, DRIFT included, falls on the understeer
-side of the measured curve (balance index about 0.41–0.43 at their middles). The build *ordering* the bands fixed is unaffected; their *position* is only
-as good as GRIP TARGET.
+reference. GRIP USE, BRAKES' GRIP centre (`gripBrakeBiasOf`) and SOLVE EXIT's phase
+terms run on the same `axleGrip`, static term included. On the 930 every RANGE band,
+DRIFT included, falls on the understeer side of the measured curve (balance index
+about 0.41–0.43 at their middles). The build *ordering* the bands fixed is unaffected;
+their *position* is only as good as GRIP TARGET.
 
-Fixing it needs a cause first. The model's MID phase has steady lateral load transfer
-and tyre width, but no drive force, steering geometry, camber or suspension travel
-limits; any of those could be what the 930 and the 240SX differ in.
+**Not fixed.** Removing the static term alone lands every car too low, and the one
+correction fitted on top of it did not carry to a car it had not seen. A fix needs a
+cause for the remaining bias, or enough cars to fit one honestly; either way it should
+be judged on a car it was not fitted to. One pattern was noticed only after the data
+were in and is untested: on all three RWD cars the game's neutral sat 0.04–0.07 above
+the measured natural balance (+0.044, +0.067, +0.046). The Scirocco breaks it.
 
 ---
 
