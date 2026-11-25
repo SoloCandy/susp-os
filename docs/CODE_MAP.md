@@ -304,7 +304,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `SliderTrack` | the track under every `Field` and `FeelSlider`: the range input, its fill, the markers, their label row and the end labels; the label row and box above stay with each caller. Markers are of two kinds. `bands` are zone rows (see the Zone tables below), with a tick at each inner edge, each label centred in its region, and the active region underlined, its label bright. `refs` (`{value, label?, prio?}`) are fixed points, always drawn, a labelled one a button that sets the slider to it and bright while the value sits on it. They replaced a single `markers` prop whose ticks lit once the value passed them, which read backwards wherever a label named the region below its tick (Settle Target). After layout, labels that collide are hidden by priority (a ref the value sits on, the active region, refs by their `prio`, the other regions) and pulled inside the track's ends, re-run only when the active region, the labels or the track width change. `aria-valuetext` is the caller's `valueText` plus the active region's or reference point's label |
 | Zone tables (`HZ_ZONES`, `ZETA_ZONES` with `ZETA_REFS`, `SETTLE_ZONES` with `settleGrade`, `BUMP_RATIO_ZONES`, `WEIGHT_BIAS_TYPICAL`, `BIAS_CENTRE_LABEL`, and the builders `zoneAround` / `typicalMarks`) | module-level `[lo, hi, colour, label]` rows. `zoneAround(lo, hi, label)` makes a one-region table for a single band (TYPICAL, RANGE); `typicalMarks(r)` turns a `DIFF_TYPE_RANGES` pair into SliderTrack props, a point where the pair is one value — the shape `VisTrack`'s and `SliderTrack`'s `bands` both take — so a slider and the readout or VISUALS track grading the same quantity read one table. `tests-docs.js` fails if a graded slider stops passing its table by name, or any slider passes a literal bands array. `SliderTrack` ignores the colour column: it shows the active region by brightness |
 | `SliderEnds`, `sliderPosOf`, `withUnit` | the end labels under every slider (`FeelSlider`'s `leftLabel` / `rightLabel`, `Field`'s range), the CSS `left` that lines a tick or label up with the thumb's centre at a value, and a number with its unit, spaced as the end labels are (none before `%`, `°`, `×`, `÷`) |
-| `Sec` | the ten collapsible sidebar sections (`div.stog` header). Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it. RESET is a two-click button at least 64×26 px: the first click turns it into a filled amber SURE? for 5 seconds. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a HIDE / SHOW button of the same size for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
+| `Sec` | the nine collapsible sidebar sections (`div.stog` header). Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it. RESET is a two-click button at least 64×26 px: the first click turns it into a filled amber SURE? for 5 seconds. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a HIDE / SHOW button of the same size for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
 | `HiddenStub` | the one-line notice for hidden settings that still apply: amber dot, optional title, `text`, SHOW. Used for a whole hidden section that `sectionChanged` says differs from its defaults ("hidden · changed settings still apply"), and for changed controls hidden inside a shown one (`hiddenChangedIn`) |
 | `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` is the app's only React context: `{edit, guide, isHidden(id), toggle(id)}`, provided by `App` (an empty hidden list while a guide runs, and `guide` set). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, inside a dashed indigo outline (faded and grey-dashed when hidden). The edit view also frames the sidebar and `zone-output` (`.layout-editing`) and pins the sidebar's ✎ EDITING LAYOUT bar (`data-layout-edit-bar`), so it reads as a different mode without hover — touch has none. While a guide runs it renders the edit view's two levels without the button or `inert`, carrying `data-hid`, so a step's spots can find the part (see [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)). `inline`, `style` and `bodyStyle` only shape those wrappers. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
 | `hid` on `OutRow` / `Card` | the output panel's hideable parts. `OutRow hid` goes through `Hide`; `RowGroup` drops hidden `OutRow` children (by their `hid` prop) in the regular view and renders nothing once none are left. `Card hid` puts the toggle on the header only, so the rows stay clickable, and a `<Keep>` child (the card's warnings) still renders on its own when the card is hidden. `Card` always puts `data-hid` on its root, for guide spots. `SuspensionCard` / `AlignCard` / `DiffCard` take `hid` and give their rows theirs |
@@ -322,7 +322,7 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `Readout`, `Stat` | Tune Check and sidebar readouts — **not** the output panel any more (it moved to `OutRow` so each value is one scannable line to transcribe into a tuning menu) |
 | `BiasSeg` | one contributor row in the expanded Handling Balance panel. `scale` is the value that fills a half and `dead` the band read as nothing — the defaults are BEG/INT points; `PhaseVerdict` passes grip-margin percent figures. `muted` greys a row that is context, not a setting (PRO's PITCH). `digits` sets the value's decimals (1; PRO's `Seg` passes 2). `tick` draws a position instead of a fill and drops the share column — the CAR STARTS row, the chassis lean the tuning rows move from |
 | `DirSeg` | a contributor with a direction but no calibrated size — PRO's diff lock and damping rows. Shows toward OS / toward US / —, with a blank where a sized row has its figure (it used to say NO SIZE), so the arrows line up with the bars. PRO's PITCH rows pass `scale={40}` to `Seg`, a quarter of the others' scale, so a ±15–20% pitch figure does not fill the row |
-| `VisRollSplit`, `VisSuspTracks` (over `VisTrack` and the `visGhost` helper) | the pinned VISUALS card — its RIDE · ROLL · DAMPING group (`open.visRide`). `VisRollSplit` draws the split divide at `tune.mechBalance`, the display-space value the MECH BALANCE strip plots, so its NAT/TGT ticks match that strip; the springs/ARBs shading within each end uses model-space stiffnesses and is a share of that end only. `VisSuspTracks` renders ride Hz, ARB and damping ζ as F/R rows on shared tracks; the Hz and ARB ghost rings (NAT grey, target green) sit on the derived axle, the one Ride Reference does not fix. These replaced the `SpringDial` / `ArbDial` / `DampingDial` arc dials. What each group draws, marker by marker, is in [VISUALS.md](VISUALS.md). The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. The **ALIGNMENT** group (`visAlign`, Forza modes) is two components, `VisCamberRoll` and `VisAlignStrips` (with `ALIGN_STRIP_SPAN`). DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
+| `VisRollSplit`, `VisSuspTracks` (over `VisTrack` and the `visGhost` helper) | the VISUALS column — its RIDE · ROLL · DAMPING group (`open.visRide`). `VisRollSplit` draws the split divide at `tune.mechBalance`, the display-space value the MECH BALANCE strip plots, so its NAT/TGT ticks match that strip; the springs/ARBs shading within each end uses model-space stiffnesses and is a share of that end only. `VisSuspTracks` renders ride Hz, ARB and damping ζ as F/R rows on shared tracks; the Hz and ARB ghost rings (NAT grey, target green) sit on the derived axle, the one Ride Reference does not fix. These replaced the `SpringDial` / `ArbDial` / `DampingDial` arc dials. What each group draws, marker by marker, is in [VISUALS.md](VISUALS.md). The card's other two groups, **DYNAMICS** (the `computeOscillation` step-response chart) and **SAG** (sag vs load, shown only when CG Height Source is RIDE HEIGHT), are inline SVG in `App` rather than components — same as the BeamNG layout above. Grep `visDynamics` / `visSag` for their `open` keys. The **ALIGNMENT** group (`visAlign`, Forza modes) is two components, `VisCamberRoll` and `VisAlignStrips` (with `ALIGN_STRIP_SPAN`). DYNAMICS integrates its trace twice — see `fitDur`/`probeDur`: the window is sized from the analytic estimate, the curve is measured, then the window is re-fitted and re-integrated, because `computeOscillation`'s `nPts` is fixed and its step size (hence the trace) depends on the window length |
 | `HandlingVerdict` | expanded handling-balance panel, **BEG and INT**. In INT it takes `alignBal` (`alignBalanceOf`: CAMBER, TOE F, TOE R rows, sized like DAMP) and `phases` (`intPhase`, the three figures at its top); its `total` is INT's MID, BEG's `bNet`. Its dominant-contributor tips name only controls the tier can see: BEG gets the Balance slider (and, for diff, where the lock comes from), INT gets ARB Bias, Damping Bias, the RIDE multiplier and EXIT/ENTRY. It has no brakes row when BRAKES is on STOCK (a null `bBrakeEntry`). The brakes tip explains the BRAKES card's computed bias, which every tier shows, and deliberately does not tell the user to move it — the bar and the card use different neutral points ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)). `GroupSection` is called as a function, not rendered as `<GroupSection/>`: a component defined in the body remounts its rows (and their ⓘ) on every `App` render ([HISTORY.md](HISTORY.md)) |
 | `mechReachNote` | a plain helper, not a component: the cause-and-fix sentence the `mechBalClamped` warning in `outWarns` ends with (Forza ARB card and BeamNG warnings list). It works out which bar is at its ceiling or floor from `tune.arbF`/`arbR` against `lim.arb`, and names the fix for the active stiffness mode and CO-SOLVE's Spring Share |
 | `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`, with alignment's TOE F / TOE R / CAMBER as direction-only `DirSeg` rows. `PhaseHeadline` (with `balWord`, `PHASE_STRONG`, `PTS_NEUTRAL`, `PTS_STRONG`) is the INT/PRO bar header: the three phases in words. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null. Its `Seg` (a `BiasSeg` at the phase scale) is module-level, just above it, for the same reason as `HandlingVerdict`'s `GroupSection` |
@@ -408,14 +408,15 @@ depends on the tier.
   zone present at every tier regardless of panel.
 - **All tiers, inside the sidebar**: `zone-toolbar` — the RESET (⟲)/DNA/CHECK/SHARE row,
   pinned at the top of the sidebar's outer wrapper (a sibling of the scrollable
-  content and the pinned VISUALS footer), outside the `uiMode` branching that
+  content), outside the `uiMode` branching that
   splits BEG from INT/PRO below it.
 - **BEG** renders its own flat panel: `zone-layout-build`, `zone-build-type`,
   `zone-weight`, `zone-ride-stiffness`, `zone-balance`, `zone-character`, plus
   `zone-output` and `zone-balance-bar`. No `Sec` sections at all, and no VISUALS.
 - **INT** switches to the sectioned sidebar: `zone-chassis`, `zone-build`,
   `zone-brakes`, `zone-alignment`, `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
-  `zone-visuals`, plus output and balance bar.
+  plus output and balance bar, and `zone-visuals` — not in the sidebar but its own column
+  or view (`visualsPanel`), present only while VISUALS is shown.
 - **PRO** adds `zone-balance-target`, and unlocks extra
   controls inside the shared sections (CHASSIS geometry, ARB MECH/CO-SOLVE,
   Hz MECH mode). PRO's CHASSIS is grouped by data source with
@@ -468,10 +469,13 @@ INT/PRO BUILD section (safe only because the two were mutually exclusive on
 Sections are collapsed on load — `open` is plain `useState`, not persisted.
 
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
-exactly one per `Sec`, all ten including `visuals` — are listed in `SECTION_KEYS`
+exactly one per `Sec`, nine — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
-detail overlay), `factoryOpen` and `dnaSavedOpen` (the GARAGE factory list and the DNA modal's MY DNA drawer) and the `vis*` cards
-nested *inside* the VISUALS section.
+detail overlay), `factoryOpen` and `dnaSavedOpen` (the GARAGE factory list and the DNA modal's MY DNA drawer), the `vis*` groups
+inside VISUALS, and `visuals` itself. **`visuals` stays in the initialiser though nothing reads it:**
+VISUALS left the sidebar for its own column or view and left `SECTION_KEYS` with it (so SECTIONS
+`+`/`−` don't open or close it), but it keeps its `SECTION_VIS` row, because stored hidden lists name
+it, and the guide effect writes an `open` key for every `SECTION_VIS` row.
 
 **The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**
 They used to blanket-toggle every key, which reached every one of those: `+` popped the
@@ -572,17 +576,18 @@ does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)
 
 ## Header layout: `headerCompact`
 
-The full header row — brand, UNITS, the game-mode dropdown, BEG/INT/PRO, then
-`?` / TERMS / the GitHub source link / GARAGE — needed roughly 975px once the four divider margins
+The full header row — ☰, VIS, brand, UNITS, the game-mode dropdown, BEG/INT/PRO, then
+`?` / TERMS / the GitHub source link / GARAGE — needed roughly 975px before VIS joined it once the four divider margins
 and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
 cutoff, so between those widths the desktop header used to render and push
 GARAGE and its neighbours off-screen: that row has no wrap and no horizontal
 scroll. Adding the third game mode is what pushed it over; two fitted inside
 768px.
 
-`headerCompact` is `windowWidth < 1000`. Measured flush at exactly 960, so the
-extra headroom covers a three-digit count and font metrics differing from the
-machine it was measured on. **Do not lower it without re-measuring the GARAGE
+`headerCompact` is `windowWidth < 1040`. Measured flush at exactly 960 without VIS; with VIS
+the GARAGE button ended at 985 in a 1000 px window, so the cutoff moved from 1000 to 1040 to keep
+the same headroom for a three-digit count and font metrics differing from the machine it was
+measured on. **Do not lower it without re-measuring the GARAGE
 button's right edge against the viewport.**
 
 Two things to know before touching it:
@@ -615,13 +620,14 @@ is the plain `containerType` div around the output; `.forza-out` sits inside it,
 element cannot query its own width.
 
 The ↩ undo button used to sit in that row too; it moved to the sidebar toolbar with
-redo, so the row is one button narrower than when 975 was measured. The threshold
-was left at 1000 rather than re-measured — lowering it is safe only after the
-GARAGE edge check above.
+redo, so the row is one button narrower than when 975 was measured; VIS beside ☰ then
+made it one wider, hence 1040. Lowering it is safe only after the GARAGE edge check above.
 
 The GitHub slot is one glyph wider while it shows the reload (↻) or download (↓) state (below). That was
-measured: with it lit, GARAGE's right edge sits at the header's padding at 1000px,
-820px, 480px and 375px, so neither layout overflows.
+measured before VIS joined row 1: with it lit, GARAGE's right edge sat at the header's padding at
+1000px, 820px, 480px and 375px. With VIS, and the SUSP.OS wordmark hidden below 400px, GARAGE ends
+at 361 in a 375 window and 306 in a 320 one unlit, which leaves room for that glyph; the lit state
+has not been re-measured since.
 
 ---
 

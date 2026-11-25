@@ -11,6 +11,44 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — VISUALS polish: GRIP USE per axle, LOAD TRANSFER bars, SAG labels, phase repeats
+
+- **GRIP USE** drew four wheels, but the model gives one share per axle, so left and right always
+  printed the same figure. It is two axle meters now, filling toward an amber limit band, with the
+  braking or drive share hatched and the inner-wheel lift as a tag. Its MID / ENTRY / EXIT tabs, and
+  DYNAMICS' RIDE / ROLL, moved from the header into the group body: in the header they clipped.
+- **LOAD TRANSFER** shaded its wheels the way GRIP USE did, so the two read alike while meaning
+  pounds and percent. Its wheels now carry bars whose length is the load, with the unit captioned.
+- **ENTRY / EXIT.** The bar's PRO phase line ends in `excl. pitch` with the reason as a tooltip, and
+  GRIP USE's note says which figure is for what. No physics changed.
+- **Phase totals shown twice.** With CONTRIBUTIONS open, the bar's ENTRY / MID / EXIT line repeated
+  the panel's headings right under them; it hides while the panel is open, and on a phone the bar
+  stack folds so the panel gets the height (not during a guide, whose bar steps need it).
+- **SAG vs LOAD**'s four margin values collided (front beside rear, and the top ride height under
+  the axis label). They print under the chart now; the margin keeps `0` and the unit.
+- **Rounding.** A report of a 6-decimal Bottom-Out box did not reproduce: the box rounds to 0.001
+  and every VISUALS readout to two places or fewer, in Forza and BeamNG. The box keeps 0.001 for the
+  reason in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) (an input that rounds can show two targets alike that
+  export different springs).
+
+## Changed — VISUALS moved out of the sidebar into its own column / view
+
+VISUALS was a collapsible footer pinned under the input sections, capped at 38vh (30vh on a
+phone) with one group open at a time. The sidebar was too narrow for it (GRIP USE's phase
+tabs clipped), opening it shrank the inputs' scroll area and moved what was on screen, and on
+a phone it took a third of the drawer, so it hid itself while a field had focus (`sbTyping`).
+
+Now the header's VIS, beside the sidebar's ☰, opens it as a docked column between the inputs and the output at 1200 px
+and up, or as a view that swaps with the tune cards below that, with the balance bar kept
+under it (on a phone the inputs drawer slides over it). The groups open and close with the
+sidebar sections they belong to (`VIS_FOR_SEC`: ANTI-ROLL BARS, RIDE and DAMPERS open theirs and
+collapsing them closes them), and PIN keeps one open; the column state and pins are stored in
+`suspos_visuals_ui_v1`. `visuals` left `SECTION_KEYS`, so SECTIONS `+`/`−` no longer toggle it,
+and is no longer a `Sec`; its `SECTION_VIS` row and every `visuals.*` hide id are unchanged, so
+stored hidden lists still apply. `sbTyping` went with the footer. Below 400 px the SUSP.OS wordmark hides: with VIS in
+row 1 the header measured ~390 px and pushed GARAGE off a 375 px phone. The charts themselves did not
+change. See [VISUALS.md](VISUALS.md#the-container).
+
 ## Changed — BeamNG output: mode strip split up, stiffness in one box, shared centre-split box
 
 - **Mode strip.** One box at the top read ARB, SPRINGS, DAMPERS, ALIGN and DIFF headers run

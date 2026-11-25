@@ -1,7 +1,8 @@
-# VISUALS — the pinned readout card
+# VISUALS — the readout column
 
-The VISUALS card sits at the bottom of the sidebar, below every input section, and
-holds the app's graphs in one place so they stay visible whichever section is open.
+VISUALS is a peer of the inputs and the tune output: a docked column between them on a
+wide screen, or a view that swaps with the tune cards on a narrower one. It holds the app's
+graphs in one place and opens the ones that fit whichever input section is being edited.
 This file documents what each group draws: its scale, its bands, what every marker
 and colour means, and which `tune` / `physics` fields it reads. It is the reference
 for anyone changing a chart, and for anyone answering "what is that ring?".
@@ -15,18 +16,47 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 
 ## The container
 
-- **Where:** `<div id="zone-visuals">` wrapping `<Sec title="VISUALS">` (`open.visuals`),
-  after the last input section and outside the sidebar's scroll area, so it stays put
-  while the sections above it scroll.
-- **Hidden** in BEG (`uiMode==='beginner'`), and on a phone while a sidebar field has
-  focus (`isPhone&&sbTyping`). With the keyboard up, the pinned card would take
-  most of what's left of the screen, so hiding it lets the scrolling controls keep
-  their height.
-- **Height:** groups open one at a time (`visTog`): opening one closes the rest and scrolls
-  its header to the top of the box, so the box holds one chart plus the other headers instead
-  of every chart behind an inner scroll. The box is capped at `38vh` (`30vh` on a phone), so the
-  input sections above always keep most of the sidebar; only a group taller than the cap
-  (PRO's LOAD TRANSFER) scrolls inside it. RIDE · ROLL · DAMPING is the one open by default.
+- **Where:** `visualsPanel` in `App`, one `<div id="zone-visuals">` with a header row and a
+  scrolling body (`data-vis-box`) that renders `visualsBody()`. The header's **VIS** button
+  opens and closes it. It sits beside the sidebar's ☰ in header row 1, the two buttons that
+  pick what the body shows; below 400 px the SUSP.OS wordmark hides to make room for it. Where it goes depends on the window width against `VIS_COL_MIN`:
+  - **At or above `VIS_COL_MIN`** (1200 px): a docked column between the sidebar and the
+    output panel, 360–420 px wide (`visColW`). It is a flex sibling, so the output gets
+    narrower rather than being covered. Open or closed is remembered (`visUI.dock`).
+  - **Below it**: the column would leave the output about 300 px, so VISUALS swaps with the
+    tune cards inside the output panel instead (`visView`, session-only, so a reload always
+    lands on the tune). The balance bar stays under it. Its header has **TUNE ›** to swap
+    back. On a phone the inputs drawer slides over it as it does over the cards, so the
+    header's **‹ INPUTS** (or ☰) and VIS are one tap each way, and VIS from the open drawer
+    always lands on VISUALS.
+  Neither home changes the sidebar's size, so the inputs keep their scroll position.
+- **Hidden** in BEG (`uiMode==='beginner'`), and while the layout edit view hides the whole
+  `visuals` section (the header's HIDE / SHOW in the edit view). A guide step that focuses
+  `visuals` shows it whatever VIS says (`visTut`); on a phone only when no sidebar section
+  shares the step, since the drawer would cover it.
+- **Which groups are open** mirrors the sidebar. Opening a section opens its groups
+  (`VIS_FOR_SEC`, filtered by `visAvail`: the gates in the table below, and not hidden in the
+  edit view); collapsing it closes them again, unless another open section or a pin still
+  wants them. Groups a section doesn't name are left alone, so one opened by its own header
+  stays until that header closes it; a header click toggles only its own group. When VISUALS
+  appears (a load, or VIS pressed) it matches the sections already open. Opening BRAKES also
+  turns GRIP USE to ENTRY, DRIVETRAIN to EXIT. Nothing moves during a guide.
+
+  | Section | Groups |
+  |---|---|
+  | ANTI-ROLL BARS | RIDE · ROLL · DAMPING, LOAD TRANSFER |
+  | RIDE (springs) | RIDE · ROLL · DAMPING, SAG vs LOAD |
+  | DAMPERS | DYNAMICS |
+  | CHASSIS | SAG vs LOAD, LOAD TRANSFER |
+  | BUILD | RIDE · ROLL · DAMPING |
+  | BALANCE | RIDE · ROLL · DAMPING, GRIP USE |
+  | BRAKES, DRIVETRAIN | GRIP USE |
+  | ALIGNMENT | ALIGNMENT |
+
+- **PIN**, on every group header, keeps that group open whatever section is edited, and
+  is never closed by a section collapsing (a pinned GRIP USE keeps its phase too). Pins are
+  remembered (`visUI.pins`, [PERSISTENCE.md](PERSISTENCE.md)).
+- The section label beside the title names the section last opened or touched (`activeSec`).
 - **Groups**, in order, each with its own collapse key on `open`:
 
 | Group | `open` key | Shown when |
@@ -205,7 +235,7 @@ it overshoots, and how ride Hz and damping interact.
   `physics.reboundZeta` / `physics.bumpZeta`, then 70 / 39.
 - **Trace:** `computeOscillation`, which switches between rebound and bump ζ by the
   sign of the velocity, so bump is fully represented here.
-- **RIDE / ROLL toggle** (header, session-only `dynView`, not persisted): ROLL
+- **RIDE / ROLL toggle** (full width at the top of the open group, session-only `dynView`, not persisted): ROLL
   scales each axle's ζ by `s = √(rsSp/(rsSp+rsAb))` and its Hz by `1/s` — the bar
   adds roll stiffness without damping. Same band, markers and readouts. A
   comparison view: roll centres and chassis coupling are ignored.
@@ -270,8 +300,9 @@ bottom-out line. It appears only when ride height drives the CG estimate
 | short-dashed diagonal from `sag_1g` | the **outside** wheel in a corner: static sag plus lateral load transfer per g |
 | hollow ring on the ride-height line | where that outside-wheel line bottoms |
 
-Left-edge labels give each axle's ride height and 1 g sag, front in the first column
-and rear in the second so they never overlap.
+The left edge carries only `0` and the length unit. Each axle's ride height and 1 g sag print
+under the chart instead (`F ride … · sag … in`), as text that wraps: four values in the margin
+collided, front beside rear (`5.124.72`) and the tallest ride height under the axis label.
 
 Readouts per axle: `bottoms ≈Xg` (or `no bottom ≤gMax g`) for the vertical line, and
 `outside ≈Xg lat` (or `outside: no bottom`) for the cornering line. The outside
@@ -332,7 +363,7 @@ when an inside wheel lifts.
 | Part | Meaning |
 |---|---|
 | FRONT TAKES · WEIGHT | the front axle's share of the total transfer beside the weight split; `C_US` blue when the front takes more than its weight share (leans understeer), `C_OS` orange when less, white within 1 point |
-| top-down sketch | the four wheels in a left turn, load moving to the right-hand (outer) side; front blue, rear orange, each shaded by its share of the heaviest wheel; a lifted wheel is an amber dashed outline reading LIFT |
+| top-down sketch | the four wheels in a left turn, load moving to the right-hand (outer) side; front blue, rear orange. Each wheel is an outline with a bar growing outward from it, its **length** the wheel's load against the heaviest wheel's, and the load printed under it; the caption names the mass unit. A lifted wheel is an amber dashed outline reading LIFT, with no bar. Length, not shading, so it reads apart from GRIP USE's meters at a glance: one is pounds per wheel, the other % of grip per axle |
 | CORNER | static corner mass |
 | XFER | each axle's transfer per g, then split into SPR+ARB (through the springs and bars: the part the tune moves) and GEOMETRY (through the roll centre: fixed) |
 | OUT / IN | outer and inner wheel loads; IN reads LIFTS in amber once the inner wheel unloads, and OUT is then the whole axle |
@@ -345,25 +376,28 @@ here because it pictures the car's loads, as the other groups do, rather than th
 
 PRO only. A prediction, before the car is driven, of how much of each axle's grip is in use
 when the car reaches its limit, from `gripUseOf` (see [FORMULAS.md](FORMULAS.md) "Grip use").
-A MID / ENTRY / EXIT toggle in the header picks the phase (`gripPhase`, session-only); collapsed,
+A full-width MID / ENTRY / EXIT toggle at the top of the open group picks the phase (`gripPhase`, session-only;
+in the header it clipped at sidebar width); collapsed,
 the header reads `F LIMIT · {spare}% SPARE`, `R LIMIT · …` or `EVEN`.
 
 | Part | Meaning |
 |---|---|
-| top-down sketch | the four wheels in a left turn, front blue and rear orange, shaded by the share of grip in use; the limiting axle's wheels are outlined white; an unloaded inner wheel is an amber dashed LIFT; ENTRY adds ▲ BRAKING and EXIT ▼ DRIVE |
-| FRONT / REAR lines | the share in use, then on ENTRY / EXIT how much of it the braking or drive takes, then LIMIT for the axle that runs out first or the other's share to spare |
+| FRONT / REAR meters | one per axle, front blue and rear orange: the fill runs 0–100% to the share in use, into an amber band (`C_WARN`, not red, which is for errors) over the last 5% before the limit. On ENTRY / EXIT the fill's hatched start is the part the braking or drive takes. The line above each meter prints the share, on ENTRY / EXIT the braking or drive share, `INNER LIFTS` in amber when the inner wheel unloads, then LIMIT for the axle that runs out first (its meter outlined white) or the other's share to spare |
+| caption | `% OF GRIP IN USE AT THE LIMIT · {phase}`, so the unit is never in doubt beside LOAD TRANSFER's pounds |
 | verdict | which axle runs out first and what that means at the limit: front → understeer, rear → oversteer, within 2% → balanced |
-| ENTRY / EXIT note | the figures include the car's own weight transfer, which the bar's ENTRY / EXIT figures leave out |
+| ENTRY / EXIT note | the figures include pitch, the car's own weight transfer, so they predict the car; the bar's ENTRY / EXIT leave it out (that line says `excl. pitch`) to show what the settings change. Use the bar's to decide brake bias, centre split or diff; use these to know which end lets go first |
 
 Both tyres on an axle use the same share: they run one slip angle, so the model splits the
-axle's force in proportion to their capacity. The model has no friction coefficient, so the
+axle's force in proportion to their capacity. That is why it draws a meter per axle: it replaced
+a four-wheel sketch whose left and right wheels always printed the same figure. The model has no friction coefficient, so the
 limit itself has no g figure, only the shares.
 
 ## Changing a chart
 
 - A new group needs an `open` key initialised in the `open` `useState`
-  (`tests-docs.js` checks this), a row in the container table above, and a section
-  here.
+  (`tests-docs.js` checks this) and listed in `VIS_KEYS`, its gate in `visAvail` and its
+  hide id in `VIS_HIDE_ID`, a place in the `VIS_FOR_SEC` rows it suits, `{visPin(key)}` in its
+  header, a row in the container table above, and a section here.
 - Keep front blue and rear orange, NAT grey and target green. The card is read by
   colour at a glance, and a group that disagrees costs every other group its meaning.
 - Components that render only inside VISUALS are listed in

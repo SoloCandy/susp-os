@@ -766,7 +766,7 @@ When both do:
 
 > Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps.
 
-The verdict under the sketch — `{where}` is mid-corner, on the brakes, or under power:
+The verdict under the meters — `{where}` is mid-corner, on the brakes, or under power:
 
 > Both axles run out together: balanced at the limit {where}.
 
@@ -776,7 +776,7 @@ The verdict under the sketch — `{where}` is mid-corner, on the brakes, or unde
 
 On ENTRY and EXIT:
 
-> Includes the car's own weight transfer, which the bar's ENTRY / EXIT figures leave out, so the two can differ.
+> Includes pitch, the car's own weight transfer, so this predicts the car. The bar's ENTRY / EXIT leave it out to show what your settings change.
 
 ---
 
@@ -844,6 +844,14 @@ where `{wheels}` is one of:
 **ENTRY · MID · EXIT** line (PRO) — `{entry g}` and `{exit g}` are `ENTRY_G` and `EXIT_G`:
 
 > ENTRY is MID plus brake bias at {entry g} g braking; EXIT is MID plus the drive split at {exit g} g of drive. An arrow shows which way diff lock pushes, not how far.
+
+The line ends in a faint `excl. pitch`, whose tooltip is the one-line reason GRIP USE's ENTRY / EXIT
+can read differently:
+
+> Pitch is left out: no setting changes it. These show what your tune changes; GRIP USE includes pitch to predict the car.
+
+The line is hidden while the expanded panel is open, whose ENTRY / MID / EXIT headings carry the
+same three figures.
 
 ### Expanded panel — BEG / INT
 

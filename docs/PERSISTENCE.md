@@ -59,6 +59,7 @@ Writes outside `usePersist` (the migration sentinels) are not tracked.
 | `suspos_garage_v2` | **The garage.** Unified entry list — see the entry shape below | `[]` |
 | `suspos_dna_v1` | Vehicle DNA: the DNA modal's `draft` and the last APPLY as `applied` (`{name, axes, achieved}`) — see [DNA.md](DNA.md) | `{draft: DNA_ARCHETYPES[0], applied: null}` |
 | `suspos_garage_ui_v1` | Garage panel filter + sort preference (`{filter, sort}`) — search text is deliberately not persisted | `{filter:'all', sort:'recent'}` |
+| `suspos_visuals_ui_v1` | VISUALS layout preference: `{dock, pins}` — whether the wide-screen column is open, and the pinned group keys (`VIS_KEYS` members; the repair drops anything else). The narrow-screen VISUALS view and which groups are open are session-only. Display only: not in share codes or the backup | `{dock:false, pins:[]}` |
 | `suspos_garage_v1` | Legacy chassis-only Garage (`{id, name, ch, savedAt}`) — **read-only**, migration source | `[]` |
 | `suspos_builds_v1` | Legacy tune-only My Builds (`{id, name, fe, dr, savedAt}`) — **read-only**, migration source | `[]` |
 | `suspos_builds_migrated_v1` | Sentinel, not data — `suspos_saves_v9` → `suspos_builds_v1` migration has run | *(absent)* |
