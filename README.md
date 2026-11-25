@@ -49,7 +49,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 - **CHECK** opens Tune Check, a reverse calculator that reads frequencies and damping ratios back out of existing spring/damper values and imports them as a tune, or (PRO) as a Vehicle DNA. From INT it also imports an existing alignment into ALIGNMENT's MANUAL.
 - **SHARE** handles share codes and JSON garage backups.
 
-**VISUALS.** The header's VISUALS button (VIS on a phone) opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
+**VISUALS.** The header's VISUALS button (a tab on a phone) opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
 - **DNA MATCH** — only while a Vehicle DNA is linked: each axis's target against the tune's current value.
 - **RIDE · ROLL · DAMPING** — the front/rear roll-stiffness split (springs vs ARBs, with NAT and target ticks), body roll and ARB share, then ride Hz, ARB and bump/rebound damping on one shared scale per quantity.
 - **DYNAMICS** — a damped step response per axle with a ±10% settle band, settle-time marker and first-neutral-crossing ring, all measured off the drawn curve.
@@ -58,7 +58,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 What every scale, band, marker and colour means is in [VISUALS.md](docs/VISUALS.md).
 
-**GARAGE.** A drawer that slides out from the right (header button, every tier) and holds everything you save. Each entry is a **chassis**, a **build** (feel + diff tune), or a **car** carrying both — a car has separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car's chassis with another's tune, and every load is undoable. Entries take notes and your own tags, and get automatic ones (drivetrain, weight balance, stiffness band, build type, diff type and MANUAL DIFF, brake bias shift and Centre, applied DNA, saved tier) that you can search on, alongside filter-by-kind and sort. Every entry has a COPY CODE button. The six factory presets are pinned read-only at the top.
+**GARAGE.** A drawer that slides out from the right (header button, every tier; on a phone, a tab) and holds everything you save. Each entry is a **chassis**, a **build** (feel + diff tune), or a **car** carrying both — a car has separate LOAD CHASSIS and LOAD BUILD buttons, so you can mix one car's chassis with another's tune, and every load is undoable. Entries take notes and your own tags, and get automatic ones (drivetrain, weight balance, stiffness band, build type, diff type and MANUAL DIFF, brake bias shift and Centre, applied DNA, saved tier) that you can search on, alongside filter-by-kind and sort. Every entry has a COPY CODE button. The six factory presets are pinned read-only at the top.
 
 **Share codes.** SHARE gives you a **code** and a **link** (`…#t=CODE`) for the current tune; opening a link is the same as pasting the code. Either way the code is **staged, not applied** — READ CODE shows what it carries, part by part (CHASSIS · SPRINGS · DAMPERS · ARB · DRIVETRAIN · ALIGNMENT), tagging the parts that already match yours, and nothing moves until **APPLY SELECTED** takes the parts you ticked. With nothing staged the ticks summarise your own values. **DISCARD** throws a staged code away; **TO GARAGE** saves it as a new garage entry without touching what you're working on. Garage loads stay whole-tune. Every field a code carries belongs to exactly one part — see [docs/CODEC.md](docs/CODEC.md).
 
@@ -141,7 +141,7 @@ Reference docs for maintainers:
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
 - [VISUALS.md](docs/VISUALS.md) — the VISUALS column: where it lives, what each group plots, its scales and bands, and what every marker and colour means
-- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal: ⋯ in the desktop header, the sidebar toolbar on a phone)
+- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal, under ⋯ in the header)
 - [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step and its text word for word, when each guide opens, tier gating, spotlight/positioning, and how to add a step
 - [HINTS.md](docs/HINTS.md) — every ⓘ hint and piece of inline guidance, word for word, grouped by where it appears
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected

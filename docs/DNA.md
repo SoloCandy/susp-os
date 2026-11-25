@@ -5,7 +5,7 @@ agile, compliant and forgiving, planted, tail-happy — that is applied to whate
 chassis is loaded by solving the tune that produces it on that car.
 
 > **Status: implemented in PRO, first-pass UI.** The editor lives in the DNA
-> modal (⋯ in the desktop header, the sidebar toolbar on a phone); the look is expected to change once it has been used. Core functions sit
+> modal (⋯ in the header); the look is expected to change once it has been used. Core functions sit
 > under the `── Vehicle DNA ──` banner in `index.html` and are exercised by
 > `tests-dna.js`.
 
@@ -634,9 +634,9 @@ The link only drives read-outs. What happens to it:
 
 ## UI (PRO)
 
-- **DNA modal** (`showDnaModal`), opened by DNA under the desktop header's ⋯ (the sidebar toolbar's DNA button on a phone, left of
-  CHECK. It opens on a short paragraph saying what a DNA is, in every tier. Below PRO the toolbar
-  button is slate with a PRO tag rather than indigo, and the modal offers SWITCH TO PRO, which
+- **DNA modal** (`showDnaModal`), opened by DNA under the header's ⋯ (above
+  CHECK). It opens on a short paragraph saying what a DNA is, in every tier. Below PRO the menu
+  item carries a PRO tag and says it opens with a switch to PRO, and the modal offers SWITCH TO PRO, which
   closes it and runs `requestMode('pro')` (the same tier gate as the header). In PRO, top to bottom:
   - archetype buttons, which load a draft; they do not apply;
   - EDITING / EDITED FROM … with REVERT, then one line explaining ACCEPT ±;
@@ -690,7 +690,7 @@ The link only drives read-outs. What happens to it:
   a link exists.
 - **Tier warning**: leaving PRO with a link asks first — the BEG/INT fallback effects
   rewrite `arbBalMode` (and at BEG `dampBalMode`/`dampingBias`) and nothing restores
-  them. `requestMode` wraps `tryAccessMode` for the tier buttons (the desktop header's level menu, the phone's header row 2).
+  them. `requestMode` wraps `tryAccessMode` for the tier buttons in the header's game · level menu.
 
 Not built from the first design: a radar chart and re-apply from the match card. The Balance Guide keeps showing its build-type band
 even when the DNA sits outside it.

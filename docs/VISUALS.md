@@ -19,21 +19,20 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 - **Where:** `visualsPanel` in `App`, one `<div id="zone-visuals">` with a header row and a
   scrolling body (`data-vis-box`) that renders `visualsBody()`. The header's **VISUALS**
   button opens and closes it: in the desktop header's INPUTS · VISUALS · TUNE switch, and on a
-  phone as **VIS** beside ☰ (below 400 px the SUSP.OS wordmark hides to make room for it). Where it goes depends on the window width against `VIS_COL_MIN`:
+  phone as the bottom tab bar's **VISUALS** tab. Where it goes depends on the window width against `VIS_COL_MIN`:
   - **At or above `VIS_COL_MIN`** (1200 px): a docked column between the sidebar and the
     output panel, 360–420 px wide (`visColW`). It is a flex sibling, so the output gets
     narrower rather than being covered. Open or closed is remembered (`visUI.dock`).
   - **Below it**: the column would leave the output about 300 px, so VISUALS swaps with the
     tune cards inside the output panel instead (`visView`, session-only, so a reload always
     lands on the tune). The balance bar stays under it. Its header has **TUNE ›** to swap
-    back. On a phone the inputs drawer slides over it as it does over the cards, so the
-    header's **‹ INPUTS** (or ☰) and VIS are one tap each way, and VIS from the open drawer
-    always lands on VISUALS.
+    back, except on a phone, where it is one of four tab-bar views (INPUTS · VISUALS · TUNE ·
+    GARAGE) and every switch is one tap; see [CODE_MAP.md](CODE_MAP.md#phone-views).
   Neither home changes the sidebar's size, so the inputs keep their scroll position.
 - **Hidden** in BEG (`uiMode==='beginner'`), and while the layout edit view hides the whole
   `visuals` section (the header's HIDE / SHOW in the edit view). A guide step that focuses
   `visuals` shows it whatever VIS says (`visTut`); on a phone only when no sidebar section
-  shares the step, since the drawer would cover it.
+  shares the step, since the INPUTS view would cover it.
 - **Which groups are open** mirrors the sidebar. Opening a section opens its groups
   (`VIS_FOR_SEC`, filtered by `visAvail`: the gates in the table below, and not hidden in the
   edit view); collapsing it closes them again, unless another open section or a pin still

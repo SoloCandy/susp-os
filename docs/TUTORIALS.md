@@ -74,7 +74,7 @@ so the step body stays short and the depth lives in one place.
 | PRO | `tutSeen.intermediate` | switches to INT and opens the intermediate guide |
 
 The gate is explained, not silent. A locked tier button is dimmed with a 🔒 before
-its label, in both the desktop header's game · level menu and the phone's header row 2, and its
+its label, in the header's game · level menu (desktop and phone alike), and its
 `title` (from `lockTitle`) reads "Unlocks after you open the BEG guide" (or INT
 guide for PRO). A locked click sets `tutNotice` — e.g. "INT unlocks once you've
 seen the BEG guide." — which `TutorialPanel` shows via its `notice` prop above the
@@ -104,8 +104,8 @@ panel opens it, and nothing closes it again: the user opened the guide from that
 Rendered when `!onboardSeen`. `suspos_onboard_v1` defaults to `true`, so it shows
 only for a stored `false`; GOT IT or a backdrop click (`closeOnboard`) sets it `true`.
 Its preview of the tier buttons highlights the tier you are on. On desktop it sits under the
-game · level chip, its arrow under the chip's centre (`onbRight`, measured from `onbChipRef`);
-on a phone, at the header's right edge. It used to open through
+game · level chip, its arrow under the chip's centre (`onbRight`, measured from `onbChipRef`),
+on desktop and phone alike. It used to open through
 `showComplexity` whenever the BEG or INT guide closed, naming the tier just unlocked;
 that line now sits on the guide's last card instead (`TUT_END_NOTE`).
 
@@ -245,8 +245,11 @@ When a tier guide's step changes, an effect on `[tutMode, tutStep]`:
    | `visuals` | VISUALS |
 
    `visuals` is no longer a sidebar section: a step focusing it shows the VISUALS column
-   or view (`visTut`) instead, and on a phone closes the inputs drawer when no other sidebar
+   or view (`visTut`) instead, and on a phone closes the INPUTS view when no other sidebar
    section shares the step. A step focusing `output` swaps the tune cards back in.
+   On a phone these flags *are* the tab bar's views (garage, then sidebar, then VISUALS, else
+   TUNE; [CODE_MAP.md](CODE_MAP.md#phone-views)), so `sidebar:'open'` shows INPUTS and
+   `sidebar:'close'` TUNE, with no phone-specific step data.
 
    Every step rewrites all ten (BRAKES opens for `brakes`), so a section left open by
    the user is closed when a step doesn't point at it. The expanded balance panel
@@ -330,7 +333,7 @@ every step title of its guide, in order; `tests-sections.js` checks every spot i
 | 1 | Welcome to SUSP.OS | — | | close | What the app does; a working tune comes first, refinement after. | |
 | 2 | Choose Your Units | — | | | Embedded units picker; match Forza's spring units. | ✓ |
 | 3 | Load a Preset | `garage` | `garage.factory` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. | ✓ |
-| 4 | Getting Around | `toolbar` | `tb.undo` | | INPUTS (☰ on a phone), ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
+| 4 | Getting Around | `toolbar` | `tb.undo` | | INPUTS (a tab on a phone), ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
 | 5 | Layout & Build Type | `layout-build`, `build-type` | | | Drive layout and build type and what they drive. | |
 | 6 | Weight & Front Bias | `weight` | | | Take them from the car selection screen. | |
 | 7 | Ride Stiffness | `ride-stiffness` | | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
@@ -425,7 +428,7 @@ reworded, added, removed or moved step fails the run until this section is updat
 
 #### 2. Choose Your Units
 
-> Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS (on a wide screen, in the game · level menu).
+> Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS, in the header's game · level menu.
 
 #### 3. Load a Preset
 
@@ -437,7 +440,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Getting Around
 
-> INPUTS (☰ on a phone) shows or hides this sidebar; results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header's glossary) for the full explanation.
+> INPUTS shows or hides this sidebar (on a phone, the INPUTS tab); results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header's glossary) for the full explanation.
 
 #### 5. Layout & Build Type
 
@@ -481,7 +484,7 @@ TRY IT task (ticks when the check passes):
 
 #### 13. Output Toolbar
 
-> ⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. On a wide screen the first three sit under ⋯.
+> ⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. The first three sit under ⋯ in the header (SHARE too, on a phone).
 
 #### 14. Saving Your Own
 
@@ -567,11 +570,11 @@ Absent note (no POWER SPLIT on screen):
 
 #### 18. Output Toolbar
 
-> In the toolbar (the header on a wide screen, where RESET, DNA and CHECK sit under ⋯): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
+> In the header, where RESET, DNA and CHECK sit under ⋯ (SHARE too, on a phone): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
 
 #### 19. Garage
 
-> GARAGE (top right) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car's LOAD CHASSIS and LOAD BUILD let you pair one car's chassis with another's tune, and every load is undoable with ↩.
+> GARAGE (top right, or a tab on a phone) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car's LOAD CHASSIS and LOAD BUILD let you pair one car's chassis with another's tune, and every load is undoable with ↩.
 
 #### 20. Organizing & Searching
 
@@ -703,7 +706,7 @@ clicked (`tutNotice`, set in `tryAccessMode`), shown after a 🔒:
 **Quick start, last card** — added under the body of the DONE card on the QUICK
 START path:
 
-> That's the quick start. Tap ? in the header any time to replay the full tour.
+> That's the quick start. Tap GUIDE, under ? in the header (⋯ on a phone), any time to replay the full tour.
 
 The first beginner card (`pathChoice`) swaps NEXT for two buttons, QUICK START and
 FULL TOUR →.
@@ -725,11 +728,11 @@ START OVER and RESUME AT STEP {n}:
 **Last card of a tier guide** — a green line under the body of the DONE card
 (`TUT_END_NOTE`), on the full and quick paths alike:
 
-> 🔓 INT is unlocked: switch to INT from the header (its level menu on a wide screen) for more controls.
+> 🔓 INT is unlocked: switch to INT in the header's game · level menu for more controls.
 
-> 🔓 PRO is unlocked: switch to PRO from the header (its level menu on a wide screen) for every control.
+> 🔓 PRO is unlocked: switch to PRO in the header's game · level menu for every control.
 
-> That's everything PRO adds. Reopen this guide any time with ? in the header.
+> That's everything PRO adds. Reopen this guide any time with GUIDE, under ? in the header (⋯ on a phone).
 
 **Onboarding popup** — headed COMPLEXITY LEVEL, over a preview of the BEG / INT /
 PRO and `?` buttons with the current tier highlighted, dismissed with GOT IT. Shown
