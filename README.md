@@ -13,7 +13,7 @@ A single-file suspension tuning calculator for **Forza Horizon**, **Forza Motors
 [Complexity Tiers](#complexity-tiers) · [Architecture](#architecture) ·
 [Documentation](#documentation) · [Development](#development) ·
 [Compatibility](#compatibility) · [Feedback](#feedback) ·
-[Credits](#credits) · [License](#license)
+[AI Use](#ai-use) · [Credits](#credits) · [License](#license)
 
 ---
 
@@ -195,6 +195,26 @@ green run means the facts line up, not that the writing is still accurate.
 - **Found a bug or something looks wrong?** [Open an issue](https://github.com/SoloCandy/susp-os/issues/new/choose) — a share code (SHARE → COPY CODE) makes it much easier to reproduce.
 - **Have an idea or a question?** [Start a discussion](https://github.com/SoloCandy/susp-os/discussions).
 - **Prefer email?** [soloc4ndy@gmail.com](mailto:soloc4ndy@gmail.com).
+
+---
+
+## AI Use
+
+Most of the code, tests and documentation in this repository were written by
+[Claude](https://www.anthropic.com/claude), Anthropic's AI model, through Claude Code — commits
+authored by `Claude` or carrying a `Co-Authored-By: Claude` line are its work. The project's
+direction, feature decisions, review and in-game testing are done by the maintainer.
+
+What that means for you:
+- **The physics is grounded, not invented.** The solve follows NumberlessMath's published
+  calculator (see [Credits](#credits)), and the key calibration constants in
+  [PHYSICS.md](docs/PHYSICS.md) come from in-game and telemetry measurement, not from the
+  model. The ones that aren't calibrated yet are marked as such.
+- **Plausible-looking isn't the same as correct.** The test suites check the code and the docs
+  against each other, but only driving a tune in the game shows whether it works. Where in-game
+  testing found a miss, it's written down in [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
+- **If a number looks wrong, it may well be.** [Open an issue](https://github.com/SoloCandy/susp-os/issues/new/choose)
+  with a share code.
 
 ---
 
