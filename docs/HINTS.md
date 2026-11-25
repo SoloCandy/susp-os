@@ -124,6 +124,16 @@ reads *CG Height is entered under ESTIMATES below ↓*.
 
 > How far the {side} spring and damper move per unit of wheel travel; 1.0 = direct-acting. Lower raises the output rates. Leave at 1.0 unless you know the geometry.
 
+**Damper MR F / R** (PRO, BeamNG) — `{side}` is front or rear, `{ax}` F or R:
+
+> Where the {side} damper mounts. SAME uses Motion Ratio {ax}; OWN takes its own ratio, for a damper on a different point of the arm than the spring. Moves the printed damping only.
+
+**JBEAM ADJUST** (PRO, BeamNG) — on the Spring F row only, scale then offset:
+
+> The jbeam's multiplier on the menu value: "$=$spring_F * 0.8" is 0.8. 1 when there is none.
+
+> The jbeam's constant, with its sign: "$=$damp_bump_R - 1000" is −1000. 0 when there is none.
+
 **ARB Motion Ratio F / R** (PRO, BeamNG):
 
 > Length of the {side} anti-roll bar's arm as a fraction of track; a typical inboard link is 0.4–0.5. Lower raises the printed ARB rate only, not the solve.
@@ -354,7 +364,7 @@ rest; `{unit}` is "clicks" on Forza and, on BeamNG:
 
 **ARB F / ARB R** (MAN) — `{side}` is Front or Rear; BeamNG, then Forza:
 
-> {side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width and ARB Motion Ratio move this number.
+> {side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width, ARB Motion Ratio and JBEAM ADJUST move this number.
 
 > {side} ARB clicks, entered directly. This game mode's limit is {limit} clicks per axle.
 

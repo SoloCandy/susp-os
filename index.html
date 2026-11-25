@@ -776,10 +776,41 @@ const PHYS_SNAP={spring:500,arb:1000,damp:100};
 // store roll stiffness (N·m/rad), so what this allows in storage depends on track and ARB motion
 // ratio — sanitizeTune clamps to that envelope, not to this number.
 const ARB_MAN_LIN_MAX=200000;
+// The stored (N·m/rad) ceiling sanitizeTune allows: the Field's N/m ceiling at the widest track it
+// allows (2.6 m), the largest ARB motion ratio (1.5) and the largest JBEAM ADJUST for the bar.
+// Written out (not from JB_SCALE_MAX/JB_OFS_MAX, declared below) so it reads in declaration order.
+const ARB_MAN_STORED_MAX=(ARB_MAN_LIN_MAX*20+500000)*2.6*2.6*1.5*1.5/2;
 const roundTo=(v,step)=>Math.round(v/step)*step;
 // MOTION RATIO divisor. The solver works in wheel rate; BeamNG's sliders act at the
 // spring/damper, so an inboard spring needs rate/mr² to give the same wheel rate.
 const mrDiv=mr=>{const v=Number(mr);return v>0?v*v:1;};
+// DAMPER MOTION RATIO. ch.damperMotionRatio{F,R} of 0 means SAME: the damper follows the spring's
+// motionRatio{F,R}, which is how every tune from before the field existed reads. 0 is a sentinel,
+// not a ratio — do not "fix" its default to 1.0: that would silently change the damping output of
+// anyone with a spring Motion Ratio other than 1. Display-only, like motionRatio{F,R}.
+const dampMr=(ch,ax)=>{const d=Number(ch?.[`damperMotionRatio${ax}`]);return d>0?d:(ch?.[`motionRatio${ax}`]??1);};
+// JBEAM ADJUST. Some jbeams don't hand the menu value to the physics as-is: the Bolide's rear has
+// "beamDamp":"$=$damp_bump_R - 1000", others multiply. Each output carries the expression's own
+// numbers, actual = menu × scale + offset (offset −1000 for "- 1000"), and the card prints the menu
+// value that lands the solved actual value. Display-only, like the motion ratios: nothing in the
+// physics reads them. Kinds name the output: Spring, Arb (anti-roll spring), Bump, Reb (rebound).
+const JB_KINDS=['Spring','Arb','Bump','Reb'];
+const JB_SCALE_MIN=0.05,JB_SCALE_MAX=20;
+const JB_OFS_MAX={Spring:500000,Arb:500000,Bump:50000,Reb:50000};
+const JB_KEYS=JB_KINDS.flatMap(k=>['F','R'].flatMap(ax=>[`jbScale${k}${ax}`,`jbOffset${k}${ax}`]));
+const jbAdj=(ch,kind,ax)=>{
+  const s=Number(ch?.[`jbScale${kind}${ax}`]),o=Number(ch?.[`jbOffset${kind}${ax}`]);
+  return{scale:s>0?s:1,offset:Number.isFinite(o)?o:0};
+};
+const jbIsId=adj=>!adj||(adj.scale===1&&adj.offset===0);
+// Value at the mount (spring, damper, bar) → menu value on the slider's grid. `below` when the
+// adjustment would need a negative menu value: the card prints 0 and says so.
+const jbMenu=(atMount,adj,step)=>{
+  const raw=jbIsId(adj)?atMount:(atMount-adj.offset)/adj.scale;
+  return{value:roundTo(Math.max(0,raw),step)+0,below:raw<0};
+};
+// The inverse: a typed menu value → the value at the mount. Tune Check and the ARB MAN entry.
+const jbActual=(menu,adj)=>jbIsId(adj)?menu:menu*adj.scale+adj.offset;
 // Snap a wheel-rate quantity to the grid. Deliberately snapped in WHEEL-RATE space, with no
 // motion-ratio term: mr is display-only by design (see mrDiv's note at the output helpers,
 // and the `motion ratio never reaches the physics` guard in tests-beamng.js), so letting it
@@ -3391,11 +3422,13 @@ const applyDNA=(ch,fe,dr,dnaRaw)=>{
 // re-application of a snap already performed upstream — kept deliberately, because it is the
 // last thing standing between a raw coefficient and the UI, and the paths that do not run
 // through computeTune (TUNE CHECK, the ARB MAN field's own round-trip) still land here.
-const springOut=(lbIn,gameMode,su,mr=1)=>isPhysical(gameMode)
-  ? {value:roundTo(lbIn*LB_IN_TO_NM/mrDiv(mr),500),unit:'N/m',decimals:0}
+// `adj` is the output's JBEAM ADJUST ({scale,offset}, jbAdj), physical branch only; `below` says
+// the adjustment wanted a negative menu value and 0 was printed instead.
+const springOut=(lbIn,gameMode,su,mr=1,adj)=>isPhysical(gameMode)
+  ? {...jbMenu(lbIn*LB_IN_TO_NM/mrDiv(mr),adj,PHYS_SNAP.spring),unit:'N/m',decimals:0}
   : {value:lbIn*su.f,unit:su.label,decimals:su.dp};
-const dampOut=(v,lim,mr=1)=>lim.damping==null
-  ? {value:roundTo(v/mrDiv(mr),100),unit:'N/m/s',decimals:0}
+const dampOut=(v,lim,mr=1,adj)=>lim.damping==null
+  ? {...jbMenu(v/mrDiv(mr),adj,PHYS_SNAP.damp),unit:'N/m/s',decimals:0}
   : {value:v,unit:`/ ${lim.damping}`,decimals:1};
 // Roll stiffness (N·m/rad) → the linear anti-roll rate BeamNG asks for, by the same
 // rs = k·track²/2 relationship the spring side uses, inverted. No motion-ratio term
@@ -3404,8 +3437,8 @@ const dampOut=(v,lim,mr=1)=>lim.damping==null
 // (track/arm)². BeamNG exposes no arm length and the coefficient convention is still
 // unsettled, so the divisor comes from the user as ARB Motion Ratio F/R (arm/track, default
 // 1.0 = the old acts-at-the-wheel assumption). See docs/KNOWN_ISSUES.md for the research.
-const arbOut=(v,lim,track=1.55,mr=1)=>lim.arb==null
-  ? {value:roundTo(2*v/(track*track*mrDiv(mr)),1000),unit:'N/m',decimals:0}
+const arbOut=(v,lim,track=1.55,mr=1,adj)=>lim.arb==null
+  ? {...jbMenu(2*v/(track*track*mrDiv(mr)),adj,PHYS_SNAP.arb),unit:'N/m',decimals:0}
   : {value:v,unit:`/ ${lim.arb}`,decimals:1};
 // A typical inboard drop link (arm ÷ track). While an axle's ARB Motion Ratio is still 1.0 the
 // BeamNG Anti-Roll row prints its rate at this ratio too, as a ≈ figure beside the at-the-wheel
@@ -3443,6 +3476,22 @@ const computeCheck=(spr,damp,masses,calib=DAMPING_CALIBRATION)=>{
   return{hF,hR,
     zRebF:ccF>0?(damp.rebF/calib/ccF)*100:0,zRebR:ccR>0?(damp.rebR/calib/ccR)*100:0,
     zBmpF:ccF>0?(damp.bumpF/calib/ccF)*100:0,zBmpR:ccR>0?(damp.bumpR/calib/ccR)*100:0};
+};
+// Physical modes: Tune Check's typed MENU values → the wheel-rate values computeCheck reads.
+// Exactly the inverse of springOut/dampOut: undo JBEAM ADJUST (jbActual), then multiply back by
+// the motion ratio squared (Motion Ratio for springs, dampMr for dampers). Springs stay in lb/in,
+// the unit ckSpr holds them in. A negative actual (menu below a jbeam's offset) reads as 0.
+const checkToWheel=(ch,spr,dmp)=>{
+  const sp=ax=>Math.max(0,jbActual(spr[ax.toLowerCase()]*LB_IN_TO_NM,jbAdj(ch,'Spring',ax)))*mrDiv(ch?.[`motionRatio${ax}`])/LB_IN_TO_NM;
+  const dm=(kind,key,ax)=>Math.max(0,jbActual(dmp[key],jbAdj(ch,kind,ax)))*mrDiv(dampMr(ch,ax));
+  return{spr:{f:sp('F'),r:sp('R')},
+    dmp:{rebF:dm('Reb','rebF','F'),rebR:dm('Reb','rebR','R'),bumpF:dm('Bump','bumpF','F'),bumpR:dm('Bump','bumpR','R')}};
+};
+// A typed BeamNG Anti-Roll Spring Rate (menu N/m) → roll stiffness, the unit fe.arbMan{F,R} store.
+// The inverse of arbOut: JBEAM ADJUST, then rs = k·track²·amr²/2.
+const checkArbRs=(ch,ax,menu)=>{
+  const track=ax==='F'?ch.trackF:ch.trackR;
+  return Math.max(0,jbActual(menu,jbAdj(ch,'Arb',ax)))*track*track*mrDiv(ch?.[`arbMotionRatio${ax}`])/2;
 };
 
 // NOTE: arrays fall through to `parsed` verbatim — there is deliberately no
@@ -3869,7 +3918,18 @@ const DEF_CH={weight:3200,frontBias:52,wheelbase:2.7,cgHeight:0.45,
               // inboard needs a higher N/m by (track/arm)². SEPARATE from motionRatioF/R — the
               // spring mount and the drop link are independent geometry. 1.0 = the old
               // acts-at-the-wheel assumption, so an untouched tune's output is unchanged.
-              arbMotionRatioF:1.0,arbMotionRatioR:1.0};
+              arbMotionRatioF:1.0,arbMotionRatioR:1.0,
+              // Damper mount, when it differs from the spring's. 0 = SAME (follows motionRatioF/R)
+              // — a sentinel, not a ratio; see dampMr. Never default it to 1.0.
+              damperMotionRatioF:0,damperMotionRatioR:0,
+              // JBEAM ADJUST: actual = menu × scale + offset, per BeamNG output (see jbAdj). The
+              // identity (1, 0) prints exactly what the output printed before the fields existed.
+              // Spelled out rather than built from JB_KEYS: the test suites evaluate DEF_CH before
+              // the block that defines it. tests-beamng.js checks the two lists agree.
+              jbScaleSpringF:1,jbOffsetSpringF:0,jbScaleSpringR:1,jbOffsetSpringR:0,
+              jbScaleArbF:1,jbOffsetArbF:0,jbScaleArbR:1,jbOffsetArbR:0,
+              jbScaleBumpF:1,jbOffsetBumpF:0,jbScaleBumpR:1,jbOffsetBumpR:0,
+              jbScaleRebF:1,jbOffsetRebF:0,jbScaleRebR:1,jbOffsetRebR:0};
 const DEF_FE={rideStiffness:1.75,arbBias:0,dampingBias:0,dampBalMode:'standard',bumpBalMode:'same',bumpDampingBias:0,targetSpeed:70,gameMode:'horizon',
               dampingMode:'ratio',reboundZeta:70,bumpRatio:56,bumpZeta:39,landingPct:75,dampCharMode:'zeta',settleTarget:0.80,
               arbMode:'auto',arbTargetRollMan:1.8,arbShareMan:15,arbBasicMan:50,
@@ -4009,6 +4069,12 @@ const HIDE_ITEMS=[
   {id:'chassis.motionRatioR',    sec:'chassis', tiers:['pro'], fields:['ch',['motionRatioR']]},
   {id:'chassis.arbMotionRatioF', sec:'chassis', tiers:['pro'], fields:['ch',['arbMotionRatioF']]},
   {id:'chassis.arbMotionRatioR', sec:'chassis', tiers:['pro'], fields:['ch',['arbMotionRatioR']]},
+  {id:'chassis.damperMotionRatioF', sec:'chassis', tiers:['pro'], fields:['ch',['damperMotionRatioF']]},
+  {id:'chassis.damperMotionRatioR', sec:'chassis', tiers:['pro'], fields:['ch',['damperMotionRatioR']]},
+  // The whole JBEAM ADJUST block, one item: its 16 fields are one table, hidden or shown together.
+  {id:'chassis.jbeamAdjust',     sec:'chassis', tiers:['pro'], fields:['ch',['jbScaleSpringF','jbOffsetSpringF','jbScaleSpringR','jbOffsetSpringR',
+    'jbScaleArbF','jbOffsetArbF','jbScaleArbR','jbOffsetArbR','jbScaleBumpF','jbOffsetBumpF','jbScaleBumpR','jbOffsetBumpR',
+    'jbScaleRebF','jbOffsetRebF','jbScaleRebR','jbOffsetRebR']]},
   // BUILD
   {id:'build.type',              sec:'build',   fields:['dr',['buildType']]},
   // BALANCE (PRO only, like the section). Each target control applies only in its own mode.
@@ -6030,7 +6096,11 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
   const pAl=k=>v=>{setCkAlEntered(true);setCkAl(p=>({...p,[k]:v}));};
   const alIn=alignOk&&ckAlEntered;
   const masses=useMemo(()=>cornerMasses(ch),[ch]);
-  const ck=useMemo(()=>computeCheck(ckSpr,ckDmp,masses,phys?1:DAMPING_CALIBRATION),[ckSpr,ckDmp,masses,phys]);
+  // BeamNG's typed values are MENU values at the mount; computeCheck works at the wheel. checkToWheel
+  // undoes JBEAM ADJUST and the motion ratios, the inverse of springOut/dampOut — without it a
+  // tune read back at Motion Ratio ≠ 1 decoded to a different Hz and ζ than its card printed.
+  const ckWheel=useMemo(()=>phys?checkToWheel(ch,ckSpr,ckDmp):{spr:ckSpr,dmp:ckDmp},[ch,ckSpr,ckDmp,phys]);
+  const ck=useMemo(()=>computeCheck(ckWheel.spr,ckWheel.dmp,masses,phys?1:DAMPING_CALIBRATION),[ckWheel,masses,phys]);
   // The Damping Bias the decoded front/rear ζ split asks for, before the slider's ±50 clamps it.
   // Read by decodedFe and shown below when it doesn't fit, because the alternative is handing
   // back a damper split that is not the one you typed and saying nothing about it.
@@ -6073,8 +6143,8 @@ const CheckerModal=({onClose,lim,units,ch,setCh,onImportTune,alignOk,gameMode,on
       // fe.arbMan* is always roll stiffness; the physical inputs above are BeamNG's linear
       // N/m, so invert k = 2·rs/(track·mr)² on the way in — the same ARB Motion Ratio the
       // output card and MAN entry use, or an imported tune reads back at a different rate.
-      arbManF:phys?Math.max(0,ckArb.f*ch.trackF*ch.trackF*mrDiv(ch.arbMotionRatioF)/2):Math.max(1,Math.min(lim.arb,ckArb.f)),
-      arbManR:phys?Math.max(0,ckArb.r*ch.trackR*ch.trackR*mrDiv(ch.arbMotionRatioR)/2):Math.max(1,Math.min(lim.arb,ckArb.r))};
+      arbManF:phys?checkArbRs(ch,'F',ckArb.f):Math.max(1,Math.min(lim.arb,ckArb.f)),
+      arbManR:phys?checkArbRs(ch,'R',ckArb.r):Math.max(1,Math.min(lim.arb,ckArb.r))};
   };
   // One commit for both: the suspension as an fe patch when step 1's suspension was entered, the
   // alignment into MANUAL when its own fields were. Each half is left out when it was not typed.
@@ -7203,6 +7273,28 @@ const CODEC_FIELDS=[
   // 96/97: POWER SPLIT's SOLVE EXIT (PRO, AWD), mode and its EXIT-vs-MID target in grip %.
   {id:96,group:'dr',key:'diffSplitMode',enc:{set:0,exit:1},dec:['set','exit']},
   {id:97,group:'dr',key:'diffExitTarget'},
+  // 98/99: Damper Motion Ratio F/R. group:'ch' like 58/59. 0 = SAME (follows 58/59), so a code
+  // from before these ids decodes to exactly the damping it printed. 100–115: JBEAM ADJUST, the
+  // menu → physics expression per BeamNG output (actual = menu × scale + offset), also 'ch':
+  // it describes the car's jbeam, not the tune. See docs/CODEC.md.
+  {id:98,group:'ch',key:'damperMotionRatioF'},
+  {id:99,group:'ch',key:'damperMotionRatioR'},
+  {id:100,group:'ch',key:'jbScaleSpringF'},
+  {id:101,group:'ch',key:'jbOffsetSpringF'},
+  {id:102,group:'ch',key:'jbScaleSpringR'},
+  {id:103,group:'ch',key:'jbOffsetSpringR'},
+  {id:104,group:'ch',key:'jbScaleArbF'},
+  {id:105,group:'ch',key:'jbOffsetArbF'},
+  {id:106,group:'ch',key:'jbScaleArbR'},
+  {id:107,group:'ch',key:'jbOffsetArbR'},
+  {id:108,group:'ch',key:'jbScaleBumpF'},
+  {id:109,group:'ch',key:'jbOffsetBumpF'},
+  {id:110,group:'ch',key:'jbScaleBumpR'},
+  {id:111,group:'ch',key:'jbOffsetBumpR'},
+  {id:112,group:'ch',key:'jbScaleRebF'},
+  {id:113,group:'ch',key:'jbOffsetRebF'},
+  {id:114,group:'ch',key:'jbScaleRebR'},
+  {id:115,group:'ch',key:'jbOffsetRebR'},
   // Retired ids — never reuse: 70/71 (useMeasuredArbScale/measuredArbScale) — a click scale measured
   // without the tyre term, about half what 73/74 mean; decoding drops them (unknown id) rather than
   // misread a stale scale as half-stiff bars. See docs/CODEC.md.
@@ -7320,6 +7412,9 @@ const SHARE_PARTS=[
   {id:'ch',group:'ch',label:'CHASSIS',sub:'Weight · bias · tyres · geometry · layout',
    keys:['weight','frontBias','wheelbase','cgHeight','trackF','trackR','layout','tyreF','tyreR',
          'rideHeightF','rideHeightR','motionRatioF','motionRatioR','arbMotionRatioF','arbMotionRatioR',
+         'damperMotionRatioF','damperMotionRatioR',
+         'jbScaleSpringF','jbOffsetSpringF','jbScaleSpringR','jbOffsetSpringR','jbScaleArbF','jbOffsetArbF','jbScaleArbR','jbOffsetArbR',
+         'jbScaleBumpF','jbOffsetBumpF','jbScaleBumpR','jbOffsetBumpR','jbScaleRebF','jbOffsetRebF','jbScaleRebR','jbOffsetRebR',
          'useMeasuredNatBal','measuredNatBal','measuredNatBalHz','measuredNatBalRef',
          'useMeasuredArbClick','measuredArbClick','measuredArbClickR','measuredArbNat','measuredArbNatHz']},
   {id:'ride',group:'fe',label:'SPRINGS',sub:'Ride stiffness · rear Hz · game mode',
@@ -7417,9 +7512,11 @@ const sanitizeTune=({ch,fe,dr})=>{
   // range. The physical Field is in N/m and storage in N·m/rad (k·track²·amr²/2), so the stored
   // ceiling is ARB_MAN_LIN_MAX at the widest track the Field allows (2.6 m) and the largest ARB
   // motion ratio (1.5): an envelope, like rideBottomG's, that never cuts a value the Field let
-  // through. See docs/HISTORY.md and docs/CODEC.md ids 46/47.
+  // through. The Field is a MENU value, so the largest JBEAM ADJUST it can pass through (scale
+  // JB_SCALE_MAX plus offset JB_OFS_MAX.Arb) is in the envelope too: ARB_MAN_STORED_MAX.
+  // See docs/HISTORY.md and docs/CODEC.md ids 46/47.
   const arbManB=isPhysical(sgm)
-    ?{lo:0,hi:ARB_MAN_LIN_MAX*2.6*2.6*1.5*1.5/2,def:0}      // physical: computeTune reads Math.max(0,arbManF??0)
+    ?{lo:0,hi:ARB_MAN_STORED_MAX,def:0}      // physical: computeTune reads Math.max(0,arbManF??0)
     :{lo:1,hi:GAME_LIMITS[sgm].arb,def:DEF_FE.arbManF};     // clicks: THIS mode's ceiling, not Horizon's
   const sch={
       weight:       cl(ch?.weight,        100,  18000, DEF_CH.weight),
@@ -7461,7 +7558,16 @@ const sanitizeTune=({ch,fe,dr})=>{
       motionRatioR: cl(ch?.motionRatioR,    0.2,  1.5,  DEF_CH.motionRatioR),
       arbMotionRatioF: cl(ch?.arbMotionRatioF, 0.2, 1.5, DEF_CH.arbMotionRatioF),
       arbMotionRatioR: cl(ch?.arbMotionRatioR, 0.2, 1.5, DEF_CH.arbMotionRatioR),
+      // The motion ratios' range. 0 is SAME (dampMr) and is restored just below, after the clamp:
+      // written this way so tests-docs.js can read the bounds against SLIDERS.md.
+      damperMotionRatioF: cl(ch?.damperMotionRatioF, 0.2, 1.5, 0),
+      damperMotionRatioR: cl(ch?.damperMotionRatioR, 0.2, 1.5, 0),
+      ...Object.fromEntries(JB_KINDS.flatMap(k=>['F','R'].flatMap(ax=>[
+        [`jbScale${k}${ax}`, cl(ch?.[`jbScale${k}${ax}`], JB_SCALE_MIN, JB_SCALE_MAX, 1)],
+        [`jbOffset${k}${ax}`,Math.round(cl(ch?.[`jbOffset${k}${ax}`], -JB_OFS_MAX[k], JB_OFS_MAX[k], 0))]]))),
   };
+  // SAME: a stored 0, a missing value, junk or a negative all mean "follow Motion Ratio".
+  for(const k of['damperMotionRatioF','damperMotionRatioR'])if(!(Number(ch?.[k])>0))sch[k]=0;
   // arbBalTarget is a delta from natDisplayOf(sch,sgm) (see id 40 in docs/CODEC.md) —
   // clamp it to the same range the live Field allows (BAL_TARGET_MIN..MAX absolute), not a flat
   // approximation, so a decoded delta can't silently get truncated differently than the UI.
@@ -8073,7 +8179,9 @@ const GLOSSARY=[
     {id:'tyre-size',term:'Tyre Size',tier:'intermediate',def:"Front and rear tyre size as on the sidewall or the upgrade screen, e.g. 265/35R18, the default. Any separator works. Width must be 50–500 mm, aspect 10–100 and rim 8–30 in. A blank box uses a 265 mm width, and = FRONT copies the front size to the rear.\n\nAspect and rim give the diameter and radius. These feed the RIDE HEIGHT CG estimate and the AWD AVG RADIUS readout. Width does not change roll stiffness, but Forza's displayed Mech Balance adds a small width term, 0.08 × ln(rear width ÷ front width), which the app includes in displayed balances.\n\n[PRO] Width sets each axle's grip at the limit. Wider means more grip on that end, rising less than proportionally. It moves GRIP BIAS, GRIP TARGET and the Balance Guide's AGILE-to-PLANTED tag, and the width term is removed from targets. The FIT? badge flags widths outside the 215–335 mm the model was fitted on.",see:['cg-source','power-split','grip-bias','target-grip']},
     {id:'wheelbase',term:'Wheelbase',tier:'pro',def:"Distance between the front and rear axles, 400–4000 mm in 5 mm steps; typical cars run 2400–2900 mm. Forza doesn't show it, so it sits under LOOK UP ONLINE in CHASSIS: take it from the car's spec sheet. FLAT RIDE uses it to time the rear Hz to your Target Speed. With CG height it sets the forward weight transfer under braking. That feeds the brake balance recommendation and the ENTRY and EXIT phase readouts. It stays in use when a MEASURE NAT BAL reading replaces the track widths.\n\nBelow PRO it isn't an input: it is scaled from Weight, and leaving PRO rescales it.",see:['flat-ride','brake-balance','cg-height','track-width']},
     {id:'track-width',term:'Track Width',tier:'pro',def:"Distance between the left and right wheels on each axle, 1000–2600 mm in 5 mm steps. Typical is 1400–1800 mm, and the rear is often slightly wider. Forza doesn't show them, so they sit under LOOK UP ONLINE in CHASSIS; MEASURE NAT BAL is the in-game alternative. An axle's roll stiffness grows with track squared, so a wider track resists roll more on the same springs and transfers less load. Track also scales what one ARB click is worth.\n\nTrack widths and corner masses give the predicted natural balance. A wider rear or narrower front raises the rear's share of roll stiffness, toward oversteer. GEOMETRY GAP suggests track changes toward your target.\n\nThe fields hide while a MEASURE NAT BAL reading is in use, because the game's reading already reflects the real geometry, track width upgrades included. Below PRO they are scaled from Weight, and leaving PRO rescales them.",see:['natural-balance','roll-stiffness','arb-scale','grip-gap']},
-    {id:'motion-ratio',term:'Motion Ratio',tier:'pro',def:"How far the spring and damper move per unit of wheel travel, 0.2–1.5. It is BeamNG only: Forza shows wheel rate, so the fields are hidden there. The default 1.0 is direct-acting, like a strut on the hub. Lower means the spring sits inboard on a control arm and must be stiffer for the same wheel rate. Spring and damper outputs are divided by the ratio squared, so 0.7 roughly doubles them.\n\nBeamNG's sliders act at the spring, so this is what makes the numbers match. It does not change Hz, roll stiffness or handling balance. Leave it at 1.0 unless you know the car's geometry.",see:['arb-motion-ratio','spring-rate']},
+    {id:'motion-ratio',term:'Motion Ratio',tier:'pro',def:"How far the spring and damper move per unit of wheel travel, 0.2–1.5. It is BeamNG only: Forza shows wheel rate, so the fields are hidden there. The default 1.0 is direct-acting, like a strut on the hub. Lower means the spring sits inboard on a control arm and must be stiffer for the same wheel rate. Spring and damper outputs are divided by the ratio squared, so 0.7 roughly doubles them. The damper follows it only while Damper MR is SAME.\n\nBeamNG's sliders act at the spring, so this is what makes the numbers match. It does not change Hz, roll stiffness or handling balance. Leave it at 1.0 unless you know the car's geometry.",see:['arb-motion-ratio','damper-motion-ratio','jbeam-adjust','spring-rate']},
+    {id:'damper-motion-ratio',term:'Damper Motion Ratio',tier:'pro',short:'Damper MR',def:"How far the damper moves per unit of wheel travel, when it mounts at a different point on the arm than the spring. It is BeamNG only. SAME, the default, uses Motion Ratio; OWN takes its own ratio, 0.2–1.5, starting from Motion Ratio's value. The bump and rebound outputs are divided by its square, so a damper at 0.7 prints about twice the damping of one at the wheel.\n\nIt moves the printed damping only. The damping ratios, Hz and handling balance are unchanged.",see:['motion-ratio','jbeam-adjust']},
+    {id:'jbeam-adjust',term:'JBEAM ADJUST',tier:'pro',def:"Some BeamNG cars don't pass the tuning menu's number straight to the physics. The car's jbeam can change it on the way: the Bolide's rear suspension has \"beamDamp\":\"$=$damp_bump_R - 1000\", so the damper gets the menu value minus 1000. Others multiply. JBEAM ADJUST takes those numbers per output, front and rear: × is the multiplier (1 when there is none) and + the constant, with its sign (−1000 for \"- 1000\"). The app reads it as actual = menu × scale + offset and prints the menu value that gives the solved actual value.\n\nIt covers Spring, Anti-Roll, Bump and Rebound. Tune Check and the ARB MAN entry take menu values, so they undo it too. When an output would need a menu value below 0, the row prints 0 in amber with NEEDS <0. The block opens itself while any value is set. It changes printed numbers only, never the solve.",see:['damper-motion-ratio','motion-ratio','beamng-output']},
     {id:'arb-motion-ratio',term:'ARB Motion Ratio',tier:'pro',def:"The anti-roll bar's arm as a fraction of track: where the drop link attaches, not where the spring does. It is BeamNG only and separate from Motion Ratio. The range is 0.2–1.5 and the default is 1.0. At 1.0 the app assumes the bar acts at the wheels, so the printed N/m reads low, roughly 4–6× soft on a sampled vehicle. A typical inboard link is about 0.4–0.5 (arm ÷ track), which raises the printed rate by (1/ratio)².\n\nIt affects only ARB display and MAN entry. The roll stiffness the app solves, the balance bar and Hz are unchanged.",see:['motion-ratio','arb']},
   ]},
   {group:'Balance Target',terms:[
@@ -8193,7 +8301,7 @@ const GLOSSARY=[
     {id:'dna-match',term:'DNA Match',tier:'pro',def:"After a Vehicle DNA is applied the tune stays linked to it: a chip in the sidebar names it, the sliders it set carry a mark, and VISUALS shows DNA MATCH with each axis's TARGET and NOW. ✓ means the axis still sits where APPLY left it; amber ≠ means it has moved beyond rounding since APPLY; MODE means that control is no longer in the mode the DNA set, so the value is not comparable.\n\nTARGET is the DNA's own target, which can differ from what APPLY achieved when an axis gave way or used its slack; drift is judged against the achieved value. Loading a garage build replaces the link with the DNA saved in that entry, if any. A FACTORY preset, a share code's feel or drivetrain parts, RESET, or leaving PRO removes it.",see:['dna','dna-priority','garage','share-code']},
   ]},
   {group:'Tools',terms:[
-    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its bars, springs and dampers exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, and what you have typed in either tab is kept until the browser tab closes.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also opens with an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports convert the Anti-Roll Spring Rate to roll stiffness through the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
+    {id:'tune-check',term:'Tune Check (DECODE)',tier:'beginner',short:'Tune Check',def:"Tune Check (the CHECK button) reads an existing tune back into the app's model. DECODE is for a tune with no share code: step 1 takes its bars, springs and dampers exactly as the game prints them, plus weight and front bias, shared with the sidebar because a spring rate only means a frequency against the right mass. Fields open on stock seeds, and nothing decodes until you type. Step 2 shows front and rear Hz and rebound and bump damping ratios.\n\nIMPORT TUNE writes it onto this car's ride, dampers and bars: a front Hz with a rear multiplier, a front rebound ζ with a Damping Bias for the rebound split and, when the bump split differs, a Bump Bias of its own (each clamped to ±50, so some splits land close, with a warning), and the bars entered directly. Review afterward. The window closes only with ✕, and what you have typed in either tab is kept until the browser tab closes.\n\n[INT] The import sets RIDE REF FRONT, Hz MODE MULTIPLIER, REBOUND MODE CHARACTER, BUMP MODE BUMP RATIO, Damping Balance STANDARD, BUMP BALANCE SAME (STANDARD when the bump split differs) and ARB Stiffness Mode MAN. In the Forza modes step 1 also opens with an optional ALIGNMENT: camber, toe and caster as the game shows them. IMPORT TUNE writes it into ALIGNMENT's MANUAL exactly as typed, and only what you typed is imported: an alignment alone leaves the springs, dampers and bars alone, and the other way round. One undo takes back the whole import.\n\n[PRO] IMPORT AS DNA loads the tune as targets into the DNA editor instead (the bars become ARB SHARE and BALANCE targets), leaving this car alone, to apply here or on another car. In BeamNG both imports read what you type as menu values: springs and dampers go back to the wheel through Motion Ratio, Damper MR and JBEAM ADJUST, and the Anti-Roll Spring Rate to roll stiffness through JBEAM ADJUST, the track widths and ARB Motion Ratio, so set those in CHASSIS before importing.",see:['measure-nat-bal','measure-arb-scale','dna','hz']},
     {id:'measure-nat-bal',term:'MEASURE NAT BAL',tier:'beginner',def:"Step 1 of Tune Check's MEASURE tab: an in-game reading of this car's natural mech balance that replaces the app's prediction. Set the spring rates it lists (solved for the Measure Hz from each corner's mass) and both bars to 1 in Forza, then type the Mech Balance the game shows (0.30–0.90). The box starts on the app's own estimate, greyed, so the reading is usually a small nudge; it only counts once you edit it. Those springs are only for the reading: your tune can use any Hz. The reading and its Hz save with the chassis and travel in its share code; CLEAR returns to the prediction.\n\nMeasure Hz runs 1.0–3.5, default 2.20. Softer is more accurate: at a lower Hz the bars account for more of the balance Forza displays, so the same two-decimal reading pins this result, and step 2's ARB scale, more tightly. Use the lowest Hz whose rates the game accepts. If the chassis later changes enough to move the prediction by 0.01 or more, the step reads RE-MEASURE: a reading describes one car in one state and is used as-is until you retake or clear it.\n\n[PRO] MEASURE NAT BAL in CHASSIS, under FROM THE GAME, opens this step. Once set, the reading drives NATURAL, GRIP BIAS and every target measured from natural, and the track-width fields hide, since it already reflects the car's real geometry, track width upgrades included; wheelbase stays for flat ride and brake balance.",see:['natural-balance','measure-arb-scale','tune-check','mech-balance']},
     {id:'measure-arb-scale',term:'ARB SCALE SETUP',tier:'beginner',def:"Step 2 of Tune Check's MEASURE tab, Forza only. Forza scales its ARB slider differently per car; this finds what one click is worth on this one, so bar-driven balance lands where the game shows it. It unlocks once step 1 is set and is solved against it: keep step 1's springs, ride height and tyres, set the bars each of the four readings lists (front 1 with rear at the ceiling, both at the ceiling, rear 1 with front at the ceiling, both at half — one bar changes per step until the last) and type the Mech Balance Forza shows. Each box starts, greyed, on what the scale in use predicts for its row, refitted from your own readings once you have typed one, and counts only once you edit it. Enter moves to the next box, and the readings are kept until the browser tab closes, so closing the window between trips into the game loses nothing.\n\nThe four are fitted together. If one scale puts every reading within Forza's two-decimal rounding, both axles share it, because the readings cannot tell them apart. If not, the front and rear each get their own scale. Each reading shows FITS, or how far it sits OFF the fit, so you can see whether they agree. When no front/rear pair explains them, a warning names the reading that fits worst; if all four are typed as Forza showed them, the fit is still the best estimate. SCALE IN USE: MEASURED applies the result, DEFAULT returns to the shared 540. A reading no plausible bar fits shows CHECK.\n\nThe scale saves with the chassis and travels in its share code. If step 1 is re-taken or cleared, it reads RE-MEASURE and stays in use until you re-measure or pick DEFAULT. Changing Measure Hz after step 1 does not move the solve, which stays at step 1's Hz.",see:['arb-scale','measure-nat-bal','tune-check','arb']},
     {id:'dna',term:'Vehicle DNA',tier:'beginner',def:"A Vehicle DNA is a set of handling targets the app turns into a complete tune for the current car, so one character can move from car to car. Building and applying one is PRO; below PRO the DNA window only says so.\n\n[PRO] Nine axes: PLATFORM (front Hz), PITCH (rear ÷ front Hz), ARB SHARE (% of roll stiffness from bars), BALANCE (mech balance past grip-neutral, + toward oversteer), REBOUND ζ, BUMP RATIO, DAMP BIAS, DIFF EXIT, DIFF ENTRY. APPLY writes them through fixed modes (FRONT ride reference, Hz stiffness, MULTIPLIER, SHARE %, MECH balance on a GRIP target, CHARACTER, BUMP RATIO, TIME SYNC, AUTO diff), listed under SWITCHES when they change; it overwrites the tune once and ↩ undoes it.\n\n[PRO] The four archetypes (MOMENTUM, RALLY / B-ROAD, GT3, TAIL-HAPPY RWD) are hypotheses to tune in game, not calibration. MY DNA saves DNAs as garage entries (LOAD DNA fills the editor, it does not apply); CODE copies or pastes one DNA on its own code, separate from tune codes. Leaving PRO with a DNA applied changes the tune (BEG and INT cannot use MECH balance; BEG also loses TIME SYNC and damping bias) and removes the link, which returning to PRO does not restore.",see:['dna-priority','dna-match','grip-neutral','tune-check']},
@@ -8224,6 +8332,8 @@ const GLOSSARY_SUM={
   'track-width':"Left-to-right wheel distance per axle; a wider end resists roll more and moves natural balance.",
   'motion-ratio':"BeamNG only: spring travel per unit of wheel travel. It rescales spring and damper outputs, not handling.",
   'arb-motion-ratio':"BeamNG only: where the anti-roll bar's link sits. It rescales the printed ARB rate, not handling.",
+  'damper-motion-ratio':"BeamNG only: the damper's own mount ratio, when it isn't the spring's. It rescales printed damping, not handling.",
+  'jbeam-adjust':"BeamNG only: the jbeam's own maths between the menu and the physics, so the printed menu values land.",
   'mech-balance-target':"The Mech Balance the PRO solvers aim for; its target mode sets what it is measured from.",
   'target-range':"Target mode that aims at the middle of the recommended band for your layout and build.",
   'target-grip':"Target mode that aims where the grip model reads neutral mid-corner, plus Balance Offset.",
@@ -9396,6 +9506,10 @@ function App(){
   const headerCompact=windowWidth<1000;
 
   const pCh=k=>v=>setCh(p=>({...p,[k]:v}));
+  // CHASSIS' JBEAM ADJUST block: closed by default, and open regardless while any of its values
+  // differs from the identity, so a car that uses it never hides what its outputs are built on.
+  // Session-only on purpose: the block opens itself when it matters, so there is nothing to persist.
+  const[jbOpen,setJbOpen]=useState(false);
   const pFe=k=>v=>setFe(p=>({...p,[k]:v}));
   const pDr=k=>v=>setDr(p=>({...p,[k]:v}));
   const tog=k=>()=>setOpen(p=>({...p,[k]:!p[k]}));
@@ -11318,7 +11432,7 @@ function App(){
               </div>
               :<div style={{fontSize:10,color:T_MUTED,padding:'0 0 8px'}}>Track widths not needed: the MEASURE NAT BAL reading above replaces them.</div>}
             {(physMode||!ch.useRideHeightCG)&&<SrcHead label="ESTIMATES" note="not shown anywhere · typical values"
-              group={[...(!ch.useRideHeightCG?['chassis.cgHeight']:[]),...(physMode?['chassis.motionRatioF','chassis.motionRatioR','chassis.arbMotionRatioF','chassis.arbMotionRatioR']:[])]}/>}
+              group={[...(!ch.useRideHeightCG?['chassis.cgHeight']:[]),...(physMode?['chassis.motionRatioF','chassis.motionRatioR','chassis.arbMotionRatioF','chassis.arbMotionRatioR','chassis.damperMotionRatioF','chassis.damperMotionRatioR']:[])]}/>}
             {!ch.useRideHeightCG&&<Hide id="chassis.cgHeight"><Field noSlider label="CG Height" value={Math.round(ch.cgHeight*1000)} onChange={v=>pCh('cgHeight')(v/1000)} min={200} max={1500} step={5} unit="mm"
                 hint="The game doesn't show CG height: use about 400–460 mm for sports cars, 480–550 for sedans, 580–700 for SUVs. Higher = more roll and load transfer." hintTerm="cg-height"/></Hide>}
             {/* Physical-unit modes only. Forza's tuning screen shows wheel rate, which is what
@@ -11342,6 +11456,48 @@ function App(){
                   onCopyFront={ax==='R'?()=>pCh(key)(ch.arbMotionRatioF??1.0):null} copyTitle="Copy front ARB motion ratio to rear"/></Hide>
               ))}
             </div>}
+            {/* Damper mount, when it is not the spring's. SAME stores 0 (dampMr follows Motion
+                Ratio); OWN seeds from the spring's ratio, so switching changes nothing until edited. */}
+            {physMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+              {[['F','damperMotionRatioF','Front','chassis.damperMotionRatioF'],['R','damperMotionRatioR','Rear','chassis.damperMotionRatioR']].map(([ax,key,side,hid])=>{
+                const own=Number(ch[key])>0;
+                return <Hide key={ax} id={hid}><div>
+                  <Toggle label={`Damper MR ${ax}`} value={own?'own':'same'}
+                    onChange={v=>pCh(key)(v==='own'?(ch[`motionRatio${ax}`]??1.0):0)}
+                    options={[{value:'same',label:'SAME'},{value:'own',label:'OWN'}]}
+                    hint={`Where the ${side.toLowerCase()} damper mounts. SAME uses Motion Ratio ${ax}; OWN takes its own ratio, for a damper on a different point of the arm than the spring. Moves the printed damping only.`} hintTerm="damper-motion-ratio"/>
+                  {own&&<Field noSlider stacked label={`Ratio ${ax}`} value={ch[key]}
+                    onChange={pCh(key)} min={0.2} max={1.5} step={0.01}
+                    onCopyFront={ax==='R'&&Number(ch.damperMotionRatioF)>0?()=>pCh(key)(ch.damperMotionRatioF):null} copyTitle="Copy front damper motion ratio to rear"/>}
+                </div></Hide>;
+              })}
+            </div>}
+            {physMode&&(()=>{
+              const jbAny=JB_KEYS.some(k=>(ch[k]??DEF_CH[k])!==DEF_CH[k]);
+              const shown=jbOpen||jbAny;
+              const KIND_LBL={Spring:'Spring',Arb:'Anti-Roll',Bump:'Bump',Reb:'Rebound'};
+              const UNIT={Spring:'N/m',Arb:'N/m',Bump:'N/m/s',Reb:'N/m/s'};
+              const STEP={Spring:PHYS_SNAP.spring,Arb:PHYS_SNAP.arb,Bump:PHYS_SNAP.damp,Reb:PHYS_SNAP.damp};
+              return <Hide id="chassis.jbeamAdjust"><div>
+                <SrcHead label="JBEAM ADJUST" note="from the car's jbeam · actual = menu × scale + offset"/>
+                <button className="tbtn" style={{width:'100%',fontSize:10,marginBottom:8}} disabled={jbAny}
+                  onClick={()=>setJbOpen(o=>!o)} title={jbAny?'Stays open while any value is set':undefined}>
+                  {shown?(jbAny?'IN USE':'▴ HIDE'):'▾ SHOW'}
+                </button>
+                {shown&&JB_KINDS.map(k=>(
+                  <div key={k} style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 10px'}}>
+                    {['F','R'].flatMap(ax=>[
+                      <Field key={`s${ax}`} noSlider stacked label={`${KIND_LBL[k]} ${ax} ×`} value={ch[`jbScale${k}${ax}`]??1}
+                        onChange={pCh(`jbScale${k}${ax}`)} min={JB_SCALE_MIN} max={JB_SCALE_MAX} step={0.01}
+                        hint={ax==='F'&&k==='Spring'?"The jbeam's multiplier on the menu value: \"$=$spring_F * 0.8\" is 0.8. 1 when there is none.":null} hintTerm="jbeam-adjust"/>,
+                      <Field key={`o${ax}`} noSlider stacked label={`${KIND_LBL[k]} ${ax} +`} value={ch[`jbOffset${k}${ax}`]??0}
+                        onChange={v=>pCh(`jbOffset${k}${ax}`)(Math.round(v))} min={-JB_OFS_MAX[k]} max={JB_OFS_MAX[k]} step={STEP[k]} unit={UNIT[k]}
+                        hint={ax==='F'&&k==='Spring'?"The jbeam's constant, with its sign: \"$=$damp_bump_R - 1000\" is −1000. 0 when there is none.":null} hintTerm="jbeam-adjust"/>,
+                    ])}
+                  </div>
+                ))}
+              </div></Hide>;
+            })()}
             </>}
           </Sec></div>
 
@@ -11809,7 +11965,13 @@ function App(){
                   // Same (track·mr)² term as arbOut — display and entry must invert each other
                   // exactly, or a value round-trips to a different tune (see docs/HISTORY.md).
                   const amr=mrDiv(ax==='F'?ch.arbMotionRatioF:ch.arbMotionRatioR);
-                  const toLin=rs=>2*rs/(track*track*amr), toRs=k=>k*track*track*amr/2;
+                  // The Field holds BeamNG's MENU value, so JBEAM ADJUST sits between it and the
+                  // rate at the bar, inverted the same way arbOut applies it.
+                  const adj=jbAdj(ch,'Arb',ax);
+                  // Floored at 0: a positive offset puts a 0 bar below the slider, and the box can't
+                  // show what the Field won't accept. 0 is the nearest menu value that exists.
+                  const toLin=rs=>{const lin=2*rs/(track*track*amr);return Math.max(0,jbIsId(adj)?lin:(lin-adj.offset)/adj.scale);};
+                  const toRs=k=>Math.max(0,jbActual(k,adj))*track*track*amr/2;
                   const stored=fe[key]??(physMode?12000:20);
                   return <Hide key={ax} id={ax==='F'?'arb.manF':'arb.manR'}><Field noSlider label={`ARB ${ax}`}
                     value={physMode?Math.round(toLin(stored)):stored}
@@ -11817,7 +11979,7 @@ function App(){
                     min={physMode?0:1} max={physMode?ARB_MAN_LIN_MAX:lim.arb} step={physMode?PHYS_SNAP.arb:0.1}
                     unit={physMode?'N/m':undefined}
                     hint={physMode
-                      ?`${side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width and ARB Motion Ratio move this number.`
+                      ?`${side} Anti-Roll Spring Rate in N/m, as BeamNG's slider shows it. No ceiling; track width, ARB Motion Ratio and JBEAM ADJUST move this number.`
                       :`${side} ARB clicks, entered directly. This game mode's limit is ${lim.arb} clicks per axle.`} hintTerm="stiffness-mode"/></Hide>;
                 })}
               </div>}
@@ -12242,13 +12404,13 @@ function App(){
                   mode whose card says N/m. */}
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPR F</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#9ca3af'}}>
-                {(()=>{const o=springOut(tune.springF,fe.gameMode,mSpring,ch.motionRatioF);
+                {(()=>{const o=springOut(tune.springF,fe.gameMode,mSpring,ch.motionRatioF,jbAdj(ch,'Spring','F'));
                   return `${o.value.toFixed(o.decimals)} ${o.unit}`;})()}
               </span>
               <div style={{flex:1,height:1,background:'#1e293b'}}/>
               <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>SPR R</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#9ca3af'}}>
-                {(()=>{const o=springOut(tune.springR,fe.gameMode,mSpring,ch.motionRatioR);
+                {(()=>{const o=springOut(tune.springR,fe.gameMode,mSpring,ch.motionRatioR,jbAdj(ch,'Spring','R'));
                   return `${o.value.toFixed(o.decimals)} ${o.unit}`;})()}
               </span>
             </div></Hide>
@@ -12970,8 +13132,8 @@ function App(){
                 <VisSuspTracks tune={tune} physics={physics}
                   natBal={natMechBalance} target={feEffective.arbBalTarget}
                   arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
-                  dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF).value}
-                  dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR).value}
+                  dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF,jbAdj(ch,'Arb','F')).value}
+                  dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR,jbAdj(ch,'Arb','R')).value}
                   hzClamped={physics.rearHzClamped}/>
               </div>}
                 </div></Hide>;
@@ -13445,9 +13607,9 @@ function App(){
             hint="Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets." hintTerm="arb">
 
             <RowGroup style={{marginBottom:0}}>
-              {[['Front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front],
-                ['Rear', tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear]].map(([lbl,v,track,arbMr,{note,metaF}])=>{
-                const o=arbOut(v,lim,track,arbMr);
+              {[['Front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front,'F'],
+                ['Rear', tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear,'R']].map(([lbl,v,track,arbMr,{note,metaF},ax])=>{
+                const o=arbOut(v,lim,track,arbMr,jbAdj(ch,'Arb',ax));
                 return <OutRow key={lbl} hid={lbl==='Front'?'out.arbF':'out.arbR'} label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.arb)} unit={o.unit} note={note} meta={metaF}/>;
               })}
@@ -13460,9 +13622,9 @@ function App(){
             headerRight={springView.head} hintTerm="spring-rate">
 
             <RowGroup style={{marginBottom:0}}>
-              {[['Front',tune.springF,ch.motionRatioF,springView.front],
-                ['Rear', tune.springR,ch.motionRatioR,springView.rear]].map(([lbl,spring,mr,{note,noteColor,metaF}])=>{
-                const o=springOut(spring,fe.gameMode,mSpring,mr);
+              {[['Front',tune.springF,ch.motionRatioF,springView.front,'F'],
+                ['Rear', tune.springR,ch.motionRatioR,springView.rear,'R']].map(([lbl,spring,mr,{note,noteColor,metaF},ax])=>{
+                const o=springOut(spring,fe.gameMode,mSpring,mr,jbAdj(ch,'Spring',ax));
                 return <OutRow key={lbl} hid={lbl==='Front'?'out.springF':'out.springR'} label={lbl} value={o.value} unit={o.unit} decimals={o.decimals}
                   note={note} noteColor={noteColor} meta={metaF}/>;
               })}
@@ -13477,20 +13639,20 @@ function App(){
             hint="Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; the brighter figures on each row are the ones that mode evens out." hintTerm="rebound">
 
             {(()=>{
-              const row=(lbl,v,mr,{note,meta})=>{
-                const o=dampOut(v,lim,mr);
+              const row=(lbl,v,mr,{note,meta},adj)=>{
+                const o=dampOut(v,lim,mr,adj);
                 return <OutRow key={lbl} hid={{'Front Rebound':'out.rebF','Rear Rebound':'out.rebR','Front Bump':'out.bumpF','Rear Bump':'out.bumpR'}[lbl]}
                   label={lbl} value={o.value} decimals={o.decimals}
                   warn={warnOver(v,lim.damping)} unit={o.unit} note={note} meta={meta}/>;
               };
               return(<>
                 <RowGroup>
-                  {row('Front Rebound',tune.rebF,ch.motionRatioF,dampView.front.reb)}
-                  {row('Rear Rebound', tune.rebR,ch.motionRatioR,dampView.rear.reb)}
+                  {row('Front Rebound',tune.rebF,dampMr(ch,'F'),dampView.front.reb,jbAdj(ch,'Reb','F'))}
+                  {row('Rear Rebound', tune.rebR,dampMr(ch,'R'),dampView.rear.reb,jbAdj(ch,'Reb','R'))}
                 </RowGroup>
                 <RowGroup style={{marginBottom:0}}>
-                  {row('Front Bump',tune.bumpF,ch.motionRatioF,dampView.front.bump)}
-                  {row('Rear Bump', tune.bumpR,ch.motionRatioR,dampView.rear.bump)}
+                  {row('Front Bump',tune.bumpF,dampMr(ch,'F'),dampView.front.bump,jbAdj(ch,'Bump','F'))}
+                  {row('Rear Bump', tune.bumpR,dampMr(ch,'R'),dampView.rear.bump,jbAdj(ch,'Bump','R'))}
                 </RowGroup>
               </>);
             })()}
@@ -13627,20 +13789,25 @@ function App(){
             // soft in BeamNG; its row adds the rate at ARB_MR_TYPICAL as a ≈ figure. A bar at 0
             // has nothing to scale.
             const arbSoft=(v,arbMr)=>(arbMr??1)===1&&v>0;
+            // JBEAM ADJUST can ask for a menu value below 0 (a positive offset larger than the solved
+            // value). The row prints 0, turns amber and carries NEEDS <0, rather than a number the
+            // slider cannot take.
+            const belowTag=o=>o.below?[{text:'NEEDS <0',on:true}]:[];
             const buildArbRow=(side,v,track,arbMr,{note,meta})=>{
-              const o=arbOut(v,lim,track,arbMr);
-              const typ=arbSoft(v,arbMr)?[{text:`≈${arbOut(v,lim,track,ARB_MR_TYPICAL).value}`,on:true}]:[];
-              return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb),unit:o.unit,
-                note,meta:[...meta,...typ]};
+              const adj=jbAdj(ch,'Arb',side==='front'?'F':'R');
+              const o=arbOut(v,lim,track,arbMr,adj);
+              const typ=arbSoft(v,arbMr)?[{text:`≈${arbOut(v,lim,track,ARB_MR_TYPICAL,adj).value}`,on:true}]:[];
+              return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb)||!!o.below,unit:o.unit,
+                note,meta:[...meta,...typ,...belowTag(o)]};
             };
             const buildSpringRow=(side,spring,mr,{note,noteColor,meta})=>{
-              const o=springOut(spring,fe.gameMode,mSpring,mr);
+              const o=springOut(spring,fe.gameMode,mSpring,mr,jbAdj(ch,'Spring',side==='front'?'F':'R'));
               return {hid:side==='front'?'out.springF':'out.springR',label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
-                note,noteColor,meta};
+                warn:!!o.below,note,noteColor,meta:[...meta,...belowTag(o)]};
             };
-            const buildDampRow=(lbl,v,mr,{note,meta},hid)=>{
-              const o=dampOut(v,lim,mr);
-              return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping),unit:o.unit,note,meta};
+            const buildDampRow=(lbl,v,ax,{note,meta},hid)=>{
+              const o=dampOut(v,lim,dampMr(ch,ax),jbAdj(ch,lbl==='Bump'?'Bump':'Reb',ax));
+              return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping)||!!o.below,unit:o.unit,note,meta:[...meta,...belowTag(o)]};
             };
 
             // The soft-ARB note, written once, full width under both suspension cards (inside one
@@ -13655,13 +13822,13 @@ function App(){
             const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint(softF)}
               arbRow={buildArbRow('front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front)}
               springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,springView.front)}
-              dampRebRow={buildDampRow('Rebound',tune.rebF,ch.motionRatioF,dampView.front.reb,'out.rebF')}
-              dampBumpRow={buildDampRow('Bump',tune.bumpF,ch.motionRatioF,dampView.front.bump,'out.bumpF')} hintTerm="beamng-output"/>;
+              dampRebRow={buildDampRow('Rebound',tune.rebF,'F',dampView.front.reb,'out.rebF')}
+              dampBumpRow={buildDampRow('Bump',tune.bumpF,'F',dampView.front.bump,'out.bumpF')} hintTerm="beamng-output"/>;
             const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint(softR)}
               arbRow={buildArbRow('rear',tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear)}
               springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,springView.rear)}
-              dampRebRow={buildDampRow('Rebound',tune.rebR,ch.motionRatioR,dampView.rear.reb,'out.rebR')}
-              dampBumpRow={buildDampRow('Bump',tune.bumpR,ch.motionRatioR,dampView.rear.bump,'out.bumpR')} hintTerm="beamng-output"/>;
+              dampRebRow={buildDampRow('Rebound',tune.rebR,'R',dampView.rear.reb,'out.rebR')}
+              dampBumpRow={buildDampRow('Bump',tune.bumpR,'R',dampView.rear.bump,'out.bumpR')} hintTerm="beamng-output"/>;
 
             // Alignment — same degree targets as Forza, but BeamNG's Camber/Caster/Toe Adjust
             // sliders are % of a per-vehicle Jbeam range, not degrees, and that % shifts if

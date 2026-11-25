@@ -43,7 +43,7 @@ const M = new Function(
   slice('const PHASE_NEUTRAL=', 'const PhaseHeadline=') +
   '\nreturn{DEF_CH,DEF_FE,DEF_DR,DEF_META,CODEC_FIELDS,codecFieldGroup,codecFieldKey,' +
   'SHARE_PARTS,SHARE_PART_IDS,mergeTune,partDiffers,encodeTune,decodeTune,sanitizeTune,' +
-  'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,' +
+  'GAME_LIMITS,arbScaleOf,arbClickRsOf,CARRY_BIT,CARRY_ALL,partCarried,carriedSel,codecSum,crossArbUnits,ARB_MAN_LIN_MAX,ARB_MAN_STORED_MAX,' +
   'computeAlignment,alignOut,alignOfsFrom,alignDrOut,ALIGN_KEYS,ALIGN_GAME,ALIGN_OFS_RANGE,' +
   'migrateLegacyAl,alignBeyondReach,alignFieldsOf,alignReachText,alignInGame,migrateToeSign,' +
   'alignBalanceOf,ALIGN_BAL_TOE,ALIGN_BAL_CAMBER,balWord,PHASE_NEUTRAL,PHASE_STRONG,PTS_NEUTRAL,PTS_STRONG};'
@@ -255,10 +255,11 @@ t('a junk gameMode falls back to the default mode bounds, not a crash', () => {
   assert(out.fe.arbManF === Math.min(65, ceiling), `bounds should follow the fallback mode, got ${out.fe.arbManF}`);
 });
 
-t('the field\'s N/m ceiling survives a share code at the widest track and ARB motion ratio', () => {
+t('the field\'s N/m ceiling survives a share code at the widest track, ARB motion ratio and JBEAM ADJUST', () => {
   // The MAN Field is in N/m, storage in N·m/rad = k·track²·amr²/2. A 0..200000 clamp on the
-  // STORED value cut what the Field let through on any track over 1.41 m.
-  const rs = M.ARB_MAN_LIN_MAX * 2.6 * 2.6 * 1.5 * 1.5 / 2;
+  // STORED value cut what the Field let through on any track over 1.41 m. The Field is a menu
+  // value, so the largest JBEAM ADJUST for the bar widens it again (ARB_MAN_STORED_MAX).
+  const rs = M.ARB_MAN_STORED_MAX;
   const out = M.sanitizeTune(manTune('beamng', rs, 240000));
   assert(out.fe.arbManF === rs && out.fe.arbManR === 240000,
     `typed ceiling was cut: sent ${rs}/240000, got ${out.fe.arbManF}/${out.fe.arbManR}`);
@@ -647,6 +648,45 @@ t('rideBottomG is clamped to the envelope of every legal ride height and Hz', ()
   assert(hi > 100 && hi < 200, `upper clamp ${hi}`);
   assert(lo > 0.01 && lo < 0.05, `lower clamp ${lo}`);
   assert(g(1.4) === 1.4, `an ordinary target moved: ${g(1.4)}`);
+});
+
+section('Damper motion ratio + JBEAM ADJUST (ids 98–115)');
+const JB_SET = { damperMotionRatioF: 0.62, damperMotionRatioR: 0,
+  jbScaleSpringF: 0.8, jbOffsetSpringF: 2000, jbScaleArbR: 2, jbOffsetArbR: -10000,
+  jbOffsetBumpR: -1000, jbOffsetRebR: -4000, jbScaleRebF: 1.1 };
+t('every new field round-trips through a share code', () => {
+  const tune = { ch: { ...M.DEF_CH, ...JB_SET }, fe: { ...M.DEF_FE, gameMode: 'beamng' }, dr: M.DEF_DR };
+  const out = roundTrip(tune).ch;
+  for (const [k, v] of Object.entries(JB_SET)) assert(out[k] === v, `${k}: sent ${v}, got ${out[k]}`);
+});
+t('a code from before ids 98–115 decodes to SAME and the identity', () => {
+  const ids = new Set(M.CODEC_FIELDS.filter(f => f.id >= 98 && f.id <= 115).map(f => f.id));
+  assert(ids.size === 18, `expected 18 ids in 98–115, got ${ids.size}`);
+  const code = M.encodeTune({ ...M.DEF_CH, motionRatioF: 0.7 }, M.DEF_FE, M.DEF_DR, 'pro');
+  const body = atob(code).split('|').slice(2);
+  assert(!body.some(p => ids.has(+p.split(':')[0])), 'a default tune carries a new id');
+  const out = M.sanitizeTune(M.decodeTune(code)).ch;
+  assert(out.damperMotionRatioF === 0 && out.jbScaleBumpF === 1 && out.jbOffsetRebR === 0,
+    `old code decoded to ${out.damperMotionRatioF} / ${out.jbScaleBumpF} / ${out.jbOffsetRebR}`);
+});
+t('sanitizeTune keeps SAME (0) and clamps the rest', () => {
+  const s = ch => M.sanitizeTune({ ch: { ...M.DEF_CH, ...ch }, fe: M.DEF_FE, dr: M.DEF_DR }).ch;
+  assert(s({ damperMotionRatioF: 0 }).damperMotionRatioF === 0, 'SAME lost');
+  assert(s({ damperMotionRatioF: -3 }).damperMotionRatioF === 0, 'negative should read as SAME');
+  assert(s({ damperMotionRatioF: 'x' }).damperMotionRatioF === 0, 'junk should read as SAME');
+  assert(s({ damperMotionRatioF: 0.05 }).damperMotionRatioF === 0.2, 'below range not clamped to 0.2');
+  assert(s({ damperMotionRatioF: 9 }).damperMotionRatioF === 1.5, 'above range not clamped to 1.5');
+  assert(s({ jbScaleBumpF: 0 }).jbScaleBumpF === 0.05, 'scale 0 must clamp, never divide by 0');
+  assert(s({ jbScaleBumpF: 99 }).jbScaleBumpF === 20, 'scale ceiling');
+  assert(s({ jbOffsetBumpF: -1e9 }).jbOffsetBumpF === -50000, 'damper offset floor');
+  assert(s({ jbOffsetSpringR: 1e9 }).jbOffsetSpringR === 500000, 'spring offset ceiling');
+  assert(s({ jbOffsetRebF: 12.6 }).jbOffsetRebF === 13, 'offsets are whole numbers');
+  assert(s({ jbScaleArbF: null }).jbScaleArbF === 1, 'missing scale reads as 1');
+});
+t('the CHASSIS part carries every new field', () => {
+  const ch = M.SHARE_PARTS.find(p => p.id === 'ch').keys;
+  for (const k of ['damperMotionRatioF', 'damperMotionRatioR', ...Object.keys(M.DEF_CH).filter(k => k.startsWith('jb'))])
+    assert(ch.includes(k), `${k} is not in the CHASSIS part`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

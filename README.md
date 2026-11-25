@@ -110,8 +110,12 @@ damping in N/m/s, anti-roll rate in N/m, each snapped to the increment BeamNG's
 own slider moves in (500 / 100 / 1000).
 
 Other things specific to BEAMNG mode:
-- **Motion ratios (PRO):** **Motion Ratio F / R** and **ARB Motion Ratio F / R**, because BeamNG's
-  sliders act at the spring/damper and at the bar's own lever rather than at the wheel.
+- **Motion ratios (PRO):** **Motion Ratio F / R**, **ARB Motion Ratio F / R** and **Damper MR F / R**
+  (SAME as the spring's, or its own), because BeamNG's sliders act at the spring, damper and the
+  bar's own lever rather than at the wheel.
+- **JBEAM ADJUST (PRO):** for cars whose jbeam changes the menu value on its way to the physics
+  (`$=$damp_bump_R - 1000`), a scale and offset per output so the printed number lands. Tune Check
+  and the ARB MAN entry undo it too.
 - **Anti-roll is the least-validated output.** Until the ARB ratio is set, each Anti-Roll row also
   prints a `≈` rate at a typical 0.45 arm ratio, in every tier.
 - **BASIC ARB stiffness** is Forza-only and hidden.

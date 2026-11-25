@@ -113,8 +113,39 @@ future version might not carry.
 | 95 | dr | alignOfsCaster | raw number — caster offset from AUTO (Steering feel), ±1.5° |
 | 96 | dr | diffSplitMode | enum `{set:0, exit:1}` — POWER SPLIT's Split Mode (PRO, AWD); `exit` = SOLVE EXIT, applied only in PRO |
 | 97 | dr | diffExitTarget | raw number — SOLVE EXIT's Exit vs MID target, grip %, −5…+10 |
+| 98 | ch | damperMotionRatioF | raw number — 0 = SAME (follows id 58), else 0.2–1.5 |
+| 99 | ch | damperMotionRatioR | raw number — 0 = SAME (follows id 59), else 0.2–1.5 |
+| 100 | ch | jbScaleSpringF | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 101 | ch | jbOffsetSpringF | raw number — JBEAM ADJUST offset, whole number, signed |
+| 102 | ch | jbScaleSpringR | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 103 | ch | jbOffsetSpringR | raw number — JBEAM ADJUST offset, whole number, signed |
+| 104 | ch | jbScaleArbF | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 105 | ch | jbOffsetArbF | raw number — JBEAM ADJUST offset, whole number, signed |
+| 106 | ch | jbScaleArbR | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 107 | ch | jbOffsetArbR | raw number — JBEAM ADJUST offset, whole number, signed |
+| 108 | ch | jbScaleBumpF | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 109 | ch | jbOffsetBumpF | raw number — JBEAM ADJUST offset, whole number, signed |
+| 110 | ch | jbScaleBumpR | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 111 | ch | jbOffsetBumpR | raw number — JBEAM ADJUST offset, whole number, signed |
+| 112 | ch | jbScaleRebF | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 113 | ch | jbOffsetRebF | raw number — JBEAM ADJUST offset, whole number, signed |
+| 114 | ch | jbScaleRebR | raw number — JBEAM ADJUST scale, 0.05–20 |
+| 115 | ch | jbOffsetRebR | raw number — JBEAM ADJUST offset, whole number, signed |
 
-**Next available id: 98.**
+**Next available id: 116.**
+
+Ids 98–115 are BeamNG display fields, `group:'ch'` like 58/59 and 68/69 because they describe
+the car rather than the tune: the damper's own motion ratio, and JBEAM ADJUST, the car's jbeam
+expression between the menu value and the physics (`actual = menu × scale + offset`, one scale
+and one offset for each of Spring, Arb, Bump and Reb, front and rear). Two things to keep:
+
+- **0 is a sentinel in 98/99, not a ratio.** It means SAME: the damper follows the spring's
+  Motion Ratio (`dampMr`). It is the default, so a code from before these ids, or one that never
+  set them, prints exactly the damping it did. A default of 1.0 instead would change the damping
+  of every tune with a spring Motion Ratio other than 1. `sanitizeTune` clamps to 0.2–1.5 and
+  then restores 0 for a 0, missing, junk or negative value.
+- **The identity (scale 1, offset 0) is the default for 100–115**, so it is never written and an
+  older code decodes to unadjusted output. Offsets keep the jbeam's own sign: `- 1000` is −1000.
 
 Ids 91–95 carry the alignment as **intent**, not angles: offsets that the reader's own AUTO
 recommendation takes on top. Like the BRAKES shift (id 80), a code lands on the reader's car
@@ -308,7 +339,7 @@ choice, decided after the code is read.
 
 | Part | Group | Fields |
 |---|---|---|
-| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbClickR, measuredArbNat, measuredArbNatHz |
+| `ch` (CHASSIS) | `ch` | weight, frontBias, wheelbase, cgHeight, trackF, trackR, layout, tyreF, tyreR, rideHeightF, rideHeightR, motionRatioF, motionRatioR, arbMotionRatioF, arbMotionRatioR, damperMotionRatioF, damperMotionRatioR, jbScaleSpringF, jbOffsetSpringF, jbScaleSpringR, jbOffsetSpringR, jbScaleArbF, jbOffsetArbF, jbScaleArbR, jbOffsetArbR, jbScaleBumpF, jbOffsetBumpF, jbScaleBumpR, jbOffsetBumpR, jbScaleRebF, jbOffsetRebF, jbScaleRebR, jbOffsetRebR, useMeasuredNatBal, measuredNatBal, measuredNatBalHz, measuredNatBalRef, useMeasuredArbClick, measuredArbClick, measuredArbClickR, measuredArbNat, measuredArbNatHz |
 | `ride` (SPRINGS) | `fe` | rideStiffness, rideStiffMode, rideBottomG, rideRef, rearHzMode, rearHzMan, rearHzMult, gameMode, targetSpeed |
 | `damp` (DAMPERS) | `fe` | dampingMode, dampCharMode, dampBalMode, dampingBias, bumpBalMode, bumpDampingBias, reboundZeta, bumpRatio, bumpZeta, landingPct, settleTarget, settleBias, settleMode |
 | `arb` (ARB) | `fe` | arbBias, arbMode, arbTargetRollMan, arbShareMan, arbBasicMan, arbBalMode, arbBalTarget, arbBalTargetMode, arbBalDelta, arbBalAbs, phaseExitG, arbManF, arbManR, arbSplitOpposite, arbNeutralEqual, springShare, springShareAuto |
@@ -440,10 +471,12 @@ brings its bars in its own mode's units, except that ticking SPRINGS (which carr
 
 `sanitizeTune` therefore resolves `gameMode` **before** clamping them, and picks
 bounds from it: `1..GAME_LIMITS[mode].arb` in a click one, and in a physical mode
-`0..ARB_MAN_LIN_MAX·2.6²·1.5²/2`. The MAN entry field shows BeamNG's N/m (0 to
-`ARB_MAN_LIN_MAX`, 200000) while the code stores N·m/rad (`k·track²·amr²/2`), so the
-stored ceiling is the field's at the widest track it allows and the largest ARB
-motion ratio. A code can therefore carry anything the UI can type.
+`0..ARB_MAN_STORED_MAX`. The MAN entry field shows BeamNG's menu N/m (0 to
+`ARB_MAN_LIN_MAX`, 200000) while the code stores N·m/rad (`k·track²·amr²/2`, `k` the
+rate at the bar after JBEAM ADJUST), so the stored ceiling is the field's at the widest
+track it allows, the largest ARB motion ratio and the largest anti-roll adjust:
+`(ARB_MAN_LIN_MAX·20 + 500000)·2.6²·1.5²/2`. A code can therefore carry anything the UI
+can type.
 
 It did not always. A hardcoded `1..65` clamp — Horizon's ceiling, applied to every
 mode — crushed every shared BeamNG MAN tune to 65 and let a MOTORSPORT code keep a
