@@ -11,6 +11,31 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — Tune Check in BeamNG ignored Motion Ratio on springs and dampers
+
+- **The bug.** DECODE read BeamNG springs and dampers as if they acted at the wheel. The output
+  card divides them by Motion Ratio², and the ARB import already undid ARB Motion Ratio, but
+  `computeCheck` received the typed menu values unchanged. So at a Motion Ratio other than 1 a
+  tune typed back from its own card decoded to a different Hz and ζ, and IMPORT TUNE / IMPORT AS
+  DNA wrote a different tune than the one printed: a front at 0.7 read about 1.4× the Hz.
+- **The fix.** `checkToWheel` converts the typed menu values back to the wheel before
+  `computeCheck` (undo JBEAM ADJUST, then × Motion Ratio² for springs, × Damper MR² for
+  dampers), and `checkArbRs` does the anti-roll's. `tests-beamng.js` now prints a card and reads
+  it back through Tune Check. `computeCheck` had no direct test before; it has one now.
+- **What moves.** Only BeamNG decodes with a Motion Ratio other than 1.0. At 1.0, the default,
+  nothing changes.
+
+## Added — Damper Motion Ratio and JBEAM ADJUST (BeamNG)
+
+- **Why.** A request (GitHub Discussion #24): some BeamNG cars mount the damper at a different
+  point than the spring, and some jbeams change the menu value before the physics gets it, e.g.
+  the Bolide's rear `"beamDamp":"$=$damp_bump_R - 1000"`. The app printed numbers that landed
+  off on both.
+- **What.** Damper MR F / R (SAME / OWN) and JBEAM ADJUST, a scale and offset per BeamNG output,
+  both PRO, chassis-scoped and display-only. Codec ids 98–115; see CODEC.md for why 98/99 default
+  to 0 (SAME) rather than 1.0. The stored ARB MAN ceiling widened to `ARB_MAN_STORED_MAX` so a code
+  carries anything the entry field accepts with an adjust set.
+
 ## Changed — an untouched Balance Target aims at natural, not 0.60
 
 - **The old default.** A fresh build sits in NATURAL Balance Target mode but stores no offset

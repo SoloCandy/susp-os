@@ -525,6 +525,26 @@ coincide exactly, so this only affects tunes that opt into the advanced field. S
 BeamNG does not expose motion ratio, and it differs per vehicle *and* per axle, so
 it cannot be derived — only entered. Left at 1.0 the output is the wheel rate.
 
+`ch.damperMotionRatioF`/`damperMotionRatioR` give the damper its own ratio when it
+mounts at a different point than the spring. The default is **SAME**, stored as 0,
+which `dampMr` reads as the spring's Motion Ratio, so a tune that never sets it
+prints the damping it always did. Same display-only rule.
+
+**JBEAM ADJUST.** The menu value is not always what the physics gets: a jbeam can
+write `"beamDamp":"$=$damp_bump_R - 1000"`. Per output and axle,
+
+```
+actual = menu × scale + offset                       (the jbeam's expression)
+menu   = snap( max(0, (atMount − offset) / scale) )  (what the card prints)
+```
+
+where `atMount` is the wheel value divided by `mr²` (Motion Ratio for springs,
+`dampMr` for dampers, the existing `2·rs/(track·amr)²` for the bar), and `snap` is
+that output's slider grid. The motion ratio comes first, then the jbeam. Tune Check
+and the ARB MAN entry take menu values, so they apply the inverse,
+`wheel = max(0, menu × scale + offset) × mr²` (`checkToWheel`, `checkArbRs`).
+Nothing in `computeTune` reads any of it.
+
 Three consequences worth knowing:
 
 - **Nothing is clamped or floored, and none of Forza's quantisation applies.**

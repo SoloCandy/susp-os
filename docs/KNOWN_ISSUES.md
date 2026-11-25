@@ -1037,8 +1037,10 @@ another output row.
 BeamNG builds each car's tuning sliders from its own jbeam `variables` block, so every car has
 its own min and max. `GAME_LIMITS.beamng` has no ceiling (`damping`/`arb` are `null`), and the
 app has no field for a car's range, so the spring, damper and anti-roll outputs can print a
-number the car's slider cannot reach. Nothing on the card warns when that happens; the game
-silently stops at its end of the slider.
+number the car's slider cannot reach. A JBEAM ADJUST offset or scale makes that likelier, since
+it shifts the printed menu value away from the physical one. The only end the card knows is 0: a
+row that would need a negative menu value prints 0 with NEEDS <0. Past the top of a car's slider
+nothing warns; the game silently stops at its end.
 
 ## Limitation — a motion ratio is one constant per axle
 

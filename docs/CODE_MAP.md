@@ -839,9 +839,23 @@ must not move when a motion ratio is entered. A grep for these keys inside
 drop link, and equally absent from `computeTune`. Read at exactly three places,
 which must stay in agreement or a value will not round-trip: `arbOut` (the N/m the
 ARB rows and the VISUALS ARB track print), the MAN-mode entry field that inverts it, and the
-TUNE CHECK import that converts a pasted N/m back to roll stiffness. Separate from
+TUNE CHECK import that converts a pasted N/m back to roll stiffness (`checkArbRs`). Separate from
 `motionRatioF`/`motionRatioR` on purpose — spring mount and drop link are
 independent geometry.
+
+**`ch.damperMotionRatioF` / `damperMotionRatioR` default to 0, not 1.0** — 0 is
+SAME (`dampMr` falls back to `motionRatioF/R`), so a tune that never set it prints the
+damping it always did. It looks like a bug and is not: a default of 1.0 would
+silently change the damping of every tune with a spring Motion Ratio other than 1.
+`sanitizeTune` clamps it to 0.2–1.5 and then restores 0, so the clamp stays readable
+by `tests-docs.js`.
+
+**JBEAM ADJUST (`jbScale…` / `jbOffset…`)** — display-only, like the motion ratios.
+Applied in `springOut`/`dampOut`/`arbOut` through `jbMenu`, and inverted in exactly two
+places that take menu values: `checkToWheel`/`checkArbRs` (Tune Check) and the ARB MAN
+entry. `DEF_CH` spells the 16 keys out instead of building them from `JB_KEYS` because
+the test suites evaluate `DEF_CH` before the block that defines `JB_KEYS`;
+`tests-beamng.js` checks the two lists agree.
 
 **`ARB_UTIL_REF`** — looks like a fourth game limit but is not a ceiling and
 nothing clamps to it. It is only CO-SOLVE's utilisation denominator when the game

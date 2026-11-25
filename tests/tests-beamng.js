@@ -38,8 +38,10 @@ const M = new Function(
   slice('// ── colour meanings ──', 'const KG_TO_LB=') + '\n' + // C_*, CAT_RAMP: read by the slices below
   slice('const DEF_CH=', 'const BRAKE_BIAS_SCALE=') + '\n' +
   slice('const GAME_MODE_ENC=', 'const CODEC_FIELDS=') + '\n' +
-  slice('const KG_TO_LB=', 'const arbRowMeta=') +
-  '\nreturn{computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
+  slice('const KG_TO_LB=', 'const arbRowMeta=') + '\n' +
+  slice('const computeCheck=', '// NOTE: arrays fall through') +
+  '\nreturn{computeCheck,checkToWheel,checkArbRs,dampMr,jbAdj,jbMenu,jbActual,jbIsId,JB_KEYS,JB_KINDS,' +
+  'JB_SCALE_MAX,JB_OFS_MAX,ARB_MAN_LIN_MAX,ARB_MAN_STORED_MAX,ARB_MR_TYPICAL,roundTo,computeTune,feelToPhysics,DEF_CH,DEF_FE,GAME_LIMITS,ARB_RS_SCALE,' +
   'DAMPING_CALIBRATION,LB_IN_TO_NM,NMM_PER_LBIN,KGFMM_PER_LBIN,springUnit,cornerMasses,isPhysical,' +
   'springOut,dampOut,arbOut,warnOver,mrDiv,PHYS_SNAP,arbScaleOf,solveArbScale,solveTune,' +
   'displayRsBalance,displayNatOffsetOf,ARB_SCALE_MAX,tireCorrOf,arbScaleStale,limitsOf,' +
@@ -930,6 +932,168 @@ t('CO-SOLVE on AUTO reaches the target with the springs taking none of it', () =
     const { tune } = M.solveTune(ch, fe, 'beamng');
     if (tune.mechBalClamped) throw new Error(`fb ${frontBias} target ${tgt}: clamped at ${tune.mechBalance.toFixed(3)}`);
     near(tune.mechBalance, tgt, 0.01, `fb ${frontBias} target ${tgt} ×${rearHzMult}`);
+  }
+});
+
+console.log('\n── damper motion ratio + JBEAM ADJUST ──');
+// Display-only fields, like the motion ratios: what they may move is the printed menu value and
+// the menu → wheel inverse (Tune Check, ARB MAN). Everything else must stay where it was.
+const LIM_B = () => M.GAME_LIMITS.beamng;
+const ADJ_ALL = { damperMotionRatioF: 0.62, damperMotionRatioR: 0.8,
+  jbScaleSpringF: 0.8, jbOffsetSpringF: 2000, jbScaleSpringR: 1.25, jbOffsetSpringR: -3000,
+  jbScaleArbF: 0.5, jbOffsetArbF: 5000, jbScaleArbR: 2, jbOffsetArbR: -10000,
+  jbScaleBumpF: 1, jbOffsetBumpF: -1000, jbScaleBumpR: 0.9, jbOffsetBumpR: -1000,
+  jbScaleRebF: 1.1, jbOffsetRebF: -4000, jbScaleRebR: 1, jbOffsetRebR: -4000 };
+
+t('DEF_CH spells out exactly JB_KEYS, at the identity, and damper MR at SAME (0)', () => {
+  const inDef = Object.keys(M.DEF_CH).filter(k => k.startsWith('jb')).sort();
+  const want = [...M.JB_KEYS].sort();
+  if (JSON.stringify(inDef) !== JSON.stringify(want))
+    throw new Error(`DEF_CH jb keys ${inDef} ≠ JB_KEYS ${want}`);
+  for (const k of M.JB_KEYS) {
+    const want1 = k.startsWith('jbScale') ? 1 : 0;
+    if (M.DEF_CH[k] !== want1) throw new Error(`${k} defaults to ${M.DEF_CH[k]}, not ${want1}`);
+  }
+  if (M.DEF_CH.damperMotionRatioF !== 0 || M.DEF_CH.damperMotionRatioR !== 0)
+    throw new Error('damperMotionRatio must default to 0 (SAME), never 1.0');
+});
+t('damper motion ratio and JBEAM ADJUST never reach the physics', () => {
+  for (const [label, over] of CHS) {
+    const a = solve(over, {}, 'beamng').tune;
+    const b = solve({ ...over, motionRatioF: 0.7, ...ADJ_ALL }, {}, 'beamng').tune;
+    for (const k of ['springF', 'springR', 'rebF', 'rebR', 'bumpF', 'bumpR', 'arbF', 'arbR', 'fHz', 'rHz',
+                     'mechBalance', 'bTot', 'arbShare', 'rollDeg'])
+      near(a[k], b[k], 1e-12, `${label}: ${k} moved when the display fields were set`);
+  }
+});
+t('SAME (0) follows Motion Ratio; any other value replaces it, per axle', () => {
+  const ch = { ...M.DEF_CH, motionRatioF: 0.7, motionRatioR: 0.9 };
+  if (M.dampMr(ch, 'F') !== 0.7 || M.dampMr(ch, 'R') !== 0.9) throw new Error('SAME did not follow Motion Ratio');
+  const own = { ...ch, damperMotionRatioF: 0.55 };
+  if (M.dampMr(own, 'F') !== 0.55 || M.dampMr(own, 'R') !== 0.9) throw new Error('OWN leaked across axles');
+  // A tune from before the field: no key at all reads as SAME.
+  const legacy = { ...ch }; delete legacy.damperMotionRatioF;
+  if (M.dampMr(legacy, 'F') !== 0.7) throw new Error('a missing field must read as SAME');
+});
+t('at SAME and the identity, every output is exactly what it was before the fields existed', () => {
+  const lim = LIM_B();
+  for (const mr of [1, 0.7, 0.45]) for (const v of [0, 950, 4321, 18000]) {
+    const ch = { ...M.DEF_CH, motionRatioF: mr };
+    const adj = M.jbAdj(ch, 'Bump', 'F');
+    if (!M.jbIsId(adj)) throw new Error('default adjust is not the identity');
+    near(M.dampOut(v, lim, M.dampMr(ch, 'F'), adj).value, M.roundTo(v / M.mrDiv(mr), 100), 1e-12, `damp mr ${mr} v ${v}`);
+    near(M.springOut(v / 10, 'beamng', false, mr, adj).value, M.roundTo(v / 10 * M.LB_IN_TO_NM / M.mrDiv(mr), 500), 1e-12, `spring mr ${mr}`);
+    near(M.arbOut(v, lim, 1.55, mr, adj).value, M.roundTo(2 * v / (1.55 * 1.55 * M.mrDiv(mr)), 1000), 1e-12, `arb mr ${mr}`);
+  }
+});
+t('Bolide: offset −1000 bump / −4000 rebound add exactly 1000 / 4000 to the menu value', () => {
+  const lim = LIM_B();
+  for (const v of [3000, 7400, 12345]) {
+    near(M.dampOut(v, lim, 1, { scale: 1, offset: -1000 }).value, M.dampOut(v, lim, 1).value + 1000, 1e-12, 'bump');
+    near(M.dampOut(v, lim, 1, { scale: 1, offset: -4000 }).value, M.dampOut(v, lim, 1).value + 4000, 1e-12, 'rebound');
+  }
+});
+t('a scale divides the value at the mount before the slider snap, and combines with an offset', () => {
+  const lim = LIM_B();
+  near(M.dampOut(8000, lim, 1, { scale: 0.8, offset: 0 }).value, 10000, 1e-12, 'scale 0.8');
+  near(M.dampOut(8000, lim, 1, { scale: 0.8, offset: -2000 }).value, 12500, 1e-12, 'scale 0.8 offset −2000');
+  // Snap after the division: 7000/0.8 = 8750 lands on the 100 grid; 7010/0.8 = 8762.5 → 8800.
+  near(M.dampOut(7010, lim, 1, { scale: 0.8, offset: 0 }).value, 8800, 1e-12, 'snap after scale');
+  // Motion ratio first, then the jbeam: (v/mr²)·… not (v·…)/mr².
+  near(M.dampOut(4900, lim, 0.7, { scale: 2, offset: 0 }).value, 5000, 1e-12, 'mr before scale');
+});
+t('spring and anti-roll take their own adjust, including the ≈ typical anti-roll figure', () => {
+  const lim = LIM_B(), adjS = { scale: 0.5, offset: 1000 }, adjA = { scale: 2, offset: -10000 };
+  const lbIn = 40000 / M.LB_IN_TO_NM;
+  near(M.springOut(lbIn, 'beamng', false, 1, adjS).value, 78000, 1e-9, 'spring (40000 − 1000)/0.5');
+  const atBar = 2 * 12000 / (1.55 * 1.55);
+  near(M.arbOut(12000, lim, 1.55, 1, adjA).value, M.roundTo((atBar + 10000) / 2, 1000), 1e-12, 'arb');
+  const typ = 2 * 12000 / (1.55 * 1.55 * M.mrDiv(M.ARB_MR_TYPICAL));
+  near(M.arbOut(12000, lim, 1.55, M.ARB_MR_TYPICAL, adjA).value, M.roundTo((typ + 10000) / 2, 1000), 1e-12, '≈ typical');
+});
+t('an adjust that needs a negative menu value prints 0 and says so', () => {
+  const lim = LIM_B();
+  const o = M.dampOut(3000, lim, 1, { scale: 1, offset: 5000 });
+  if (o.value !== 0 || !o.below) throw new Error(`got ${o.value}, below ${o.below}`);
+  if (Object.is(o.value, -0)) throw new Error('printed −0');
+  if (M.dampOut(3000, lim, 1).below) throw new Error('the identity reported below');
+  if (M.dampOut(0, lim, 1).below) throw new Error('a 0 output is not below the slider');
+});
+t('Forza outputs ignore the adjust entirely', () => {
+  const adj = { scale: 0.5, offset: 9999 };
+  near(M.springOut(400, 'horizon', M.springUnit('lbin'), 0.6, adj).value, 400, 1e-12, 'spring');
+  near(M.dampOut(7.5, M.GAME_LIMITS.horizon, 0.6, adj).value, 7.5, 1e-12, 'damper');
+  near(M.arbOut(20, M.GAME_LIMITS.horizon, 1.55, 0.6, adj).value, 20, 1e-12, 'arb');
+});
+t('jbActual inverts jbMenu off the snap', () => {
+  for (const adj of [{ scale: 1, offset: 0 }, { scale: 0.8, offset: -1000 }, { scale: 2.5, offset: 300 }])
+    for (const menu of [1200, 5000, 33000])
+      near(M.jbMenu(M.jbActual(menu, adj), adj, 100).value, menu, 1e-9, `scale ${adj.scale} offset ${adj.offset}`);
+});
+t('ARB MAN / Tune Check anti-roll entry inverts the printed rate exactly, with every adjust', () => {
+  const lim = LIM_B();
+  for (const track of [1.40, 1.82]) for (const amr of [1, 0.45]) for (const [s, o] of [[1, 0], [0.5, 5000], [2, -10000]]) {
+    const ch = { ...M.DEF_CH, trackF: track, arbMotionRatioF: amr, jbScaleArbF: s, jbOffsetArbF: o };
+    for (const menu of [6000, 20000, 90000]) {
+      const rs = M.checkArbRs(ch, 'F', menu);
+      near(M.arbOut(rs, lim, track, amr, M.jbAdj(ch, 'Arb', 'F')).value, menu, 1e-9,
+           `track ${track} amr ${amr} ×${s} +${o} menu ${menu}`);
+    }
+  }
+});
+t('the stored ARB MAN ceiling covers the Field at every track, ratio and adjust', () => {
+  near(M.ARB_MAN_STORED_MAX,
+       (M.ARB_MAN_LIN_MAX * M.JB_SCALE_MAX + M.JB_OFS_MAX.Arb) * 2.6 * 2.6 * 1.5 * 1.5 / 2, 1e-12,
+       'ARB_MAN_STORED_MAX is written out; it must match the constants it stands for');
+  const ch = { ...M.DEF_CH, trackF: 2.6, arbMotionRatioF: 1.5, jbScaleArbF: M.JB_SCALE_MAX, jbOffsetArbF: M.JB_OFS_MAX.Arb };
+  if (M.checkArbRs(ch, 'F', M.ARB_MAN_LIN_MAX) > M.ARB_MAN_STORED_MAX + 1e-6)
+    throw new Error('a value the Field lets through is above the stored ceiling');
+});
+
+console.log('\n── Tune Check (computeCheck) ──');
+// computeCheck had no direct test before: only IMPORT AS DNA reached it, through tests-dna.js.
+t('computeCheck: Hz and ζ from first principles, Forza and BeamNG', () => {
+  const masses = { front: 420, rear: 380 };
+  const sprLbIn = { f: 400, r: 300 };
+  const kF = 400 * M.LB_IN_TO_NM, kR = 300 * M.LB_IN_TO_NM;
+  for (const [calib, dmp] of [[M.DAMPING_CALIBRATION, { rebF: 6, rebR: 5, bumpF: 3.5, bumpR: 3 }],
+                              [1, { rebF: 9000, rebR: 7000, bumpF: 4000, bumpR: 3500 }]]) {
+    const ck = M.computeCheck(sprLbIn, dmp, masses, calib);
+    near(ck.hF, Math.sqrt(kF / 420) / (2 * Math.PI), 1e-12, 'hF');
+    near(ck.hR, Math.sqrt(kR / 380) / (2 * Math.PI), 1e-12, 'hR');
+    near(ck.zRebF, dmp.rebF / calib / (2 * Math.sqrt(kF * 420)) * 100, 1e-12, 'zRebF');
+    near(ck.zBmpR, dmp.bumpR / calib / (2 * Math.sqrt(kR * 380)) * 100, 1e-12, 'zBmpR');
+  }
+  const z = M.computeCheck({ f: 0, r: 0 }, { rebF: 5, rebR: 5, bumpF: 3, bumpR: 3 }, masses);
+  if (z.hF !== 0 || z.zRebF !== 0) throw new Error('a zero spring must read 0, not NaN');
+});
+t('checkToWheel is the identity at MR 1, SAME and no adjust', () => {
+  const spr = { f: 400, r: 300 }, dmp = { rebF: 9000, rebR: 7000, bumpF: 4000, bumpR: 3500 };
+  const w = M.checkToWheel(M.DEF_CH, spr, dmp);
+  for (const k of ['f', 'r']) near(w.spr[k], spr[k], 1e-12, `spr ${k}`);
+  for (const k of Object.keys(dmp)) near(w.dmp[k], dmp[k], 1e-12, `dmp ${k}`);
+});
+t('Tune Check reads the printed BeamNG card back to the tune that printed it', () => {
+  // The round-trip the fix is for: type the card's menu values into DECODE and get the solved
+  // Hz and ζ back, with motion ratios and JBEAM ADJUST set. Tolerance is the slider grids.
+  const lim = LIM_B();
+  for (const [label, over] of CHS) {
+    const { ch, tune } = solve({ ...over, motionRatioF: 0.7, motionRatioR: 0.85, ...ADJ_ALL }, {}, 'beamng');
+    const masses = M.cornerMasses(ch);
+    const menuSpr = ax => M.springOut(tune[`spring${ax}`], 'beamng', false, ch[`motionRatio${ax}`], M.jbAdj(ch, 'Spring', ax)).value;
+    const menuD = (kind, key, ax) => M.dampOut(tune[key], lim, M.dampMr(ch, ax), M.jbAdj(ch, kind, ax)).value;
+    const spr = { f: menuSpr('F') / M.LB_IN_TO_NM, r: menuSpr('R') / M.LB_IN_TO_NM };
+    const dmp = { rebF: menuD('Reb', 'rebF', 'F'), rebR: menuD('Reb', 'rebR', 'R'),
+                  bumpF: menuD('Bump', 'bumpF', 'F'), bumpR: menuD('Bump', 'bumpR', 'R') };
+    const w = M.checkToWheel(ch, spr, dmp);
+    const back = M.computeCheck(w.spr, w.dmp, masses, 1);
+    const truth = M.computeCheck({ f: tune.springF, r: tune.springR },
+      { rebF: tune.rebF, rebR: tune.rebR, bumpF: tune.bumpF, bumpR: tune.bumpR }, masses, 1);
+    for (const k of ['hF', 'hR']) near(back[k], truth[k], 0.02, `${label}: ${k}`);
+    for (const k of ['zRebF', 'zRebR', 'zBmpF', 'zBmpR']) near(back[k], truth[k], 0.03, `${label}: ${k}`);
+    // And the bug it fixes: the menu values read as wheel values are well off.
+    const raw = M.computeCheck(spr, dmp, masses, 1);
+    if (Math.abs(raw.hF / truth.hF - 1) < 0.05) throw new Error(`${label}: the uncorrected read is not off — test proves nothing`);
   }
 });
 
