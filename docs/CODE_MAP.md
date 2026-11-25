@@ -328,10 +328,11 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `PhaseVerdict` | expanded handling-balance panel, **PRO**: tips, then ENTRY / MID / EXIT / TRANSIENT rows from `phaseMargins`, with alignment's TOE F / TOE R / CAMBER as direction-only `DirSeg` rows. `PhaseHeadline` (with `balWord`, `PHASE_STRONG`, `PTS_NEUTRAL`, `PTS_STRONG`) is the INT/PRO bar header: the three phases in words. `PHASE_NEUTRAL` (±1%), `signOf` and `fmtPct` sit beside it. `App` computes `phase` only when `uiMode==='pro'`, and the headline, stacked bar and ENTRY/MID/EXIT strip all switch on it being non-null. Its `Seg` (a `BiasSeg` at the phase scale) is module-level, just above it, for the same reason as `HandlingVerdict`'s `GroupSection` |
 | `EntryCard` | one garage entry inside the GARAGE drawer |
 | `CheckerModal` | TUNE CHECK (DECODE / MEASURE). **The overlay has no backdrop-click close, unlike every other modal — that is deliberate, not a missing handler:** MEASURE's two ARB readings are component state taken one at a time with a trip into the game between them, and a stray click on the dim margin used to discard them silently. ✕ is the only way out. They stay component state rather than lifting to `App` because `probeHz` re-seeds per car from `ch.measuredNatBalHz` on open and `App` has no car identity to re-seed against; instead the work in progress — DECODE's typed tune, step 2's readings, and a Measure Hz moved before step 1 is saved — is mirrored to sessionStorage through `ckSessGet`/`ckSessSet`, each keyed so it only comes back where it still applies (keys in [PERSISTENCE.md](PERSISTENCE.md)). Because closing the window no longer resets DECODE, step 1 carries a **START OVER** button (`decodeStartOver`) once anything is entered: without it an alignment typed for one tune stayed `ckAlEntered` and rode along on the next tune's IMPORT TUNE until the browser tab closed. MEASURE is one column of two numbered steps — `STEP 1 · NAT BAL SETUP`, then `STEP 2 · ARB SCALE SETUP`, which is locked until step 1 has a reading because `solveArbScale` needs it. Each step is laid out as the trip into the game: a table of what to set (step 1: front and rear down the side, springs and bars across; step 2: one row per reading with bars, box and a status — NOT SET / SET / FITS / OFF ±n / CHECK), then the box for what the game shows. Every unset box opens on a NumBox `seed`: step 1's is `natEst` (the model's display-space natural at the live Measure Hz), step 2's is `arbExpect` (`arbProbeBalOf` at `arbSolveHz`, with `arbPartialScaleOf`'s one-scale fit of the readings typed so far once there are any, else the scale in use). Step 1 has no slider: a reading is typed, into a `commitOnEdit` box so retaking it at a new Measure Hz commits even when the number is the same. Enter in step 1's box or a reading's hands focus to the next reading (`focusRead`, through `ckReadsRef`). Step 2's note prints step 1's springs at `arbSolveHz`, and **both** steps warn on `arbHzMismatch` — step 1 because its table then shows springs the reading in use wasn't taken on. `arbReads` is mirrored to sessionStorage (`suspos_ck_arb_reads_v1`, see [PERSISTENCE.md](PERSISTENCE.md)), keyed to the step-1 reading, so closing the window mid-set no longer loses it. Each step's `Card` `headerRight` carries its own state chip (NOT SET / SET n / DEFAULT n / RE-MEASURE n) — step 1's goes amber on `natBalStale` and step 2's on `arbScaleStale`, so both steps flag a reading the chassis has moved out from under, and step 1's amber block also says the ARB scale below rests on it, and the module-scope `CkPhase` / `CkChip` / `CkNote` / `CkWarn` / `CkIntro` helpers exist so both steps — and both **tabs** — share one rhythm: what to set, then what to type back. (They were local to this block until DECODE became numbered steps too.) Step 2 ends in a **SCALE IN USE** toggle (`DEFAULT 540` / `MEASURED n`) rather than APPLY/RESET buttons — `DEFAULT` nulls the stored reading to hold `sanitizeTune`'s flag-off-means-null invariant, and `MEASURED` is disabled until `arbCanMeasure` (a fresh pair of readings, or a scale already applied). `arbSolveHz` anchors both solves to `ch.measuredNatBalHz`, never the live `probeHz`, and `arbHzMismatch` surfaces the difference. A stale scale whose NAT BAL was cleared renders a `USE DEFAULT` button inside the locked branch — without it that state has no way back to the default, since every other route to the toggle needs step 1. DECODE is the same two-numbered-step column: `STEP 1 · TUNE INPUTS` (mass, then alignment, bars, springs, damping, each under its own `CkPhase`; the owner's order) then `STEP 2 · DECODED TUNE`. Step 2 renders **nothing** — no readouts, no buttons — until `ckEntered`, which the `pS`/`pD`/`pA` setters flip on the first spring/damper/ARB edit; the mass fields do not flip it, since they write to `ch` and are shared with the sidebar. Without that gate the seeded stock figures (`ckSpr` 400/300 lb/in and friends, needed because `Field` requires a number) decoded on open and read as a real tune. Step 1's optional ALIGNMENT block, right after the mass, (`alignOk`: INT+ and a Forza mode) with its own gate, `ckAlEntered`: IMPORT TUNE calls `onImportTune(feFn, drFn)` with `decodedFe` only if the suspension was entered and `decodedDr` (MANUAL alignment) only if the alignment was, and App applies both in one `commit`, so an alignment never drags the seed springs in or the reverse. Step 2 renders once either gate is open, in the same order: alignment, then bars, Hz and damping ratios under a SUSPENSION phase when both are present. DECODE's two buttons share one `decodedFe` patch and stack under a **WHERE IT GOES** phase, each with its own line of what it keeps and what it touches: IMPORT TUNE writes the patch to the tune, IMPORT AS DNA (PRO, `onImportDna`) reads it back into the DNA editor without touching this car. `decodedFe` anchors ζ and bump on the **front** axle because it writes `rideRef:'front'` and STANDARD's exact-anchor axle follows Ride Reference — the two have to move together, and once didn't ([HISTORY.md](HISTORY.md)) |
-| `GlossaryModal` | glossary lookup (TERMS in the header). zIndex 1100, above every other modal, the ⓘ tooltip and the tutorial card. Opens on ALL. Each group is split by `TierRule`s into BEGINNER, INTERMEDIATE and PRO sections, entries in `GLOSSARY` order inside each. A BEG / INT / PRO chip filters with one of two scopes: ONLY (the default) shows that tier's own entries, then an "ADDED AT …" section holding just the paragraphs that tier adds to lower-tier entries (`data-glossary-add`, title links to the whole entry); UP TO shows every entry at or below the tier and hides `[INT] `/`[PRO] ` paragraphs above it. Filter and scope are session state, not persisted, and search runs inside them. `focus` (a `GLOSSARY` id) scrolls to and flashes that entry on open; SEE buttons jump the same way, widening the filter or clearing the search when either hides the target. Scrolls by `offsetTop` inside its own scroller, never `scrollIntoView` (it can move the page behind on mobile). Escape closes it from a capture-phase document listener, so nothing underneath sees the key. `App` owns the wiring: `glossaryBridge.open(id,{from,keyboard})` sets `glossaryFocus` and re-keys the modal per focus, and on close focus returns to `from` only when the link was used from the keyboard. The box has a fixed height so the search field never moves. Group headers (`data-glossary-group-hdr`) are sticky and a section strip (`data-glossary-goto`) jumps between them; a search replaces the groups with one ranked list (name hits, then text hits) with a hit count and `<mark>` highlights. SEE chips and ADDED-AT titles push onto a Back stack (`data-glossary-back`, Backspace or Alt+←); with the stack empty, BACK on a modal opened at an entry closes it. ONLY / UP TO pressed under ALL apply to the reader's own tier |
+| `GlossaryModal` | glossary lookup (GLOSSARY under the desktop header's ?, TERMS on a phone). zIndex 1100, above every other modal, the ⓘ tooltip and the tutorial card. Opens on ALL. Each group is split by `TierRule`s into BEGINNER, INTERMEDIATE and PRO sections, entries in `GLOSSARY` order inside each. A BEG / INT / PRO chip filters with one of two scopes: ONLY (the default) shows that tier's own entries, then an "ADDED AT …" section holding just the paragraphs that tier adds to lower-tier entries (`data-glossary-add`, title links to the whole entry); UP TO shows every entry at or below the tier and hides `[INT] `/`[PRO] ` paragraphs above it. Filter and scope are session state, not persisted, and search runs inside them. `focus` (a `GLOSSARY` id) scrolls to and flashes that entry on open; SEE buttons jump the same way, widening the filter or clearing the search when either hides the target. Scrolls by `offsetTop` inside its own scroller, never `scrollIntoView` (it can move the page behind on mobile). Escape closes it from a capture-phase document listener, so nothing underneath sees the key. `App` owns the wiring: `glossaryBridge.open(id,{from,keyboard})` sets `glossaryFocus` and re-keys the modal per focus, and on close focus returns to `from` only when the link was used from the keyboard. The box has a fixed height so the search field never moves. Group headers (`data-glossary-group-hdr`) are sticky and a section strip (`data-glossary-goto`) jumps between them; a search replaces the groups with one ranked list (name hits, then text hits) with a hit count and `<mark>` highlights. SEE chips and ADDED-AT titles push onto a Back stack (`data-glossary-back`, Backspace or Alt+←); with the stack empty, BACK on a modal opened at an entry closes it. ONLY / UP TO pressed under ALL apply to the reader's own tier |
 | the data modal | SHARE (COPY CODE / COPY LINK) / LOAD CODE / BACKUP / RESTORE (inline in `App`, not a component). LOAD CODE stages into `pending` and applies through `mergeTune` — see the share-parts suite below. RESTORE stages too, in its own way: one `chosen(kind)` predicate drives both the per-row counts it prints (`3 restored, replacing your 1 entry`, amber where something of yours drops) and the entries actually dropped, so the summary can never describe a different restore than the one that runs. It is the only action that replaces entries the garage cannot undo, hence the net-effect box and the two-tap `ConfirmBtn` |
 | `TutorialPanel` | the guided tours. The body (`data-tut-body`) is `white-space: pre-line`, so a `\n` in a step's `body` is a line break. A step's optional `glossary` ids render a TERMS row of links (`data-tut-terms`) under the body that open the glossary at that entry; this replaced the old per-step `terms:` field and the INT guide's two "Key Terms" steps |
 | `OverwriteBtn` | *(no current call site — `useTwoTap`, the hook behind it, is what the garage reuses)* |
+| `MenuButton`, `MenuItem`, `MenuHead` | The desktop header's menus (the game · level chip, ⋯, ?). `MenuButton` is a `tbtn` that opens a `role="menu"` panel under it: a click toggles, Escape (focus back to the button) or a press outside closes, an item's `onClick` gets `close` through the render-prop. Opened from the keyboard it focuses the first item and the arrow keys walk them. `force` holds it open and ignores outside presses — a guide step spotlighting an item. `MenuItem` is one row (label, optional note and tag, `tone` for RESET's red); `MenuHead` a group caption |
 | `ConfirmBtn` | A labelled full-width two-tap button (`RESTORE` → `SURE?`), the same idea as `OverwriteBtn`'s glyph. It exists as a component because `useTwoTap` is a hook and its caller — the RESTORE panel — is an IIFE inside `App`'s render |
 | `ErrorBoundary` | wraps the app |
 
@@ -373,7 +374,7 @@ the name, then an optional `(…)` qualifier in Title Case, rendered small and g
 `glossaryBridge.open` is a module-level slot `App` fills so a `Hint` or `TermLink` deep in
 the tree can open the modal without prop drilling. Beside `GlossaryModal`: `TIER_RANK`
 (the filter's ordering), `TIER_NAME`, `TIER_COLOR`, `TierBadge` and `TierRule` (the only
-place tiers are coloured — the header BEG/INT/PRO buttons are plain `.tbtn`) and
+place tiers are coloured — the BEG/INT/PRO buttons are plain `.tbtn` / `.tog`) and
 `glossParas`. `TierBadge` has two looks that must stay distinct: solid for an entry's own
 `tier`, outlined `INT+` / `PRO` on a ruled block (`para`) for a tagged paragraph. Group names
 carry no tier — the tags do. The modal's filter
@@ -406,10 +407,11 @@ depends on the tier.
 - **All tiers**: `zone-garage` — the right-side GARAGE drawer. It is *not* part
   of the sidebar, so it sits outside the per-tier lists below and is the only
   zone present at every tier regardless of panel.
-- **All tiers, inside the sidebar**: `zone-toolbar` — the RESET (⟲)/DNA/CHECK/SHARE row,
-  pinned at the top of the sidebar's outer wrapper (a sibling of the scrollable
-  content), outside the `uiMode` branching that
-  splits BEG from INT/PRO below it.
+- **All tiers**: `zone-toolbar` — the tune's actions. On desktop it is the header's action
+  group (↩ ↪ SHARE ⋯, with DNA, CHECK and RESET inside ⋯); on a phone it is the ⟲ ↩ ↪ DNA
+  CHECK SHARE row pinned at the top of the sidebar's outer wrapper, outside the `uiMode`
+  branching. Exactly one of the two renders (`isMobile`), so the id and the `tb.*` spot ids
+  serve both, and every guide step that focuses `toolbar` works at either width.
 - **BEG** renders its own flat panel: `zone-layout-build`, `zone-build-type`,
   `zone-weight`, `zone-ride-stiffness`, `zone-balance`, `zone-character`, plus
   `zone-output` and `zone-balance-bar`. No `Sec` sections at all, and no VISUALS.
@@ -574,34 +576,47 @@ does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)
 
 ---
 
-## Header layout: `headerCompact`
+## Header layout
 
-The full header row — ☰, VIS, brand, UNITS, the game-mode dropdown, BEG/INT/PRO, then
-`?` / TERMS / the GitHub source link / GARAGE — needed roughly 975px before VIS joined it once the four divider margins
-and a two-digit GARAGE count are counted. That is well above `isMobile`'s 768px
-cutoff, so between those widths the desktop header used to render and push
-GARAGE and its neighbours off-screen: that row has no wrap and no horizontal
-scroll. Adding the third game mode is what pushed it over; two fitted inside
-768px.
+**Desktop (`!isMobile`, 768 px and up)** is one row, `desktopHeader()`, grouped by job:
 
-`headerCompact` is `windowWidth < 1040`. Measured flush at exactly 960 without VIS; with VIS
-the GARAGE button ended at 985 in a 1000 px window, so the cutoff moved from 1000 to 1040 to keep
-the same headroom for a three-digit count and font metrics differing from the machine it was
-measured on. **Do not lower it without re-measuring the GARAGE
-button's right edge against the viewport.**
+```
+SUSP.OS │ INPUTS VISUALS TUNE │ ··· │ HORIZON · PRO ▾ │ ↩ ↪ SHARE ⋯ │ ? GARAGE
+```
 
-Two things to know before touching it:
+- **Panel switch.** INPUTS toggles `sidebarOpen`. VISUALS is `toggleVis` (the column's
+  `visUI.dock` at `VIS_COL_MIN` and up, the swap view's `visView` below). TUNE is always on at
+  `VIS_COL_MIN` and up (disabled, its tooltip says why); below it TUNE and VISUALS share the
+  right pane, so TUNE clears `visView`.
+- **Game · level chip** (`MenuButton`): GAME and LEVEL as `OptionSeg` rows (`switchGameMode`;
+  `requestMode`, keeping the 🔒 gating and `lockTitle`), then UNITS…, which opens the units
+  modal and shows the current units under it.
+- **Actions**, `zone-toolbar`: ↩ ↪ (`tb.undo`), SHARE (`tb.share`, `openShare`) and ⋯, which holds
+  DNA (`tbDna`), CHECK (`tbCheck`) and ⟲ RESET (`tb.reset`) — RESET away from undo. `actMenuForced`
+  holds ⋯ open while a guide step spotlights one of those three. In the edit view, hidden
+  `tbDna` / `tbCheck` show inside ⋯ with the usual HIDE / SHOW treatment.
+- **? menu:** GUIDE (`askTut`), GLOSSARY (`glossaryBridge.open`, focus returning to ?), then
+  SOURCE — or ↻ RELOAD / ↓ DOWNLOAD while `useDeployCheck` reports a newer version, when ?
+  also carries a green dot.
+- **GARAGE** stays a button of its own at the right.
 
-- **It is deliberately not folded into `isMobile`.** That flag also drives the
-  sidebar overlay, the backdrop, `sidebarWidth` and the brand sizing, so turning
-  every ~900px laptop into the overlay-sidebar layout would be a far larger
-  behaviour change than the bug warrants. `headerCompact` decides only *where*
-  the units / game-mode / tier groups live.
-- **Three gate sites move those groups and must stay in sync**: header row 1
-  (units + game mode + tiers, shown when *not* compact), header row 2 (the tier
-  row, shown when compact), and the top of the sidebar scroll area (units + game
-  mode, shown when compact). Gating only some of them leaves those controls
-  unreachable in the gap.
+The header wrapper has `position:relative; zIndex:300` so the menus overhang the body (above the
+garage drawer's 200, below the tutorial card's 700 and the modals).
+
+**Widths.** The desktop runs at 1.1× zoom (`uiZoom`), so 768 px is 698 px of layout. Below
+1000 px (`hdrTight`) the chip shortens the game to FH / FM / BNG and the wordmark and gaps
+shrink; below 900 px the wordmark goes. Measured spare width (the flex spacer) with an empty
+garage: 91 px at 768, 138 at 900, 140 at 1000 — room for a three-digit GARAGE count and the
+MOTORSPORT label. **Re-measure the spacer at 768 and 900 before adding anything to the row.**
+
+**Phones (`isMobile`)** keep the two-row header: ☰, VIS and (from 400 px) the wordmark, then
+? / TERMS / GitHub / GARAGE; row 2 holds BEG / INT / PRO, and the top of the sidebar holds
+UNITS and the game dropdown under the ⟲ ↩ ↪ DNA CHECK SHARE toolbar. Below 400 px the wordmark
+hides: with VIS beside ☰ the row measured ~390 px.
+
+This replaced `headerCompact`, a width flag (finally `< 1040`) that moved the units, game and
+tier controls between header row 1, header row 2 and the top of the sidebar, three gate sites
+that had to stay in sync. Placement is `isMobile` alone now.
 
 A container-shaped decision elsewhere follows the same precedent rather than
 reusing a viewport flag: the BeamNG output grid collapses to one column on a
@@ -619,22 +634,19 @@ gap under the shorter one; Forza has no front/rear pairing to keep in line. The 
 is the plain `containerType` div around the output; `.forza-out` sits inside it, since an
 element cannot query its own width.
 
-The ↩ undo button used to sit in that row too; it moved to the sidebar toolbar with
-redo, so the row is one button narrower than when 975 was measured; VIS beside ☰ then
-made it one wider, hence 1040. Lowering it is safe only after the GARAGE edge check above.
-
-The GitHub slot is one glyph wider while it shows the reload (↻) or download (↓) state (below). That was
-measured before VIS joined row 1: with it lit, GARAGE's right edge sat at the header's padding at
-1000px, 820px, 480px and 375px. With VIS, and the SUSP.OS wordmark hidden below 400px, GARAGE ends
-at 361 in a 375 window and 306 in a 320 one unlit, which leaves room for that glyph; the lit state
-has not been re-measured since.
+On a phone the GitHub slot is one glyph wider while it shows the reload (↻) or download (↓)
+state (below). GARAGE ends at 361 in a 375 window and 306 in a 320 one unlit, which leaves room
+for that glyph; the lit state has not been re-measured since VIS joined the row. On desktop the
+state lives inside the ? menu, so the row's width does not change.
 
 ---
 
 ## Deploy check: `useDeployCheck`
 
-The header's GitHub source link changes once a newer SUSP.OS is live, so an open tab
-learns of a push. It returns `null`, `'reload'` or `'download'`:
+The GitHub source link changes once a newer SUSP.OS is live, so an open tab learns of a push.
+On a phone it is the header's GitHub button, as below. On desktop it is the last item of the ?
+menu (SOURCE becomes ↻ RELOAD or ↓ DOWNLOAD), and ? carries a green dot so the change is seen
+with the menu shut. It returns `null`, `'reload'` or `'download'`:
 
 - **`'reload'`** — the page is served over http(s), i.e. GitHub Pages. The link
   becomes a button that keeps the GitHub mark, adds ↻, turns green (`.tbtn.update`),
@@ -684,8 +696,8 @@ See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for what it misses.
 
 `makeHistory` (module level, `── Undo / redo history ──`) holds two stacks of
 whole-state snapshots `{ch, fe, dr, al, dnaApplied}`. App drives it from the
-`── Undo / redo wiring ──` block. The ↩ / ↪ buttons live in `zone-toolbar` beside
-RESET; Ctrl/⌘+Z undoes, Ctrl/⌘+Shift+Z and Ctrl+Y redo, except while a text field
+`── Undo / redo wiring ──` block. The ↩ / ↪ buttons live in `zone-toolbar` (the desktop
+header's action group, or the phone's sidebar toolbar beside RESET); Ctrl/⌘+Z undoes, Ctrl/⌘+Shift+Z and Ctrl+Y redo, except while a text field
 has focus (the browser's own text undo wins there).
 
 **Two kinds of setter, and which one to use matters.** `setCh`/`setFe`/`setDr`/

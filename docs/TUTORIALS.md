@@ -74,7 +74,7 @@ so the step body stays short and the depth lives in one place.
 | PRO | `tutSeen.intermediate` | switches to INT and opens the intermediate guide |
 
 The gate is explained, not silent. A locked tier button is dimmed with a 🔒 before
-its label, in both the desktop header and the phone (`headerCompact`) row, and its
+its label, in both the desktop header's game · level menu and the phone's header row 2, and its
 `title` (from `lockTitle`) reads "Unlocks after you open the BEG guide" (or INT
 guide for PRO). A locked click sets `tutNotice` — e.g. "INT unlocks once you've
 seen the BEG guide." — which `TutorialPanel` shows via its `notice` prop above the
@@ -103,7 +103,9 @@ panel opens it, and nothing closes it again: the user opened the guide from that
 
 Rendered when `!onboardSeen`. `suspos_onboard_v1` defaults to `true`, so it shows
 only for a stored `false`; GOT IT or a backdrop click (`closeOnboard`) sets it `true`.
-Its preview of the tier buttons highlights the tier you are on. It used to open through
+Its preview of the tier buttons highlights the tier you are on. On desktop it sits under the
+game · level chip, its arrow under the chip's centre (`onbRight`, measured from `onbChipRef`);
+on a phone, at the header's right edge. It used to open through
 `showComplexity` whenever the BEG or INT guide closed, naming the tier just unlocked;
 that line now sits on the guide's last card instead (`TUT_END_NOTE`).
 
@@ -328,7 +330,7 @@ every step title of its guide, in order; `tests-sections.js` checks every spot i
 | 1 | Welcome to SUSP.OS | — | | close | What the app does; a working tune comes first, refinement after. | |
 | 2 | Choose Your Units | — | | | Embedded units picker; match Forza's spring units. | ✓ |
 | 3 | Load a Preset | `garage` | `garage.factory` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. | ✓ |
-| 4 | Getting Around | `toolbar` | `tb.undo` | | ☰ sidebar, ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
+| 4 | Getting Around | `toolbar` | `tb.undo` | | INPUTS (☰ on a phone), ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
 | 5 | Layout & Build Type | `layout-build`, `build-type` | | | Drive layout and build type and what they drive. | |
 | 6 | Weight & Front Bias | `weight` | | | Take them from the car selection screen. | |
 | 7 | Ride Stiffness | `ride-stiffness` | | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
@@ -423,7 +425,7 @@ reworded, added, removed or moved step fails the run until this section is updat
 
 #### 2. Choose Your Units
 
-> Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS.
+> Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS (on a wide screen, in the game · level menu).
 
 #### 3. Load a Preset
 
@@ -435,7 +437,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Getting Around
 
-> ☰ opens and closes this sidebar; results update live as you change it. ↩ and ↪ at the top undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in the header or a hint) for the full explanation.
+> INPUTS (☰ on a phone) shows or hides this sidebar; results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header's glossary) for the full explanation.
 
 #### 5. Layout & Build Type
 
@@ -479,7 +481,7 @@ TRY IT task (ticks when the check passes):
 
 #### 13. Output Toolbar
 
-> ⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage.
+> ⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. On a wide screen the first three sit under ⋯.
 
 #### 14. Saving Your Own
 
@@ -505,7 +507,7 @@ TRY IT task (ticks when the check passes):
 
 #### 5. ARB Bias & Visuals
 
-> ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS (VIS in the header) shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
+> ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS (in the header) shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
 
 #### 6. Ride Ref & Rear Hz
 
@@ -545,7 +547,7 @@ Absent note (no POWER SPLIT on screen):
 
 #### 13. VISUALS Card
 
-> VISUALS (VIS in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
+> VISUALS (in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
 
 #### 14. Handling Balance Bar
 
@@ -565,7 +567,7 @@ Absent note (no POWER SPLIT on screen):
 
 #### 18. Output Toolbar
 
-> At the top of the sidebar: ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
+> In the toolbar (the header on a wide screen, where RESET, DNA and CHECK sit under ⋯): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
 
 #### 19. Garage
 
@@ -723,9 +725,9 @@ START OVER and RESUME AT STEP {n}:
 **Last card of a tier guide** — a green line under the body of the DONE card
 (`TUT_END_NOTE`), on the full and quick paths alike:
 
-> 🔓 INT is unlocked: switch with INT in the header for more controls.
+> 🔓 INT is unlocked: switch to INT from the header (its level menu on a wide screen) for more controls.
 
-> 🔓 PRO is unlocked: switch with PRO in the header for every control.
+> 🔓 PRO is unlocked: switch to PRO from the header (its level menu on a wide screen) for every control.
 
 > That's everything PRO adds. Reopen this guide any time with ? in the header.
 
@@ -733,7 +735,7 @@ START OVER and RESUME AT STEP {n}:
 PRO and `?` buttons with the current tier highlighted, dismissed with GOT IT. Shown
 only for a stored `suspos_onboard_v1` of `false`:
 
-> Choose how much of the app to show. BEG is the best starting point — fewer controls, guided outputs. Press ? at any time to open a step-by-step tutorial.
+> Choose how much of the app to show. BEG is the best starting point — fewer controls, guided outputs. Press ? at any time for the step-by-step guide.
 
 ---
 

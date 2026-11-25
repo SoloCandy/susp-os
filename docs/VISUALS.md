@@ -17,9 +17,9 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 ## The container
 
 - **Where:** `visualsPanel` in `App`, one `<div id="zone-visuals">` with a header row and a
-  scrolling body (`data-vis-box`) that renders `visualsBody()`. The header's **VIS** button
-  opens and closes it. It sits beside the sidebar's ☰ in header row 1, the two buttons that
-  pick what the body shows; below 400 px the SUSP.OS wordmark hides to make room for it. Where it goes depends on the window width against `VIS_COL_MIN`:
+  scrolling body (`data-vis-box`) that renders `visualsBody()`. The header's **VISUALS**
+  button opens and closes it: in the desktop header's INPUTS · VISUALS · TUNE switch, and on a
+  phone as **VIS** beside ☰ (below 400 px the SUSP.OS wordmark hides to make room for it). Where it goes depends on the window width against `VIS_COL_MIN`:
   - **At or above `VIS_COL_MIN`** (1200 px): a docked column between the sidebar and the
     output panel, 360–420 px wide (`visColW`). It is a flex sibling, so the output gets
     narrower rather than being covered. Open or closed is remembered (`visUI.dock`).

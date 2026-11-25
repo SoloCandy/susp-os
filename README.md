@@ -49,7 +49,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 - **CHECK** opens Tune Check, a reverse calculator that reads frequencies and damping ratios back out of existing spring/damper values and imports them as a tune, or (PRO) as a Vehicle DNA. From INT it also imports an existing alignment into ALIGNMENT's MANUAL.
 - **SHARE** handles share codes and JSON garage backups.
 
-**VISUALS.** The header's VIS button opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
+**VISUALS.** The header's VISUALS button (VIS on a phone) opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
 - **DNA MATCH** — only while a Vehicle DNA is linked: each axis's target against the tune's current value.
 - **RIDE · ROLL · DAMPING** — the front/rear roll-stiffness split (springs vs ARBs, with NAT and target ticks), body roll and ARB share, then ride Hz, ARB and bump/rebound damping on one shared scale per quantity.
 - **DYNAMICS** — a damped step response per axle with a ±10% settle band, settle-time marker and first-neutral-crossing ring, all measured off the drawn curve.
@@ -66,7 +66,7 @@ What every scale, band, marker and colour means is in [VISUALS.md](docs/VISUALS.
 
 ## Complexity Tiers
 
-A **BEG / INT / PRO** toggle in the header controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier, pointing at the exact controls, result cards and balance-bar parts it describes.
+A **BEG / INT / PRO** choice in the header (the game · level menu on desktop) controls how much of the input surface is visible. A short in-app guide opens the first time you enter each tier, pointing at the exact controls, result cards and balance-bar parts it describes.
 
 INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
 
@@ -90,7 +90,7 @@ UI transpiled in-browser via `@babel/standalone` (once per version — the outpu
 in IndexedDB), `localStorage` persistence,
 and a sparse Base64 share codec. No build step, no server.
 
-A **HORIZON / MOTORSPORT / BEAMNG** dropdown in the header picks which game's
+A **HORIZON / MOTORSPORT / BEAMNG** choice in the header (the same menu on desktop) picks which game's
 tuning menu the output is written for. It changes *units, ceilings, and the
 increments each game's sliders snap to* — the underlying physics solve
 (spring/damper/ARB targets, handling balance, alignment) is the same one in all
@@ -141,7 +141,7 @@ Reference docs for maintainers:
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
 - [VISUALS.md](docs/VISUALS.md) — the VISUALS column: where it lives, what each group plots, its scales and bands, and what every marker and colour means
-- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
+- [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal: ⋯ in the desktop header, the sidebar toolbar on a phone)
 - [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step and its text word for word, when each guide opens, tier gating, spotlight/positioning, and how to add a step
 - [HINTS.md](docs/HINTS.md) — every ⓘ hint and piece of inline guidance, word for word, grouped by where it appears
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — open gaps, deliberate limitations kept with their reasoning, and designs considered and rejected

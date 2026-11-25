@@ -1221,7 +1221,7 @@ entered, the alignment one when the alignment was, or both:
 **IMPORT AS DNA's line** (PRO) when the suspension was entered, then when only the alignment was
 (the button is disabled then):
 
-> Keeps the handling: loads it into the DNA editor (toolbar DNA) as targets and leaves this car alone — APPLY it to this car or another. DNA leaves alignment out.
+> Keeps the handling: loads it into the DNA editor (DNA) as targets and leaves this car alone — APPLY it to this car or another. DNA leaves alignment out.
 
 > Needs the springs, dampers or bars from step 1: a DNA is the suspension's handling, not its alignment.
 
