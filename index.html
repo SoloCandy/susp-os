@@ -5486,7 +5486,10 @@ const OutWarn=({color=C_WARN,children})=>(
   <div style={{fontSize:11,color,lineHeight:1.6,marginTop:8,padding:'6px 8px',
        background:'#020617',borderRadius:2,border:`1px solid ${color}33`}}>{children}</div>
 );
-const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null,hintAbove=false})=>{
+// fit: in a grid, size to the card's own content instead of stretching to the tallest card in its
+// row (BeamNG's one-row BRAKES beside a two-row diff, and REAR ALIGNMENT with no Caster, otherwise
+// drew an empty box).
+const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hintTerm=null,hintAbove=false,fit=false})=>{
   const L=React.useContext(LayoutCtx);
   const off=hid!=null&&L.isHidden(hid);
   if(off&&!L.edit){
@@ -5497,7 +5500,7 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
   const editing=L.edit&&hid!=null;
   return(
     <div className="card" data-hid={hid??undefined}
-         style={{...(accent?{borderColor:'#e2e8f011'}:{}),...(editing&&off?{outline:'1px dashed #475569',outlineOffset:1}:{})}}>
+         style={{...(accent?{borderColor:'#e2e8f011'}:{}),...(fit?{alignSelf:'start'}:{}),...(editing&&off?{outline:'1px dashed #475569',outlineOffset:1}:{})}}>
       <div className="ch" style={{...(accent?{borderBottomColor:'#e2e8f011',background:'#0a0f1a'}:{}),
                                   ...(editing?{position:'relative'}:{}),...(editing&&off?{opacity:0.35}:{})}}>
         {/* The title never shrinks or wraps: on a phone a long worded header squeezed it to
@@ -5529,19 +5532,27 @@ const Card=({hid=null,title,accent=false,hint=null,headerRight=null,children,hin
 // menu — there is no rear caster slider).
 // Each card's sections are Pair blocks, which BeamngGrid holds level with the same section in
 // the other column. The hint opens upward: below, it would cover the Anti-Roll row it explains.
+// hid is read by RowGroup's hidden-row filter, not here.
 const Pair=({k,children})=><div data-pair={k} style={{display:'flow-root'}}>{children}</div>;
 const SuspensionCard=({hid=null,side,arbRow,springRow,dampRebRow,dampBumpRow,hint,hintTerm=null})=>(
   <Card hid={hid} title={`${side} SUSPENSION`} accent hint={hint} hintTerm={hintTerm} hintAbove>
-    <Pair k="susp-arb"><RowGroup><OutRow {...arbRow}/></RowGroup></Pair>
-    <Pair k="susp-spring"><RowGroup><OutRow {...springRow}/></RowGroup></Pair>
+    {/* Stiffness in one box, damping in the next. Each row keeps its own Pair so a wrapped
+        Anti-Roll meta on one side does not drop that side's Spring below its partner; a Pair
+        passes its row's hid up so RowGroup still drops a hidden row (and an empty box). */}
+    <RowGroup>
+      <Pair k="susp-arb" hid={arbRow.hid}><OutRow {...arbRow}/></Pair>
+      <Pair k="susp-spring" hid={springRow.hid}><OutRow {...springRow}/></Pair>
+    </RowGroup>
     <Pair k="susp-damp"><RowGroup style={{marginBottom:0}}>
       <OutRow {...dampRebRow}/>
       <OutRow {...dampBumpRow}/>
     </RowGroup></Pair>
   </Card>
 );
-const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null,camberMeta=[],toeMeta=[]})=>(
-  <Card hid={hid} title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm}>
+// No caster (the rear: BeamNG has no rear caster slider) → fit, so the card ends after Toe
+// instead of stretching to the front card's height.
+const AlignCard=({hid=null,side,camber,toe,caster,hint,hintTerm=null,camberMeta=[],toeMeta=[],headerRight=null})=>(
+  <Card hid={hid} title={`${side} ALIGNMENT`} hint={hint} hintTerm={hintTerm} headerRight={headerRight} fit={caster==null}>
     <Pair k="align-camber"><RowGroup><OutRow hid={side==='FRONT'?'out.camberF':'out.camberR'} label="Camber" value={camber} unit="°" meta={camberMeta}/></RowGroup></Pair>
     <Pair k="align-toe"><RowGroup style={caster==null?{marginBottom:0}:{}}><OutRow hid={side==='FRONT'?'out.toeF':'out.toeR'} label="Toe" value={toe} unit="°" meta={toeMeta}/></RowGroup></Pair>
     {caster!=null&&<RowGroup style={{marginBottom:0}}><OutRow hid="out.caster" label="Caster" value={caster} unit="°"/></RowGroup>}
@@ -5556,10 +5567,14 @@ const DIFF_REC_REASON={
   offroad:'most compliant — low-traction stability and forgiveness',
   drift:'most aggressive engagement — maximises rotation and wheelspin',
 };
+// A Build Type's name as the output cards print it. An unknown or missing type reads STREET,
+// the default build.
+const BUILD_LABEL={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'};
+const buildLabelOf=b=>BUILD_LABEL[b??'street']??'STREET';
 const DiffTypeRec=({cur,rec,buildType,onUse,style})=>{
   const match=cur===rec;
   const label={race:'Race',sport:'Sport',rally:'Rally',offroad:'Offroad',drift:'Drift'}[rec];
-  const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[buildType??'street']??'STREET';
+  const buildLabel=buildLabelOf(buildType);
   return(
     <div style={style}>
       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:match?0:4}}>
@@ -5577,6 +5592,37 @@ const DiffTypeRec=({cur,rec,buildType,onUse,style})=>{
           used (#334155 / #475569, 1.7:1 and 2.4:1 on the box) were close to unreadable. */}
       <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
         {buildLabel} build → {label}: {DIFF_REC_REASON[rec]}.
+      </div>
+    </div>
+  );
+};
+// The recommended CENTRE SPLIT box, in both layouts: the split recommendedCenterOf gives for the
+// build, why, and → USE while the current split differs. PRO adds the neutral + bias breakdown.
+// Horizon's DIFFERENTIAL card shows it only while the split differs (a matched split shrinks to a
+// ✓ line there) and titles it CENTRE SPLIT; BeamNG's CENTRE SPLIT card always shows it, as
+// RECOMMENDED. It used to be written out in both places.
+const CENTER_REASON={street:'mild rear bias — comfortable AWD character',track:'rear-weighted for rotation and exit drive',drift:'very rear-heavy — maximises rotation and wheelspin',rally:'more neutral — front traction on mixed surfaces',offroad:'slight front bias — stability on loose and uneven ground',drag:'rear-heavy for straight-line launch traction'};
+const CenterSplitRec=({title,cur,rec,buildType,neutral,bias,pro,onUse,style})=>{
+  const match=cur===rec;
+  const buildLabel=buildLabelOf(buildType);
+  return(
+    <div style={style}>
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:match?0:4}}>
+        <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>{title}</span>
+        <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
+          color:match?C_GOOD:C_WARN,marginLeft:'auto'}}>
+          {rec}% REAR
+        </span>
+        {!match&&<button className="tbtn" style={{fontSize:10,color:'#60a5fa',padding:'2px 6px'}}
+          onClick={()=>onUse(rec)}>
+          → USE {rec}%
+        </button>}
+      </div>
+      <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
+        {buildLabel} build → {rec}% rear: {CENTER_REASON[buildType??'street']}.
+        {pro&&<div style={{fontSize:10,color:T_FAINT,marginTop:2}}>
+          traction-neutral {neutral}% · {buildLabel} bias +{bias}%
+        </div>}
       </div>
     </div>
   );
@@ -5616,6 +5662,35 @@ const BeamngGrid=({children})=>{
     return()=>ro.disconnect();
   });
   return <div ref={ref} className="beamng-grid">{children}</div>;
+};
+// An axle whose ARB Motion Ratio is still 1.0 prints the rate at the wheel, which reads soft in
+// BeamNG; its row adds the rate at ARB_MR_TYPICAL as a ≈ figure. A bar at 0 has nothing to scale.
+const arbReadsSoft=(v,arbMr)=>(arbMr??1)===1&&v>0;
+// JBEAM ADJUST can ask for a menu value below 0 (a positive offset larger than the solved value).
+// The row prints 0, turns amber and carries NEEDS <0, rather than a number the slider cannot take.
+const belowTag=o=>o.below?[{text:'NEEDS <0',on:true}]:[];
+// One axle's SuspensionCard rows. The values come from the same arbOut/springOut/dampOut/warnOver
+// the Forza cards call; note and meta from that axle's arbView/springView/dampView entries, as on
+// the Forza cards. ax is 'F' or 'R'; su is the spring unit, which a physical mode ignores.
+const beamngSuspRows=({ch,lim,gameMode,su,ax,tune,arbV,springV,dampV})=>{
+  const F=ax==='F';
+  const arb=F?tune.arbF:tune.arbR,arbMr=F?ch.arbMotionRatioF:ch.arbMotionRatioR,track=F?ch.trackF:ch.trackR;
+  const aAdj=jbAdj(ch,'Arb',ax);
+  const a=arbOut(arb,lim,track,arbMr,aAdj);
+  const typ=arbReadsSoft(arb,arbMr)?[{text:`≈${arbOut(arb,lim,track,ARB_MR_TYPICAL,aAdj).value}`,on:true}]:[];
+  const sp=springOut(F?tune.springF:tune.springR,gameMode,su,F?ch.motionRatioF:ch.motionRatioR,jbAdj(ch,'Spring',ax));
+  const damp=(lbl,v,{note,meta},hid)=>{
+    const o=dampOut(v,lim,dampMr(ch,ax),jbAdj(ch,lbl==='Bump'?'Bump':'Reb',ax));
+    return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping)||!!o.below,unit:o.unit,note,meta:[...meta,...belowTag(o)]};
+  };
+  return {
+    arbRow:{hid:`out.arb${ax}`,label:'Anti-Roll',value:a.value,decimals:a.decimals,warn:warnOver(arb,lim.arb)||!!a.below,unit:a.unit,
+      note:arbV.note,meta:[...arbV.meta,...typ,...belowTag(a)]},
+    springRow:{hid:`out.spring${ax}`,label:'Spring',value:sp.value,unit:sp.unit,decimals:sp.decimals,
+      warn:!!sp.below,note:springV.note,noteColor:springV.noteColor,meta:[...springV.meta,...belowTag(sp)]},
+    dampRebRow:damp('Rebound',F?tune.rebF:tune.rebR,dampV.reb,`out.reb${ax}`),
+    dampBumpRow:damp('Bump',F?tune.bumpF:tune.bumpR,dampV.bump,`out.bump${ax}`),
+  };
 };
 
 // scale: the value at which the bar fills its half. dead: below this it reads as nothing. The
@@ -9932,7 +10007,7 @@ function App(){
       :mode==='independent'?`BUMP ζ ${Math.round(physics.bumpZeta)}%`
       :`BUMP RATIO ${physics.bumpRatioVal}%`;
     const header=`${NAME[balMode]} · ${source}${ownBump?` / ${NAME[ownBump]}`:''}`;
-    // In words, for the Forza card; BeamNG's summary strip keeps `header`.
+    // In words, for the Forza card; BeamNG's alignment card headers keep `header`.
     const head=`${NAME[balMode]} front/rear balance · `+(mode==='landing'?`bump catches a ${physics.landingPct}% LANDING`
       :mode==='independent'?`bump set to ${Math.round(physics.bumpZeta)}% ζ`:`bump ${physics.bumpRatioVal}% of rebound`)
       +(ownBump?` · bump balanced by ${NAME[ownBump]}`:'');
@@ -10078,7 +10153,7 @@ function App(){
       neutral:physics.arbNeutralEqual?'NEUTRAL EQUAL ROLL':'NEUTRAL CANCEL',
       mech:`MECH ${target.toFixed(2)}`,coSolve:`CO-SOLVE ${target.toFixed(2)}`}[bal]??null;
     const header=[stiff,balName,`${tune.rollDeg.toFixed(2)}°`].filter(Boolean).join(' · ');
-    // The Forza card's header, the same facts in words: BeamNG's summary strip keeps `header`.
+    // The Forza card's header, the same facts in words: BeamNG's suspension mode line keeps `header`.
     const oppTxt=physics.arbSplitOpposite?', reversed':'';
     const head=[{auto:'AUTO stiffness',basic:`BASIC ${Math.round(physics.arbBasicMan)}% stiffness`,
         roll:`ROLL target ${tune.rollTarget.toFixed(2)}°`,share:`bars ${Math.round(physics.arbShareMan)}% of roll stiffness`,
@@ -10157,7 +10232,7 @@ function App(){
         shared:`SHARED ${((ch.rideHeightF+ch.rideHeightR)/2*1000*Math.pow(2*Math.PI*rsToHz(fe.rideStiffness??DEF_FE.rideStiffness),2)/9810).toFixed(2)} g`}[hzMode]??'MULTIPLIER';
     const header=`${mode} · ${(physics.rideRef??'front').toUpperCase()} REF`;
     // In words, for the Forza card: how the rear (or both) Hz is set, then which axle Ride
-    // Stiffness sets. BeamNG's summary strip keeps `header`.
+    // Stiffness sets. BeamNG's suspension mode line keeps `header`.
     const how=co?`CO-SOLVED with the bars${physics.springShareAuto?'':` at ${Math.round(physics.springShare)}% share`}`
       :{multiplier:`rear = front × ${(fe.rearHzMult??1.20).toFixed(2)}`,
         flatRide:spd>=200?'FLAT RIDE off':`FLAT RIDE at ${mSpeed?`${Math.round(spd*KMH_PER_MPH)} km/h`:`${spd} mph`}`,
@@ -10192,7 +10267,7 @@ function App(){
   // at, so brighter there), and a row that intent or MANUAL moved carries the AUTO value.
   const alignView=(()=>{
     const manual=alignMode==='manual';
-    const BUILD={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'street']??'STREET';
+    const BUILD=buildLabelOf(dr.buildType);
     const adjusted=!manual&&ALIGN_KEYS.some(k=>alignRound(align.ofs[k])!==0);
     const header=manual?'MANUAL':['AUTO',BUILD,adjusted?'ADJUSTED':null].filter(Boolean).join(' · ');
     const head=manual?'MANUAL values':`AUTO for a ${BUILD} build${adjusted?' · adjusted':''}`;
@@ -10251,7 +10326,7 @@ function App(){
       metaF:v=>type==='race'?[]:[{text:`acts like ${Math.round(v*scale)}% RACE`,on:!manual}]};
   })();
   // The output panel's warnings, grouped by the Forza card that shows them. BeamNG shows all of
-  // them, in this order, under its summary strip. Each is {key,color,text}.
+  // them, in this order, in one box above its cards. Each is {key,color,text}.
   const outWarns=(()=>{
     const W=(key,text,color=C_WARN)=>text?[{key,color,text}]:[];
     // Roll target missed: name the pinned bar(s) and the levers ROLL ° offers.
@@ -13554,8 +13629,8 @@ function App(){
             <button className="tbtn" style={{fontSize:10,color:'#818cf8'}} onClick={()=>setLayoutEdit(false)}>DONE</button>
           </div>}
 
-          {/* Warning summary — Forza only: BeamNG already lists every warning in full under its
-              summary strip, at the top. Each line names the card and jumps to it. */}
+          {/* Warning summary — Forza only: BeamNG already lists every warning in full in a box
+              above its cards. Each line names the card and jumps to it. */}
           {!physMode&&outWarnSummary.length>0&&<div role="status" style={{marginBottom:8,padding:'5px 8px',
               border:'1px solid #f59e0b44',borderRadius:2,background:'#020617'}}>
             <div style={{fontSize:10,color:C_WARN,letterSpacing:1,marginBottom:2}}>
@@ -13715,11 +13790,10 @@ function App(){
                 was removed: the same information is already in the footer's Handling Balance
                 contributions breakdown (SPR/ARB/DIFF/BRK), so it was duplicated, not lost. */}
             {(()=>{
-              const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'street']??'STREET';
+              const buildLabel=buildLabelOf(dr.buildType);
               const isAWD=diff.layout==='AWD';
               const curCenter=dr.diffCenter??65;
               const centerMatch=curCenter===recommendedCenter;
-              const centerReasons={street:'mild rear bias — comfortable AWD character',track:'rear-weighted for rotation and exit drive',drift:'very rear-heavy — maximises rotation and wheelspin',rally:'more neutral — front traction on mixed surfaces',offroad:'slight front bias — stability on loose and uneven ground',drag:'rear-heavy for straight-line launch traction'};
               // CENTER SPLIT is its own box to the right of RECOMMENDED rather than a
               // section stacked inside it. FWD/RWD (and SPORT, which has no centre lock)
               // have no split, so RECOMMENDED simply keeps the full width there.
@@ -13741,25 +13815,9 @@ function App(){
                       onUse={t=>setDr(p=>({...p,diffType:t}))} style={{...box,borderColor:'#f59e0b44'}}/>}</Hide>}
                   {showSplit&&<Hide id="out.diff.recCenter" style={{flex:'1 1 240px',minWidth:0}}>{centerMatch
                     ?<div style={ok}>{okLine(<>CENTRE SPLIT {recommendedCenter}% rear is the recommended split for a {buildLabel} build.</>)}</div>
-                    :<div style={{...box,borderColor:'#f59e0b44'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                      <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1}}>CENTRE SPLIT</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
-                        color:C_WARN,marginLeft:'auto'}}>
-                        {recommendedCenter}% REAR
-                      </span>
-                      <button className="tbtn" style={{fontSize:10,color:'#60a5fa',padding:'2px 6px'}}
-                        onClick={()=>setDr(p=>({...p,diffCenter:recommendedCenter}))}>
-                        → USE {recommendedCenter}%
-                      </button>
-                    </div>
-                    <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5}}>
-                      {buildLabel} build → {recommendedCenter}% rear: {centerReasons[dr.buildType??'street']}.
-                      {uiMode==='pro'&&<div style={{fontSize:10,color:'#64748b',marginTop:2}}>
-                        traction-neutral {_neutralCenter}% · {buildLabel} bias +{_centerBias}%
-                      </div>}
-                    </div>
-                  </div>}</Hide>}
+                    :<CenterSplitRec title="CENTRE SPLIT" cur={curCenter} rec={recommendedCenter} buildType={dr.buildType}
+                      neutral={_neutralCenter} bias={_centerBias} pro={uiMode==='pro'}
+                      onUse={v=>setDr(p=>({...p,diffCenter:v}))} style={{...box,borderColor:'#f59e0b44'}}/>}</Hide>}
                 </div>
               );
             })()}
@@ -13781,54 +13839,19 @@ function App(){
             const warnings=[...outWarns.arb,...outWarns.springs,...outWarns.dampers]
               .map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>);
 
-            // Per-axle suspension rows — same arbOut/springOut/dampOut/warnOver functions the Forza
-            // cards above call, just assembled into row-prop objects instead of inline OutRows,
-            // since SuspensionCard merges three subsystems into one. Note and meta come from
-            // arbView/springView/dampView, as on the Forza cards.
-            // An axle whose ARB Motion Ratio is still 1.0 prints the rate at the wheel, which reads
-            // soft in BeamNG; its row adds the rate at ARB_MR_TYPICAL as a ≈ figure. A bar at 0
-            // has nothing to scale.
-            const arbSoft=(v,arbMr)=>(arbMr??1)===1&&v>0;
-            // JBEAM ADJUST can ask for a menu value below 0 (a positive offset larger than the solved
-            // value). The row prints 0, turns amber and carries NEEDS <0, rather than a number the
-            // slider cannot take.
-            const belowTag=o=>o.below?[{text:'NEEDS <0',on:true}]:[];
-            const buildArbRow=(side,v,track,arbMr,{note,meta})=>{
-              const adj=jbAdj(ch,'Arb',side==='front'?'F':'R');
-              const o=arbOut(v,lim,track,arbMr,adj);
-              const typ=arbSoft(v,arbMr)?[{text:`≈${arbOut(v,lim,track,ARB_MR_TYPICAL,adj).value}`,on:true}]:[];
-              return {hid:side==='front'?'out.arbF':'out.arbR',label:'Anti-Roll',value:o.value,decimals:o.decimals,warn:warnOver(v,lim.arb)||!!o.below,unit:o.unit,
-                note,meta:[...meta,...typ,...belowTag(o)]};
-            };
-            const buildSpringRow=(side,spring,mr,{note,noteColor,meta})=>{
-              const o=springOut(spring,fe.gameMode,mSpring,mr,jbAdj(ch,'Spring',side==='front'?'F':'R'));
-              return {hid:side==='front'?'out.springF':'out.springR',label:'Spring',value:o.value,unit:o.unit,decimals:o.decimals,
-                warn:!!o.below,note,noteColor,meta:[...meta,...belowTag(o)]};
-            };
-            const buildDampRow=(lbl,v,ax,{note,meta},hid)=>{
-              const o=dampOut(v,lim,dampMr(ch,ax),jbAdj(ch,lbl==='Bump'?'Bump':'Reb',ax));
-              return {hid,label:lbl,value:o.value,decimals:o.decimals,warn:warnOver(v,lim.damping)||!!o.below,unit:o.unit,note,meta:[...meta,...belowTag(o)]};
-            };
-
             // The soft-ARB note, written once, full width under both suspension cards (inside one
             // card it would hold the other card's rows open beside it), naming the axle when only
             // one is soft (PRO set the other's ratio).
-            const softF=arbSoft(tune.arbF,ch.arbMotionRatioF),softR=arbSoft(tune.arbR,ch.arbMotionRatioR);
+            const softF=arbReadsSoft(tune.arbF,ch.arbMotionRatioF),softR=arbReadsSoft(tune.arbR,ch.arbMotionRatioR);
             const arbCaveat=!softF&&!softR?null
-              :`${softF&&softR?'Anti-Roll':softF?'Front Anti-Roll':'Rear Anti-Roll'} is the rate at the wheel; BeamNG rates the bar at its own lever, so the game's number runs ~4–6× higher. ≈ is the rate at a typical ${ARB_MR_TYPICAL} arm ratio, the closer starting point.`
-                +(uiMode==='pro'?` Set ARB Motion Ratio ${softF&&softR?'F and R':softF?'F':'R'} in CHASSIS (arm ÷ track) if you know the geometry.`:'');
+              :`${softF&&softR?'Anti-Roll':softF?'Front Anti-Roll':'Rear Anti-Roll'} is at the wheel; BeamNG's slider runs ~4–6× higher. Start from ≈, a typical ${ARB_MR_TYPICAL} arm ratio.`
+                +(uiMode==='pro'?` Know the geometry? Set ARB Motion Ratio ${softF&&softR?'F and R':softF?'F':'R'} in CHASSIS.`:'');
             const suspHint=soft=>`Values in BeamNG's own units: N/m for Anti-Roll and Spring, N/m/s for the dampers.${soft?' Anti-Roll reads soft; see the ≈ figure and the note under the suspension cards.':''}`;
 
-            const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint(softF)}
-              arbRow={buildArbRow('front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front)}
-              springRow={buildSpringRow('front',tune.springF,ch.motionRatioF,springView.front)}
-              dampRebRow={buildDampRow('Rebound',tune.rebF,'F',dampView.front.reb,'out.rebF')}
-              dampBumpRow={buildDampRow('Bump',tune.bumpF,'F',dampView.front.bump,'out.bumpF')} hintTerm="beamng-output"/>;
-            const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint(softR)}
-              arbRow={buildArbRow('rear',tune.arbR,ch.trackR,ch.arbMotionRatioR,arbView.rear)}
-              springRow={buildSpringRow('rear',tune.springR,ch.motionRatioR,springView.rear)}
-              dampRebRow={buildDampRow('Rebound',tune.rebR,'R',dampView.rear.reb,'out.rebR')}
-              dampBumpRow={buildDampRow('Bump',tune.bumpR,'R',dampView.rear.bump,'out.bumpR')} hintTerm="beamng-output"/>;
+            const suspRows=ax=>{const k=ax==='F'?'front':'rear';
+              return beamngSuspRows({ch,lim,gameMode:fe.gameMode,su:mSpring,ax,tune,arbV:arbView[k],springV:springView[k],dampV:dampView[k]});};
+            const frontSuspension=<SuspensionCard hid="out.card.suspF" side="FRONT" hint={suspHint(softF)} {...suspRows('F')} hintTerm="beamng-output"/>;
+            const rearSuspension=<SuspensionCard hid="out.card.suspR" side="REAR" hint={suspHint(softR)} {...suspRows('R')} hintTerm="beamng-output"/>;
 
             // Alignment — same degree targets as Forza, but BeamNG's Camber/Caster/Toe Adjust
             // sliders are % of a per-vehicle Jbeam range, not degrees, and that % shifts if
@@ -13843,9 +13866,9 @@ function App(){
             })();
             const beamngAlignHint=`${alignPrefix} Sliders are %, not degrees: match BeamNG's live readout.`;
 
-            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={alignInGame('toeF',align.recToeF,fe.gameMode)} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output"
+            const frontAlign=<AlignCard hid="out.card.alignF" side="FRONT" camber={align.recCamberF} toe={alignInGame('toeF',align.recToeF,fe.gameMode)} caster={align.recCaster} hint={beamngAlignHint} hintTerm="beamng-output" headerRight={alignView.header}
               camberMeta={alignView.camberF} toeMeta={alignView.toeF}/>;
-            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={alignInGame('toeR',align.recToeR,fe.gameMode)} caster={null} hint={beamngAlignHint} hintTerm="beamng-output"
+            const rearAlign=<AlignCard hid="out.card.alignR" side="REAR" camber={align.recCamberR} toe={alignInGame('toeR',align.recToeR,fe.gameMode)} caster={null} hint={beamngAlignHint} hintTerm="beamng-output" headerRight={alignView.header}
               camberMeta={alignView.camberR} toeMeta={alignView.toeR}/>;
 
             // Differential — same isSport/lock/diffCtx pattern as the Forza card, scoped per
@@ -13878,10 +13901,6 @@ function App(){
             // Center split — combines diff.center with its recommendation call-out, AWD only, and
             // carries the RECOMMENDED diff type for all three diffs.
             const centerSplit=isAWD&&(()=>{
-              const curCenter=dr.diffCenter??65;
-              const centerMatch=curCenter===recommendedCenter;
-              const buildLabel={track:'TRACK',street:'STREET',drift:'DRIFT',rally:'RALLY',offroad:'OFFROAD',drag:'DRAG'}[dr.buildType??'street']??'STREET';
-              const centerReasons={street:'mild rear bias — comfortable AWD character',track:'rear-weighted for rotation and exit drive',drift:'very rear-heavy — maximises rotation and wheelspin',rally:'more neutral — front traction on mixed surfaces',offroad:'slight front bias — stability on loose and uneven ground',drag:'rear-heavy for straight-line launch traction'};
               return (
                 <Card hid="out.card.center" title="CENTRE SPLIT" headerRight={diffView.header} hintTerm="diff-output"
                   hint={`Starting point; fine-tune in 1% steps. Base Torque Split is the share of drive sent to the rear axle; more rear adds rotation on exit.`}>
@@ -13891,57 +13910,47 @@ function App(){
                   {diffRec}
                   {/* No split to recommend on SPORT: Base Torque Split reads N/A above. Forza's
                       DIFFERENTIAL card drops its CENTRE SPLIT box the same way (showSplit). */}
-                  {uiMode!=='beginner'&&!isSport&&<Hide id="out.diff.recCenter"><div style={recBox}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:centerMatch?0:4}}>
-                      <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>RECOMMENDED</span>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,fontWeight:700,
-                        color:centerMatch?C_GOOD:C_WARN,marginLeft:'auto'}}>
-                        {recommendedCenter}% REAR
-                      </span>
-                      {!centerMatch&&<button className="tbtn" style={{fontSize:10,color:'#60a5fa',padding:'2px 6px'}}
-                        onClick={()=>setDr(p=>({...p,diffCenter:recommendedCenter}))}>
-                        → USE {recommendedCenter}%
-                      </button>}
-                    </div>
-                    <div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
-                      {buildLabel} build → {recommendedCenter}% rear: {centerReasons[dr.buildType??'street']}.
-                      {uiMode==='pro'&&<div style={{fontSize:10,color:T_FAINT,marginTop:2}}>
-                        traction-neutral {_neutralCenter}% · {buildLabel} bias +{_centerBias}%
-                      </div>}
-                    </div>
-                  </div></Hide>}
+                  {uiMode!=='beginner'&&!isSport&&<Hide id="out.diff.recCenter"><CenterSplitRec title="RECOMMENDED"
+                    cur={dr.diffCenter??65} rec={recommendedCenter} buildType={dr.buildType}
+                    neutral={_neutralCenter} bias={_centerBias} pro={uiMode==='pro'}
+                    onUse={v=>setDr(p=>({...p,diffCenter:v}))} style={recBox}/></Hide>}
                 </Card>
               );
             })();
 
             const brakesCard=(
-              <Card hid="out.card.brakes" title="BRAKES" headerRight={brakeView.header} hint={HINT_BRAKES_OUT} hintTerm="brake-balance">
+              <Card hid="out.card.brakes" title="BRAKES" headerRight={brakeView.header} hint={HINT_BRAKES_OUT} hintTerm="brake-balance" fit>
                 <RowGroup style={{marginBottom:0}}>
                   <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={brakeView.note} meta={brakeView.meta}/>
                 </RowGroup>
               </Card>
             );
 
-            // The mode strip stands in for the Forza cards' headers. Each item is one unbreakable
-            // unit with its subsystem named brighter, so a narrow panel wraps between items, never
-            // inside one. BEG has no mode controls to read it against, so it shows only warnings.
+            // The suspension mode line stands in for the Forza ARB, SPRINGS and DAMPERS card headers,
+            // which the per-axle cards cannot carry: each would repeat it front and rear. It sits
+            // full width right above the two suspension cards it describes. The other headers ride
+            // on their own cards (diff, CENTRE SPLIT, brakes, alignment), so they are not repeated
+            // here. Each item is one unbreakable unit with its subsystem named brighter, so a
+            // narrow panel wraps between items, never inside one. BEG has no mode controls to read
+            // it against, so it is INT+ (out.summary's tiers).
             const showSummary=uiMode!=='beginner'&&(layoutCtx.edit||!layoutCtx.isHidden('out.summary'));
             const modeItem=(k,label,text)=><span key={k} style={{whiteSpace:'nowrap'}}>
               <span style={{color:'#94a3b8'}}>{label}</span> {text}</span>;
+            // Outside the edit view Hide renders its children straight into this div, so the
+            // flex and gaps live here as well as on Hide's bodyStyle (edit view).
+            const suspModes=showSummary&&<div style={{gridColumn:'1/-1',display:'flex',flexWrap:'wrap',columnGap:16,rowGap:4,
+                fontSize:10,color:T_MUTED,fontFamily:'var(--font-mono)',padding:'0 2px',marginBottom:-4}}>
+              <Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',columnGap:16,rowGap:4}}>
+              {modeItem('arb','ARB',arbView.header)}
+              {modeItem('springs','SPRINGS',springView.header)}
+              {modeItem('damp','DAMPERS',dampView.header)}
+              </Hide></div>;
             return (<>
-              {(showSummary||warnings.length>0)&&
-              <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center',
-                           padding:'6px 8px',background:'#0f172a',border:'1px solid #1e293b',
-                           borderRadius:2,marginBottom:10,fontSize:10,color:T_MUTED,
-                           fontFamily:'var(--font-mono)'}}>
-                {showSummary&&<Hide id="out.summary" inline bodyStyle={{display:'flex',flexWrap:'wrap',columnGap:16,rowGap:4}}>
-                {modeItem('arb','ARB',arbView.header)}
-                {modeItem('springs','SPRINGS',springView.header)}
-                {modeItem('damp','DAMPERS',dampView.header)}
-                {modeItem('align','ALIGN',alignView.header)}
-                {modeItem('diff','DIFF',diffView.header)}
-                </Hide>}
-                {warnings.length>0&&<div style={{flexBasis:'100%'}}>{warnings}</div>}
+              {/* Every warning, cross-axle by nature, in full above the cards in every tier. */}
+              {warnings.length>0&&
+              <div role="status" style={{padding:'6px 8px',background:'#0f172a',border:'1px solid #1e293b',
+                           borderRadius:2,marginBottom:10,fontSize:10,color:T_MUTED,fontFamily:'var(--font-mono)'}}>
+                {warnings}
               </div>}
               {/* 2-column grid, front axle left and rear right: Brakes beside the one diff (FWD
                   diff left, RWD diff right) or, on AWD, Brakes/Center then Front/Rear Diff; then
@@ -13953,9 +13962,12 @@ function App(){
                 {brakesCard}
                 {isRWD&&rearDiff}
                 {isAWD&&<>{centerSplit}{frontDiff}{rearDiff}</>}
+                {suspModes}
                 {frontSuspension}
                 {rearSuspension}
-                {arbCaveat&&<div style={{gridColumn:'1/-1',fontSize:10,color:C_WARN,lineHeight:1.6,marginTop:-4}}>{arbCaveat}</div>}
+                {/* Muted, not amber: at the default ARB Motion Ratio it shows on nearly every
+                    BeamNG tune, so it is a standing caveat rather than a warning about this one. */}
+                {arbCaveat&&<div style={{gridColumn:'1/-1',fontSize:10,color:T_MUTED,lineHeight:1.6,marginTop:-4}}>{arbCaveat} <TermLink id="arb-motion-ratio"/></div>}
                 {frontAlign}
                 {rearAlign}
               </BeamngGrid>

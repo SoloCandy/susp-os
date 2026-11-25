@@ -665,8 +665,9 @@ centre lock, so its AWD text stops before "Centre"):
 
 > Starting point; fine-tune in 1% steps. Front decel at 0 minimises entry understeer; keep rear decel low for rotation.{not on Sport:} Centre {rear %}% rear.
 
-**Card headers** — the Forza cards write their header out (each view's `head`); BeamNG's
-summary strip keeps the short `header`. By card:
+**Card headers** — the Forza cards write their header out (each view's `head`); BeamNG keeps the
+short `header`, on its alignment, diff, CENTRE SPLIT and BRAKES cards and, for ARB, SPRINGS and
+DAMPERS, on the suspension mode line above the suspension cards (INT+). By card:
 
 - ALIGNMENT: `AUTO for a {BUILD} build` (plus ` · adjusted` while an intent offset is set), or `MANUAL values`.
 - ANTI-ROLL BARS: the stiffness (`AUTO stiffness`, `BASIC {n}% stiffness`, `ROLL target {deg}°`,
@@ -722,12 +723,13 @@ The second sentence is on a card only while that axle reads soft: its ARB Motion
 `ARB_MR_TYPICAL` (0.45).
 
 The soft-ARB note is written once, full width under both suspension cards, and only while at
-least one axle reads soft. It names both axles, or the one that reads soft; PRO adds the second
-sentence:
+least one axle reads soft. It is muted rather than amber, since at the default ratio it shows on
+nearly every tune, and ends with a TERMS link to ARB Motion Ratio. It names both axles, or the one
+that reads soft; PRO adds the second sentence:
 
-> {Anti-Roll, Front Anti-Roll or Rear Anti-Roll} is the rate at the wheel; BeamNG rates the bar at its own lever, so the game's number runs ~4–6× higher. ≈ is the rate at a typical {ARB_MR_TYPICAL: 0.45} arm ratio, the closer starting point.
+> {Anti-Roll, Front Anti-Roll or Rear Anti-Roll} is at the wheel; BeamNG's slider runs ~4–6× higher. Start from ≈, a typical {ARB_MR_TYPICAL: 0.45} arm ratio.
 
-> Set ARB Motion Ratio {F and R, F or R} in CHASSIS (arm ÷ track) if you know the geometry.
+> Know the geometry? Set ARB Motion Ratio {F and R, F or R} in CHASSIS.
 
 **FRONT / REAR DIFFERENTIAL** — FWD/RWD use the Forza DIFFERENTIAL text for their layout. AWD:
 
