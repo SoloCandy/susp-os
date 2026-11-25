@@ -11,6 +11,38 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — BeamNG output: mode strip split up, stiffness in one box, shared centre-split box
+
+- **Mode strip.** One box at the top read ARB, SPRINGS, DAMPERS, ALIGN and DIFF headers run
+  together, with every warning under them. DIFF repeated the diff cards' own headers. Now the
+  warnings have that box to themselves (every tier, as before); ALIGN moved to the alignment
+  cards' headers; DIFF went, since the diff cards already showed it; ARB, SPRINGS and DAMPERS,
+  which a per-axle card would repeat front and rear, became a plain line right above the two
+  suspension cards. It keeps the `out.summary` id and its INT+ tiers. `Hide` renders its children
+  straight into its parent outside the edit view, so that line's flex and gaps sit on its own
+  div, not only on `bodyStyle`; without them the items ran together.
+- **Anti-Roll and Spring** were two bordered boxes of one row each. They share one box now,
+  dampers the next; each row keeps its own `Pair`, so the Spring rows stay level when one side's
+  Anti-Roll meta wraps.
+- **CENTRE SPLIT recommendation** was written out twice, on Horizon's DIFFERENTIAL card and on
+  BeamNG's CENTRE SPLIT card, with the reasons table and the build-name map copied into each (that
+  map was in four places). Both now use `CenterSplitRec`, `CENTER_REASON` and `buildLabelOf`. The
+  Horizon box's title and reason text went from `#94a3b8` to `T_MUTED`, matching `DiffTypeRec`.
+- **BeamNG row builders** moved out of the output panel into `beamngSuspRows`.
+
+## Changed — BeamNG output: Brakes and rear alignment card height, soft-ARB note
+
+- **BRAKES drew an empty box.** The grid-holes fix put Brakes beside the single diff (or CENTRE
+  SPLIT on AWD), and grid stretch made the one-row Brakes card as tall as its partner. `Card`
+  gained `fit` (`align-self: start`); the no-placeholder grid order stays.
+- **The soft-ARB note read as a warning.** At the default ARB Motion Ratio of 1.0 it shows on
+  nearly every BeamNG tune, as a two-line amber paragraph between the suspension and alignment
+  cards. It is now one muted line with a TERMS link to ARB Motion Ratio; the `≈` figure on each
+  row still carries the number.
+- **REAR ALIGNMENT ended with a blank space** where the front card has Caster. It now takes `fit`
+  too and ends after Toe. A dashed "Caster · front only" placeholder was tried and dropped: it
+  filled the space with a row that has nothing to set.
+
 ## Fixed — Tune Check in BeamNG ignored Motion Ratio on springs and dampers
 
 - **The bug.** DECODE read BeamNG springs and dampers as if they acted at the wheel. The output
