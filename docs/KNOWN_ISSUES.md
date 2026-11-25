@@ -1021,6 +1021,33 @@ scale (`DIFF_TYPES_BY_GAME`) and prints accel and decel lock % for it, the same 
 those numbers map onto a given BeamNG LSD's settings is not measured, and an open, locked or
 viscous diff has nothing here that matches it.
 
+## Open — BeamNG's fast-speed damping has no output
+
+Many BeamNG cars with adjustable dampers expose two damping stages per direction: the
+Bump and Rebound Damping the app prints, plus Fast Bump and Fast Rebound Damping above a
+per-vehicle velocity split (`beamDampFast`, `beamDampReboundFast`, `beamDampVelocitySplit`
+in the jbeam). The app's damper model is one linear coefficient per axle and direction, so it
+prints only the low-speed pair and says nothing about the fast stage or the split. A car whose
+fast sliders sit far from the low-speed ones will not behave as the app's ζ figures describe
+over kerbs and landings. Supporting it needs a second damper stage in the model, not just
+another output row.
+
+## Open — BeamNG output has no per-car slider range
+
+BeamNG builds each car's tuning sliders from its own jbeam `variables` block, so every car has
+its own min and max. `GAME_LIMITS.beamng` has no ceiling (`damping`/`arb` are `null`), and the
+app has no field for a car's range, so the spring, damper and anti-roll outputs can print a
+number the car's slider cannot reach. Nothing on the card warns when that happens; the game
+silently stops at its end of the slider.
+
+## Limitation — a motion ratio is one constant per axle
+
+Motion Ratio F / R and ARB Motion Ratio F / R each take a single number and divide the output
+by its square. Real linkages are often progressive or regressive: the ratio changes through the
+travel, so the rate the wheel feels changes with ride height and load. The app treats the
+ratio as fixed at the ride height you tune at. Enter the ratio at static ride height; the
+output is right there and drifts as the suspension compresses or extends.
+
 ## Open — AUTO diff locks saturate at 100% on an Offroad diff
 
 AUTO solves in effective (Race-equivalent) lock and divides by `DIFF_TYPE_SCALE`, then
