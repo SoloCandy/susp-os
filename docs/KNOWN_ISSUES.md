@@ -501,8 +501,8 @@ skipped, and with none left the step lights its whole zone as before spots, so t
 points at nothing. A step whose controls hang on a mode carries an `absent` note saying how to
 reach them, and the AWD Centre Diff step is skipped off AWD (`skip`); a step without either
 can still describe a control the reader can't see until they switch mode. Spots that
-are present can still be partly off screen: "Alignment, Brakes & Diff" in BeamNG spans
-cards above and below the suspension cards. The card says so ("▼ 2 more highlighted
+are present can still be partly off screen: BEG's "Reading the Results" spots every card, and
+on a phone or in BeamNG they run above and below the screen. The card says so ("▼ 2 more highlighted
 below — scroll to see") and the line follows the scroll, but the reader has to scroll; no
 single scroll position shows them all on a short window, and the card does not move with
 them.

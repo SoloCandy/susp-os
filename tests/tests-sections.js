@@ -322,8 +322,10 @@ t('each spot sits in a zone its step focuses (the balance guide: the bar)', () =
   eq(spotted.flatMap(s => s.spot.filter(id => !(s.g === 'balance' ? ['balance-bar'] : s.focus ?? []).includes(spotZone(id)))
     .map(id => `${s.g}/${s.title}: ${id} in ${spotZone(id)}`)), []);
 });
+// The Layouts guide opens from the LAYOUT panel, which INT and PRO have.
 t('a tier guide spots only what renders in its tier', () => {
-  eq(spotted.filter(s => s.g !== 'balance').flatMap(s => s.spot.filter(id => !tiersOf(id).includes(s.g))
+  const tierOf = g => g === 'layout' ? 'intermediate' : g;
+  eq(spotted.filter(s => s.g !== 'balance').flatMap(s => s.spot.filter(id => !tiersOf(id).includes(tierOf(s.g)))
     .map(id => `${s.g}/${s.title}: ${id}`)), []);
 });
 t('every balance-guide spot list holds something every tier renders', () => {
@@ -350,19 +352,26 @@ t('step titles are unique within each guide', () => {
     eq(ts.filter((x, i) => ts.indexOf(x) !== i), [], g);
   }
 });
-t('every _v1 title but the moved PRO Alignment Mode is still in its guide', () => {
+// The guide revamp merged or retired these _v1 steps (PRO's Alignment Mode had moved to INT before).
+t('the _v1 titles no longer in their guide are the retired ones', () => {
   eq(Object.entries(TUT_V1_TITLES).flatMap(([m, ts]) => ts.filter(x => !TUTORIALS[m].some(s => s.title === x))
-    .map(x => `${m}: ${x}`)), ['pro: Alignment Mode']);
+    .map(x => `${m}: ${x}`)), ['beginner: Output Toolbar', 'intermediate: Chassis', 'intermediate: Build Type',
+    'intermediate: Diff Type', 'intermediate: Corner Exit & Entry', 'intermediate: VISUALS Card',
+    'intermediate: Reading the Results', 'intermediate: Output Toolbar', 'intermediate: Garage',
+    'intermediate: Organizing & Searching', 'intermediate: Sharing & Backup', 'pro: Calibrating Natural Balance',
+    'pro: Calibrating ARB Scale', 'pro: Alignment Mode', 'pro: Output Panel & Tune Check']);
 });
-t('_v1 indices convert to the same step, by title, past the steps added since', () => {
-  // _v1 counted BEG Output Toolbar as 11, INT Reading the Results as 13 and Output Toolbar as
-  // 14, PRO Load Transfer as 12.
-  const v2 = tutProgressFromV1({ beginner: 11, intermediate: 14, pro: 12 });
+t('_v1 indices convert to the same step by title, or the next _v1 step still there', () => {
+  // _v1 counted BEG Output Toolbar as 11, INT Ride Ref & Rear Hz as 5 and Reading the Results as
+  // 13, PRO Calibrating ARB Scale as 3 and Load Transfer as 12.
+  const v2 = tutProgressFromV1({ beginner: 11, intermediate: 5, pro: 12 });
   const at = (m, t) => ({ title: t, step: TUTORIALS[m].findIndex(s => s.title === t) });
-  eq(v2.beginner, at('beginner', 'Output Toolbar'));
-  eq(v2.intermediate, at('intermediate', 'Output Toolbar'));
+  eq(v2.beginner, at('beginner', 'Saving Your Own'));
+  eq(v2.intermediate, at('intermediate', 'Ride Ref & Rear Hz'));
   eq(v2.pro, at('pro', 'Load Transfer'));
-  eq(tutProgressFromV1({ intermediate: 13 }).intermediate, at('intermediate', 'Reading the Results'));
+  eq(tutProgressFromV1({ pro: 3 }).pro, at('pro', 'Mech Balance Target'));
+  // Every INT step from Reading the Results on has gone: the last step.
+  eq(tutProgressFromV1({ intermediate: 13 }).intermediate, at('intermediate', TUTORIALS.intermediate.at(-1).title));
   // PRO's Alignment Mode (6) moved to INT: resume at the next PRO step that _v1 had.
   eq(tutProgressFromV1({ pro: 6 }).pro, at('pro', 'PRO ARB Balance Modes'));
 });
@@ -372,7 +381,7 @@ t('_v1 junk, zero or nothing converts to nothing to resume; too far clamps', () 
   eq(tutProgressFromV1({ pro: 999 }).pro.title, titleAt('pro', TUTORIALS.pro.length - 1));
 });
 t('resume finds the title wherever it moved, else the clamped index', () => {
-  eq(tutResumeStep('intermediate', { title: 'Garage', step: 3 }), TUTORIALS.intermediate.findIndex(s => s.title === 'Garage'));
+  eq(tutResumeStep('intermediate', { title: 'Dampers', step: 3 }), TUTORIALS.intermediate.findIndex(s => s.title === 'Dampers'));
   eq(tutResumeStep('pro', { title: 'A step since removed', step: 7 }), 7);
   eq(tutResumeStep('pro', { title: 'A step since removed', step: 99 }), TUTORIALS.pro.length - 1);
   eq(tutResumeStep('beginner', null), 0);

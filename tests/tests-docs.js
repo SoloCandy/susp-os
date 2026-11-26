@@ -808,9 +808,10 @@ check('GLOSSARY_SUM has exactly one short summary per GLOSSARY id', () => {
 
 // Tier of the reader each guide can reach. beginner / intermediate / pro run as the tutorial for
 // that uiMode. balance is the Handling Balance guide: openBalTut fires from the expanded bar's
-// ? GUIDE button, with no uiMode gate, so a BEG reader sees it. A new
-// guide key fails here until someone decides its tier.
-const GUIDE_TIER = { beginner: 'beginner', intermediate: 'intermediate', pro: 'pro', balance: 'beginner' };
+// ? GUIDE button, with no uiMode gate, so a BEG reader sees it. layout is the Layouts guide, from
+// the LAYOUT panel's ? GUIDE, which INT and PRO have. A new guide key fails here until someone
+// decides its tier.
+const GUIDE_TIER = { beginner: 'beginner', intermediate: 'intermediate', pro: 'pro', balance: 'beginner', layout: 'intermediate' };
 
 check('tutorial TERMS chips name real glossary ids at or below the guide\'s tier', () => {
   if (GLOSSARY_ERR) return 'skipped: GLOSSARY does not evaluate (see the first glossary check)';
@@ -1237,7 +1238,8 @@ check('every HINTS.md quote is still in index.html', () => {
 
 // ── tutorials: per-step text, both ways ──
 // Each step object in TUTORIALS, brace-matched string-aware, with its title and every
-// piece of text it shows: body, glossary terms and definitions, and the task line.
+// piece of text it shows: body, its BeamNG wording (bng), glossary terms and definitions, and
+// the task line.
 const TUT_STEPS = (() => {
   const body = stripComments(objectBody('TUTORIALS'));
   const heads = [...body.matchAll(/^  (\w+):\[/gm)];
@@ -1250,7 +1252,7 @@ const TUT_STEPS = (() => {
       const end = scanLiterals(seg, i + 1, 'close', []);
       const obj = seg.slice(i, end);
       const str = k => [...obj.matchAll(new RegExp(`\\b${k}:(['"])((?:\\\\.|(?!\\1)[^\\\\])*)\\1`, 'g'))].map(m => normText(m[2]));
-      steps.push({ title: str('title')[0], texts: [...str('body'), ...str('term'), ...str('def'), ...str('text')] });
+      steps.push({ title: str('title')[0], texts: [...str('body'), ...str('bng'), ...str('term'), ...str('def'), ...str('text')] });
       i = end - 1;
     }
     out[h[1]] = steps;

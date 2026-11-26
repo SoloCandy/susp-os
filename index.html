@@ -4632,6 +4632,13 @@ const SPOT_MARKS=[
   {id:'garage.search',  zone:'garage'},
   {id:'garage.factory', zone:'garage'},
   {id:'garage.list',    zone:'garage'},
+  {id:'tb.layout',      zone:'toolbar'},
+  {id:'lp.uses',        zone:'layout'},
+  {id:'lp.secs',        zone:'layout'},
+  {id:'lp.mine',        zone:'layout'},
+  {id:'lp.hold',        zone:'layout'},
+  {id:'lp.figs',        zone:'layout'},
+  {id:'lp.saved',       zone:'layout'},
 ];
 const spotZone=id=>SPOT_MARKS.find(m=>m.id===id)?.zone??SEC_ZONE[HIDE_BY_ID[id]?.sec]??null;
 const spotSel=id=>`[data-hid="${id}"],[data-spot="${id}"]`;
@@ -5655,7 +5662,7 @@ const uniqueLayoutName=(base,names)=>{
   return name;
 };
 const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,changed,toggleHold,holdAllHidden,releaseHolds,editLayout,togglePin,
-                    tab,setTab,onClose,onEditOnPage,mobile,width})=>{
+                    tab,setTab,onClose,onEditOnPage,onGuide,mobile,width})=>{
   const[openSecs,setOpenSecs]=useState(()=>new Set());
   // Section order (SIDEBAR tab). drag = {key, to}: the section being dragged by its ⠿ handle and
   // the place it would land among the others; the list draws in that order while dragging.
@@ -5796,22 +5803,23 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
     <label style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10,color:on?'#cbd5e1':T_MUTED,cursor:'pointer',letterSpacing:0.5}}>
       <input type="checkbox" checked={on} onChange={()=>listToggle(field,key)} style={{accentColor:'#818cf8',margin:0}}/>{label}</label>);
   return(
-    <div role="dialog" aria-label="Layout" data-layout-panel style={{position:'absolute',top:0,right:0,bottom:0,zIndex:260,
+    <div role="dialog" aria-label="Layout" id="zone-layout" data-layout-panel style={{position:'absolute',top:0,right:0,bottom:0,zIndex:260,
       width:mobile?'100%':width,background:'#020617',borderLeft:'1px solid #1e293b',
       boxShadow:mobile?'none':'-4px 0 24px #000000cc',display:'flex',flexDirection:'column',fontFamily:'var(--font-mono)'}}>
       <div style={{padding:'10px 12px 8px',borderBottom:'1px solid #1e293b',display:'flex',flexDirection:'column',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span ref={headRef} tabIndex={-1} style={{fontSize:11,letterSpacing:2,color:'#e2e8f0',fontWeight:700,flex:1,outline:'none'}}>LAYOUT</span>
+          {onGuide&&<button className="tbtn" style={{...btn,color:'#94a3b8'}} onClick={onGuide} title="A short tour of this panel">? GUIDE</button>}
           <button className="tbtn" style={btn} onClick={onEditOnPage} title="Click parts on the page itself to hide or show them">EDIT ON PAGE</button>
           <button className="tbtn" style={{...btn,color:'#e2e8f0'}} onClick={onClose}>DONE</button>
         </div>
-        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:10,color:T_MUTED,letterSpacing:1}}>
+        <label data-spot="lp.uses" style={{display:'flex',alignItems:'center',gap:8,fontSize:10,color:T_MUTED,letterSpacing:1}}>
           <span style={{whiteSpace:'nowrap'}}>{TIER_LABEL[tier]} · {GAME_MODE_LABEL[game]} USES</span>
           <select className="lp-sel" style={{flex:1}} value={active.id} onChange={e=>assign(tier,game,e.target.value)}>
             {store.layouts.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </label>
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
+        <div data-spot="lp.hold" style={{display:'flex',alignItems:'center',gap:6}}>
           <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}} title={HOLD_TIP}>
             HOLD{heldN?` · ${heldN} HELD`:''}</span>
           <button type="button" style={mini} disabled={!hidden.some(k=>holdable(k)&&!active.held.includes(k))} onClick={holdAllHidden}>HOLD ALL HIDDEN</button>
@@ -5836,7 +5844,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
             <button type="button" style={mini} disabled={defaultOrder}
               onClick={()=>editLayout(l=>({...l,order:[...LAYOUT_SECS]}))}>RESET ORDER</button>
           </div>
-          {shownSecs.map((key,idx)=>{
+          <div data-spot="lp.secs">{shownSecs.map((key,idx)=>{
             const s=SECTION_VIS.find(x=>x.key===key);
             const mine=key==='mine';
             const its=parts(key),off=isHid(key),n=its.filter(it=>isHid(it.id)).length,exp=openSecs.has(key);
@@ -5853,7 +5861,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
                   style={{cursor:drag?'grabbing':'grab',touchAction:'none',color:T_MUTED,padding:'6px 2px 6px 6px',
                           fontSize:14,lineHeight:1,userSelect:'none'}}>⠿</span>
                 <div style={{flex:1,minWidth:0}}>{row(key,s.label,{strong:true})}</div>
-                {mine&&<button type="button" aria-expanded={exp} aria-label="MY CONTROLS pins"
+                {mine&&<button type="button" data-spot="lp.mine" aria-expanded={exp} aria-label="MY CONTROLS pins"
                   onClick={()=>setOpenSecs(p=>{const q=new Set(p);q.has(key)?q.delete(key):q.add(key);return q;})}
                   style={{background:'none',border:'none',color:shownPins.length?'#fbbf24':T_MUTED,fontFamily:'inherit',fontSize:10,
                           cursor:'pointer',padding:'6px 8px',whiteSpace:'nowrap',letterSpacing:0.5}}>
@@ -5888,7 +5896,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
                   </div>);})}
               </div>}
             </div>);
-          })}
+          })}</div>
           {group('⋯ MENU',parts('toolbar'))}
         </>}
         {tab==='tune'&&<>
@@ -5921,7 +5929,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
             const setFig=(k,m)=>editLayout(l=>{const f={...l.figs};if(m)f[k]=m;else delete f[k];return{...l,figs:f};});
             const cards=OUT_FIG_CARDS.map(([c,t])=>[c,t,OUT_FIGS.filter(f=>f.card===c&&outFigApplies(f.k,tier,game))]).filter(x=>x[2].length);
             return(<div>
-              <div className="lp-head" style={{display:'flex',alignItems:'center',gap:8}}>
+              <div className="lp-head" data-spot="lp.figs" style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{flex:1}}>FIGURES</span>
                 <button type="button" style={mini} disabled={!Object.keys(figs).length}
                   onClick={()=>editLayout(l=>({...l,figs:{}}))}>ALL AUTO</button>
@@ -5958,7 +5966,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
         {tab==='layouts'&&<>
           {msg&&<div role="status" style={{margin:'8px 8px 0',padding:'5px 8px',fontSize:10,color:'#c7d2fe',background:'#0f0e2a',
             border:'1px solid #312e81',borderRadius:2,lineHeight:1.5}}>{msg}</div>}
-          <div className="lp-head">USED FOR</div>
+          <div data-spot="lp.saved"><div className="lp-head">USED FOR</div>
           <div style={{display:'grid',gridTemplateColumns:'auto repeat(3,minmax(0,1fr))',gap:4,padding:'0 8px',alignItems:'center'}}>
             <span/>
             {LAYOUT_GAMES.map(g=><span key={g} style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>{LP_GAME_SHORT[g]}</span>)}
@@ -5970,7 +5978,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
                 {store.layouts.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
               </select>)}
             </React.Fragment>)}
-          </div>
+          </div></div>
           <div className="lp-head">SAVED LAYOUTS</div>
           {store.layouts.map(l=>{
             const used=usedBy(l.id);
@@ -8805,9 +8813,9 @@ const TUTORIALS={
      body:'Pick a preset for your car\'s class under FACTORY in the garage and load it; ★ marks the ones matching your build type. The results panel then holds a full tune, and the next steps fit it to your car.',
      glossary:['factory-presets']},
     {title:'Getting Around',
-     focus:['toolbar'],spot:['tb.undo'],
-     body:'INPUTS shows or hides this sidebar (on a phone, the INPUTS tab); results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header\'s glossary) for the full explanation.',
-     glossary:['undo-reset']},
+     focus:['toolbar'],spot:['tb.undo','tb.share','tb.reset'],
+     body:'The header holds everything around the tune. INPUTS shows or hides this sidebar (on a phone, INPUTS and TUNE are tabs along the bottom); ↩ ↪ undo and redo. The game · level chip sets game, level and units; SHARE moves tunes by code or link; ⋯ holds CHECK and ⟲ RESET (never your saves); ? reopens this guide or the glossary. Tap an ⓘ for a hint.',
+     glossary:['undo-reset','share-code']},
     {title:'Layout & Build Type',
      focus:['layout-build','build-type'],
      body:'Layout (FWD / RWD / AWD) is which wheels get power. Build type (Street / Track / Drift / Rally / Offroad / Drag) is the car\'s intended use, and shifts the alignment, brake balance and diff toward it.',
@@ -8815,6 +8823,7 @@ const TUTORIALS={
     {title:'Weight & Front Bias',
      focus:['weight'],
      body:'Enter the car\'s total weight and front weight bias from the car selection screen, not the tuning menu. Almost every calculation starts from these two numbers.',
+     bng:'Enter the car\'s total weight and front weight bias for this configuration. Almost every calculation starts from these two numbers.',
      glossary:['weight','front-weight-bias']},
     {title:'Ride Stiffness',
      focus:['ride-stiffness'],
@@ -8835,35 +8844,25 @@ const TUTORIALS={
      body:'This bar shows your handling tendency: + toward oversteer, − toward understeer. The grey tick is the car on its own; springs and bars carry it to the white NET tick, the headline. Tap it for the breakdown, including brakes and diff; its ? GUIDE explains each part.',
      glossary:['balance-bar','understeer','oversteer']},
     {title:'Reading the Results',
-     focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],quick:true,
-     body:'The results panel holds the values to type into the game\'s tuning menu. Start with the suspension: anti-roll bars, springs and dampers come from your ride, balance and character settings. Amber means a value is near the game\'s limit: soften your inputs slightly.',
+     focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.align','out.card.brakes','out.card.diff','out.card.suspF','out.card.suspR','out.card.alignF','out.card.alignR','out.card.diffF','out.card.diffR','out.card.center'],sidebar:'close',quick:true,
+     body:'The results panel holds the values to type into the game\'s tuning menu. The suspension cards follow your ride, balance and character settings; ALIGNMENT, BRAKES and DIFFERENTIAL your layout and build type. Small figures beside a value, such as Hz or settle time, show what it works out to. Amber means near the game\'s limit: soften your inputs slightly.',
+     bng:'The results panel holds the values to type into BeamNG\'s tuning menu, grouped as its menu is, in N/m and N/m/s with no click limits. The alignment sliders are %, not degrees: dial each against BeamNG\'s live readout. Small figures beside a value, such as Hz or settle time, show what it works out to.',
      glossary:['output-cards']},
-    {title:'Alignment, Brakes & Diff',
-     focus:['output'],spot:['out.card.align','out.card.brakes','out.card.diff','out.card.alignF','out.card.alignR','out.card.diffF','out.card.diffR','out.card.center'],
-     body:'ALIGNMENT, BRAKES and DIFFERENTIAL follow your layout and build type. Type them in as shown: like every card, they are starting points to fine-tune by feel once you\'ve driven the car.',
-     glossary:['output-cards']},
-    {title:'Output Toolbar',
-     focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
-     body:'⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. The first three sit under ⋯ in the header (SHARE too, on a phone).',
-     glossary:['undo-reset','tune-check','share-code']},
     {title:'Saving Your Own',
      focus:['garage'],spot:['garage.save'],sidebar:'close',
-     body:'Name the setup in the row above the preset list, then SAVE CHASSIS (the car: weight, bias, layout), SAVE BUILD (the tune) or SAVE CAR (both). Saves list under FACTORY; loading one is undoable with ↩. Reopen this guide any time with ?.',
+     body:'Name the setup in the box at the top of the garage, then SAVE CHASSIS (the car: weight, bias, layout), SAVE BUILD (the tune) or SAVE CAR (both). Saves list below the FACTORY presets; loading one is undoable with ↩. Reopen this guide any time with GUIDE, under ? in the header (⋯ on a phone).',
      glossary:['garage']},
   ],
   intermediate:[
     {title:'Welcome — Intermediate Mode',
      focus:null,
-     body:'Intermediate adds separate ride frequency, damping and ARB controls. The sidebar is now collapsible sections: tap a header to open one, or its chip in the bar along the top to open it and jump there. A header\'s ↺ resets just that section, and ⋯ in the header can collapse or expand them all. This guide covers only what\'s new.',
+     body:'Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header to open its section, or its chip in the bar along the top to open it and jump there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what\'s new.',
      glossary:['hz','zeta','roll-stiffness']},
-    {title:'Chassis',
-     focus:['chassis'],spot:['chassis.layout','chassis.weight','chassis.frontBias','chassis.tyres','chassis.cgSource'],
-     body:'Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.',
-     glossary:['cg-source']},
-    {title:'Build Type',
-     focus:['build'],
-     body:'Build Type in the BUILD section (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car\'s intended use. It steers the diff\'s automatic locks, the recommended diff type, brake balance and alignment.',
-     glossary:['build-type']},
+    {title:'Chassis & Build',
+     focus:['chassis','build'],spot:['chassis.layout','chassis.weight','chassis.frontBias','chassis.tyres','chassis.cgSource','build.type'],
+     body:'CHASSIS holds Layout, Weight and Front Weight Bias (from the car selection screen, not the tuning menu), tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL). BUILD\'s Build Type (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car\'s intended use: it steers the diff\'s automatic locks, the recommended diff type, brake balance and alignment.',
+     bng:'CHASSIS holds Layout, Weight and Front Weight Bias for this configuration, tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL). BUILD\'s Build Type (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car\'s intended use: it steers the diff\'s automatic locks, brake balance and alignment.',
+     glossary:['cg-source','build-type']},
     {title:'ARB Stiffness & Balance Mode',
      focus:['arb'],spot:['arb.mode','arb.basic','arb.roll','arb.share','arb.manF','arb.manR','arb.balMode','arb.neutralMethod'],
      body:'Stiffness Mode sets the total bar stiffness: AUTO, BASIC, ROLL °, SHARE % or MAN (front and rear typed directly, which hides Balance Mode and ARB Bias). Balance Mode splits it front to rear: WEIGHT follows the weight split; NEUTRAL works from the springs, by CANCEL or EQUAL ROLL.',
@@ -8888,25 +8887,26 @@ const TUTORIALS={
      focus:['alignment'],spot:['align.mode','align.ofsCamberF','align.ofsCamberR','align.ofsToeF','align.ofsToeR','align.ofsCaster'],
      absent:{ids:['align.ofsToeF'],text:'The sliders show under AUTO; MANUAL shows the five values to type instead.'},
      body:'ALIGNMENT starts from AUTO, recommended from your build and chassis. Each slider moves one value off it by feel: Camber F and R, Turn-in (front toe), Rear stability (rear toe) and Steering feel (caster). The box shows the number to type into the game. MANUAL takes exact values, such as an alignment already in the game; switching either way carries the numbers across.',
+     bng:'ALIGNMENT starts from AUTO, recommended from your build and chassis. Each slider moves one value off it by feel: Camber F and R, Turn-in (front toe), Rear stability (rear toe) and Steering feel (caster). The box shows the angle to aim for: BeamNG\'s sliders are %, so dial each against its live alignment readout. MANUAL takes exact values; switching either way carries the numbers across.',
      glossary:['align-mode','align-intent']},
-    {title:'Diff Type',
-     focus:['drivetrain'],spot:['drive.diffType'],
-     skip:st=>diffTypesOf(st.fe.gameMode).length<2,
-     body:'DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.',
-     glossary:['diff-type']},
-    {title:'Corner Exit & Entry',
-     focus:['drivetrain'],spot:['drive.exit','drive.entry'],
-     body:'EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.',
-     glossary:['exit-bias','entry-bias']},
+    {title:'Differential',
+     focus:['drivetrain'],spot:['drive.diffType','drive.exit','drive.entry'],
+     body:'On Horizon, DIFF TYPE picks the differential fitted to the car (Race, Sport, Rally, Offroad or Drift): each locks differently at the same %, and Sport has no decel control. EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE). Right means more rotation on both, and the DIFF in the Handling Balance ENTRY and EXIT lanes follows.',
+     glossary:['diff-type','exit-bias','entry-bias']},
     {title:'AWD Centre Diff',
      focus:['drivetrain','output'],spot:['drive.powerSplit','drive.frontExit','out.diff.recCenter','out.card.center'],sidebar:'open',
      skip:st=>st.ch.layout!=='AWD',
      absent:{ids:['drive.powerSplit'],text:'A Sport diff has no center control: pick another Diff Type to see POWER SPLIT and → USE.'},
      body:'AWD adds POWER SPLIT under CENTRE (not with a Sport diff): more rear means more oversteer. The DIFFERENTIAL card\'s CENTRE SPLIT box recommends a value and → USE applies it; changing Build Type moves the split with the recommendation, keeping any nudge. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.',
      glossary:['power-split','exit-bias']},
-    {title:'VISUALS Card',
+    {title:'Reading the Figures',
+     focus:['output'],spot:['out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],sidebar:'close',
+     body:'Small figures beside each value show what the solver worked out from your sidebar: ζ and settle time on the dampers, dynamic camber, and on the springs Hz or bottom-out g, whichever you didn\'t set. One that would only repeat a setting is left out. Each card\'s header says how it was solved, its balance line what it does to entry and exit; FIGURES in the LAYOUT panel turns any figure on or off.',
+     bng:'Small figures beside each value show what the solver worked out from your sidebar: ζ and settle time on the dampers, and on the springs Hz or bottom-out g, whichever you didn\'t set. One that would only repeat a setting is left out. FIGURES in the LAYOUT panel turns any figure on or off.',
+     glossary:['output-cards']},
+    {title:'VISUALS',
      focus:['visuals'],spot:['visuals.ride','visuals.dynamics','visuals.sag'],
-     body:'VISUALS (in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.',
+     body:'VISUALS (in the header; a tab on a phone) follows the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars, damping), DYNAMICS (step response, ±10% settle band), SAG vs LOAD (needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll). Tap a header to fold a group, or PIN it to keep it open whichever section you edit.',
      glossary:['ride-roll-damping','dynamics-chart','sag-vs-load']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],spot:['bar.head','bar.main','bar.legend'],sidebar:'close',
@@ -8916,52 +8916,34 @@ const TUTORIALS={
      focus:['balance-bar'],spot:['bar.lanes'],sidebar:'close',
      body:'Below the bar, the ENTRY and EXIT lanes start from MID and stack what acts only at each end of a corner: brakes, damping and front toe on entry, the diff and rear toe on both. Where each lane ends is that phase\'s word in the headline.',
      glossary:['balance-contributors']},
-    {title:'Reading the Results',
-     focus:['output'],spot:['out.card.arb','out.card.springs','out.card.dampers','out.card.suspF','out.card.suspR'],sidebar:'close',
-     body:'The results panel holds the exact values to type into the game\'s tuning menu. Start with the suspension: anti-roll bars, springs and dampers, from the ANTI-ROLL BARS, RIDE and DAMPERS sections. Amber means a value is near the game\'s limit: soften your inputs slightly.',
-     glossary:['output-cards']},
-    {title:'Alignment, Brakes & Diff',
-     focus:['output'],spot:['out.card.align','out.card.brakes','out.card.diff','out.card.alignF','out.card.alignR','out.card.diffF','out.card.diffR','out.card.center'],sidebar:'close',
-     body:'ALIGNMENT follows your build type, BRAKES applies your Brake Bias shift and DIFFERENTIAL the locks your DRIVETRAIN settings solve for. Type them in as shown, then fine-tune by feel.',
-     glossary:['output-cards']},
-    {title:'Output Toolbar',
-     focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
-     body:'In the header, where RESET, DNA and CHECK sit under ⋯ (SHARE too, on a phone): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.',
-     glossary:['undo-reset','tune-check','share-code']},
-    {title:'Garage',
-     focus:['garage'],spot:['garage.save','garage.list'],sidebar:'close',
-     body:'GARAGE (top right, or a tab on a phone) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car\'s LOAD CHASSIS and LOAD BUILD let you pair one car\'s chassis with another\'s tune, and every load is undoable with ↩.',
-     glossary:['garage']},
-    {title:'Organizing & Searching',
-     focus:['garage'],spot:['garage.search'],sidebar:'close',
-     body:'Entries take notes and your own tags, plus automatic ones, all searchable from the row under the save buttons, with filter and sort. ↺ rewrites an entry from your current setup as CHASSIS, BUILD or BOTH; BOTH turns a chassis entry into a full car.',
-     glossary:['garage']},
-    {title:'Sharing & Backup',
-     focus:['toolbar'],spot:['tb.share'],sidebar:'open',
-     body:'SHARE copies a code or link (COPY CODE / COPY LINK), loads one (LOAD CODE), and backs up or restores the garage as JSON (BACKUP / RESTORE). A loaded code is staged: tick the parts you want and APPLY SELECTED takes only those.',
-     glossary:['share-code','backup']},
+    {title:'Make It Yours',
+     focus:['toolbar'],spot:['tb.layout'],
+     body:'LAYOUT…, under ⋯ (or ✎ after the section chips), picks what the sidebar, results and VISUALS show and in what order, pins controls to a MY CONTROLS section, and HOLDs settings so loads leave them alone. Each level and game keeps its own layout; hiding never changes the tune. The panel\'s ? GUIDE walks through it.'},
+    {title:'Garage & Sharing',
+     focus:['garage'],spot:['garage.save','garage.search','garage.list'],sidebar:'close',
+     body:'GARAGE (top right, or a tab on a phone) saves a CHASSIS, a BUILD or a whole CAR; LOAD CHASSIS and LOAD BUILD pair one car\'s chassis with another\'s tune, and ↩ undoes any load. Notes and tags are searchable under the save buttons. SHARE (under ⋯ on a phone) copies a tune as a code or link, loads one part by part, and backs up the garage.',
+     glossary:['garage','share-code','backup']},
   ],
   pro:[
     {title:'Welcome — Pro Mode',
      focus:null,
-     body:'PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential and Vehicle DNA. This guide covers only what\'s new.',
-     glossary:['mech-balance-target','align-mode']},
+     body:'PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential, a phase-by-phase balance readout and Vehicle DNA. This guide covers only what\'s new.',
+     glossary:['mech-balance-target','phase-verdict']},
     {title:'Chassis Geometry',
      focus:['chassis'],spot:['chassis.wheelbase','chassis.trackF','chassis.trackR','chassis.tyres'],
      body:'LOOK UP ONLINE in CHASSIS holds wheelbase and track widths, which Forza never shows; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, which moves GRIP BIAS.',
+     bng:'LOOK UP ONLINE in CHASSIS holds wheelbase and track widths; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide\'s NATURAL; tyre width also sets each axle\'s grip, which moves GRIP BIAS. JBEAM ADJUST, below them, corrects for a car whose jbeam changes the tuning menu\'s spring number on its way to the physics.',
      glossary:['tyre-size','track-width','balance-guide']},
-    {title:'Calibrating Natural Balance',
+    {title:'Calibrating with the Game',
      focus:['chassis'],spot:['chassis.measureNatBal'],
-     body:'MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check\'s MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction; CLEAR, or ✕ beside it, drops it.',
-     glossary:['measure-nat-bal','natural-balance']},
-    {title:'Calibrating ARB Scale',
-     focus:['balance-target'],
-     body:'ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours from four readings; pick MEASURED under SCALE IN USE to use it.',
-     glossary:['measure-arb-scale','arb-scale']},
+     skip:st=>st.fe.gameMode==='beamng',
+     body:'MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check\'s MEASURE tab. STEP 1 · NAT BAL SETUP lists springs and bars to set in Forza; the Mech Balance it then shows replaces the geometry prediction (CLEAR or ✕ drops it). STEP 2 · ARB SCALE SETUP finds what an ARB click is worth from four readings; pick MEASURED under SCALE IN USE.',
+     glossary:['measure-nat-bal','measure-arb-scale','arb-scale']},
     {title:'Mech Balance Target',
      focus:['balance-target'],spot:['balance.targetNat','balance.guide'],
      absent:{ids:['balance.targetMode'],text:'Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or Hz MODE to MECH in RIDE.'},
      body:'How far to move Forza\'s Mech Balance from the car\'s natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide\'s range.',
+     bng:'How far to move Mech Balance, the rear\'s share of roll stiffness (BeamNG doesn\'t display it), from the car\'s natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide\'s range.',
      glossary:['mech-balance-target','balance-guide']},
     {title:'Balance Target Mode',
      focus:['balance-target'],spot:['balance.targetMode','balance.offset','balance.targetAbs','balance.exitLoad'],
@@ -8979,7 +8961,7 @@ const TUTORIALS={
      glossary:['hz-mode']},
     {title:'Brake Bias Centre',
      focus:['brakes'],spot:['brakes.centre','brakes.decel','brakes.entryTarget','brakes.entryBrk'],
-     body:'Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK shows what the bias does to corner entry.',
+     body:'Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK, here and on the BRAKES card\'s balance line, shows what the bias does to corner entry; the card\'s GRIP figure is the bias that locks both axles together.',
      glossary:['brake-balance','phase-verdict']},
     {title:'Manual Differential',
      focus:['drivetrain'],spot:['drive.diffMode','drive.splitMode','drive.manFrontAccel','drive.manFrontDecel','drive.manRearAccel','drive.manRearDecel','drive.manCenter','drive.manAccel','drive.manDecel'],
@@ -8993,15 +8975,16 @@ const TUTORIALS={
     {title:'Mech Balance & Response',
      focus:['balance-bar'],spot:['bar.mechHead','bar.mechStrip','bar.response'],
      body:'MECH BALANCE reads balance on the game\'s 0–1 scale: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.',
+     bng:'MECH BALANCE reads balance on a 0–1 scale, the rear\'s share of roll stiffness: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.',
      glossary:['mech-balance-strip','response','response-factors']},
     {title:'Load Transfer',
      focus:['visuals'],spot:['visuals.load','visuals.grip'],
      body:'LOAD TRANSFER in VISUALS shows the loads at 1 g cornering: FRONT TAKES is the front\'s share of the transfer against the weight split. GRIP USE below it predicts which axle runs out of grip first on entry, mid-corner and exit.',
      glossary:['load-transfer','grip-use']},
-    {title:'Output Panel & Tune Check',
-     focus:['toolbar'],spot:['tbCheck','tb.share','tb.reset'],
-     body:'CHECK opens Tune Check: DECODE reads back an existing tune\'s frequencies and damping, MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land. RESET never touches saves.',
-     glossary:['tune-check','share-code','undo-reset']},
+    {title:'Tune Check',
+     focus:['toolbar'],spot:['tbCheck'],
+     body:'CHECK, under ⋯, opens Tune Check: DECODE reads back the frequencies and damping behind a tune you already have, and MEASURE holds the NAT BAL and ARB SCALE steps.',
+     glossary:['tune-check']},
     {title:'Vehicle DNA',
      focus:['toolbar'],spot:['tbDna'],
      body:'DNA describes how a car should drive as handling targets: platform, pitch, bar share, balance, damping and diff. APPLY solves the tune that hits them on the loaded chassis, once, and ↩ undoes it. MY DNA saves one to reuse on any car.',
@@ -9032,6 +9015,27 @@ const TUTORIALS={
      focus:null,spot:['bar.response'],
      body:'RESPONSE rates how quickly the car reacts to steering, separately from understeer and oversteer: a neutral car can still be very planted or very reactive. PLANTED (left) is settled and predictable but slower to change direction; REACTIVE (right) turns in sharply but can feel nervous.',
      glossary:['response','response-factors']},
+  ],
+  layout:[
+    {title:'Layouts',
+     focus:['layout'],spot:['lp.uses'],lpTab:'sidebar',
+     body:'A layout is a set of display choices: what shows, in what order, and which settings loads leave alone. Each level and game uses one (named here), so Horizon, Motorsport and BeamNG can each look their own way. Hiding never changes the tune, and layouts never travel in share codes or garage backups.'},
+    {title:'Hide & Order',
+     focus:['layout'],spot:['lp.secs'],lpTab:'sidebar',
+     body:'Untick a section, or open its PARTS, to hide it: a hidden setting that differs from its default still applies, and its section says so. Drag ⠿ or use ↑ ↓ to reorder. START OPEN opens a section whenever a tune loads, and JUMP CHIP keeps its chip in the bar. EDIT ON PAGE does the same by clicking the page itself.'},
+    {title:'MY CONTROLS',
+     focus:['layout'],spot:['lp.mine'],lpTab:'sidebar',
+     body:'☆ beside a control pins it to MY CONTROLS, a section of its own, so the few controls you reach for sit together wherever their own sections are. ★ PINNED lists them, with ↑ ↓ to reorder.'},
+    {title:'HOLD',
+     focus:['layout'],spot:['lp.hold'],lpTab:'sidebar',
+     body:'HOLD beside a section or control keeps its value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden; HOLD ALL HIDDEN holds everything you\'ve hidden. Held sections read HELD, held controls get a bar. After a load a line says what was kept: LOAD ALL takes the load\'s values this once (↩ undoes it), and ⚠ flags a held value whose mode changed.'},
+    {title:'Results & Figures',
+     focus:['layout'],spot:['lp.figs'],lpTab:'tune',
+     body:'TUNE orders the result cards (BeamNG\'s rows move whole) and hides cards, rows and parts of the balance bar. FIGURES sets the smaller numbers beside each value: AUTO shows what the solver worked out and leaves out what only repeats a setting; ON and OFF fix one either way. The VISUALS tab hides VISUALS groups and their parts.',
+     glossary:['output-cards']},
+    {title:'Saving Layouts',
+     focus:['layout'],spot:['lp.saved'],lpTab:'layouts',
+     body:'USED FOR picks the layout each level and game uses. + NEW starts a blank one and DUPLICATE copies any layout; names edit in place. ↓ EXPORT ALL saves them to a file, and ↑ IMPORT… adds a file\'s layouts beside yours.'},
   ],
 };
 
@@ -9421,7 +9425,7 @@ const UnitsPicker=({units,setUnits,physical=false})=>{
   );})}
 </>);};
 
-const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice,shown,endNote})=>{
+const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone,zoom=1,units,setUnits,appState,notice,shown,endNote,game})=>{
   const steps=tutSteps(mode,quick);
   const t=steps[step];
   // shown: which steps this car and tier run (a step's skip); App's NEXT / PREV step over the
@@ -9596,7 +9600,9 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
         const inSidebar=r.right<=sbRight+2;
         // The GARAGE overlay sits on the right edge: a card below its rows covers the list they
         // describe, so on a wide screen it goes left of the overlay instead.
-        const gEl=t?.focus?.includes('garage')?document.getElementById('zone-garage'):null;
+        // The LAYOUT panel docks there too, for the Layouts guide.
+        const gEl=t?.focus?.includes('garage')?document.getElementById('zone-garage')
+          :t?.focus?.includes('layout')?document.getElementById('zone-layout'):null;
         const gLeft=gEl?gEl.getBoundingClientRect().left/zoom:null;
         if(gLeft!=null&&r.left>=gLeft-2&&gLeft-10-CARD_W>=8){
           const maxH=Math.max(140,vh-16);
@@ -9727,7 +9733,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
   // 'HANDLING' (not 'BALANCE') — this tutorial mode walks through the Handling Balance
   // results bar, which would otherwise render as "BALANCE GUIDE" and collide with the
   // sidebar's actual BALANCE section, which has its own unrelated "BALANCE GUIDE" widget.
-  const mLabel={beginner:'BEG',intermediate:'INT',pro:'PRO',balance:'HANDLING'}[mode]??mode.toUpperCase();
+  const mLabel={beginner:'BEG',intermediate:'INT',pro:'PRO',balance:'HANDLING',layout:'LAYOUT'}[mode]??mode.toUpperCase();
   const btnStyle={background:'none',border:'1px solid #1e293b',borderRadius:2,color:'#9ca3af',
     fontFamily:'var(--font-mono)',fontSize:10,padding:'4px 10px',cursor:'pointer',letterSpacing:1};
 
@@ -9795,7 +9801,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
              style={{fontSize:11,color:'#94a3b8',lineHeight:1.65,margin:'0 0 10px',
                  overflowY:'auto',flex:1,minHeight:0,
                  WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',whiteSpace:'pre-line'}} data-tut-body>
-          {t.body}
+          {game==='beamng'&&t.bng?t.bng:t.body}
           {quick&&isLast&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap GUIDE, under ? in the header (⋯ on a phone), any time to replay the full tour.</div>}
           {isLast&&endNote&&<div data-tut-end style={{marginTop:10,color:'#4ade80'}}>{endNote}</div>}
           {absentOn&&t.absent&&<div data-tut-absent style={{marginTop:10,padding:'6px 8px',border:'1px solid #78350f',
@@ -9920,6 +9926,10 @@ function App(){
   // expand, chaining a third guide onto the end of a tier tour.
   const openBalTut=()=>{setBalTutStep(0);setBalTutOpen(true);setBalTutSeen(true);};
   const closeBalTut=()=>setBalTutOpen(false);
+  // The Layouts guide (TUTORIALS.layout): its step, or null. It runs over the LAYOUT panel, which
+  // stays open and keeps the reader's own layout (it is not guideOn), so it opens from the panel's
+  // ? GUIDE and closes with the panel. A step's lpTab turns the panel to that tab.
+  const[lpTut,setLpTut]=useState(null);
   const[onboardSeen,setOnboardSeen]=usePersist('suspos_onboard_v1',true);
   // LEGACY — still read by the saves_v9 migration below and by the Beginner builds drawer.
   // The suspos_builds_v1 KEY itself is also a migration source for the unified garage; see
@@ -10054,6 +10064,12 @@ function App(){
   // The steps this car runs: a step's skip(st) drops it (INT's AWD Center Diff off AWD). NEXT and
   // PREV step over the rest, and a guide opened or resumed on one moves on to the next shown.
   const tutShown=tutMode?tutSteps(tutMode,tutQuick).map(x=>{try{return!x.skip?.({ch,fe,dr});}catch(e){return true;}}):[];
+  // Where step i sits among the steps this car runs, and how many that is: what the RESUME
+  // prompt counts, as the card does (a skipped step, such as AWD Centre Diff off AWD, isn't one).
+  const tutPos=(m,i)=>{
+    const sh=(TUTORIALS[m]??[]).map(x=>{try{return!x.skip?.({ch,fe,dr});}catch(e){return true;}});
+    return{at:sh.slice(0,i).filter(Boolean).length+1,total:sh.filter(Boolean).length};
+  };
   const tutMove=dir=>setTutStep(s=>{
     for(let i=s+dir;i>=0&&i<tutShown.length;i+=dir)if(tutShown[i])return i;
     return s;
@@ -10185,8 +10201,11 @@ function App(){
   useEffect(()=>{if(guideOn)setLayoutEdit(false);},[guideOn]);
   // The step on screen, from either guide, and the stylesheet its spot list puts on the page.
   // The balance guide dims nothing outside the bar, so its spots dim only inside it.
-  const guideStep=tutMode?tutSteps(tutMode,tutQuick)[tutStep]:balTutOpen?TUTORIALS.balance[balTutStep]:null;
-  const guideCss=spotCss(guideStep?.spot,tutMode?tutFocus:['balance-bar']);
+  const guideStep=tutMode?tutSteps(tutMode,tutQuick)[tutStep]:balTutOpen?TUTORIALS.balance[balTutStep]
+    :lpTut!=null?TUTORIALS.layout[lpTut]:null;
+  const guideCss=spotCss(guideStep?.spot,tutMode?tutFocus:balTutOpen?['balance-bar']:[]);
+  useEffect(()=>{if(!layoutPanel)setLpTut(null);},[layoutPanel]);
+  useEffect(()=>{const t=lpTut!=null&&TUTORIALS.layout[lpTut]?.lpTab;if(t)setLayoutPanel(t);},[lpTut]);
   // On phones the bar's stack folds behind its summary line: a step pointing into the bar opens it.
   useEffect(()=>{
     if(isPhone&&guideStep?.spot?.some(id=>spotZone(id)==='balance-bar'))setFooterOpen(true);
@@ -12284,7 +12303,7 @@ function App(){
   const TIER_TXT={beginner:'BEG',intermediate:'INT',pro:'PRO'};
   // A guide step spotlighting something inside ⋯ holds it open: DNA, CHECK, RESET, and on a phone
   // SHARE too, which lives in ⋯ there.
-  const actMenuForced=!!guideStep?.spot?.some(id=>(isMobile?['tb.share','tb.reset','tbDna','tbCheck']:['tb.reset','tbDna','tbCheck']).includes(id));
+  const actMenuForced=!!guideStep?.spot?.some(id=>(isMobile?['tb.share','tb.reset','tbDna','tbCheck','tb.layout']:['tb.reset','tbDna','tbCheck','tb.layout']).includes(id));
   const hdrTight=windowWidth<1000; // the chip's short game name, a smaller wordmark, tighter gaps
   const sep=<div aria-hidden="true" style={{width:1,height:16,background:'#1e293b',margin:hdrTight?'0 2px':'0 4px',flexShrink:0}}/>;
   const onbChipRef=useRef(null);
@@ -12324,7 +12343,7 @@ function App(){
             {uiMode!=='beginner'&&<>
               <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
               <MenuHead>SECTIONS</MenuHead>
-              <MenuItem label={editing?'✓ DONE EDITING':'LAYOUT…'} disabled={guideOn}
+              <MenuItem label={editing?'✓ DONE EDITING':'LAYOUT…'} disabled={guideOn} spot="tb.layout"
                 note={editing?'Back to the regular view.'
                   :`Using ${activeLayout?.name}. Choose what shows and what loads leave alone; save layouts per game.`
                     +(hiddenCount?` ${hiddenCount} hidden.`:'')+(heldCount?` ${heldCount} held.`:'')}
@@ -12765,12 +12784,12 @@ function App(){
                style={{background:'#0a0f1a',border:'1px solid #1e3a5f',borderRadius:6,padding:20,maxWidth:380,width:'100%'}}>
             <div style={{fontSize:13,letterSpacing:1,color:'#38bdf8',marginBottom:12}}>{{beginner:'BEGINNER',intermediate:'INTERMEDIATE',pro:'PRO'}[tutResume.mode]} GUIDE</div>
             <div style={{fontSize:12,color:'#cbd5e1',lineHeight:1.6,marginBottom:14}}>
-              You left this guide at step {tutResume.step+1} of {TUTORIALS[tutResume.mode]?.length}.
+              You left this guide at step {tutPos(tutResume.mode,tutResume.step).at} of {tutPos(tutResume.mode,tutResume.step).total}.
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="tbtn" onClick={()=>{const m=tutResume.mode;setTutResume(null);openTut(m);}}>START OVER</button>
               <button className="tbtn" style={{color:'#38bdf8',borderColor:'#1e3a5f'}}
-                onClick={()=>{const{mode,step}=tutResume;setTutResume(null);openTut(mode,step);}}>RESUME AT STEP {tutResume.step+1}</button>
+                onClick={()=>{const{mode,step}=tutResume;setTutResume(null);openTut(mode,step);}}>RESUME AT STEP {tutPos(tutResume.mode,tutResume.step).at}</button>
             </div>
           </div>
         </div>
@@ -12801,11 +12820,16 @@ function App(){
         onClose={closeTut}
         onDone={finishTut}
         shown={tutShown} endNote={TUT_END_NOTE[tutMode]}
-        zoom={effZoom} units={units} setUnits={setUnits} appState={fe} notice={tutNotice}/>}
-      {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep}
+        zoom={effZoom} units={units} setUnits={setUnits} appState={fe} notice={tutNotice} game={fe.gameMode}/>}
+      {balTutOpen&&<TutorialPanel mode='balance' step={balTutStep} game={fe.gameMode}
         onNext={()=>setBalTutStep(s=>Math.min(s+1,(TUTORIALS.balance?.length??1)-1))}
         onPrev={()=>setBalTutStep(s=>Math.max(s-1,0))}
         onClose={closeBalTut}
+        zoom={effZoom}/>}
+      {lpTut!=null&&layoutPanel&&<TutorialPanel mode='layout' step={lpTut} game={layoutGame}
+        onNext={()=>setLpTut(s=>Math.min(s+1,(TUTORIALS.layout?.length??1)-1))}
+        onPrev={()=>setLpTut(s=>Math.max(s-1,0))}
+        onClose={()=>setLpTut(null)}
         zoom={effZoom}/>}
 
       {/* ONBOARDING POPUP */}
@@ -16303,7 +16327,7 @@ function App(){
           active={activeLayout} hidden={activeLayout.hidden} toggle={id=>setSecHidden(id,!activeLayout.hidden.includes(id))}
           showAll={showAllHere} changed={layoutChangedIds()} toggleHold={toggleHold} holdAllHidden={holdAllHidden} releaseHolds={releaseHolds} editLayout={editActiveLayout} togglePin={togglePin}
           tab={layoutPanel} setTab={setLayoutPanel}
-          onClose={closeLayoutPanel} onEditOnPage={editOnPage} mobile={isMobile}
+          onClose={closeLayoutPanel} onEditOnPage={editOnPage} onGuide={()=>setLpTut(0)} mobile={isMobile}
           width={Math.min(440,Math.max(340,Math.floor(windowWidth*0.3)))}/>}
 
         {/* GARAGE — desktop: a drawer that slides in from the right, inside the flex body (not
