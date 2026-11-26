@@ -29,8 +29,11 @@ zones, the settle band, and the ARB bands. The prose is not checked.
     back, except on a phone, where it is one of four tab-bar views (INPUTS · VISUALS · TUNE ·
     GARAGE) and every switch is one tap; see [CODE_MAP.md](CODE_MAP.md#phone-views).
   Neither home changes the sidebar's size, so the inputs keep their scroll position.
-- **Hidden** in BEG (`uiMode==='beginner'`), and while the layout edit view hides the whole
-  `visuals` section (the header's HIDE / SHOW in the edit view). A guide step that focuses
+- **Hidden** in BEG (`uiMode==='beginner'`), and while the active layout hides the whole
+  `visuals` section (the layout panel's VISUALS tab, or the header's HIDE / SHOW in the edit
+  view). Single groups hide the same way, ALIGNMENT included (`visuals.align`), and so do pieces
+  inside a group (`VisPart`: the roll split and each track, ALIGNMENT's two charts, LOAD TRANSFER's
+  diagram and tables, GRIP USE's notes), from the panel only. A guide step that focuses
   `visuals` shows it whatever VIS says (`visTut`); on a phone only when no sidebar section
   shares the step, since the INPUTS view would cover it.
 - **Which groups are open** mirrors the sidebar. Opening a section opens its groups
@@ -55,7 +58,8 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 - **PIN**, on every group header, keeps that group open whatever section is edited, and
   is never closed by a section collapsing (a pinned GRIP USE keeps its phase too). Pins are
   remembered (`visUI.pins`, [PERSISTENCE.md](PERSISTENCE.md)).
-- The section label beside the title names the section last opened or touched (`activeSec`).
+- The section label beside the title names the section last opened or touched (`activeSec`). A
+  control pinned to MY CONTROLS counts for its home section; MY CONTROLS itself never does.
 - **Groups**, in order, each with its own collapse key on `open`:
 
 | Group | `open` key | Shown when |
@@ -395,7 +399,8 @@ limit itself has no g figure, only the shares.
 
 - A new group needs an `open` key initialised in the `open` `useState`
   (`tests-docs.js` checks this) and listed in `VIS_KEYS`, its gate in `visAvail` and its
-  hide id in `VIS_HIDE_ID`, a place in the `VIS_FOR_SEC` rows it suits, `{visPin(key)}` in its
+  hide id in `VIS_HIDE_ID` (and a `HIDE_ITEMS` row; pieces inside it that can be hidden are
+  `VisPart`s with rows of their own), a place in the `VIS_FOR_SEC` rows it suits, `{visPin(key)}` in its
   header, a row in the container table above, and a section here.
 - Keep front blue and rear orange, NAT grey and target green. The card is read by
   colour at a glance, and a group that disagrees costs every other group its meaning.

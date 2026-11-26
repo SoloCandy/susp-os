@@ -38,16 +38,17 @@ The result is a tune that starts from a principled baseline rather than trial-an
 
 ### Around the app
 
-**Header.** The **?** button reopens the current tier's guide. **TERMS** opens a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more), grouped like the app's own sections; it opens on ALL, and BEG / INT / PRO chips narrow it to one tier and below, with INT or PRO badges on paragraphs that only apply higher up. Most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link to the full entry. The GitHub mark opens this repository — and when a newer version is published while the page is open, it turns green with a ↻ and reloads the page instead (your tune and garage are kept).
+**Header.** One row on a wide screen: INPUTS · VISUALS · TUNE (which panels show), the game · level menu (game, BEG / INT / PRO and UNITS), the tune's actions, **?** and GARAGE. On a phone it is SUSP.OS, the game · level menu, ↩ ↪ and ⋯, with a tab bar at the bottom for INPUTS, VISUALS, TUNE and GARAGE.
+- **?** (in ⋯ on a phone) holds GUIDE, which reopens the current tier's guide; GLOSSARY, a searchable glossary (Hz, ζ/damping ratio, ARB, mech balance, camber/toe/caster, and more) grouped like the app's own sections, opening on ALL with BEG / INT / PRO chips to narrow it; and SOURCE, this repository. Most ⓘ tooltips, and several guide steps, end in a **TERMS: … ›** link to the full glossary entry. When a newer version is published while the page is open, ? (or ⋯) gets a green dot and SOURCE becomes ↻ RELOAD (your tune and garage are kept).
 
-**Inputs.** Every slider's value can be typed as well as dragged, in the number box beside its label.
+**Inputs.** Every slider's value can be typed as well as dragged, in the number box beside its label. In INT and PRO a row of chips along the top of the sidebar opens a section and jumps to it; lit chips are the open sections. Your layout sets the sidebar's section order, which sections start open, and which get a chip. COLLAPSE and EXPAND (every section) and EDIT LAYOUT are under SECTIONS in ⋯.
 
-**Toolbar.** **⟲ RESET / ↩ / ↪ / DNA / CHECK / SHARE** is pinned to the top of the sidebar in every tier.
-- ⟲ clears the tune or the tutorials back to defaults (garage saves are untouched).
+**Tune actions.** **↩ / ↪ / SHARE** sit in the header, with **DNA / CHECK / ⟲ RESET** under ⋯ (SHARE too, on a phone), in every tier.
 - ↩ / ↪ undo and redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; ⌘ on Mac). A slider drag is one step; so is each load, APPLY, share-code import or reset.
+- **SHARE** handles share codes and JSON garage backups.
 - **DNA** (PRO) opens the Vehicle DNA editor and your saved DNAs.
 - **CHECK** opens Tune Check, a reverse calculator that reads frequencies and damping ratios back out of existing spring/damper values and imports them as a tune, or (PRO) as a Vehicle DNA. From INT it also imports an existing alignment into ALIGNMENT's MANUAL.
-- **SHARE** handles share codes and JSON garage backups.
+- ⟲ RESET clears the tune or the tutorials back to defaults (garage saves are untouched).
 
 **VISUALS.** The header's VISUALS button (a tab on a phone) opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
 - **DNA MATCH** — only while a Vehicle DNA is linked: each axis's target against the tune's current value.
@@ -70,7 +71,7 @@ A **BEG / INT / PRO** choice in the header (the game · level menu on desktop) c
 
 INT and PRO unlock as you go: INT once you've opened the BEG guide, PRO once you've opened the INT guide. Until then their header buttons show a 🔒, and clicking one opens the guide that unlocks it.
 
-INT and PRO can also hide what you don't use. **EDIT** in the sidebar's SECTIONS row switches to an edit view: use a section's **HIDE** button, or click any single control, toolbar button (DNA, CHECK), output card or row, or part of the balance bar to grey it out, click again to bring it back, and **DONE** to return. INT and PRO keep separate lists, saved on this device only. Hiding never changes the tune: a hidden section or control whose settings differ from their defaults leaves one line on its section (*N hidden settings changed · still apply · SHOW*), warnings are never hidden, and the output panel notes how many of its parts are hidden. The in-app guides show everything while they run. Turn on **PERSIST** (above the edit banner) and whatever is hidden in your current tier also keeps its value: presets, garage loads, LOAD CODE, DNA and RESET leave it alone, and a line says what was kept. Hide the ANTI-ROLL BARS set to MAN 1 / 65, for instance, and they stay 1 / 65.
+INT and PRO can also hide what you don't use, in **layouts**. **LAYOUT…** (under ⋯ in the header, or ✎ at the end of the sidebar's jump bar) opens the layout panel: a checklist of every section, control, ⋯ item (DNA, CHECK), output card and row, balance-bar part and VISUALS group or chart, including controls of modes you haven't selected. Its TUNE tab orders the output cards (in BeamNG, whole front | rear rows). Selectors list their choices too, so you can hide the modes you never use (MECH and CO-SOLVE from Balance Mode, say); the one selected always stays. Its SIDEBAR tab also reorders the sections (drag ⠿, or ↑ ↓) and picks which start open on a load and which get a jump-bar chip. ☆ beside any sidebar control (in the panel, or on the page while editing) pins it to **MY CONTROLS**, a section of your own that gathers the controls you use most, wherever their home section is — even one you've hidden. **EDIT ON PAGE** instead lets you click parts on the page itself to grey them out. Layouts are named and saved on this device: each tier picks one per game (so BeamNG can have its own), and DUPLICATE, NEW, EXPORT ALL and IMPORT live on the panel's LAYOUTS tab. Out of the box INT and PRO each have their own. Hiding never changes the tune: a hidden section or control whose settings differ from their defaults leaves one line on its section (*N hidden settings changed · still apply · SHOW*), warnings are never hidden, and the output panel notes how many of its parts are hidden. The in-app guides show everything while they run. Turn on a layout's **PERSIST** and whatever it hides also keeps its value: presets, garage loads, LOAD CODE, DNA and RESET leave it alone, and a line says what was kept. Hide the ANTI-ROLL BARS set to MAN 1 / 65, for instance, and they stay 1 / 65.
 
 Every slider's range, tier and handling effect is in [SLIDERS.md](docs/SLIDERS.md).
 
@@ -164,7 +165,7 @@ node tests/tests-share.js    # share parts: a code loads in pieces (reads index.
 node tests/tests-ride.js     # Ride Reference: CO-SOLVE inversion, RIDE REF. switch, BOTTOM G's (reads index.html directly)
 node tests/tests-balance.js  # mech-balance model properties (reads index.html directly)
 node tests/tests-garage.js   # garage auto-tags and their tier gating (reads index.html directly)
-node tests/tests-sections.js # layout edit view: section and control ownership, hidden-change gating, stored lists; guide step spots and resume points (reads index.html directly)
+node tests/tests-sections.js # layouts: section and control ownership, hidden-change gating, stored layouts and their migration; guide step spots and resume points (reads index.html directly)
 ```
 
 GitHub Actions runs every suite in `tests/` on each push to `main` and each pull

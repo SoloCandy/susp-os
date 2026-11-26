@@ -308,14 +308,15 @@ Zone keys valid in `focus` are the `zone-*` ids listed in
 doesn't exist at the current tier (e.g. `balance-target` outside PRO) centres the
 card and dims everything.
 
-**Hidden parts reappear while either guide runs.** The layout edit view can hide a section, a
-single control, a toolbar button or an output part, which would leave a step's `focus`,
+**Hidden parts reappear while either guide runs.** A layout can hide a section, a single
+control, a ⋯ item or an output part, which would leave a step's `focus`,
 `spot` or text pointing at nothing. `App`'s `secVis` returns `show` for every key and
 `LayoutCtx` gets an empty hidden list while `guideOn` (`tutMode` or `balTutOpen`) is set, and
-the user's hidden lists come back untouched when the guide closes. Starting either guide
-also leaves the edit view, and EDIT is disabled until it ends. Before spots only `tutMode`
+the sidebar is drawn in its default section order (`sidebarOrder`) without MY CONTROLS, pinned
+controls back in their own sections, since a step's card is placed by where its section sits; the user's layouts come back untouched when the guide closes. Starting either guide
+also closes the layout panel and leaves the edit view, and LAYOUT… is disabled until it ends. Before spots only `tutMode`
 did this, so the balance guide explained a bar the user might have hidden. See
-[CODE_MAP.md](CODE_MAP.md#layout-edit-view-hiding-sections-controls-and-output-parts).
+[CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
 
 ---
 
@@ -352,7 +353,7 @@ the Welcome card and live in the glossary.
 
 | # | Title | Spotlight | Spots | Sidebar | Covers |
 |---|---|---|---|---|---|
-| 1 | Welcome — Intermediate Mode | — | | | Collapsible sections, SECTIONS − / +, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
+| 1 | Welcome — Intermediate Mode | — | | | Collapsible sections, the section jump bar, collapse / expand all under ⋯, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
 | 2 | Chassis | `chassis` | `chassis.layout` / `.weight` / `.frontBias` / `.tyres` / `.cgSource` | | Layout / weight / bias moved here; CG height source. |
 | 3 | Build Type | `build` | | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
 | 4 | ARB Stiffness & Balance Mode | `arb` | `arb.mode` / `.basic` / `.roll` / `.share` / `.manF` / `.manR` / `.balMode` / `.neutralMethod` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
@@ -494,7 +495,7 @@ TRY IT task (ticks when the check passes):
 
 #### 1. Welcome — Intermediate Mode
 
-> Intermediate adds separate ride frequency, damping and ARB controls. The sidebar is now collapsible sections: tap a header to open one, SECTIONS − / + to collapse or expand them all, and a header's ↺ to reset just that section. This guide covers only what's new.
+> Intermediate adds separate ride frequency, damping and ARB controls. The sidebar is now collapsible sections: tap a header to open one, or its chip in the bar along the top to open it and jump there. A header's ↺ resets just that section, and ⋯ in the header can collapse or expand them all. This guide covers only what's new.
 
 #### 2. Chassis
 

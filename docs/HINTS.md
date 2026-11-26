@@ -1281,15 +1281,73 @@ tabs — SHARE, LOAD, BACKUP, RESTORE:
 
 > Loads garage entries from a backup file. Ticked kinds replace yours for good, so RESTORE takes two taps. The current tune is not touched.
 
-## Layout edit view (INT / PRO)
+## Layouts (INT / PRO)
 
-EDIT in the sidebar's SECTIONS row turns it into a banner, under a bar pinned to the top of the
-sidebar (✎ EDITING LAYOUT, the tier and hidden count, SHOW ALL, DONE). The banner's explanation:
+LAYOUT…, under SECTIONS in the header's ⋯ (or ✎ at the end of the sidebar's jump bar), opens the
+layout panel; while the on-page edit view is on, the same item reads ✓ DONE EDITING. Its note in
+the regular view, with the hidden count added when anything is hidden:
 
-> Click anything to hide it from this tier; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. A control that only appears in another mode can be hidden once that mode is selected.
+> Using {layout}. Choose what shows; save layouts per game. {n} hidden.
 
-Under it, the PERSIST switch (PERSIST HIDDEN SETTINGS, OFF / ON, one switch for INT and PRO) and
-its note:
+and, while PERSIST holds anything, after it:
+
+> PERSIST is holding hidden settings.
+
+### Layout panel
+
+Over the tune pane on a wide screen, a full view on a phone. Its header names which layout this
+tier and game use (`{tier} · {game} USES`, a picker), EDIT ON PAGE, DONE, and the PERSIST switch
+(PERSIST HIDDEN SETTINGS, OFF / ON, the active layout's own), whose tooltip is the note quoted
+under the edit view below. The SIDEBAR, TUNE and VISUALS tabs list every part this tier and game
+can show, other modes' included, as ticks; a section's row says how many parts it has and how
+many are hidden, and a hidden part whose setting still applies is marked `● still applies`. Their
+line above the list:
+
+> Untick to hide in {layout}. Hiding never changes the tune.
+
+The SIDEBAR tab adds, beside RESET ORDER:
+
+> Drag ⠿ or use ↑ ↓ to reorder the sidebar.
+
+and under each section ↑ ↓ and two ticks, START OPEN (opened on every load) and JUMP CHIP (a chip
+on the jump bar). Every sidebar control's row ends in ☆ (★ when pinned to MY CONTROLS), and a selector's row is
+followed by its choices as chips (lit = shown, struck through = hidden; a tooltip says which a
+click does). On the page, a hidden choice that is selected stays, dashed, titled:
+
+> Hidden in this layout; shown while it is selected
+ MY
+CONTROLS' own row opens a list of its pins (label · home section, ↑ ↓, ★), or, with none:
+
+> Nothing pinned yet. ☆ a control in any section below, or on the page with EDIT ON PAGE. Pinned controls gather here, wherever their own section is.
+
+### MY CONTROLS
+
+A section whose pinned controls are on show in MY CONTROLS starts, when open, with
+`★ {n} in MY CONTROLS` and GO, which jumps there. In the on-page edit view MY CONTROLS holds
+only:
+
+> While you edit, pinned controls show in their own sections, marked ★. ☆ on a control pins it here.
+
+The TUNE tab starts with CARD ORDER · FORZA, or ROW ORDER · BEAMNG with this under it:
+
+> BeamNG's cards sit in front | rear pairs, so whole rows move.
+
+The LAYOUTS tab: USED FOR (a picker per tier and game), SAVED LAYOUTS (rename in place,
+DUPLICATE, DELETE, which asks SURE?), + NEW, ↓ EXPORT ALL and ↑ IMPORT…. NEW and DUPLICATE
+switch this tier and game to the new layout and say so; import reports how many it added, or why
+it added none. Its foot:
+
+> Layouts stay on this device and never travel in share codes or garage backups. EXPORT ALL saves them to a file; IMPORT adds a file's layouts beside yours. Up to {max}.
+
+### On-page edit view
+
+EDIT ON PAGE opens the sidebar (the INPUTS view on a phone) and shows a banner under a bar pinned
+to the top of the sidebar (✎ EDITING LAYOUT, the layout's name in quotes, the tier and game, the
+hidden count, SHOW ALL, DONE). The banner's explanation:
+
+> Click anything to hide it from this layout; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. To hide a control that only appears in another mode, use LAYOUT… under ⋯.
+
+Under it, the same PERSIST switch, and its note:
 
 > On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
 
@@ -1297,6 +1355,8 @@ The strip at the top of the output panel, which carries a second DONE (on a phon
 banner is off screen):
 
 > EDITING LAYOUT · click a card header, a row or a balance bar part to hide it
+
+### Hidden settings
 
 The line a whole hidden section leaves in the sidebar while it differs from its defaults, after
 its title:
@@ -1308,19 +1368,20 @@ defaults. SHOW brings back those controls only:
 
 > {n} hidden setting{s} changed · still {apply / applies}
 
-With PERSIST on, both lines end ` · held`, and the SECTIONS row adds ` · PERSIST` after its
-hidden count while PERSIST holds anything.
+With PERSIST on, both lines end ` · held`, and LAYOUT's note in ⋯ ends with the PERSIST
+sentence above.
 
 After a load, DNA, LOAD CODE, CHECK's import or RESET that PERSIST kept something from, a line
 above the DNA link line until ✕, the next such action or a tier change; `{label}` is the undo
-label (`load STREET`, `apply DNA MOMENTUM`, `reset`, `load share code`, …) and `{n}` counts
-settings, not controls:
+label (`load STREET`, `apply DNA MOMENTUM`, `reset`, `load share code`, …), `{n}` counts
+settings, not controls, and `{layout}` is the layout whose hidden list held them:
 
-> PERSIST kept {n} hidden setting{s} through {label}
+> PERSIST kept {n} hidden setting{s} through {label} · layout {layout}
 
-The note at the foot of the output panel while any card, row or balance-bar part is hidden:
+The note at the foot of the output panel while any card, row or balance-bar part is hidden, with
+LAYOUT, which opens the panel's TUNE tab:
 
-> {n} output part{s} hidden in this tier
+> {n} output part{s} hidden in {layout}
 
 ---
 

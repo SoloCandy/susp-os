@@ -27,6 +27,16 @@
 //   7. Tutorial resume points: titles are unique within a guide, old index saves
 //      (suspos_tutorial_step_v1) convert to the same step by title, and a save whose step
 //      has gone falls back to its index, clamped.
+//   8. Layouts: every HIDE_ITEMS row has a panel label and valid games; repairLayouts mends
+//      junk, duplicate ids and missing assignments; the first load builds INT and PRO from the
+//      old per-tier lists and PERSIST switch; importLayouts adds, renames and caps; a part of
+//      another game doesn't apply here; section order, start-open and chip lists repair to known
+//      sections, with a missing section put back near its default place.
+//   9. Hidden choices: HIDE_OPTS against the render (every data-opt sits in its control's Hide and
+//      is listed, every listed control tags its buttons), choice ids' tier and game gates, and
+//      VISUALS parts (VisPart) against HIDE_ITEMS.
+//  10. Output order: Forza's order keys are its card ids, the render draws each from outEl once,
+//      BeamNG's three rows are all drawn, and stored orders repair per family.
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -51,11 +61,15 @@ const M = new Function(
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
   slice('const TUTORIALS={', '// Standalone reference') +
   '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,' +
-  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields};'
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields,' +
+  'LAYOUT_GAMES,LAYOUT_MAX,LAYOUT_NAME_MAX,LAYOUT_FILE_KIND,LAYOUT_SECS,repairLayouts,legacyLayouts,importLayouts,hideIdApplies,' +
+  'HIDE_OPTS,optOf,hideIdValid,OUT_ORDER_DEF,outFamily};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
         DEF_CH, DEF_FE, DEF_DR, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
-        DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields } = M;
+        DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields,
+        LAYOUT_GAMES, LAYOUT_MAX, LAYOUT_NAME_MAX, LAYOUT_FILE_KIND, LAYOUT_SECS, repairLayouts, legacyLayouts, importLayouts, hideIdApplies,
+        HIDE_OPTS, optOf, hideIdValid, OUT_ORDER_DEF, outFamily } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -362,6 +376,209 @@ t('repairTutProgress keeps well-formed saves only', () => {
   eq(repairTutProgress({ beginner: { title: 'Balance', step: 7 }, intermediate: 5, pro: { title: 3, step: 2 } }),
      { beginner: { title: 'Balance', step: 7 }, intermediate: null, pro: null });
   eq(repairTutProgress(null), DEF_TUT_PROGRESS);
+});
+
+section('layouts');
+t('every HIDE_ITEMS row has a label and valid games', () => {
+  eq(HIDE_ITEMS.filter(i => typeof i.label !== 'string' || !i.label.trim()).map(i => i.id), [], 'no label');
+  eq(HIDE_ITEMS.filter(i => i.games && (!i.games.length || i.games.some(g => !LAYOUT_GAMES.includes(g)))).map(i => i.id), [], 'bad games');
+});
+t('labels are unique within a section', () => {
+  const seen = new Set(), dup = [];
+  for (const i of HIDE_ITEMS) { const k = i.sec + '|' + i.label + '|' + (i.tiers ?? []).join() + '|' + (i.games ?? []).join(); if (seen.has(k)) dup.push(i.id); seen.add(k); }
+  eq(dup, []);
+});
+t('a part of another game does not apply here', () => {
+  ok(hideIdApplies('out.card.springs', 'pro', 'horizon'));
+  ok(!hideIdApplies('out.card.springs', 'pro', 'beamng'));
+  ok(hideIdApplies('out.card.suspF', 'intermediate', 'beamng'));
+  ok(!hideIdApplies('balance', 'intermediate', 'horizon'), 'PRO-only section');
+  ok(hideIdApplies('arb.bias', 'intermediate', 'beamng'), 'every game');
+});
+t('junk repairs to an INT and a PRO layout, each tier on its own', () => {
+  for (const v of [undefined, null, 5, 'x', [], { layouts: 'no' }, { layouts: [null, 3] }]) {
+    const r = repairLayouts(v);
+    eq(r.layouts.map(l => [l.id, l.name, l.hidden, l.persist]), [['int', 'INT', [], false], ['pro', 'PRO', [], false]], JSON.stringify(v));
+    eq(r.assign, { intermediate: { horizon: 'int', motorsport: 'int', beamng: 'int' }, pro: { horizon: 'pro', motorsport: 'pro', beamng: 'pro' } });
+  }
+});
+t('repair drops unknown ids, fixes ids and names, keeps valid assignments', () => {
+  const r = repairLayouts({ layouts: [
+    { id: 'a', name: '  Track   day ', hidden: ['arb', 'ghost', 'arb', 7, 'out.card.suspF'], persist: true },
+    { id: 'a', name: '', hidden: 'x' },
+    { id: 'bad id!', name: 'x'.repeat(40) } ],
+    assign: { intermediate: { horizon: 'a', beamng: 'gone' }, pro: { motorsport: 'a' } } });
+  const { order, startOpen, noChip, pins, outOrder, ...rest } = r.layouts[0];
+  eq(rest, { id: 'a', name: 'Track day', hidden: ['arb', 'out.card.suspF'], persist: true });
+  ok(r.layouts[1].id !== 'a' && r.layouts[1].name === 'LAYOUT 2' && r.layouts[1].hidden.length === 0, 'duplicate id renewed, blank name filled');
+  ok(/^[\w-]+$/.test(r.layouts[2].id) && r.layouts[2].name.length === LAYOUT_NAME_MAX, 'bad id renewed, long name cut');
+  eq(r.assign.intermediate, { horizon: 'a', motorsport: 'a', beamng: 'a' }, 'no int/pro layout: falls back to the first');
+  eq(r.assign.pro.motorsport, 'a');
+});
+t('section order, start-open and chips repair to known sections', () => {
+  eq(LAYOUT_SECS, SECTION_VIS.map(s => s.key).filter(k => k !== 'visuals'), 'every sidebar section, in SECTION_VIS order');
+  const r = repairLayouts({ layouts: [{ id: 'a', name: 'A', order: ['ride', 'ghost', 'chassis', 'ride', 'visuals', 7],
+    startOpen: ['ride', 'ride', 'visuals', 'nope'], noChip: 'x' }] }).layouts[0];
+  ok(r.order.indexOf('ride') < r.order.indexOf('chassis'), 'kept keys keep their order');
+  eq(r.order.slice(0, 2), ['mine', 'ride'], 'MY CONTROLS, which has no default predecessor, goes first');
+  eq([...r.order].sort(), [...LAYOUT_SECS].sort(), 'every section exactly once');
+  eq(r.startOpen, ['ride']); eq(r.noChip, []);
+});
+t('a section missing from a stored order goes back after its default predecessor', () => {
+  const without = LAYOUT_SECS.filter(k => k !== 'dampers').reverse();
+  const r = repairLayouts({ layouts: [{ id: 'a', name: 'A', order: without }] }).layouts[0].order;
+  eq(r.indexOf('dampers'), r.indexOf('ride') + 1);
+  eq(repairLayouts({ layouts: [{ id: 'a', name: 'A', order: ['brakes'] }] }).layouts[0].order.slice(0, 2), ['mine', 'chassis'], 'no predecessor: first');
+});
+t('the render draws every orderable section from secEl, once', () => {
+  const map = slice('{(()=>{const secEl={', 'return sidebarOrder.map(');
+  const keys = [...map.matchAll(/^ {10}(\w+):<>$/gm)].map(m => m[1]);
+  eq(keys, LAYOUT_SECS, 'secEl keys, in default order');
+  for (const k of LAYOUT_SECS) {
+    const z = SEC_ZONE[k], i = map.indexOf(`\n          ${k}:<>`), j = map.indexOf('\n          </>,', i);
+    ok(map.slice(i, j).includes(`id="zone-${z}"`), `${k}'s block holds zone-${z}`);
+  }
+});
+t('junk order repairs to the default', () => {
+  for (const o of [undefined, null, 'x', [], [1, 2]])
+    eq(repairLayouts({ layouts: [{ id: 'a', name: 'A', order: o }] }).layouts[0].order, LAYOUT_SECS, JSON.stringify(o));
+});
+t('pins keep sidebar controls only, once each, in order', () => {
+  const r = repairLayouts({ layouts: [{ id: 'a', name: 'A',
+    pins: ['arb.bias', 'out.card.springs', 'tbDna', 'visuals.ride', 'bar.stack', 'arb', 'ghost', 'ride.ref', 'arb.bias', 3] }] }).layouts[0];
+  eq(r.pins, ['arb.bias', 'ride.ref']);
+  eq(repairLayouts({ layouts: [{ id: 'a', name: 'A', pins: 'x' }] }).layouts[0].pins, []);
+});
+t('PERSIST holds nothing a pinned control writes, even in a hidden section', () => {
+  const h = heldFields(['arb'], 'pro');
+  ok(h.fe.includes('arbBias') && h.fe.includes('arbMode'));
+  const p = heldFields(['arb'], 'pro', ['arb.bias']);
+  ok(!p.fe.includes('arbBias') && p.fe.includes('arbMode'), 'the pinned one is released, the rest held');
+  ok(heldFields(['arb', 'arb.bias'], 'pro', ['arb.bias']).fe.includes('arbBias'), 'a pinned control hidden itself is still held');
+});
+t('a hidden section whose only change is a pinned control leaves no stub', () => {
+  const s = st({ fe: { arbBias: 9 } });
+  ok(sectionChanged('arb', s, 'pro'));
+  ok(!sectionChanged('arb', s, 'pro', ['arb.bias']));
+  ok(sectionChanged('arb', st({ fe: { arbBias: 9, arbMode: 'man' } }), 'pro', ['arb.bias']), 'another change still counts');
+});
+t('MY CONTROLS is an empty section: no fields, no parts, never changed', () => {
+  const m = SECTION_VIS.find(s => s.key === 'mine');
+  ok(m && m.fields === null && LAYOUT_SECS[0] === 'mine');
+  eq(HIDE_ITEMS.filter(i => i.sec === 'mine'), []);
+  ok(!sectionChanged('mine', st({ fe: { arbBias: 9 } }), 'pro'));
+});
+t('repair caps the number of layouts', () => {
+  const many = Array.from({ length: LAYOUT_MAX + 5 }, (_, i) => ({ id: 'l' + i, name: 'L' + i }));
+  eq(repairLayouts({ layouts: many }).layouts.length, LAYOUT_MAX);
+});
+t('first load: the old per-tier lists and PERSIST become INT and PRO', () => {
+  const store = { suspos_hidden_v1: JSON.stringify({ intermediate: ['brakes', 'balance'], pro: ['arb.mode'] }), suspos_persist_v1: 'true' };
+  global.localStorage = { getItem: k => store[k] ?? null };
+  try {
+    const r = legacyLayouts();
+    eq(r.layouts.map(({ id, name, hidden, persist }) => ({ id, name, hidden, persist })),
+       [{ id: 'int', name: 'INT', hidden: ['brakes'], persist: true }, { id: 'pro', name: 'PRO', hidden: ['arb.mode'], persist: true }]);
+    eq(r.layouts[0].order, LAYOUT_SECS, 'default order'); eq([r.layouts[0].startOpen, r.layouts[0].noChip], [[], []]);
+    eq(r.assign.intermediate.beamng, 'int'); eq(r.assign.pro.horizon, 'pro');
+    global.localStorage = { getItem: () => null };
+    eq(legacyLayouts().layouts.map(l => l.hidden.length + ':' + l.persist), ['0:false', '0:false'], 'nothing stored');
+    global.localStorage = { getItem: () => '{not json' };
+    eq(legacyLayouts().layouts.length, 2, 'unreadable storage');
+  } finally { delete global.localStorage; }
+});
+t('import adds layouts under new ids, renames clashes, rejects other files', () => {
+  const base = repairLayouts(undefined);
+  eq(importLayouts(base, { foo: 1 }).err, 'Not a SUSP.OS layouts file.');
+  eq(importLayouts(base, null).err, 'Not a SUSP.OS layouts file.');
+  eq(typeof importLayouts(base, { kind: LAYOUT_FILE_KIND, layouts: [] }).err, 'string', 'empty file');
+  const r = importLayouts(base, { kind: LAYOUT_FILE_KIND, version: 1, layouts: [{ id: 'int', name: 'INT', hidden: ['arb', 'ghost'] }, { name: 'Rally' }] });
+  eq(r.n, 2);
+  eq(r.store.layouts.map(l => l.name), ['INT', 'PRO', 'INT (2)', 'Rally']);
+  ok(r.store.layouts[2].id !== 'int', 'new id');
+  eq(r.store.layouts[2].hidden, ['arb']);
+  eq(r.store.assign, base.assign, 'assigns nothing');
+});
+t('import stops at the cap', () => {
+  const full = repairLayouts({ layouts: Array.from({ length: LAYOUT_MAX }, (_, i) => ({ id: 'l' + i, name: 'L' + i })) });
+  ok(/already have/.test(importLayouts(full, { kind: LAYOUT_FILE_KIND, layouts: [{ name: 'X' }] }).err));
+  const one = repairLayouts({ layouts: Array.from({ length: LAYOUT_MAX - 1 }, (_, i) => ({ id: 'l' + i, name: 'L' + i })) });
+  const r = importLayouts(one, { kind: LAYOUT_FILE_KIND, layouts: [{ name: 'X' }, { name: 'Y' }] });
+  eq([r.n, r.skipped, r.store.layouts.length], [1, 1, LAYOUT_MAX]);
+});
+
+section('hidden choices and VISUALS parts');
+t('HIDE_OPTS: every control is a HIDE_ITEMS row; values unique; gates valid', () => {
+  for (const [id, os] of Object.entries(HIDE_OPTS)) {
+    ok(HIDE_ITEMS.some(i => i.id === id), id + ' is not a HIDE_ITEMS id');
+    eq(new Set(os.map(o => o[0])).size, os.length, id + ' duplicate value');
+    for (const o of os) {
+      ok(typeof o[1] === 'string' && o[1].trim(), `${id}:${o[0]} label`);
+      ok(!String(o[0]).includes(':'), `${id}:${o[0]} value holds a colon`);
+      for (const t of o[2]?.tiers ?? []) ok(['intermediate', 'pro'].includes(t), `${id}:${o[0]} tier ${t}`);
+      for (const g of o[2]?.games ?? []) ok(LAYOUT_GAMES.includes(g), `${id}:${o[0]} game ${g}`);
+    }
+  }
+});
+t('every data-opt in the render sits in a listed control, with a listed value', () => {
+  const bad = [];
+  for (const m of src.matchAll(/<Hide id="([^"]+)"/g)) {
+    const end = src.indexOf('</Hide>', m.index), blk = src.slice(m.index, end);
+    const lits = [...blk.matchAll(/data-opt="([^"]+)"/g)].map(x => x[1]);
+    const dyn = /data-opt=\{/.test(blk) || /<Toggle\b/.test(blk);
+    if (!lits.length && !dyn) continue;
+    if (!HIDE_OPTS[m[1]]) { bad.push(m[1] + ' tags choices but has no HIDE_OPTS row'); continue; }
+    for (const v of lits) if (!HIDE_OPTS[m[1]].some(o => o[0] === v)) bad.push(`${m[1]}:${v} not listed`);
+  }
+  for (const id of Object.keys(HIDE_OPTS)) {
+    const i = src.indexOf(`<Hide id="${id}"`), blk = src.slice(i, src.indexOf('</Hide>', i));
+    if (i < 0 || !/data-opt[={]|<Toggle\b/.test(blk)) bad.push(id + ' lists choices but tags none');
+  }
+  eq(bad, []);
+});
+t('choice ids follow their control and their own gates', () => {
+  eq(optOf('arb.balMode:mech'), { ctrl: 'arb.balMode', value: 'mech', label: 'MECH', tiers: ['pro'], games: undefined });
+  eq(optOf('arb.balMode:nope'), null); eq(optOf('arb.bias'), null);
+  ok(hideIdValid('arb.balMode:mech', 'pro') && !hideIdValid('arb.balMode:mech', 'intermediate'), 'PRO-only choice');
+  ok(hideIdValid('arb.balMode:weight', 'intermediate'));
+  ok(!hideIdValid('brakes.centre:grip', 'intermediate'), 'its control is PRO-only');
+  ok(hideIdApplies('arb.mode:basic', 'pro', 'horizon') && !hideIdApplies('arb.mode:basic', 'pro', 'beamng'), 'Forza-only choice');
+  ok(!hideIdApplies('drive.diffType:sport', 'pro', 'motorsport'), 'its control is Horizon-only');
+});
+t('layouts keep choice ids and drop unknown ones', () => {
+  eq(repairLayouts({ layouts: [{ id: 'a', name: 'A', hidden: ['arb.balMode:mech', 'arb.balMode:ghost', 'ghost:mech'] }] }).layouts[0].hidden,
+     ['arb.balMode:mech']);
+});
+t('every VisPart id is a three-part visuals row, and every such row is drawn', () => {
+  const drawn = new Set([...src.matchAll(/<VisPart id="([^"]+)"/g)].map(m => m[1]));
+  const rows = HIDE_ITEMS.filter(i => i.sec === 'visuals' && i.id.split('.').length === 3).map(i => i.id);
+  eq([...drawn].filter(id => !rows.includes(id)), [], 'drawn but not listed');
+  eq(rows.filter(id => !drawn.has(id)), [], 'listed but not drawn');
+  for (const id of rows) ok(HIDE_ITEMS.some(i => i.id === id.split('.').slice(0, 2).join('.')), id + ' has no group row');
+});
+
+section('output order');
+t('Forza order keys are Forza card ids; the render draws each from outEl once', () => {
+  for (const k of OUT_ORDER_DEF.forza) ok(HIDE_ITEMS.some(i => i.id === k && i.sec === 'output'), k);
+  const map = slice('{(()=>{const outEl={', 'return outOrder.forza.map(');
+  eq([...map.matchAll(/^ {10}'([\w.]+)':<>$/gm)].map(m => m[1]), OUT_ORDER_DEF.forza);
+  for (const k of OUT_ORDER_DEF.forza) {
+    const i = map.indexOf(`\n          '${k}':<>`), j = map.indexOf('\n          </>,', i);
+    ok(map.slice(i, j).includes(`<Card hid="${k}"`), `${k}'s block holds its card`);
+  }
+});
+t('BeamNG rows: every key is drawn by the grid', () => {
+  const grid = slice('{outOrder.beamng.map(', '</BeamngGrid>');
+  const drawn = [...grid.matchAll(/k==='(bng\.\w+)'/g)].map(m => m[1]);
+  eq(OUT_ORDER_DEF.beamng.filter(k => !drawn.includes(k)).length, 1, 'all but the last are named; the last is the else');
+  ok(grid.includes('frontAlign') && grid.includes('rearAlign'), 'the else is the alignment row');
+});
+t('stored output orders repair per family', () => {
+  const r = repairLayouts({ layouts: [{ id: 'a', name: 'A', outOrder: { forza: ['out.card.diff', 'ghost', 'out.card.align', 'out.card.diff'], beamng: 'x' } }] }).layouts[0];
+  eq(r.outOrder.forza[0], 'out.card.diff'); eq([...r.outOrder.forza].sort(), [...OUT_ORDER_DEF.forza].sort());
+  eq(r.outOrder.beamng, OUT_ORDER_DEF.beamng);
+  eq(repairLayouts(undefined).layouts[0].outOrder, OUT_ORDER_DEF);
+  eq([outFamily('horizon'), outFamily('motorsport'), outFamily('beamng')], ['forza', 'forza', 'beamng']);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

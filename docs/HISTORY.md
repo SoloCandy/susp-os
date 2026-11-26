@@ -11,6 +11,63 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — layouts order the output panel
+
+The output cards were in one fixed order. A layout now orders them per family of games: Forza's six
+cards one by one, BeamNG's grid by whole rows (brakes and diffs, suspension, alignment) so each
+front card stays beside its rear one. Set from the layout panel's TUNE tab; guides see the default
+order. See [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Changed — layouts hide single choices in a selector, and pieces of VISUALS groups
+
+Hiding went down to a whole control, so a mode never used (MECH or CO-SOLVE in Balance Mode, LANDING
+in Bump Mode) stayed on every screen. A layout can now hide single choices (`HIDE_OPTS`, ids
+`control:value`): the selector closes up around the rest, and the one selected always stays,
+dashed, so a selector never shows nothing picked. VISUALS went down to a group; the roll split and
+each RIDE · ROLL · DAMPING track, ALIGNMENT's two charts, LOAD TRANSFER's diagram and tables and
+GRIP USE's notes now hide on their own, and ALIGNMENT can be hidden as a group. See
+[CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Changed — MY CONTROLS: pin any sidebar control into a section of your own
+
+Reaching three controls in three sections meant opening all three. ☆ on any sidebar control (in
+the layout panel, or on the page while editing) now pins it to MY CONTROLS, a section the layout
+orders like any other. The control is still built by its home section and drawn in MY CONTROLS,
+so it behaves exactly as at home; its home section stays mounted out of sight, which also lets a
+layout hide a whole section and keep one control of it. The home section says "★ n in MY
+CONTROLS" with GO. PERSIST doesn't hold a pinned control, and a hidden section whose only
+changes are pinned leaves no stub. See [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Changed — layouts set the sidebar's section order, start-open sections and jump chips
+
+The sidebar's sections were always in one order, all started collapsed, and every one had a jump
+chip. A layout now holds all three: the panel's SIDEBAR tab reorders sections by dragging ⠿ or
+with ↑ ↓ (RESET ORDER puts them back), and ticks START OPEN and JUMP CHIP per section. The
+sidebar is drawn from the layout's order, so the keyboard follows it too; guides still see the
+default order. See [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Changed — layouts: named, per game, edited from a panel
+
+The edit view kept one hidden list per tier and one PERSIST switch, and could hide only what was
+on screen, so a control of another mode (Target Roll Angle under ROLL °, the MANUAL diff locks)
+meant selecting that mode first. Hidden lists are now **layouts**: named, saved on the device,
+each with its own PERSIST, and each tier picks one per game, so BeamNG can hide its own things.
+A layout panel (LAYOUT… under ⋯, or ✎ on the jump bar) lists every part of this tier and game,
+other modes' included, as ticks, and manages the layouts: rename, duplicate, delete, new, export
+to a file and import. EDIT ON PAGE keeps the click-to-hide view. The first load turns the old
+INT and PRO lists into layouts named INT and PRO, with PERSIST as it was; the old keys stay,
+read only. See [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Changed — sidebar: section jump bar; SECTIONS row moved into ⋯
+
+INT and PRO had a SECTIONS row at the top of the sidebar (EDIT, −, + and a hidden / PERSIST
+count) and no way to reach a section but scrolling to it. A sticky row of section chips now
+takes that place: a chip opens its section and scrolls it to the top, and open sections are lit.
+EDIT LAYOUT…, COLLAPSE and EXPAND moved under SECTIONS in the header's ⋯, and the hidden count and
+PERSIST status moved into EDIT LAYOUT's note there. EDIT LAYOUT opens the sidebar first (the
+INPUTS view on a phone), and reads ✓ DONE EDITING while the edit view is on. See
+[CODE_MAP.md](CODE_MAP.md#section-jump-bar).
+
 ## Changed — phone layout: bottom tab bar, inputs as a full view
 
 Phones had a two-row header (☰, VIS, ? / TERMS / GitHub / GARAGE, then BEG / INT / PRO), a
