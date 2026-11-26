@@ -1308,18 +1308,21 @@ LAYOUT…, under SECTIONS in the header's ⋯ (or ✎ at the end of the sidebar'
 layout panel; while the on-page edit view is on, the same item reads ✓ DONE EDITING. Its note in
 the regular view, with the hidden count added when anything is hidden:
 
-> Using {layout}. Choose what shows; save layouts per game. {n} hidden.
+> Using {layout}. Choose what shows and what loads leave alone; save layouts per game. {n} hidden.
 
-and, while PERSIST holds anything, after it:
+and, while the layout holds any controls, after it:
 
-> PERSIST is holding hidden settings.
+> {n} held.
 
 ### Layout panel
 
 Over the tune pane on a wide screen, a full view on a phone. Its header names which layout this
-tier and game use (`{tier} · {game} USES`, a picker), EDIT ON PAGE, DONE, and the PERSIST switch
-(PERSIST HIDDEN SETTINGS, OFF / ON, the active layout's own), whose tooltip is the note quoted
-under the edit view below. The SIDEBAR, TUNE and VISUALS tabs list every part this tier and game
+tier and game use (`{tier} · {game} USES`, a picker), EDIT ON PAGE, DONE, and a HOLD row
+(`HOLD · {n} HELD`, HOLD ALL HIDDEN, RELEASE ALL), whose tooltip is:
+
+> HOLD keeps a section's or control's value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden.
+
+ The SIDEBAR, TUNE and VISUALS tabs list every part this tier and game
 can show, other modes' included, as ticks; a section's row says how many parts it has and how
 many are hidden, and a hidden part whose setting still applies is marked `● still applies`. Their
 line above the list:
@@ -1331,7 +1334,7 @@ The SIDEBAR tab adds, beside RESET ORDER:
 > Drag ⠿ or use ↑ ↓ to reorder the sidebar.
 
 and under each section ↑ ↓ and two ticks, START OPEN (opened on every load) and JUMP CHIP (a chip
-on the jump bar). Every sidebar control's row ends in ☆ (★ when pinned to MY CONTROLS), and a selector's row is
+on the jump bar). Every input section's and setting control's row has HOLD (lit when held; a control in a held section reads HELD, faint, and can't be released on its own), every sidebar control's row ends in ☆ (★ when pinned to MY CONTROLS), and a selector's row is
 followed by its choices as chips (lit = shown, struck through = hidden; a tooltip says which a
 click does). On the page, a hidden choice that is selected stays, dashed, titled:
 
@@ -1368,9 +1371,11 @@ hidden count, SHOW ALL, DONE). The banner's explanation:
 
 > Click anything to hide it from this layout; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. To hide a control that only appears in another mode, use LAYOUT… under ⋯.
 
-Under it, the same PERSIST switch, and its note:
+Each control that stores a setting carries HOLD beside its ☆, and each input section's header HOLD
+beside HIDE; titles say `Hold: loads keep this value`, `Held: click to release` or `Held with its
+section`. Under the explanation, a HOLD row (`HOLD · {n} HELD`, HOLD ALL HIDDEN, RELEASE ALL) and:
 
-> On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
+> HOLD beside a control or section keeps its value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden.
 
 The strip at the top of the output panel, which carries a second DONE (on a phone the sidebar's
 banner is off screen):
@@ -1389,15 +1394,30 @@ defaults. SHOW brings back those controls only:
 
 > {n} hidden setting{s} changed · still {apply / applies}
 
-With PERSIST on, both lines end ` · held`, and LAYOUT's note in ⋯ ends with the PERSIST
-sentence above.
+### Held settings
 
-After a load, DNA, LOAD CODE, CHECK's import or RESET that PERSIST kept something from, a line
+When the section or any control in it is held, both lines end ` · held`. In the regular view a
+held section's header carries `HELD`, and a section with held controls `{n} HELD`, titled:
+
+> Held: loads, codes, DNA and RESET keep this section's values
+
+> Held controls (marked with a bar): loads, codes, DNA and RESET keep their values
+
+A control held on its own has a thin bar beside its left edge.
+
+After a load, DNA, LOAD CODE, CHECK's import or RESET that HOLD kept something from, a line
 above the DNA link line until ✕, the next such action or a tier change; `{label}` is the undo
 label (`load STREET`, `apply DNA MOMENTUM`, `reset`, `load share code`, …), `{n}` counts
-settings, not controls, and `{layout}` is the layout whose hidden list held them:
+settings, not controls, and `{layout}` is the layout that held them:
 
-> PERSIST kept {n} hidden setting{s} through {label} · layout {layout}
+> HOLD kept {n} setting{s} through {label} · layout {layout}
+
+Beside it LOAD ALL, titled `Apply the load's values to the held settings too, this once (one ↩
+undoes it)`, applies them as a step of its own (`{label} · held settings too`). Under it, one
+amber line per held control the load would have changed whose mode the same load changed
+(`HOLD_DEPS`), with the mode's old and new value:
+
+> ⚠ {control} held · {mode} changed {from} → {to}, so it now means something else
 
 The note at the foot of the output panel while any card, row or balance-bar part is hidden, with
 LAYOUT, which opens the panel's TUNE tab:

@@ -204,6 +204,15 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   background:#1e1b4b;border:1px solid #818cf855;color:#a5b4fc;font-size:12px;line-height:1;cursor:pointer;font-family:inherit}
 .hz-pin.on{color:#fbbf24;border-color:#fbbf2466}
 .hz-pin:focus-visible{outline:1px solid #818cf8}
+/* HOLD in the edit view, left of ☆; lit when held, faint and inert when its section holds it. */
+.hz-hold{position:absolute;top:-1px;right:22px;z-index:3;height:20px;padding:0 5px;border-radius:2px;
+  background:#1e1b4b;border:1px solid #818cf855;color:#7c8aa0;font-size:9px;letter-spacing:.5px;line-height:1;cursor:pointer;font-family:inherit}
+.hz-hold.on{color:#e0e7ff;border-color:#818cf8;background:#312e81}
+.hz-hold:disabled{cursor:default;opacity:.6}
+.hz-hold:focus-visible{outline:1px solid #818cf8}
+/* A held control in the regular view: a 2px bar just outside its left edge (outer shadows paint
+   outside the box only, so nothing inside moves or is covered). */
+.held{box-shadow:-6px 0 0 -4px #818cf8}
 [data-pin-slot]:empty{display:none}
 .tog.opt-kept{border-style:dashed}
 .tog.opt-off{opacity:.35;text-decoration:line-through}
@@ -4363,43 +4372,89 @@ const hideIdValid=(k,t)=>SECTION_VIS.some(s=>s.key===k&&s.tiers.includes(t))
   ||(o=>!!o&&hideIdValid(o.ctrl,t)&&(!o.tiers||o.tiers.includes(t)))(optOf(k));
 const repairHidden=v=>Object.fromEntries(Object.keys(DEF_HIDDEN).map(t=>[t,
   Array.isArray(v?.[t])?[...new Set(v[t].filter(k=>typeof k==='string'&&hideIdValid(k,t)))]:[]]));
-// PERSIST: the settings a tier's hidden list holds through every commit (loads, DNA, codes,
-// RESET), as {ch,fe,dr} key lists. A hidden section holds its own fields and those of every
-// item in it, so a hidden ANTI-ROLL BARS holds arbManF / arbManR, which its RESET doesn't own.
-// An item holds its fields; output, bar and toolbar parts hold nothing. live() is not
-// consulted: holding a value its mode isn't using is harmless, and it is still the user's
-// value when that mode comes back. `pinned` are controls on show in MY CONTROLS: a pinned control
-// is in sight even when its section is hidden, so it holds nothing.
-const heldFields=(hidden,tier,pinned=[])=>{
+// HOLD: the settings a layout's held list keeps through every commit (loads, DNA, codes,
+// RESET), as {ch,fe,dr} key lists. A held section holds its own fields and those of every
+// item in it, so a held ANTI-ROLL BARS holds arbManF / arbManR, which its RESET doesn't own.
+// An item holds its fields. live() is not consulted: holding a value its mode isn't using is
+// harmless, and it is still the user's value when that mode comes back.
+const heldItems=(held,tier)=>{
+  const out=new Set();
+  for(const id of held??[]){
+    if(SECTION_VIS.some(s=>s.key===id)){for(const it of HIDE_ITEMS)if(it.sec===id&&it.fields&&hideItemTiers(it).includes(tier))out.add(it.id);}
+    else if(HIDE_BY_ID[id]?.fields)out.add(id);
+  }
+  return[...out];
+};
+const heldFields=(held,tier)=>{
   const out={ch:new Set(),fe:new Set(),dr:new Set()};
   const add=f=>{if(f)for(const k of f[1]??Object.keys(SECTION_DEFS[f[0]]))out[f[0]].add(k);};
-  for(const id of hidden??[]){
-    const sec=SECTION_VIS.find(s=>s.key===id);
-    if(sec){
-      add(sec.fields);
-      for(const it of HIDE_ITEMS)if(it.sec===id&&hideItemTiers(it).includes(tier))add(it.fields);
-    }else add(HIDE_BY_ID[id]?.fields);
-  }
-  for(const id of pinned)if(!(hidden??[]).includes(id)){const f=HIDE_BY_ID[id]?.fields;if(f)for(const k of f[1])out[f[0]].delete(k);}
+  for(const id of held??[]){const sec=SECTION_VIS.find(s=>s.key===id);if(sec)add(sec.fields);}
+  for(const id of heldItems(held,tier))add(HIDE_BY_ID[id].fields);
   return Object.fromEntries(Object.entries(out).map(([s,v])=>[s,[...v]]));
+};
+// The mode each held value is read under: a load that changes it while the value is held moves
+// what that value means (a Damping Bias under STANDARD swings ζ; under TIME SYNC, settle time), so
+// the HOLD line names the change. Keys and values are HIDE_ITEMS ids.
+const HOLD_DEPS={
+  'chassis.rideHeightF':['chassis.cgSource'],'chassis.rideHeightR':['chassis.cgSource'],'chassis.cgHeight':['chassis.cgSource'],
+  'balance.targetNat':['balance.targetMode'],'balance.targetAbs':['balance.targetMode'],
+  'balance.offset':['balance.targetMode'],'balance.exitLoad':['balance.targetMode'],
+  ...Object.fromEntries(['ofsCamberF','ofsCamberR','ofsToeF','ofsToeR','ofsCaster','camberF','camberR','toeF','toeR','caster']
+    .map(k=>['align.'+k,['align.mode']])),
+  ...Object.fromEntries(['basic','roll','share','manF','manR'].map(k=>['arb.'+k,['arb.mode']])),
+  ...Object.fromEntries(['splitDir','neutralMethod','springShare','bias'].map(k=>['arb.'+k,['arb.balMode']])),
+  'ride.stiffness':['ride.stiffMode','ride.ref'],
+  'ride.targetSpeed':['ride.hzMode'],'ride.hzMult':['ride.hzMode'],'ride.hzMan':['ride.hzMode'],
+  'dampers.settle':['dampers.reboundMode'],'dampers.reboundZeta':['dampers.reboundMode'],
+  'dampers.bias':['dampers.balMode'],
+  'dampers.landing':['dampers.bumpMode'],'dampers.bumpRatio':['dampers.bumpMode'],'dampers.bumpZeta':['dampers.bumpMode'],
+  'dampers.bumpBias':['dampers.bumpBalMode'],
+  'brakes.bias':['brakes.centre'],'brakes.entryTarget':['brakes.centre'],'brakes.decel':['brakes.centre'],
+  'drive.exit':['drive.diffType'],'drive.entry':['drive.diffType'],'drive.frontExit':['drive.diffType'],'drive.powerSplit':['drive.diffType'],
+  ...Object.fromEntries(['manFrontAccel','manFrontDecel','manRearAccel','manRearDecel','manCenter','manAccel','manDecel']
+    .map(k=>['drive.'+k,['drive.diffMode']])),
+};
+// A mode control's stored value in words: its choice label where the stored value names the choice,
+// the three on/off switches by hand, else the value itself.
+const HOLD_MODE_OPT={'align.mode':v=>v?'manual':'auto','chassis.cgSource':v=>v===false?'manual':'rideHeight',
+  'drive.diffMode':v=>v?'manual':'auto'};
+const holdModeLabel=(dep,v)=>{
+  if(v==null)return null;
+  const o=(HOLD_MODE_OPT[dep]??(x=>String(x)))(v);
+  return(HIDE_OPTS[dep]??[]).find(x=>x[0]===o)?.[1]??String(o).toUpperCase();
+};
+// The HOLD line's warnings after a commit: each held control the commit actually kept (its value
+// differed from the load's) whose mode the same commit changed. kept: Set of 'state.key';
+// changed: Map 'state.key' → [before, after] of what the commit wrote.
+const holdWarnings=(held,tier,kept,changed)=>{
+  const out=[];
+  for(const id of heldItems(held,tier)){
+    const[st,keys]=HIDE_BY_ID[id].fields;
+    if(!keys.some(k=>kept.has(st+'.'+k)))continue;
+    for(const dep of HOLD_DEPS[id]??[]){
+      const df=HIDE_BY_ID[dep]?.fields;const c=df&&changed.get(df[0]+'.'+df[1][0]);
+      if(c)out.push({id,dep,from:holdModeLabel(dep,c[0]),to:holdModeLabel(dep,c[1])});
+    }
+  }
+  return out;
 };
 
 // ── Layouts ──
 // A layout is a named set of display choices: the hidden list (SECTION_VIS keys and HIDE_ITEMS
-// ids), its own PERSIST switch, the sidebar's section order, the sections that start open on a
+// ids), the held list (HOLD: input sections and controls whose values loads leave alone), the sidebar's section order, the sections that start open on a
 // load, the sections left off the jump bar (noChip, so a section added later gets a chip), the
 // controls pinned to MY CONTROLS (pins, in their order there), and the output panel's order
 // (outOrder: Forza's cards and BeamNG's rows). Each tier with the edit view picks a layout per game in
 // `assign`, so FH, FM and BeamNG can each have their own. A layout holds ids of every tier; the
 // ones a tier doesn't render are ignored there (hideIdValid), so one layout can serve INT and
 // PRO. Stored as suspos_layouts_v1. The first load builds it from suspos_hidden_v1's per-tier
-// lists and suspos_persist_v1's one switch, which stay as they were (read once, never written):
+// lists and suspos_persist_v1's one switch (PERSIST on: what was hidden is held), which stay as they were (read once, never written):
 // docs/CODE_MAP.md, intentionally-retained legacy. Display only: no share code, no backup.
 const LAYOUT_TIERS=['intermediate','pro'];
 const LAYOUT_MAX=24,LAYOUT_NAME_MAX=24;
 const hideIdKnown=k=>SECTION_VIS.some(s=>s.key===k)||HIDE_BY_ID[k]!=null||!!optOf(k);
 // Applies here: valid in this tier and, for a game-specific part, this game. What the panel lists
-// and what counts as "hidden here"; PERSIST still holds a part of another game (heldFields).
+// and what counts as "hidden here"; HOLD still holds a part of another game (heldFields).
 const hideIdApplies=(k,tier,game)=>{
   const o=optOf(k);
   if(o)return hideIdValid(k,tier)&&hideIdApplies(o.ctrl,tier,game)&&(!o.games||o.games.includes(game));
@@ -4487,13 +4542,29 @@ const secSubset=a=>Array.isArray(a)?[...new Set(a.filter(k=>LAYOUT_SECS.includes
 // A control can be pinned to MY CONTROLS when it sits in a sidebar section (not ⋯, the output,
 // the balance bar or VISUALS).
 const pinnable=id=>{const s=HIDE_BY_ID[id]?.sec;return!!s&&s!=='mine'&&LAYOUT_SECS.includes(s);};
-const blankLayout=(name,id=newLayoutId())=>({id,name,hidden:[],persist:false,order:[...LAYOUT_SECS],startOpen:[],noChip:[],pins:[],
+// HOLD's tooltips: the panel's HOLD row, and a sidebar header's HELD / n HELD tag.
+const HOLD_TIP="HOLD keeps a section's or control's value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden.";
+const HELD_SEC_TIP="Held: loads, codes, DNA and RESET keep this section's values";
+const HELD_CTRL_TIP="Held controls (marked with a bar): loads, codes, DNA and RESET keep their values";
+// HOLD: an input section (not MY CONTROLS), or a control in one that stores a setting.
+const holdable=id=>id!=='mine'&&LAYOUT_SECS.includes(id)
+  ?HIDE_ITEMS.some(it=>it.sec===id&&it.fields)||!!SECTION_VIS.find(s=>s.key===id)?.fields
+  :pinnable(id)&&!!HIDE_BY_ID[id]?.fields;
+const blankLayout=(name,id=newLayoutId())=>({id,name,hidden:[],held:[],order:[...LAYOUT_SECS],startOpen:[],noChip:[],pins:[],
   outOrder:repairOutOrder(null),figs:{}});
+// held: a stored list, or, for a layout from before HOLD (or the old switch, via legacyLayouts),
+// PERSIST on → everything it hid that can be held, less the controls pinned to MY CONTROLS, which
+// PERSIST left alone. The persist flag itself is dropped.
+const repairHeld=l=>{
+  const pins=Array.isArray(l?.pins)?l.pins:[];
+  const src=Array.isArray(l?.held)?l.held:l?.persist===true&&Array.isArray(l?.hidden)?l.hidden.filter(k=>!pins.includes(k)):[];
+  return[...new Set(src.filter(k=>typeof k==='string'&&holdable(k)))];
+};
 const repairLayout=(l,i)=>({
   id:typeof l?.id==='string'&&/^[\w-]{1,40}$/.test(l.id)?l.id:newLayoutId(),
   name:layoutName(l?.name,`LAYOUT ${i+1}`),
   hidden:Array.isArray(l?.hidden)?[...new Set(l.hidden.filter(k=>typeof k==='string'&&hideIdKnown(k)))]:[],
-  persist:l?.persist===true,
+  held:repairHeld(l),
   order:repairSecOrder(l?.order),startOpen:secSubset(l?.startOpen),noChip:secSubset(l?.noChip),
   pins:Array.isArray(l?.pins)?[...new Set(l.pins.filter(k=>typeof k==='string'&&pinnable(k)))]:[],
   outOrder:repairOutOrder(l?.outOrder),figs:repairFigs(l?.figs)});
@@ -4511,7 +4582,7 @@ const repairLayouts=v=>{
   return{layouts,assign};
 };
 // First load: the per-tier hidden lists become the INT and PRO layouts, each used for every game,
-// and the old single PERSIST switch is copied to both.
+// and the old single PERSIST switch is copied to both (repairHeld turns it into held lists).
 const legacyLayouts=()=>{
   let hidden=DEF_HIDDEN,persist=false;
   try{
@@ -5512,7 +5583,8 @@ const Toggle=({label,value,onChange,options,hint,hintTerm=null})=>(
 // default (no provider: the modals' own Cards) hides nothing. While a guide runs App passes an
 // empty list, so its spotlights always find their controls. guide is set while either guide
 // runs, so every Hide puts a data-hid element on the page for spotCss to light or dim.
-const LayoutCtx=React.createContext({edit:false,guide:false,isHidden:()=>false,toggle:()=>{},isPinned:()=>false,pinOn:false,togglePin:()=>{}});
+const LayoutCtx=React.createContext({edit:false,guide:false,isHidden:()=>false,toggle:()=>{},isPinned:()=>false,pinOn:false,togglePin:()=>{},
+  heldBy:()=>null,toggleHold:()=>{}});
 // One hideable part (a HIDE_ITEMS id). Regular view: nothing when hidden, otherwise the
 // children unwrapped, so the layout is untouched. Edit view: the part sits inert under a
 // full-cover button that hides or shows it, faded when hidden. Never nest one Hide inside
@@ -5540,10 +5612,15 @@ const Hide=({id,inline=false,style=null,bodyStyle=null,children})=>{
       <Tag style={bodyStyle??undefined}>{children}</Tag>
     </Tag>
   );
+  // HOLD: held on its own or with its section. The regular view wraps a part held on its own, as
+  // the guide branch above does, to draw its bar; a held section says so once, on its header.
+  const by=L.heldBy(id);
   if(!L.edit){
     if(off)return null;
-    if(pinned)return slot?ReactDOM.createPortal(<div data-pin-home={HIDE_BY_ID[id]?.sec}>{children}</div>,slot):null;
-    return children??null;
+    const body=by==='self'?<Tag className={`held${inline?' hz-inline':''}`} data-held={by} style={style??undefined}>
+      <Tag style={bodyStyle??undefined}>{children}</Tag></Tag>:children;
+    if(pinned)return slot?ReactDOM.createPortal(<div data-pin-home={HIDE_BY_ID[id]?.sec}>{body}</div>,slot):null;
+    return body??null;
   }
   const star=pinnable(id)&&L.isPinned(id);
   return(
@@ -5556,6 +5633,10 @@ const Hide=({id,inline=false,style=null,bodyStyle=null,children})=>{
         aria-label={star?'Pinned to MY CONTROLS: click to unpin':'Pin to MY CONTROLS'}
         title={star?'Pinned to MY CONTROLS: click to unpin':'Pin to MY CONTROLS'}
         onClick={e=>{e.stopPropagation();L.togglePin(id);}}>{star?'★':'☆'}</button>}
+      {holdable(id)&&<button type="button" className={`hz-hold${by?' on':''}`} aria-pressed={!!by} disabled={by==='sec'}
+        aria-label={by==='sec'?'Held with its section':by?'Held: click to release':'Hold: loads keep this value'}
+        title={by==='sec'?'Held with its section':by?'Held: click to release':'Hold: loads keep this value'}
+        onClick={e=>{e.stopPropagation();L.toggleHold(id);}}>HOLD</button>}
     </Tag>
   );
 };
@@ -5573,7 +5654,7 @@ const uniqueLayoutName=(base,names)=>{
   while(names.has(name))name=layoutName(`${base.slice(0,LAYOUT_NAME_MAX-4)} ${n++}`,base);
   return name;
 };
-const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,changed,setPersist,editLayout,togglePin,
+const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,changed,toggleHold,holdAllHidden,releaseHolds,editLayout,togglePin,
                     tab,setTab,onClose,onEditOnPage,mobile,width})=>{
   const[openSecs,setOpenSecs]=useState(()=>new Set());
   // Section order (SIDEBAR tab). drag = {key, to}: the section being dragged by its ⠿ handle and
@@ -5593,6 +5674,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
   const isHid=id=>hidden.includes(id);
   const parts=sec=>HIDE_ITEMS.filter(it=>it.sec===sec&&hideIdApplies(it.id,tier,game));
   const shownCount=hidden.filter(k=>hideIdApplies(k,tier,game)).length;
+  const heldN=heldItems(active.held.filter(k=>hideIdValid(k,tier)),tier).filter(id=>hideIdApplies(id,tier,game)).length;
   // One checkbox row: ticked = shown. A plain function, not a component, so a re-render keeps focus.
   // A sidebar control also gets ☆ / ★, pinning it to MY CONTROLS.
   const pinBtn=id=>{const on=active.pins.includes(id);return(
@@ -5601,10 +5683,21 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
       title={on?'Pinned to MY CONTROLS: click to unpin':'Pin to MY CONTROLS'}
       style={{background:'none',border:'none',cursor:'pointer',fontSize:13,lineHeight:1,padding:'4px 8px',
               color:on?'#fbbf24':T_FAINT,fontFamily:'inherit'}}>{on?'★':'☆'}</button>);};
+  // HOLD beside hide and ☆, on any input section or control that stores a setting. A control inside
+  // a held section reads HELD, faint and inert: the section holds it.
+  const heldSec=id=>!!HIDE_BY_ID[id]&&active.held.includes(HIDE_BY_ID[id].sec);
+  const holdBtn=id=>{const own=active.held.includes(id),bySec=!own&&heldSec(id),on=own||bySec;return(
+    <button type="button" aria-pressed={on} disabled={bySec} onClick={()=>toggleHold(id)}
+      aria-label={`${bySec?'Held with its section':own?'Release':'Hold'} ${HIDE_BY_ID[id]?.label??SECTION_VIS.find(s=>s.key===id)?.label}`}
+      title={bySec?'Held with its section':own?'Held: loads keep this value. Click to release':'Hold: loads, codes, DNA and RESET keep this value'}
+      style={{background:own?'#312e81':'none',border:`1px solid ${on?'#818cf8':'#1e293b'}`,borderRadius:2,cursor:bySec?'default':'pointer',
+              fontSize:9,letterSpacing:0.5,padding:'2px 5px',margin:'0 2px',color:own?'#e0e7ff':bySec?'#a5b4fc':T_FAINT,
+              fontFamily:'inherit',opacity:bySec?0.7:1}}>{bySec?'HELD':'HOLD'}</button>);};
   // A selector's choices (HIDE_OPTS) follow its row as chips: lit = shown, struck = hidden.
   const row=(id,label,opts={})=>{
-    const main=pinnable(id)
-      ?<div key={id} style={{display:'flex',alignItems:'center'}}><div style={{flex:1,minWidth:0}}>{checkRow(id,label,opts)}</div>{pinBtn(id)}</div>
+    const main=pinnable(id)||holdable(id)
+      ?<div key={id} style={{display:'flex',alignItems:'center'}}><div style={{flex:1,minWidth:0}}>{checkRow(id,label,opts)}</div>
+        {holdable(id)&&holdBtn(id)}{pinnable(id)&&pinBtn(id)}</div>
       :checkRow(id,label,opts);
     const os=(HIDE_OPTS[id]??[]).filter(o=>hideIdApplies(`${id}:${o[0]}`,tier,game));
     if(!os.length)return main;
@@ -5719,11 +5812,10 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
           </select>
         </label>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}} title="On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.">PERSIST HIDDEN SETTINGS</span>
-          <div style={{display:'flex',gap:3,width:96}}>
-            <button type="button" className={`tog${!active.persist?' on':''}`} aria-pressed={!active.persist} onClick={()=>setPersist(false)}>OFF</button>
-            <button type="button" className={`tog${active.persist?' on':''}`} aria-pressed={active.persist} onClick={()=>setPersist(true)}>ON</button>
-          </div>
+          <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}} title={HOLD_TIP}>
+            HOLD{heldN?` · ${heldN} HELD`:''}</span>
+          <button type="button" style={mini} disabled={!hidden.some(k=>holdable(k)&&!active.held.includes(k))} onClick={holdAllHidden}>HOLD ALL HIDDEN</button>
+          <button type="button" style={mini} disabled={!active.held.length} onClick={releaseHolds}>RELEASE ALL</button>
         </div>
       </div>
       <div role="tablist" aria-label="Layout sections" style={{display:'flex',borderBottom:'1px solid #1e293b'}}>
@@ -5899,7 +5991,7 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
               </div>
               <div style={{fontSize:10,color:T_MUTED}}>
                 {used.length?`Used for ${used.join(', ')}`:'Not used'}
-                {` · ${l.hidden.length} hidden${l.persist?' · PERSIST on':''}`}
+                {` · ${l.hidden.length} hidden${l.held.length?` · ${l.held.length} held`:''}`}
               </div>
             </div>);
           })}
@@ -6001,7 +6093,7 @@ const HiddenStub=({title,text='hidden · changed settings still apply',onShow})=
     <button type="button" className="tbtn" style={{fontSize:10}} onClick={onShow}>SHOW</button>
   </div>
 );
-const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged=0,onShowHidden,held=false,pinned=0,onPinJump,children})=>{
+const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged=0,onShowHidden,held=false,heldN=0,pinned=0,onPinJump,children})=>{
   const[pending,setPending]=useState(false);
   const timer=useRef(null);
   const L=React.useContext(LayoutCtx);
@@ -6035,6 +6127,12 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
               style={{fontSize:10,letterSpacing:1,padding:'0 8px',minWidth:64,minHeight:26,borderRadius:2,background:'none',fontFamily:'inherit',lineHeight:1.4,
                       cursor:'pointer',userSelect:'none',color:off?'#e2e8f0':'#818cf8',
                       border:`1px solid ${off?'#475569':'#818cf855'}`}}>{off?'SHOW':'HIDE'}</button>
+            {holdable(hid)&&<button type="button" aria-pressed={held}
+              title={held?'Held: click to release the section':'Hold the whole section: loads keep its values'}
+              onClick={e=>{e.stopPropagation();L.toggleHold(hid);}} onKeyDown={e=>e.stopPropagation()}
+              style={{fontSize:10,letterSpacing:1,padding:'0 8px',minHeight:26,borderRadius:2,fontFamily:'inherit',lineHeight:1.4,
+                      cursor:'pointer',userSelect:'none',background:held?'#312e81':'none',color:held?'#e0e7ff':'#7c8aa0',
+                      border:`1px solid ${held?'#818cf8':'#818cf855'}`}}>HOLD</button>}
             <span style={{fontSize:11,color:isOpen?'#e2e8f0':'#94a3b8',opacity:off?0.35:1}}>
               {isOpen?'▲':'▼'}
             </span>
@@ -6048,9 +6146,11 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
   // so the body stays mounted (out of sight) while the section is shut, or hidden altogether.
   const mountedBody=pinned>0&&<div style={{display:'none'}}>{children}</div>;
   if(vis==='none')return mountedBody||null;
-  // held: PERSIST is on, so these hidden settings also survive loads, DNA, codes and RESET.
+  // held: the section is held, heldN: how many of its controls are held on their own. Held
+  // settings survive loads, DNA, codes and RESET, hidden or not.
+  const holdTag=held?'HELD':heldN?`${heldN} HELD`:null;
   if(vis==='stub')return <><HiddenStub title={title} onShow={onShow}
-    text={`hidden · changed settings still apply${held?' · held':''}`}/>{mountedBody}</>;
+    text={`hidden · changed settings still apply${holdTag?' · held':''}`}/>{mountedBody}</>;
   // The header is a div (not a <button>) because RESET needs to be a real,
   // independently focusable <button> nested inside it — buttons can't nest
   // inside buttons in valid HTML. role="button"+tabIndex+onKeyDown restores
@@ -6064,6 +6164,8 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
           <div style={{width:2,height:10,borderRadius:1,flexShrink:0,
                        background:open?'#e2e8f0':'#1e293b',transition:'background .12s'}}/>
           <span>{title}</span>
+          {holdTag&&<span title={held?HELD_SEC_TIP:HELD_CTRL_TIP}
+            style={{fontSize:9,letterSpacing:1,color:'#a5b4fc',border:'1px solid #818cf855',borderRadius:2,padding:'0 4px',lineHeight:1.5}}>{holdTag}</span>}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           {/* RESET asks once: the second click within 5s resets. A target of at least 64×26
@@ -6085,7 +6187,7 @@ const Sec=({title,open,onToggle,onReset,hid=null,vis='show',onShow,hiddenChanged
         </div>
       </div>
       {hiddenChanged>0&&<HiddenStub onShow={onShowHidden}
-        text={`${hiddenChanged} hidden setting${hiddenChanged>1?'s':''} changed · still ${hiddenChanged>1?'apply':'applies'}${held?' · held':''}`}/>}
+        text={`${hiddenChanged} hidden setting${hiddenChanged>1?'s':''} changed · still ${hiddenChanged>1?'apply':'applies'}${holdTag?' · held':''}`}/>}
       {open&&<div style={{padding:'8px 12px 10px'}}>
         {pinned>0&&<div style={{display:'flex',alignItems:'center',gap:6,fontSize:10,color:T_MUTED,margin:'-2px 0 8px'}}>
           <span style={{flex:1}}>★ {pinned} in MY CONTROLS</span>
@@ -9759,21 +9861,25 @@ function App(){
   const restoringRef=useRef(false);
   const recordChangeRef=useRef(()=>{});
   const recordChange=()=>recordChangeRef.current();
-  // PERSIST: inside a commit (a load, DNA, a code, RESET), a write keeps the held keys at their
+  // HOLD: inside a commit (a load, DNA, a code, RESET), a write keeps the held keys at their
   // pre-commit values. Applied here, per write, rather than as a second update after the load:
   // the write is compared with the pre-commit snapshot, which a second update could no longer
-  // tell apart from the load. heldRef and keptRef are set below.
-  const heldRef=useRef(null),keptRef=useRef(new Set());
+  // tell apart from the load. heldRef and keptRef are set below; changedRef records what else
+  // the commit wrote, [before, after], so the HOLD line can name a mode it changed under a held value.
+  // keptRef maps each kept 'state.key' to the value the load wanted, which LOAD ALL applies.
+  const heldRef=useRef(null),keptRef=useRef(new Map()),changedRef=useRef(new Map()),bypassHoldRef=useRef(false);
   const holdWrite=(state,v)=>{
-    const keys=inCommitRef.current?heldRef.current?.[state]:null;
+    const keys=inCommitRef.current&&!bypassHoldRef.current?heldRef.current?.[state]:null;
     if(!keys?.length)return v;
     // An updater, so usePersist applies `v` to the latest value and two setters in one commit
     // compose; held keys are compared against, and put back to, the pre-commit snapshot.
     const cur=snapRef.current[state];
     return p=>{
       const next=typeof v==='function'?v(p):v;
-      const back=keys.filter(k=>JSON.stringify(next?.[k]??null)!==JSON.stringify(cur?.[k]??null));
-      back.forEach(k=>keptRef.current.add(state+'.'+k));
+      const same=k=>JSON.stringify(next?.[k]??null)===JSON.stringify(cur?.[k]??null);
+      const back=keys.filter(k=>!same(k));
+      back.forEach(k=>keptRef.current.set(state+'.'+k,next?.[k]));
+      for(const k of Object.keys(next??{}))if(!keys.includes(k)&&!same(k))changedRef.current.set(state+'.'+k,[cur?.[k],next[k]]);
       return back.length?{...next,...Object.fromEntries(back.map(k=>[k,cur[k]]))}:next;
     };
   };
@@ -9790,9 +9896,9 @@ function App(){
   const[layoutStore,setLayoutStore]=usePersist('suspos_layouts_v1',layoutInit,repairLayouts);
   const[layoutEdit,setLayoutEdit]=useState(false);
   const[layoutPanel,setLayoutPanel]=useState(null);
-  // PERSIST: the active layout's hidden settings hold their values through commits (heldFields).
-  // persistNote is the sidebar line after a commit that kept something: {label, n, layout}.
-  const[persistNote,setPersistNote]=useState(null);
+  // HOLD: the active layout's held settings keep their values through commits (heldFields).
+  // holdNote is the sidebar line after a commit that kept something: {label, n, layout, warns}.
+  const[holdNote,setHoldNote]=useState(null);
   // Storage-full banner: shown while any persisted key's latest write was refused for quota.
   // ✕ hides it until the next refusal (storageFull.gen), not until the storage has room.
   const storage=useStorageFull();
@@ -10002,19 +10108,23 @@ function App(){
     :(layoutStore.layouts.find(l=>l.id===layoutStore.assign[uiMode]?.[layoutGame])??layoutStore.layouts[0]);
   const editActiveLayout=fn=>{const id=activeLayout?.id;
     if(id)setLayoutStore(s=>({...s,layouts:s.layouts.map(l=>l.id===id?fn(l):l)}));};
-  const persist=!!activeLayout?.persist;
-  const setPersist=v=>editActiveLayout(l=>({...l,persist:v}));
+  // HOLD, per layout: the held ids valid in this tier. A control is held on its own or with its section.
+  const heldHere=useMemo(()=>activeLayout&&uiMode!=='beginner'?activeLayout.held.filter(k=>hideIdValid(k,uiMode)):[],[activeLayout,uiMode]);
+  const isHeldHere=id=>heldHere.includes(id)||(!!HIDE_BY_ID[id]&&heldHere.includes(HIDE_BY_ID[id].sec));
+  const toggleHold=id=>editActiveLayout(l=>({...l,held:l.held.includes(id)?l.held.filter(x=>x!==id):[...l.held,id]}));
   const hiddenHere=useMemo(()=>activeLayout?activeLayout.hidden.filter(k=>hideIdValid(k,uiMode)):[],[activeLayout,uiMode]);
   const hiddenCount=hiddenHere.filter(k=>hideIdApplies(k,uiMode,layoutGame)).length;
   // The sidebar's section order: the active layout's, or the default one in BEG and while a guide
   // runs (guideOn, below — steps point at sections by where they sit, as well as by id).
   const layoutOrder=activeLayout?.order??LAYOUT_SECS;
-  // Pinned controls are in sight in MY CONTROLS whenever it isn't hidden, so PERSIST leaves them.
-  const pinsLive=activeLayout&&!hiddenHere.includes('mine')?activeLayout.pins:[];
-  const held=persist&&uiMode!=='beginner'?heldFields(hiddenHere,uiMode,pinsLive):null;
+  const held=heldHere.length?heldFields(heldHere,uiMode):null;
   heldRef.current=held;
   const holdsAny=!!held&&Object.values(held).some(k=>k.length);
-  useEffect(()=>{setPersistNote(null);},[uiMode]);
+  const heldCount=heldItems(heldHere,uiMode).filter(id=>hideIdApplies(id,uiMode,layoutGame)).length;
+  // Hold everything the layout hides that can be held: PERSIST's old effect, as one step.
+  const holdAllHidden=()=>editActiveLayout(l=>({...l,held:[...new Set([...l.held,...hiddenHere.filter(holdable)])]}));
+  const releaseHolds=()=>editActiveLayout(l=>({...l,held:[]}));
+  useEffect(()=>{setHoldNote(null);},[uiMode]);
   // Either guide running: everything hidden comes back, and the edit view is off.
   const guideOn=!!tutMode||balTutOpen;
   const sidebarOrder=guideOn?LAYOUT_SECS:layoutOrder;
@@ -10054,16 +10164,20 @@ function App(){
   };
   const layoutCtx=useMemo(()=>{
     const list=guideOn?[]:hiddenHere,pins=activeLayout?.pins??[];
+    // HOLD marks: held on its own ('self') or with its section ('sec'); none during a guide.
+    const hold=guideOn?[]:heldHere;
+    const heldBy=id=>hold.includes(id)?'self':HIDE_BY_ID[id]&&hold.includes(HIDE_BY_ID[id].sec)?'sec':null;
     return{edit:editing,guide:guideOn,isHidden:id=>list.includes(id),toggle:id=>setSecHidden(id,!hiddenHere.includes(id)),
-           isPinned:id=>pins.includes(id),pinOn,togglePin};
-  },[editing,guideOn,hiddenHere,uiMode,activeLayout,pinOn]); // eslint-disable-line
+           isPinned:id=>pins.includes(id),pinOn,togglePin,heldBy,toggleHold};
+  },[editing,guideOn,hiddenHere,heldHere,uiMode,activeLayout,pinOn]); // eslint-disable-line
   // Every Sec's visibility props in one spread: its own hide, plus the line for hidden
   // controls inside it that still change the tune (hiddenChangedIn).
   const secProps=key=>{
     const chg=guideOn||editing?[]:hiddenChangedIn(key,hiddenHere,{ch,fe,dr},uiMode);
     const pinned=pinOn?minePins.filter(id=>HIDE_BY_ID[id]?.sec===key).length:0;
     return{hid:key,vis:secVis(key),onShow:()=>setSecHidden(key,false),
-           hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false),held:!!held,
+           hiddenChanged:chg.length,onShowHidden:()=>setManyHidden(chg,false),
+           held:!guideOn&&heldHere.includes(key),heldN:guideOn?0:heldHere.filter(id=>HIDE_BY_ID[id]?.sec===key&&hideIdApplies(id,uiMode,layoutGame)).length,
            pinned,onPinJump:()=>jumpTo('mine')};
   };
   // Hidden output parts, for the panel's footer: a hidden row may be a value still to type in.
@@ -10462,11 +10576,25 @@ function App(){
     clearTimeout(burstTimerRef.current);
     histRef.current.commit(snapRef.current,label);
     inCommitRef.current=true;
-    keptRef.current=new Set();
+    keptRef.current=new Map();changedRef.current=new Map();
     try{fn();}finally{inCommitRef.current=false;}
-    // Every commit replaces the last PERSIST line: the newest load is the one it is about.
-    setPersistNote(keptRef.current.size?{label,n:keptRef.current.size,layout:activeLayout?.name}:null);
+    // Every commit replaces the last HOLD line: the newest load is the one it is about.
+    setHoldNote(keptRef.current.size?{label,n:keptRef.current.size,layout:activeLayout?.name,vals:new Map(keptRef.current),
+      warns:holdWarnings(heldHere,uiMode,keptRef.current,changedRef.current)}:null);
     bumpHist();
+  };
+  // LOAD ALL on the HOLD line: the values the last commit held back, applied as one step of their
+  // own with the holds stood aside, so ↩ returns to the held result.
+  const loadAllHeld=()=>{
+    const n=holdNote;if(!n)return;
+    const by={ch:{},fe:{},dr:{}};
+    for(const[k,v]of n.vals){const i=k.indexOf('.');by[k.slice(0,i)][k.slice(i+1)]=v;}
+    bypassHoldRef.current=true;
+    try{commit(`${n.label} · held settings too`,()=>{
+      if(Object.keys(by.ch).length)setCh(p=>({...p,...by.ch}));
+      if(Object.keys(by.fe).length)setFe(p=>({...p,...by.fe}));
+      if(Object.keys(by.dr).length)setDr(p=>({...p,...by.dr}));
+    });}finally{bypassHoldRef.current=false;}
   };
   // restoringRef tells the effects that react to a CHANGE (BOTTOM G's RIDE REF mirror) that this
   // change is a restore: the snapshot already holds their output, and running them again would
@@ -12198,8 +12326,8 @@ function App(){
               <MenuHead>SECTIONS</MenuHead>
               <MenuItem label={editing?'✓ DONE EDITING':'LAYOUT…'} disabled={guideOn}
                 note={editing?'Back to the regular view.'
-                  :`Using ${activeLayout?.name}. Choose what shows; save layouts per game.`
-                    +(hiddenCount?` ${hiddenCount} hidden.`:'')+(holdsAny?' PERSIST is holding hidden settings.':'')}
+                  :`Using ${activeLayout?.name}. Choose what shows and what loads leave alone; save layouts per game.`
+                    +(hiddenCount?` ${hiddenCount} hidden.`:'')+(heldCount?` ${heldCount} held.`:'')}
                 onClick={()=>{close();if(editing)setLayoutEdit(false);else openLayoutPanel('sidebar');}}/>
               <div style={{display:'flex',gap:2}}>
                 <button type="button" role="menuitem" className="menu-item" style={{flex:1,letterSpacing:1,color:'#e2e8f0',whiteSpace:'nowrap'}}
@@ -12888,7 +13016,7 @@ function App(){
             </nav>)}
           {/* The edit view's title row is sticky, so the view stays labelled (and DONE in reach)
               however far down it scrolls; with the .layout-editing frame it can't pass for the
-              regular view. The help text and PERSIST scroll away under it. */}
+              regular view. The help text and HOLD scroll away under it. */}
           {editing&&<div data-layout-edit-bar style={{display:'flex',alignItems:'center',gap:3,padding:'6px 12px',
                        position:'sticky',top:0,zIndex:5,background:'#1e1b4b',borderBottom:'1px solid #818cf8'}}>
             <span style={{fontSize:10,color:'#c7d2fe',letterSpacing:1,flex:1,fontWeight:700}}>✎ EDITING LAYOUT
@@ -12901,27 +13029,31 @@ function App(){
             <div style={{fontSize:10,color:'#64748b',lineHeight:1.6,marginBottom:6}}>
               Click anything to hide it from this layout; click again to bring it back. Hiding never changes the tune: hidden settings that differ from their defaults are listed on their section. To hide a control that only appears in another mode, use LAYOUT… under ⋯.
             </div>
-            {/* PERSIST: one switch for INT and PRO */}
-            <div data-persist style={{paddingTop:6,borderTop:'1px solid #1e1b4b'}}>
+            {/* HOLD: per control and per section, beside hide; the bulk actions live here and in the panel. */}
+            <div data-hold style={{paddingTop:6,borderTop:'1px solid #1e1b4b'}}>
               <div style={{display:'flex',alignItems:'center',gap:3}}>
-                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>PERSIST HIDDEN SETTINGS</span>
-                <div style={{display:'flex',gap:3,width:96}}>
-                  <button type="button" className={`tog${!persist?' on':''}`} aria-pressed={!persist} onClick={()=>setPersist(false)}>OFF</button>
-                  <button type="button" className={`tog${persist?' on':''}`} aria-pressed={persist} onClick={()=>setPersist(true)}>ON</button>
-                </div>
+                <span style={{fontSize:10,color:'#94a3b8',letterSpacing:1,flex:1}}>HOLD{heldCount?` · ${heldCount} HELD`:''}</span>
+                <button className="tbtn" style={{fontSize:10}} disabled={!hiddenHere.some(k=>holdable(k)&&!heldHere.includes(k))} onClick={holdAllHidden}>HOLD ALL HIDDEN</button>
+                <button className="tbtn" style={{fontSize:10}} disabled={!heldHere.length} onClick={releaseHolds}>RELEASE ALL</button>
               </div>
               <div style={{fontSize:10,color:T_MUTED,lineHeight:1.6,marginTop:4}}>
-                On: hidden settings keep their current values through DNA, LOAD CODE, garage loads, presets and RESET.
+                HOLD beside a control or section keeps its value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden.
               </div>
             </div>
           </div>}
 
           {uiMode!=='beginner'&&<>
-          {persistNote&&<div data-persist-note style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
+          {holdNote&&<div data-hold-note style={{margin:'0 10px 6px',padding:'4px 8px',
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
-            <span style={{color:'#818cf8',flex:1,minWidth:0}}>PERSIST kept {persistNote.n} hidden setting{persistNote.n>1?'s':''} through {persistNote.label}{persistNote.layout?` · layout ${persistNote.layout}`:''}</span>
-            <button onClick={()=>setPersistNote(null)} aria-label="Dismiss"
-              style={{background:'none',border:'none',color:T_MUTED,cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{color:'#818cf8',flex:1,minWidth:0}}>HOLD kept {holdNote.n} setting{holdNote.n>1?'s':''} through {holdNote.label}{holdNote.layout?` · layout ${holdNote.layout}`:''}</span>
+              <button className="tbtn" style={{fontSize:10,padding:'1px 6px'}} onClick={loadAllHeld}
+                title="Apply the load's values to the held settings too, this once (one ↩ undoes it)">LOAD ALL</button>
+              <button onClick={()=>setHoldNote(null)} aria-label="Dismiss"
+                style={{background:'none',border:'none',color:T_MUTED,cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>✕</button>
+            </div>
+            {holdNote.warns.map(w=><div key={w.id+w.dep} style={{color:C_WARN,marginTop:3,lineHeight:1.5}}>
+              ⚠ {HIDE_BY_ID[w.id].label} held · {HIDE_BY_ID[w.dep].label} changed{w.from&&w.to?` ${w.from} → ${w.to}`:''}, so it now means something else</div>)}
           </div>}
           {dnaLink&&<div style={{display:'flex',alignItems:'center',gap:6,margin:'0 10px 6px',padding:'4px 8px',
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
@@ -16169,7 +16301,7 @@ function App(){
 
         {layoutPanel&&activeLayout&&<LayoutPanel store={layoutStore} setStore={setLayoutStore} tier={uiMode} game={layoutGame}
           active={activeLayout} hidden={activeLayout.hidden} toggle={id=>setSecHidden(id,!activeLayout.hidden.includes(id))}
-          showAll={showAllHere} changed={layoutChangedIds()} setPersist={setPersist} editLayout={editActiveLayout} togglePin={togglePin}
+          showAll={showAllHere} changed={layoutChangedIds()} toggleHold={toggleHold} holdAllHidden={holdAllHidden} releaseHolds={releaseHolds} editLayout={editActiveLayout} togglePin={togglePin}
           tab={layoutPanel} setTab={setLayoutPanel}
           onClose={closeLayoutPanel} onEditOnPage={editOnPage} mobile={isMobile}
           width={Math.min(440,Math.max(340,Math.floor(windowWidth*0.3)))}/>}

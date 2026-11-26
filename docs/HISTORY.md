@@ -11,6 +11,18 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — HOLD replaces PERSIST: each setting held on its own, shown or hidden
+
+PERSIST was one switch per layout that held everything the layout hid, so keeping a value meant
+hiding it and hiding meant keeping. HOLD is a toggle of its own beside hide, on any input section or
+control that stores a setting (`held`, per layout): a setting can be shown, hidden, held or both.
+The panel's rows, the on-page edit view and the section headers carry it; a held section's header
+says HELD, a control held on its own wears a bar. The line after a load now warns when the load
+changed the mode a held value is read under (`HOLD_DEPS`), and LOAD ALL applies the load's values
+this once, one ↩ away from the held result. A layout with PERSIST on migrates to holding what it hid,
+less its pins (which PERSIST left alone); HOLD ALL HIDDEN does the same in one step. See
+[CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
 ## Changed — the output's small figures show what the solver worked out
 
 Each output row's smaller figures were fixed per mode, and the brighter one was the figure the

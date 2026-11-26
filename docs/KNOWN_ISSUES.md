@@ -63,7 +63,7 @@ at the entry-load ideal: BRK 0, no brakes row, GRIP USE's ENTRY at that split. A
 that is really front- or rear-heavy on the brakes is not modelled.
 
 STOCK is part of the tune (`dr`), so a FACTORY preset, a build saved on RACE or a code without
-id 89 sets it back to RACE. Hide the Brakes row (or BRAKES) with PERSIST on to keep it.
+id 89 sets it back to RACE. HOLD the Brakes control (or BRAKES) in your layout to keep it.
 
 ## Documented — what undo / redo does not cover
 
@@ -474,9 +474,9 @@ copy that ignores the mode was the alternative; it would mean duplicating each c
 and closures outside its section, the drift the portal exists to avoid. The panel lists every
 pin, so the ones not on show are still visible there.
 
-## Open — PERSIST holds values after the fact; DNA and unit changes don't plan around it
+## Open — HOLD keeps values after the fact; DNA and unit changes don't plan around it
 
-PERSIST writes held settings back once a load or RESET has run (`holdWrite`). Nothing upstream
+HOLD writes held settings back once a load or RESET has run (`holdWrite`). Nothing upstream
 knows about them.
 - **DNA** solves the whole tune freely, then the held values replace part of its answer. The DNA
   link line then reports the drift honestly ("· 2 drifted"), but the axes DNA aimed for are not
@@ -487,7 +487,10 @@ knows about them.
   That is deliberate: holding the raw numbers across the switch would hold the wrong stiffness.
 - **A held setting can sit in a combination the load never meant.** For example, a held ARB MAN
   under a build that expected AUTO. The tune is still valid, since every combination the
-  controls can produce is, but it is not the build that was saved.
+  controls can produce is, but it is not the build that was saved. The HOLD line warns only when
+  the load changed the held value's own mode (`HOLD_DEPS`, which pairs each value with the mode
+  control in its section that decides what it means); a held mode, like the MAN above, or a pairing
+  across sections, gets no warning.
 
 ## Open — a guide step's spots can be absent, or off screen
 

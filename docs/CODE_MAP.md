@@ -514,14 +514,16 @@ section it scrolls to the top.
 
 ### Layouts: the layout panel and the on-page edit view
 
-What is hidden lives in **layouts** (── Layouts ──): named sets of a hidden list and a PERSIST
-switch, `suspos_layouts_v1`. Each tier with the edit view (INT, PRO) picks one per game in
+What is hidden, and what is held, lives in **layouts** (── Layouts ──): named sets of a hidden
+list and a held list, `suspos_layouts_v1`. Each tier with the edit view (INT, PRO) picks one per game in
 `assign`, so FH, FM and BeamNG can differ. `App` resolves the **active layout** from `uiMode` and
 `fe.gameMode` (`layoutGame`); BEG has none. `hiddenHere` is its hidden list filtered to ids this
-tier renders (`hideIdValid`), and is what `LayoutCtx`, `secVis`, the stubs and PERSIST read;
+tier renders (`hideIdValid`), and is what `LayoutCtx`, `secVis` and the stubs read; `heldHere`
+is the held list filtered the same way, which HOLD reads;
 `hiddenCount` counts only what this game can show (`hideIdApplies`, which also reads a row's
 `games`). A layout may hold ids of every tier, so one layout can serve INT and PRO. Every edit
-goes through `editActiveLayout` (`setManyHidden`, `setSecHidden`, `showAllHere`, `setPersist`).
+goes through `editActiveLayout` (`setManyHidden`, `setSecHidden`, `showAllHere`, `toggleHold`,
+`holdAllHidden`, `releaseHolds`).
 
 Two ways to edit it:
 - **The layout panel** (`LayoutPanel`, `layoutPanel` = its open tab): LAYOUT… under SECTIONS in
@@ -540,7 +542,7 @@ Two ways to edit it:
 
 Neither runs during a guide or in BEG, and each ends the other.
 
-**Section order, start-open and chips.** Besides `hidden` and `persist`, a layout holds `order`
+**Section order, start-open and chips.** Besides `hidden` and `held`, a layout holds `order`
 (every `LAYOUT_SECS` key once), `startOpen` and `noChip` (subsets). The sidebar's section blocks
 are written in their default order, each wrapped as it stands in a keyed fragment of one map,
 `secEl`, which the render draws in `sidebarOrder`: the active layout's `order`, or `LAYOUT_SECS`
@@ -623,8 +625,8 @@ controls stay at home. In the on-page edit view every pinnable part carries ☆ 
 and MY CONTROLS shows only a note. A pin applies only where its control renders, so one whose
 mode isn't selected leaves an empty slot (`:empty`, no room). Pinning shows the control if it
 was hidden, and a layout's first pin adds `mine` to `startOpen` and opens it. A pinned control is
-in sight, so PERSIST doesn't hold its fields (`heldFields`' `pinned`) and a hidden home section
-whose only changes are pinned leaves no stub (`sectionChanged`'s `pinned`). MY CONTROLS is
+in sight, so a hidden home section whose only changes are pinned leaves no stub
+(`sectionChanged`'s `pinned`). Pinning and holding are separate: a pinned control can be held. MY CONTROLS is
 never the active section (`tog`, `jumpTo`), and the guide effect leaves its open state alone.
 
 Two tables under `── Section visibility ──` say what can be hidden:
@@ -674,19 +676,32 @@ guide or the balance guide) is set, so a guide's spotlight always finds its zone
 spots. LAYOUT… is disabled during either guide, a guide starting closes the panel and the edit
 view, and BEG never hides anything.
 
-**PERSIST: hidden settings hold their values.** Each layout's own switch (`persist`, in the
-panel's header and above the edit banner) makes everything in the active layout's hidden list
-valid in this tier keep its value through every `commit()`: apply DNA, a FACTORY preset, LOAD BUILD / CHASSIS,
-LOAD CODE, CHECK's import and ⟲ RESET all go through it. `heldFields(hidden, tier)` (after
-`repairHidden`) turns the list into `{ch, fe, dr, al}` keys. A hidden section holds its own
-fields plus every item's in it, which is how a hidden ANTI-ROLL BARS holds `arbManF` / `arbManR`
-(outside its RESET). An item holds its `fields`, and output, bar and toolbar parts hold nothing.
-`live` is not consulted.
+**HOLD: chosen settings keep their values.** Each layout's `held` list names input sections and
+controls (`holdable`: a `LAYOUT_SECS` section other than MY CONTROLS, or a control in one with
+`fields`), independent of `hidden`: a setting can be hidden, held, both or neither. Everything in
+the active layout's list valid in this tier (`heldHere`) keeps its value through every
+`commit()`: apply DNA, a FACTORY preset, LOAD BUILD / CHASSIS, LOAD CODE, CHECK's import and ⟲
+RESET all go through it. `heldItems(held, tier)` expands a held section to its controls with
+fields in this tier, and `heldFields(held, tier)` turns the list into `{ch, fe, dr}` keys: a held
+section's own fields plus every item's, which is how a held ANTI-ROLL BARS holds `arbManF` /
+`arbManR` (outside its RESET). `live` is not consulted. The toggles are HOLD in the panel's rows
+(beside hide and ☆), `.hz-hold` beside ☆ in the on-page edit view, and HOLD beside HIDE on an edit
+view section header; `LayoutCtx.heldBy(id)` says `self`, `sec` or nothing. In the regular view a
+control held on its own wears `.held` (a 2px bar outside its left edge, drawn by `Hide`'s
+wrapper as the guide branch draws its own), and `Sec`'s header a HELD / n HELD tag. HOLD ALL
+HIDDEN adds every holdable hidden id, PERSIST's old effect in one step. A layout stored before
+HOLD, or built by `legacyLayouts`, with PERSIST on gets its hidden ids that can be held, less its
+pins (`repairHeld`); the `persist` flag is then dropped.
 
 The hold is applied in the recording setters (`setCh` / `setFe` / `setDr` / `setAl` →
 `holdWrite`). While `inCommitRef` is set, a write keeps each held key at its pre-commit value
-(`snapRef.current`) and records it in `keptRef`. `commit` then sets `persistNote` (the sidebar's
-"PERSIST kept n…" line, naming the layout that held), or clears it. A load that switches game
+(`snapRef.current`) and records it in `keptRef` (each kept key → the value the load wanted), and
+every other key the commit changed in `changedRef` (→ [before, after]). `commit` then sets
+`holdNote` (the sidebar's "HOLD kept n…" line, naming the layout that held), or clears it.
+`holdWarnings` adds one line per held control the commit kept whose mode (`HOLD_DEPS`, each held
+value's mode control in its own section) the same commit changed, named in words by
+`holdModeLabel`. LOAD ALL (`loadAllHeld`) applies `keptRef`'s values as a commit of its own with
+`bypassHoldRef` set, so one ↩ returns to the held result. A load that switches game
 is held by the layout active before it. It is applied per write, not as a second update after the
 load, because each write is compared with the pre-commit snapshot: a second update could not tell
 the load's changes from the held keys'.
@@ -942,7 +957,8 @@ Each entry is load-bearing for users with existing saved state or shared
 codes. If you are cleaning up dead code, this is the list to check first.
 
 **`suspos_hidden_v1`, `suspos_persist_v1`, `repairHidden`, `DEF_HIDDEN`** — the per-tier hidden
-lists and the single PERSIST switch from before layouts. Nothing writes them, and only
+lists and the single PERSIST switch from before layouts (PERSIST on becomes held lists,
+`repairHeld`). Nothing writes them, and only
 `legacyLayouts` reads them, to build the INT and PRO layouts the first time. `suspos_layouts_v1`
 is not written until a layout changes, so until then every load rebuilds from these keys; deleting
 them, or the read, silently empties a user's layout. They also let an older copy of the app keep
