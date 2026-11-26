@@ -282,7 +282,8 @@ t('spot marks are unique and share no id with HIDE_ITEMS or SECTION_VIS', () => 
   eq(all.filter((k, i) => all.indexOf(k) !== i), []);
 });
 t('every data-spot literal is a mark, and every mark is drawn', () => {
-  const drawn = new Set([...src.matchAll(/data-spot="([a-zA-Z]+\.[a-zA-Z.]+)"/g)].map(m => m[1]));
+  // data-spot="…" on an element, or spot="…" on a MenuItem / MenuButton, which draws it as data-spot.
+  const drawn = new Set([...src.matchAll(/(?:data-spot|\bspot)="([a-zA-Z]+\.[a-zA-Z.]+)"/g)].map(m => m[1]));
   eq([...drawn].filter(id => !markIds.includes(id)), [], 'drawn, not listed');
   eq(markIds.filter(id => !drawn.has(id)), [], 'listed, not drawn');
 });

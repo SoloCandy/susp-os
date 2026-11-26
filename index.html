@@ -155,6 +155,10 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .stog-open{color:#9ca3af}
 /* Layout edit view (Hide): the part sits under a full-cover button, inert, so a click toggles
    it instead of moving a slider. A hidden part is faded and dashed. */
+.tabbtn{flex:1;min-height:50px;background:none;border:none;border-top:2px solid transparent;color:#7c8aa0;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  white-space:nowrap;padding:0 2px}
+.tabbtn.on{color:#e2e8f0;border-top-color:#e2e8f0;background:#0a0f1a}
 .menu-item{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:2px;
   padding:6px 8px;font-family:var(--font-mono);font-size:11px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .menu-item:hover,.menu-item:focus-visible{background:#0f172a;border-color:#1e293b;outline:none}
@@ -5272,11 +5276,16 @@ const Hide=({id,inline=false,style=null,bodyStyle=null,children})=>{
 // via the render-prop) closes it. `force` holds it open whatever happens — a guide step that
 // spotlights something inside — and an outside press then leaves it open. Opened from the
 // keyboard, focus lands on the first item, and the arrow keys walk the items. The panel is
-// absolute under the button; the header sits above the body (zIndex) so it can overhang it.
-const MenuButton=({label,title,ariaLabel,style=null,align='right',width=230,force=false,dot=false,spot,children})=>{
+// absolute under the button (or, with `sheet`, fixed across the screen); the header sits above
+// the body (zIndex) so it can overhang it.
+const MenuButton=({label,title,ariaLabel,style=null,align='right',width=230,force=false,dot=false,spot,sheet=false,children})=>{
   const[open,setOpen]=useState(false);
   const wrap=useRef(null),btn=useRef(null),panel=useRef(null),kb=useRef(false);
   const shown=open||force;
+  // sheet (phones): the panel is fixed 10 px in from both screen edges under the button, since a
+  // panel hung off a button near the edge of a 320 px screen would run off it.
+  const[top,setTop]=useState(0);
+  useLayoutEffect(()=>{if(shown&&sheet&&btn.current)setTop(Math.round(btn.current.getBoundingClientRect().bottom+4));},[shown,sheet]);
   useEffect(()=>{
     if(!open)return;
     const onDown=e=>{if(!force&&!wrap.current?.contains(e.target))setOpen(false);};
@@ -5306,7 +5315,8 @@ const MenuButton=({label,title,ariaLabel,style=null,align='right',width=230,forc
         {dot&&<span aria-hidden="true" style={{position:'absolute',top:2,right:2,width:6,height:6,borderRadius:3,background:C_GOOD}}/>}
       </button>
       {shown&&<div ref={panel} role="menu" aria-label={ariaLabel??(typeof label==='string'?label:undefined)} onKeyDown={onPanelKey}
-        style={{position:'absolute',top:'calc(100% + 4px)',[align]:0,width,zIndex:350,background:'#0a0f1a',
+        style={{...(sheet?{position:'fixed',top,left:10,right:10,maxHeight:`calc(100dvh - ${top+10}px)`,overflowY:'auto'}
+                        :{position:'absolute',top:'calc(100% + 4px)',[align]:0,width}),zIndex:350,background:'#0a0f1a',
                 border:'1px solid #1e293b',borderRadius:3,padding:6,boxShadow:'0 10px 28px #000c',
                 display:'flex',flexDirection:'column',gap:2}}>
         {typeof children==='function'?children(close):children}
@@ -8004,7 +8014,7 @@ const TUTORIALS={
      body:'SUSP.OS works out suspension values from your car\'s stats and the handling you want. This guide gets you a working tune in a few steps, then shows how to refine it.'},
     {title:'Choose Your Units',
      focus:null,units:true,quick:true,
-     body:'Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS (on a wide screen, in the game · level menu).',
+     body:'Pick the units your game shows, especially for spring rate, so values here can be typed straight in. You can change them later with UNITS, in the header\'s game · level menu.',
      glossary:['units']},
     {title:'Load a Preset',
      focus:['garage'],spot:['garage.factory'],sidebar:'close',quick:true,
@@ -8013,7 +8023,7 @@ const TUTORIALS={
      glossary:['factory-presets']},
     {title:'Getting Around',
      focus:['toolbar'],spot:['tb.undo'],
-     body:'INPUTS (☰ on a phone) shows or hides this sidebar; results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header\'s glossary) for the full explanation.',
+     body:'INPUTS shows or hides this sidebar (on a phone, the INPUTS tab); results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header\'s glossary) for the full explanation.',
      glossary:['undo-reset']},
     {title:'Layout & Build Type',
      focus:['layout-build','build-type'],
@@ -8051,7 +8061,7 @@ const TUTORIALS={
      glossary:['output-cards']},
     {title:'Output Toolbar',
      focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
-     body:'⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. On a wide screen the first three sit under ⋯.',
+     body:'⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. The first three sit under ⋯ in the header (SHARE too, on a phone).',
      glossary:['undo-reset','tune-check','share-code']},
     {title:'Saving Your Own',
      focus:['garage'],spot:['garage.save'],sidebar:'close',
@@ -8133,11 +8143,11 @@ const TUTORIALS={
      glossary:['output-cards']},
     {title:'Output Toolbar',
      focus:['toolbar'],spot:['tb.reset','tbDna','tbCheck','tb.share'],
-     body:'In the toolbar (the header on a wide screen, where RESET, DNA and CHECK sit under ⋯): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.',
+     body:'In the header, where RESET, DNA and CHECK sit under ⋯ (SHARE too, on a phone): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.',
      glossary:['undo-reset','tune-check','share-code']},
     {title:'Garage',
      focus:['garage'],spot:['garage.save','garage.list'],sidebar:'close',
-     body:'GARAGE (top right) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car\'s LOAD CHASSIS and LOAD BUILD let you pair one car\'s chassis with another\'s tune, and every load is undoable with ↩.',
+     body:'GARAGE (top right, or a tab on a phone) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car\'s LOAD CHASSIS and LOAD BUILD let you pair one car\'s chassis with another\'s tune, and every load is undoable with ↩.',
      glossary:['garage']},
     {title:'Organizing & Searching',
      focus:['garage'],spot:['garage.search'],sidebar:'close',
@@ -8248,9 +8258,9 @@ const TUTORIALS={
 // The line on each tier guide's last card, so every tour ends the same way: DONE closes it,
 // with no popup after.
 const TUT_END_NOTE={
-  beginner:'🔓 INT is unlocked: switch to INT from the header (its level menu on a wide screen) for more controls.',
-  intermediate:'🔓 PRO is unlocked: switch to PRO from the header (its level menu on a wide screen) for every control.',
-  pro:'That\'s everything PRO adds. Reopen this guide any time with ? in the header.',
+  beginner:'🔓 INT is unlocked: switch to INT in the header\'s game · level menu for more controls.',
+  intermediate:'🔓 PRO is unlocked: switch to PRO in the header\'s game · level menu for every control.',
+  pro:'That\'s everything PRO adds. Reopen this guide any time with GUIDE, under ? in the header (⋯ on a phone).',
 };
 const tutSteps=(mode,quick)=>{const all=TUTORIALS[mode]??[];return quick?all.filter(x=>x.quick):all;};
 
@@ -8451,7 +8461,7 @@ const GLOSSARY=[
     {id:'dna-priority',term:'DNA Priority & Slack',tier:'pro',short:'DNA priority',def:"How a Vehicle DNA resolves targets that the game's limits will not let it hit together. PRIORITY ranks the five axes that can give way (PLATFORM, BALANCE, ARB SHARE, PITCH, REBOUND ζ; BUMP RATIO rides with REBOUND ζ), most protected first. When an axis misses, APPLY tries moving less-protected axes, nearest clearing value first, and never breaks an axis ranked above the one it moves; if nothing clears the miss, the miss is accepted and reported. The setting axes (DAMP BIAS, DIFF EXIT, DIFF ENTRY) are written verbatim and always land.\n\nACCEPT ± is per-axis slack: how far an outcome axis may land from its target and still count as met, on top of the allowance for game rounding. 0 is a point target.\n\nON THIS CHASSIS previews every axis: ✓ on target (or within ± slack), moved to keep a higher-ranked axis, missed with the cause (such as the rear axle leaving the Hz band or bars at their limit), or not expressible with this diff (a SPORT diff has no ENTRY).",see:['dna','dna-match']},
     {id:'share-code',term:'Share Code',tier:'beginner',def:"SHARE → COPY CODE turns the tune into a compact text code; COPY LINK wraps it in a URL that opens SUSP.OS with it staged. Include any of CHASSIS (weight, bias, tyres, geometry, layout, MEASURE readings), FEEL (ride, damping, ARB, balance) and DRIVETRAIN (build type, diff, brakes). Codes never carry garage entries, and always record the author's tier.\n\nLOAD CODE: paste a code or link, READ CODE to stage it; nothing moves until APPLY SELECTED. Parts are CHASSIS, SPRINGS (which also carries the game mode), DAMPERS, ARB and DRIVETRAIN, each marked same as yours or from the code; only ticked parts are taken, and the ticks persist. TO GARAGE saves the merged result as a new entry and leaves the tune alone. A shared link stages the same way.\n\nThe sender's tier is shown, never applied. Taking ARB without SPRINGS from a code whose bars were set by hand in a game with different ARB units warns you, since the numbers would mean another quantity: tick SPRINGS too. Applying feel or drivetrain parts removes a DNA link; APPLY is one undo step.",see:['backup','garage','game-mode','undo-reset']},
     {id:'backup',term:'Backup & Restore',tier:'beginner',def:"SHARE → BACKUP downloads your garage as suspos-data.json, by kind: CHASSIS, BUILDS, CARS and DNA. It never includes the current unsaved tune. The garage lives only in this browser, so a backup is how you move it to another device or browser, or keep a copy.\n\nRESTORE reads a backup, including files from before the garage was unified, and lists for each kind how many entries the file holds and how many of yours ticking it would replace; a summary gives the net result. Ticked kinds are replaced wholesale by the file's, unticked kinds are kept. A replaced entry cannot be recovered because the garage is outside undo, so RESTORE takes two taps; BACKUP first if you want to keep them. The current tune is not touched.",see:['garage','share-code','undo-reset']},
-    {id:'garage',term:'Garage',tier:'beginner',def:"The GARAGE drawer holds everything you save. Name the setup, then SAVE CHASSIS (weight, bias, geometry, layout), SAVE BUILD (feel settings, diff and any applied DNA) or SAVE CAR (both). A car entry has separate LOAD CHASSIS and LOAD BUILD buttons, so one car's chassis can take another's tune; each load is one undo step. An entry's COPY CODE copies it as a share code.\n\nEntries carry notes (up to 2000 characters), your own tags, and automatic tags worked out when shown: layout, BALANCED, NOSE HEAVY or TAIL HEAVY (BALANCED within 2 points of 50% front), stiffness band, build type, diff type (RACE DIFF and so on) and MANUAL DIFF, the brakes (BRAKES ROTATE or BRAKES STABLE for a Brake Bias shift, GRIP BRAKES or ENTRY BRAKES for a PRO Centre, each shown only if the tier it was saved in applies it), DNA if a Vehicle DNA was applied, and that tier. All are searchable. Filter by kind and sort by RECENT, OLDEST, NAME A–Z or KIND. ↺ rewrites an entry from the current setup as CHASSIS, BUILD or BOTH (BOTH turns a chassis entry into a car). Deleting takes two taps and cannot be undone, since the garage is outside undo.",see:['factory-presets','backup','share-code','undo-reset']},
+    {id:'garage',term:'Garage',tier:'beginner',def:"GARAGE (a drawer on desktop, a tab on a phone) holds everything you save. Name the setup, then SAVE CHASSIS (weight, bias, geometry, layout), SAVE BUILD (feel settings, diff and any applied DNA) or SAVE CAR (both). A car entry has separate LOAD CHASSIS and LOAD BUILD buttons, so one car's chassis can take another's tune; each load is one undo step. An entry's COPY CODE copies it as a share code.\n\nEntries carry notes (up to 2000 characters), your own tags, and automatic tags worked out when shown: layout, BALANCED, NOSE HEAVY or TAIL HEAVY (BALANCED within 2 points of 50% front), stiffness band, build type, diff type (RACE DIFF and so on) and MANUAL DIFF, the brakes (BRAKES ROTATE or BRAKES STABLE for a Brake Bias shift, GRIP BRAKES or ENTRY BRAKES for a PRO Centre, each shown only if the tier it was saved in applies it), DNA if a Vehicle DNA was applied, and that tier. All are searchable. Filter by kind and sort by RECENT, OLDEST, NAME A–Z or KIND. ↺ rewrites an entry from the current setup as CHASSIS, BUILD or BOTH (BOTH turns a chassis entry into a car). Deleting takes two taps and cannot be undone, since the garage is outside undo.",see:['factory-presets','backup','share-code','undo-reset']},
     {id:'factory-presets',term:'Factory Presets',tier:'beginner',def:"Six read-only starting tunes under FACTORY in the garage: STREET (road comfort), TRACK (corner focus), RALLY (high travel), DRIFT (rotation), MOTORSPT (max grip) and X COUNTRY (max travel). ★ FOR YOUR BUILD marks the ones matching your Build Type (a TRACK build gets TRACK and MOTORSPT; DRAG gets TRACK). LOAD replaces the feel settings and drivetrain but never the chassis, so the preset fits your car's weight; it removes any DNA link and is one undo step. Presets are not garage entries, so they never appear in counts, search or backups.\n\nAt BEG a loaded preset is adapted to the Beginner controls (automatic bar stiffness, weight-based bar split, a rear-Hz multiplier and standard damping), so the Balance slider behaves the same whether or not you have touched it.",see:['garage','build-type','balance-slider','undo-reset']},
     {id:'undo-reset',term:'Undo, Redo & Reset',tier:'beginner',def:"↩ and ↪ in the toolbar undo and redo tune changes; Ctrl+Z and Ctrl+Shift+Z (⌘ on Mac) do the same, while text fields keep their own undo. Each load, whether a preset, garage entry, share code, DNA APPLY or RESET, is one step, and the button's tooltip names what it will undo. Undo covers the chassis, feel, drivetrain, alignment and DNA link, but not the garage: deleting or restoring garage entries cannot be undone.\n\n⟲ RESET returns the tune (chassis, feel, drivetrain, alignment; brakes follow) to defaults and removes a DNA link, one ↩ away from being undone. It can also mark every tutorial unseen: each guide then opens again when you enter its tier, and INT and PRO lock until the guide before them is opened. Garage saves are never touched.",see:['garage','backup','factory-presets']},
     {id:'game-mode',term:'Game Mode',tier:'beginner',def:"The header selector for the game the tune is for: HORIZON, MOTORSPORT or BEAMNG. Horizon and Motorsport output Forza click values against each game's ceilings (Horizon: ARB 65, damping 20; Motorsport: 40 and 40), with amber warnings near them. BEAMNG outputs physical units with no ceiling and regroups the results to match BeamNG's menus. The game mode travels in a share code's SPRINGS part.\n\n[INT] Switching between clicks and physical units converts MAN bar values so they keep their meaning, and BASIC stiffness mode, a % of the click ceiling, is unavailable in BeamNG. Moving from Horizon to Motorsport clamps MAN bar values to the lower ceiling.",see:['beamng-output','output-cards','units','share-code']},
@@ -8578,7 +8588,7 @@ const GLOSSARY_SUM={
   'dna-priority':"Which Vehicle DNA axes give way first when the game's limits block hitting them all.",
   'share-code':"A compact text code or link that carries the tune, or the parts of it you pick.",
   'backup':"Downloads or restores your garage as a file, to move it or keep a copy.",
-  'garage':"The drawer where you save and load chassis, builds and cars.",
+  'garage':"Where you save and load chassis, builds and cars.",
   'factory-presets':"Six read-only starting tunes in the garage; ★ marks the ones for your build.",
   'undo-reset':"↩ and ↪ step back and forward through tune changes, each load counting as one step.",
   'game-mode':"Which game the tune is for (HORIZON, MOTORSPORT or BEAMNG); it sets limits and units.",
@@ -9003,7 +9013,7 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
                  overflowY:'auto',flex:1,minHeight:0,
                  WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',whiteSpace:'pre-line'}} data-tut-body>
           {t.body}
-          {quick&&isLast&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap ? in the header any time to replay the full tour.</div>}
+          {quick&&isLast&&<div style={{marginTop:10,color:'#818cf8'}}>That's the quick start. Tap GUIDE, under ? in the header (⋯ on a phone), any time to replay the full tour.</div>}
           {isLast&&endNote&&<div data-tut-end style={{marginTop:10,color:'#4ade80'}}>{endNote}</div>}
           {absentOn&&t.absent&&<div data-tut-absent style={{marginTop:10,padding:'6px 8px',border:'1px solid #78350f',
                borderRadius:2,color:'#fbbf24',background:'#1c1206'}}>{t.absent.text}</div>}
@@ -9570,7 +9580,6 @@ function App(){
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
   const update=useDeployCheck(); // a newer app is live — GitHub button turns into RELOAD, or a download link off file://
-  const swipeRef=useRef(null);
   useEffect(()=>{
     const preload=document.getElementById('pre-load');
     if(preload)preload.style.display='none';
@@ -9658,10 +9667,9 @@ function App(){
     // BEG without touching the stored mode, values or offsets (as the BRAKES shift is kept there).
   },[uiMode,restoreTick]); // eslint-disable-line
 
-  // sidebar grows with the display: 300px baseline, up to 440px at very wide screens.
-  // Mobile: 88% of the screen capped at 360, so small phones keep a tappable backdrop strip
-  // and large phones get the room.
-  const sidebarWidth=isMobile?Math.min(360,Math.floor(windowWidth*0.88)):Math.min(440,Math.max(340,Math.floor(windowWidth*0.25)));
+  // sidebar grows with the display: 340px baseline, up to 440px at very wide screens.
+  // Phone: the INPUTS view is full width.
+  const sidebarWidth=isMobile?windowWidth:Math.min(440,Math.max(340,Math.floor(windowWidth*0.25)));
 
   // Where the units / game-mode / tier controls live is decided by isMobile alone now: the desktop
   // header (≥768) holds them in its game · level menu, phones in header row 2 and the top of the
@@ -10061,6 +10069,44 @@ function App(){
   const visShown=visAllowed&&(visTut||(visWide?visUI.dock:visView));
   const visOn=visWide?visUI.dock:visView; // what the VIS buttons show as on
   const toggleVis=()=>{if(visWide)setVisUI(u=>({...u,dock:!u.dock}));else setVisView(v=>!v);};
+
+  // ── Phone views (isMobile) ──
+  // Below 768 px the body shows one full-screen view at a time, picked by the bottom tab bar:
+  // INPUTS, VISUALS, TUNE or GARAGE. There is no separate state for it: the view is read off the
+  // three flags the rest of the app (the guides above all) already sets — garagePanelOpen, then
+  // sidebarOpen, then the VISUALS swap (visShown below the column width), else the tune — and
+  // goView writes them together. Every view stays mounted (the panes are stacked and hidden by
+  // visibility), so each keeps its scroll position across tabs.
+  const mobileView=garagePanelOpen?'garage':sidebarOpen?'inputs':(!visWide&&visShown)?'visuals':'tune';
+  const goView=v=>{
+    setGaragePanelOpen(v==='garage');
+    setSidebarOpen(v==='inputs');
+    if(v==='visuals')setVisView(true);
+    else if(v==='tune')setVisView(false);
+  };
+  // The on-screen keyboard: while a text-like field has focus the tab bar steps aside, so the
+  // field and what is around it keep the height (the job sbTyping once did for the VISUALS footer).
+  const[kbOpen,setKbOpen]=useState(false);
+  useEffect(()=>{
+    if(!isMobile){setKbOpen(false);return;}
+    const typing=()=>!!document.activeElement?.matches?.('input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]),textarea');
+    const on=()=>setKbOpen(typing());
+    const off=()=>setTimeout(on,0); // deferred: hopping field to field shouldn't flash the bar back
+    document.addEventListener('focusin',on);document.addEventListener('focusout',off);
+    return()=>{document.removeEventListener('focusin',on);document.removeEventListener('focusout',off);};
+  },[isMobile]);
+  // The balance bar's height: on a phone the inputs view stops above it, so the balance summary
+  // stays in sight while you edit.
+  const[barH,setBarH]=useState(0);
+  const barRO=useRef(null);
+  const barMeasureRef=useMemo(()=>el=>{
+    barRO.current?.disconnect();barRO.current=null;
+    if(!el)return;
+    const measure=()=>{const h=Math.round(el.getBoundingClientRect().height);setBarH(o=>o===h?o:h);};
+    measure();
+    barRO.current=new ResizeObserver(measure);
+    barRO.current.observe(el);
+  },[]);
   // Which groups can render now: the same gates the groups use, and not hidden in the edit view.
   const sagAvail=!!ch.useRideHeightCG&&parseTyre(ch.tyreF)?.radius!=null&&parseTyre(ch.tyreR)?.radius!=null;
   const VIS_HIDE_ID={visDna:'visuals.dna',visRide:'visuals.ride',visDynamics:'visuals.dynamics',visSag:'visuals.sag',
@@ -11238,7 +11284,6 @@ function App(){
         ...(col?{width:visColW,flexShrink:0,borderRight:'1px solid #0f172a'}:{flex:1}),...dim('visuals')}}>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'6px 8px':'6px 12px',
                      borderBottom:'1px solid #0f172a',flexShrink:0,minHeight:isMobile?48:37}}>
-          {!col&&isMobile&&<button className="tbtn" style={{fontSize:11}} onClick={()=>setSidebarOpen(true)}>‹ INPUTS</button>}
           <span style={{fontSize:11,letterSpacing:2,color:'#9ca3af'}}>VISUALS</span>
           {secLabel&&<span title="Groups open and close with their sidebar sections; this is the last one you opened or touched. PIN keeps a group open."
             style={{fontSize:10,color:T_MUTED,letterSpacing:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -11248,8 +11293,9 @@ function App(){
             title={off?'Hidden: show VISUALS again':'Hide VISUALS'} onClick={()=>layoutCtx.toggle('visuals')}
             style={{fontSize:10,letterSpacing:1,padding:'0 8px',minWidth:64,minHeight:26,borderRadius:2,background:'none',fontFamily:'inherit',
                     cursor:'pointer',color:off?'#e2e8f0':'#818cf8',border:`1px solid ${off?'#475569':'#818cf855'}`}}>{off?'SHOW':'HIDE'}</button>}
-          <button className="tbtn" style={{fontSize:11}} aria-label={col?'Close visuals':'Back to the tune'}
-            onClick={()=>col?setVisUI(u=>({...u,dock:false})):setVisView(false)}>{col?'✕':'TUNE ›'}</button>
+          {/* Not on a phone, where the tab bar does it. */}
+          {!isMobile&&<button className="tbtn" style={{fontSize:11}} aria-label={col?'Close visuals':'Back to the tune'}
+            onClick={()=>col?setVisUI(u=>({...u,dock:false})):setVisView(false)}>{col?'✕':'TUNE ›'}</button>}
         </div>
         <div data-vis-box style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
                                   padding:'8px 10px',opacity:layoutCtx.edit&&off?0.35:1}}>
@@ -11269,17 +11315,11 @@ function App(){
     // choice about what a loaded code may touch, and they are always on screen.
     setExportSel({chassis:true,build:true,car:true,dna:true});setShowDataModal(true);
   };
-  // The header's VIS toggle, beside the sidebar's ☰ in row 1.
-  const visButton=(st={})=>visAllowed&&<button className={`tbtn${visOn&&!(isMobile&&sidebarOpen)?' on':''}`} style={{fontSize:11,...st}}
-    title={visWide?'Show or hide the VISUALS column':'Switch between the tune and VISUALS'}
-    onClick={()=>{setGaragePanelOpen(false);
-      // From the phone's inputs drawer, VIS always lands on VISUALS (the drawer slides away).
-      if(isMobile&&sidebarOpen){setSidebarOpen(false);setVisView(true);}else toggleVis();}}>VIS</button>;
 
   // ── Desktop header (≥768) ──
   // One row, grouped by job: SUSP.OS │ the panel switch (INPUTS · VISUALS · TUNE) │ … │ the game ·
-  // level chip, whose menu also holds UNITS │ the tune's actions (↩ ↪ SHARE ⋯, zone-toolbar: the
-  // id and spot ids the phone's sidebar toolbar uses, so guides find either) │ ? │ GARAGE.
+  // level chip, whose menu also holds UNITS │ the tune's actions (↩ ↪ SHARE ⋯, zone-toolbar — the
+  // phone header's action group carries the same id and spot ids, so guides find either) │ ? │ GARAGE.
   // ⋯ holds DNA, CHECK and RESET (RESET away from undo); a guide step spotlighting one opens it.
   // ? holds the guide, the glossary and the source link, with a dot while a newer version is live.
   // Below 1000 px (hdrTight) the chip shortens the game name and the wordmark and gaps shrink, so
@@ -11287,18 +11327,114 @@ function App(){
   const UNIT_TXT={lb:'lb',kg:'kg',lbin:'lb/in',nmm:'N/mm',kgfmm:'kgf/mm',in:'in',cm:'cm',mph:'mph',kmh:'km/h'};
   const GAME_SHORT={horizon:'FH',motorsport:'FM',beamng:'BNG'};
   const TIER_TXT={beginner:'BEG',intermediate:'INT',pro:'PRO'};
-  const actMenuForced=!isMobile&&!!guideStep?.spot?.some(id=>['tb.reset','tbDna','tbCheck'].includes(id));
+  // A guide step spotlighting something inside ⋯ holds it open: DNA, CHECK, RESET, and on a phone
+  // SHARE too, which lives in ⋯ there.
+  const actMenuForced=!!guideStep?.spot?.some(id=>(isMobile?['tb.share','tb.reset','tbDna','tbCheck']:['tb.reset','tbDna','tbCheck']).includes(id));
   const hdrTight=windowWidth<1000; // the chip's short game name, a smaller wordmark, tighter gaps
   const sep=<div aria-hidden="true" style={{width:1,height:16,background:'#1e293b',margin:hdrTight?'0 2px':'0 4px',flexShrink:0}}/>;
   const onbChipRef=useRef(null);
   // The first-run popup points at where the level lives: the game · level chip on desktop (its
-  // arrow, 22 px in from the popup's right edge, under the chip's centre), header row 2 on a phone.
+  // arrow, 22 px in from the popup's right edge, under the chip's centre), on desktop and phone alike.
   const[onbRight,setOnbRight]=useState(14);
   useLayoutEffect(()=>{
-    if(onboardSeen||isMobile||!onbChipRef.current){setOnbRight(14);return;}
+    if(onboardSeen||!onbChipRef.current){setOnbRight(14);return;}
     const r=onbChipRef.current.getBoundingClientRect(),z=isPhone?1:uiZoom; // effZoom, defined further down
     setOnbRight(Math.max(8,Math.round((window.innerWidth-(r.left+r.right)/2)/z-22)));
   },[onboardSeen,isMobile,windowWidth]); // eslint-disable-line
+  // The header menus' contents, shared by the desktop row and the phone header.
+  const setupMenu=close=><>
+          <MenuHead>GAME</MenuHead>
+          <div style={{padding:'0 4px 4px'}}><OptionSeg label="Game">
+            {GAME_MODE_DEC.map(m=><button key={m} className={`tog${fe.gameMode===m?' on':''}`}
+              onClick={()=>switchGameMode(m)}>{GAME_MODE_LABEL[m]}</button>)}
+          </OptionSeg></div>
+          <MenuHead>LEVEL</MenuHead>
+          <div style={{padding:'0 4px 4px'}}><OptionSeg label="Level">
+            {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([m,l])=>
+              <button key={m} className={`tog${uiMode===m?' on':''}`} title={lockTitle(m)}
+                style={canAccessMode(m)?undefined:{opacity:0.45}}
+                onClick={()=>{requestMode(m);close();}}>{canAccessMode(m)?l:<>🔒 {l}</>}</button>)}
+          </OptionSeg></div>
+          <MenuItem label="UNITS…" note={[units.mass,units.spring,units.length,units.speed].map(u=>UNIT_TXT[u]??u).join(' · ')}
+            onClick={()=>{close();setShowUnits(true);}}/>
+  </>;
+  const moreItems=close=><>
+            <Hide id="tbDna"><MenuItem label="DNA" tag={uiMode==='pro'?null:'PRO'}
+              note={uiMode==='pro'?'Build a tune from handling targets; your saved DNAs.':'Build a tune from handling targets. Opens with a switch to PRO.'}
+              onClick={()=>{close();setShowDnaModal(true);}}/></Hide>
+            <Hide id="tbCheck"><MenuItem label="CHECK" note="Tune Check: read back an existing tune, or measure the game."
+              onClick={()=>{close();setShowChecker(true);}}/></Hide>
+            <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
+            <MenuItem label="⟲ RESET…" tone={C_ERR} spot="tb.reset" note="Tune or tutorials to defaults. Saves are not affected."
+              onClick={()=>{close();setShowResetModal(true);}}/>
+  </>;
+  const helpItems=close=><>
+          <MenuItem label="GUIDE" note="Step-by-step tour of this level." onClick={()=>{close();askTut(uiMode);}}/>
+          <MenuItem label="GLOSSARY" note="Look up any term." onClick={e=>{const from=e.currentTarget.closest('span')?.querySelector('button[aria-haspopup]');
+            close();glossaryBridge.open(null,{from,keyboard:e.detail===0});}}/>
+          <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
+          {update==='reload'
+            ?<MenuItem label="↻ RELOAD" tone={C_GOOD} note="A new version is live. Your tune and garage are saved."
+                onClick={()=>window.location.reload()}/>
+            :<a role="menuitem" className="menu-item" target="_blank" rel="noopener noreferrer" onClick={close}
+                href={update?DOWNLOAD_URL:'https://github.com/SoloCandy/susp-os'} style={{textDecoration:'none'}}>
+                <span style={{display:'flex',alignItems:'center',gap:6,color:update?C_GOOD:'#e2e8f0',letterSpacing:1}}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d={GITHUB_MARK}/></svg>
+                  {update?'↓ DOWNLOAD':'SOURCE'}</span>
+                <span style={{display:'block',fontSize:10,color:T_MUTED,lineHeight:1.4,marginTop:2}}>
+                  {update?'A newer version is live. Download it over this file to keep your garage (SHARE → BACKUP first).':'SUSP.OS on GitHub.'}</span>
+              </a>}
+  </>;
+  // ── Phone header (isMobile) ──
+  // One 48 px row: SUSP.OS, the game · level chip, ↩ ↪ and ⋯. The bottom tab bar took ☰, VIS and
+  // GARAGE, so the header only names the app, its setup and the tune's actions; ⋯ adds SHARE and
+  // the help items (? has no room of its own here), and carries the update dot. ↪ goes under 360 px.
+  const phoneHeader=()=>(
+    <div style={{display:'flex',alignItems:'center',gap:4,padding:'0 10px',height:48}}>
+      <div style={{fontWeight:700,fontSize:12,color:'#e2e8f0',letterSpacing:2,whiteSpace:'nowrap'}}>
+        SUSP<span style={{color:'#94a3b8'}}>.</span>OS
+      </div>
+      <div style={{flex:1}}/>
+      <span ref={onbChipRef} style={{display:'inline-flex'}}>
+      <MenuButton sheet ariaLabel="Game, level and units" title="Game, complexity level and units" style={{padding:'9px 10px'}}
+        label={<>{GAME_SHORT[fe.gameMode]} · {TIER_TXT[uiMode]} <span aria-hidden="true" style={{color:T_MUTED}}>▾</span></>}>
+        {close=>setupMenu(close)}
+      </MenuButton>
+      </span>
+      <div id="zone-toolbar" style={{display:'flex',gap:4,alignItems:'center',...dim('toolbar')}}>
+        <button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:12,padding:'9px 11px'}}
+          onClick={undo} disabled={!canUndo} aria-label="Undo"
+          title={histTitle('Undo',histRef.current.undoLabel,canUndo)}>↩</button>
+        {windowWidth>=360&&<button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:12,padding:'9px 11px'}}
+          onClick={redo} disabled={!canRedo} aria-label="Redo"
+          title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>}
+        <MenuButton sheet label="⋯" ariaLabel="More" title="Share, tools, help" dot={!!update} force={actMenuForced} style={{padding:'9px 12px'}}>
+          {close=><>
+            {windowWidth<360&&<MenuItem label="↪ REDO" disabled={!canRedo} onClick={()=>{redo();close();}}/>}
+            <MenuItem label="SHARE" spot="tb.share" note="Share codes and links, garage backup and restore."
+              onClick={()=>{close();openShare();}}/>
+            {moreItems(close)}
+            <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
+            {helpItems(close)}
+          </>}
+        </MenuButton>
+      </div>
+    </div>);
+  // ── Phone tab bar ──
+  // INPUTS · VISUALS · TUNE · GARAGE at the bottom, in thumb reach. VISUALS only where VISUALS
+  // exists (INT / PRO, not hidden in the edit view). It steps aside while the keyboard is up.
+  const phoneTabs=()=>{
+    const tabs=[['inputs','INPUTS'],...(visAllowed?[['visuals','VISUALS']]:[]),['tune','TUNE'],
+      ['garage',`GARAGE${entries.length>0?` ${entries.length}`:''}`]];
+    return(
+      <nav aria-label="Views" style={{display:'flex',flexShrink:0,borderTop:'1px solid #1e293b',background:'#020617',
+                                      paddingBottom:'env(safe-area-inset-bottom,0px)'}}>
+        {tabs.map(([v,l])=>(
+          <button key={v} type="button" className={`tabbtn${mobileView===v?' on':''}`}
+            aria-current={mobileView===v?'page':undefined} onClick={()=>goView(v)}>{l}</button>))}
+      </nav>);
+  };
+
   const desktopHeader=()=>{
     const pane=(label,on,onClick,title,disabled=false)=>(
       <button type="button" className={`tbtn${on?' on':''}`} aria-pressed={on} title={title}
@@ -11324,22 +11460,7 @@ function App(){
       <span ref={onbChipRef} style={{display:'inline-flex'}}>
       <MenuButton ariaLabel="Game, level and units" title="Game, complexity level and units" width={300}
         label={<>{(hdrTight?GAME_SHORT:GAME_MODE_LABEL)[fe.gameMode]} · {TIER_TXT[uiMode]} <span aria-hidden="true" style={{color:T_MUTED}}>▾</span></>}>
-        {close=><>
-          <MenuHead>GAME</MenuHead>
-          <div style={{padding:'0 4px 4px'}}><OptionSeg label="Game">
-            {GAME_MODE_DEC.map(m=><button key={m} className={`tog${fe.gameMode===m?' on':''}`}
-              onClick={()=>switchGameMode(m)}>{GAME_MODE_LABEL[m]}</button>)}
-          </OptionSeg></div>
-          <MenuHead>LEVEL</MenuHead>
-          <div style={{padding:'0 4px 4px'}}><OptionSeg label="Level">
-            {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([m,l])=>
-              <button key={m} className={`tog${uiMode===m?' on':''}`} title={lockTitle(m)}
-                style={canAccessMode(m)?undefined:{opacity:0.45}}
-                onClick={()=>{requestMode(m);close();}}>{canAccessMode(m)?l:<>🔒 {l}</>}</button>)}
-          </OptionSeg></div>
-          <MenuItem label="UNITS…" note={[units.mass,units.spring,units.length,units.speed].map(u=>UNIT_TXT[u]??u).join(' · ')}
-            onClick={()=>{close();setShowUnits(true);}}/>
-        </>}
+        {close=>setupMenu(close)}
       </MenuButton>
       </span>
       {sep}
@@ -11353,37 +11474,12 @@ function App(){
         <button className="tbtn" data-spot="tb.share" style={{fontSize:11}} onClick={openShare}
           title="Share codes and links, garage backup and restore">SHARE</button>
         <MenuButton label="⋯" ariaLabel="More tune actions" title="Vehicle DNA, Tune Check and Reset" width={260} force={actMenuForced}>
-          {close=><>
-            <Hide id="tbDna"><MenuItem label="DNA" tag={uiMode==='pro'?null:'PRO'}
-              note={uiMode==='pro'?'Build a tune from handling targets; your saved DNAs.':'Build a tune from handling targets. Opens with a switch to PRO.'}
-              onClick={()=>{close();setShowDnaModal(true);}}/></Hide>
-            <Hide id="tbCheck"><MenuItem label="CHECK" note="Tune Check: read back an existing tune, or measure the game."
-              onClick={()=>{close();setShowChecker(true);}}/></Hide>
-            <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
-            <MenuItem label="⟲ RESET…" tone={C_ERR} spot="tb.reset" note="Tune or tutorials to defaults. Saves are not affected."
-              onClick={()=>{close();setShowResetModal(true);}}/>
-          </>}
+          {close=>moreItems(close)}
         </MenuButton>
       </div>
       {sep}
       <MenuButton label="?" ariaLabel="Help" title={update?'Help · a new version is live':'Guide, glossary and source'} dot={!!update} width={250}>
-        {close=><>
-          <MenuItem label="GUIDE" note="Step-by-step tour of this level." onClick={()=>{close();askTut(uiMode);}}/>
-          <MenuItem label="GLOSSARY" note="Look up any term." onClick={e=>{const from=e.currentTarget.closest('span')?.querySelector('button[aria-haspopup]');
-            close();glossaryBridge.open(null,{from,keyboard:e.detail===0});}}/>
-          <div style={{height:1,background:'#1e293b',margin:'3px 0'}}/>
-          {update==='reload'
-            ?<MenuItem label="↻ RELOAD" tone={C_GOOD} note="A new version is live. Your tune and garage are saved."
-                onClick={()=>window.location.reload()}/>
-            :<a role="menuitem" className="menu-item" target="_blank" rel="noopener noreferrer" onClick={close}
-                href={update?DOWNLOAD_URL:'https://github.com/SoloCandy/susp-os'} style={{textDecoration:'none'}}>
-                <span style={{display:'flex',alignItems:'center',gap:6,color:update?C_GOOD:'#e2e8f0',letterSpacing:1}}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d={GITHUB_MARK}/></svg>
-                  {update?'↓ DOWNLOAD':'SOURCE'}</span>
-                <span style={{display:'block',fontSize:10,color:T_MUTED,lineHeight:1.4,marginTop:2}}>
-                  {update?'A newer version is live. Download it over this file to keep your garage (SHARE → BACKUP first).':'SUSP.OS on GitHub.'}</span>
-              </a>}
-        </>}
+        {close=>helpItems(close)}
       </MenuButton>
       <button className="tbtn" style={{fontSize:11,marginLeft:3,color:'#e2e8f0',borderColor:'#334155'}} title="Open your garage"
         onClick={()=>setGaragePanelOpen(o=>!o)}>GARAGE{entries.length>0?` ${entries.length}`:''}</button>
@@ -11776,172 +11872,38 @@ function App(){
         </div>
       )}
 
-      {/* HEADER — desktop (≥768) is one row, desktopHeader(); phones keep the two-row header below
-          until their own redesign. position + zIndex let the desktop menus overhang the body. */}
+      {/* HEADER — one row: desktopHeader() from 768 px, phoneHeader() below (with the bottom tab bar,
+          phoneTabs(), after the body). position + zIndex let the menus overhang the body. */}
       <div style={{flexShrink:0,borderBottom:'1px solid #0f172a',background:'#020617',
                    paddingTop:'env(safe-area-inset-top,0px)',position:'relative',zIndex:300}}>
-        {!isMobile?desktopHeader():<>
-        {/* Row 1 — brand + utility (phone) */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                     padding:'0 14px',height:42}}>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <button onClick={()=>setSidebarOpen(p=>!p)} aria-label={sidebarOpen?'Close sidebar':'Open sidebar'}
-              style={{background:'none',border:'1px solid #1e293b',borderRadius:2,
-                      color:sidebarOpen?'#e2e8f0':'#94a3b8',cursor:'pointer',
-                      padding:isMobile?'7px 10px':'3px 7px',fontSize:13,lineHeight:1,
-                      transition:'color .12s,border-color .12s',
-                      borderColor:sidebarOpen?'#e2e8f033':'#1e293b'}}>
-              {sidebarOpen?'✕':'☰'}
-            </button>
-            {/* VIS beside ☰: the two buttons that pick what the body shows, inputs and VISUALS. */}
-            {visButton(isMobile?{padding:'7px 10px',fontSize:12,lineHeight:1}:{padding:'3px 7px',fontSize:12,lineHeight:1})}
-            {/* Below 400 px the wordmark gives way: with VIS beside ☰, row 1 measured ~390 px and pushed
-                GARAGE off a 375 px phone. The tab title still names the app. */}
-            {windowWidth>=400&&<div style={{fontWeight:700,fontSize:isMobile?12:15,color:'#e2e8f0',
-                         letterSpacing:isMobile?2:4}}>
-              SUSP<span style={{color:'#94a3b8'}}>.</span>OS
-            </div>}
-          </div>
-          <div style={{display:'flex',gap:3,alignItems:'center'}}>
-            <button className="tbtn" style={{fontSize:11}}
-              onClick={()=>askTut(uiMode)}>?</button>
-            <button className="tbtn" style={{fontSize:11}} title="Glossary — look up a term"
-              onClick={e=>glossaryBridge.open(null,{from:e.currentTarget,keyboard:e.detail===0})}>TERMS</button>
-            {/* Source link. An <a> rather than a button so it opens in a new tab natively;
-                tbtn styles an inline element, so the flex/decoration bits are set here.
-                Once useDeployCheck sees a newer app it changes in the same slot — RELOAD (↻) when
-                served, a link to the download page (↓) off file://, where a reload would reread the
-                same old file. The mark stays so it reads as the same control, the glyph says what it
-                does now, and the width grows by one glyph only (see "Header layout" in CODE_MAP). */}
-            {update==='reload'?(
-            <button className="tbtn update" onClick={()=>window.location.reload()}
-              title="A new version of SUSP.OS is live — click to reload. Your tune and garage are saved."
-              aria-label="New version available — reload"
-              style={{display:'inline-flex',alignItems:'center',gap:4}}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d={GITHUB_MARK}/>
-              </svg>
-              <span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↻</span>
-            </button>
-            ):(
-            <a className={update?'tbtn update':'tbtn'} target="_blank" rel="noopener noreferrer"
-              href={update?DOWNLOAD_URL:'https://github.com/SoloCandy/susp-os'}
-              title={update
-                ?'A newer SUSP.OS is live. Download it over this file (same name and folder) to keep your garage — SHARE → BACKUP first to be safe.'
-                :'Source on GitHub'}
-              aria-label={update?'New version available — download it':undefined}
-              style={{display:'inline-flex',alignItems:'center',gap:update?4:undefined,textDecoration:'none'}}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d={GITHUB_MARK}/>
-              </svg>
-              {update&&<span aria-hidden="true" style={{fontSize:13,lineHeight:1}}>↓</span>}
-            </a>
-            )}
-            {!isPhone&&<div style={{width:1,height:16,background:'#1e293b',margin:'0 4px'}}/>}
-            <button className="tbtn" style={{fontSize:11}} title="Open your garage"
-              onClick={()=>setGaragePanelOpen(o=>!o)}>GARAGE{entries.length>0?` ${entries.length}`:''}</button>
-          </div>
-        </div>
-        {/* Row 2 (phone): complexity selector */}
-        {(
-          <div style={{display:'flex',gap:4,padding:'0 14px 8px'}}>
-            {[['beginner','BEG'],['intermediate','INT'],['pro','PRO']].map(([mode,label])=>(
-              <button key={mode} className={`tbtn${uiMode===mode?' on':''}`}
-                onClick={()=>requestMode(mode)} title={lockTitle(mode)}
-                style={{flex:1,fontSize:11,padding:'7px 0',textAlign:'center',...(canAccessMode(mode)?{}:{opacity:0.45})}}>
-                {canAccessMode(mode)?label:<>🔒 {label}</>}
-              </button>
-            ))}
-          </div>
-        )}
-        </>}
+        {isMobile?phoneHeader():desktopHeader()}
       </div>
 
       {/* BODY */}
       <div style={{display:'flex',flex:1,overflow:'hidden',position:'relative'}}>
 
-        {/* BACKDROP — mobile only, closes sidebar on tap */}
-        {/* Always mounted on mobile so it can fade; pointer-events off while closed. */}
-        {isMobile&&
-          <div onClick={()=>setSidebarOpen(false)}
-               style={{position:'absolute',inset:0,background:'#00000088',zIndex:150,
-                       opacity:sidebarOpen?1:0,pointerEvents:sidebarOpen?'auto':'none',
-                       transition:'opacity .2s ease'}}/>}
-
-        {/* SIDEBAR — outer wrapper handles width/positioning; the pinned TOOLBAR header and the
-            scrollable content are separate children so the header never scrolls away. VISUALS
-            used to be a pinned footer here; it is its own column or view now (visualsPanel).
-            Mobile: stays display:flex when closed and hides by transform + visibility, because
-            a display:none toggle kills the slide transition. visibility is delayed on close
-            (transition .2s step) so the drawer is still visible while it slides out, and it
-            keeps a closed drawer out of the tab order. A leftward swipe closes it. */}
+        {/* SIDEBAR — the inputs. On desktop a column whose width animates; the scrollable content
+            is its child. VISUALS used to be a pinned footer here; it is its own column or view now
+            (visualsPanel), and the tune's actions moved into the header.
+            Phone: the INPUTS view, a full-width pane over the body that stops above the balance bar
+            (barH), so the balance summary stays in sight while you edit. It stays mounted and hides
+            by visibility, which keeps its scroll position across tabs and a hidden pane out of the
+            tab order. It replaced an 88%-wide drawer with a backdrop and swipe-to-close. */}
         <div
           onPointerDownCapture={noteActiveSec} onFocusCapture={noteActiveSec}
-          onTouchStart={isMobile?e=>{
-            // Not from a control: dragging a range thumb left is a slider move, and a drag in a
-            // text field is a text selection — neither may close the drawer.
-            if(e.target.closest('input,select,textarea')){swipeRef.current=null;return;}
-            const t=e.touches[0];swipeRef.current={x:t.clientX,y:t.clientY,done:false};}:undefined}
-          onTouchMove={isMobile?e=>{
-            const s=swipeRef.current;if(!s||s.done)return;
-            const t=e.touches[0],dx=t.clientX-s.x,dy=t.clientY-s.y;
-            if(Math.abs(dy)>30&&Math.abs(dy)>Math.abs(dx)){s.done=true;return;} // a scroll, not a swipe
-            if(dx<-60&&Math.abs(dx)>Math.abs(dy)*1.5){s.done=true;setSidebarOpen(false);}
-          }:undefined}
           style={{width:sidebarWidth,flexShrink:0,transition:'width .2s ease',
           borderRight:'1px solid #0f172a',background:'#020617',
           display:(sidebarOpen||isMobile)?'flex':'none',flexDirection:'column',
           ...(isMobile?{
-            position:'absolute',top:0,left:0,bottom:0,zIndex:200,
-            transform:sidebarOpen?'translateX(0)':'translateX(-100%)',
-            visibility:sidebarOpen?'visible':'hidden',
-            transition:sidebarOpen?'transform .2s ease':'transform .2s ease, visibility 0s linear .2s',
-            boxShadow:sidebarOpen?'4px 0 24px #000000cc':'none',
+            position:'absolute',top:0,left:0,right:0,bottom:barH,zIndex:200,width:'auto',borderRight:'none',
+            visibility:sidebarOpen?'visible':'hidden',transition:'none',
           }:{})
         }}>
-
-        {/* PINNED — TOOLBAR (reset, check, share): phones only. On desktop these live in the header,
-            whose action group carries the same zone-toolbar id (only one of the two ever renders). */}
-        {isMobile&&<div id="zone-toolbar" style={{flexShrink:0,borderBottom:'1px solid #0f172a',background:'#020617',...dim('toolbar')}}>
-          <div style={{display:'flex',gap:3,alignItems:'center',flexWrap:'wrap',padding:isMobile?'6px 8px':'6px 12px'}}>{/* 8px on the narrowest (282px, 320px-phone) sidebar keeps ⟲ ↩ ↪ DNA CHECK SHARE on one row */}
-            <button className="tbtn" data-spot="tb.reset" onClick={()=>setShowResetModal(true)} style={{fontSize:11,color:'#fca5a5'}} aria-label="Reset"
-              title="Reset tune or tutorials to defaults (saves not affected)">⟲</button>
-            <button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:11}}
-              onClick={undo} disabled={!canUndo} aria-label="Undo"
-              title={histTitle('Undo',histRef.current.undoLabel,canUndo)}>↩</button>
-            <button className="tbtn undo-btn" data-spot="tb.undo" style={{fontSize:11}}
-              onClick={redo} disabled={!canRedo} aria-label="Redo"
-              title={histTitle('Redo',histRef.current.redoLabel,canRedo)}>↪</button>
-            <div style={{flex:1}}/>
-            {/* Indigo only where DNA can be used. Below PRO it reads as a PRO tool, and the modal it
-                opens offers the switch. */}
-            <Hide id="tbDna" inline><button className="tbtn" onClick={()=>setShowDnaModal(true)} style={{fontSize:11,color:uiMode==='pro'?'#818cf8':'#94a3b8'}}
-              title={uiMode==='pro'?'Vehicle DNA — build a tune from handling targets, and your saved DNAs'
-                :'Vehicle DNA (PRO) — build a tune from handling targets. Opens with a switch to PRO.'}>
-              DNA{uiMode!=='pro'&&<sup style={{fontSize:7,color:'#818cf8',marginLeft:2,letterSpacing:0.5}}>PRO</sup>}</button></Hide>
-            <Hide id="tbCheck" inline><button className="tbtn" onClick={()=>setShowChecker(true)} style={{fontSize:11}}>CHECK</button></Hide>
-            <button className="tbtn" data-spot="tb.share" style={{fontSize:11}} onClick={openShare}>SHARE</button>
-          </div>
-        </div>}
 
         <div className={`sidebar-scroll${editing?' layout-editing':''}`} style={{WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',
           flex:1,minHeight:0,overflowY:'auto'
         }}>
 
-          {/* PHONE ONLY: unit + game mode controls (the desktop header has them in its game · level menu) */}
-          {isMobile&&(
-            <div style={{display:'flex',gap:4,alignItems:'center',padding:'8px 12px',
-                         borderBottom:'1px solid #0f172a',flexShrink:0}}>
-              <button className="tbtn" onClick={()=>setShowUnits(true)} style={{fontSize:11}}>UNITS</button>
-              <div style={{width:1,height:14,background:'#1e293b',margin:'0 2px'}}/>
-              <select className="gmsel" value={fe.gameMode}
-                onChange={e=>switchGameMode(e.target.value)}>
-                {GAME_MODE_DEC.map(m=>(
-                  <option key={m} value={m}>{GAME_MODE_LABEL[m]}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* BeamNG indicator: the sidebar's controls are the same in every game mode, so this is
               the one place it says the output is in BeamNG's physical units. */}
@@ -14722,11 +14684,14 @@ function App(){
 
           {/* PINNED — HANDLING BALANCE. position:relative anchors the expanded drawer, which opens
               upward over the results instead of growing the footer into them. */}
-          <div id="zone-balance-bar" style={{flexShrink:0,position:'relative',borderTop:'1px solid #1e293b',background:'#020617',
-                                             paddingBottom:'env(safe-area-inset-bottom,0px)',...dim('balance-bar')}}>
+          <div id="zone-balance-bar" ref={barMeasureRef} style={{flexShrink:0,position:'relative',borderTop:'1px solid #1e293b',background:'#020617',
+                                             paddingBottom:isMobile?0:'env(safe-area-inset-bottom,0px)',...dim('balance-bar')}}>
             {/* compact header row — tap to expand */}
             <div className="collapsible-hdr"
                  onClick={()=>{
+                   // Phone INPUTS view: the bar shows its summary only; a tap opens the TUNE view
+                   // with the full stack, where the breakdown lives.
+                   if(isMobile&&sidebarOpen){goView('tune');setFooterOpen(true);return;}
                    if(isPhone){
                      // On phones the tap reveals/hides the full bar stack (the summary line stays).
                      const next=!footerOpen;
@@ -14824,7 +14789,7 @@ function App(){
               {/* Bar stack — always shown on desktop; on phones it collapses behind the summary line,
                   and folds there while CONTRIBUTIONS is open: the drawer breaks down the same lanes,
                   and gets the height back. Not during a guide, whose bar steps need the stack. */}
-              {(!isPhone||(footerOpen&&(!open.balanceExpanded||guideOn)))&&<>
+              {(!isPhone||(footerOpen&&(!open.balanceExpanded||guideOn)))&&!(isMobile&&sidebarOpen&&!guideOn)&&<>
               {/* compact stacked balance bar — the car's own lean is the starting tick, and each
                   tuning contributor is a segment stacked out from it */}
               <Hide id="bar.stack">
@@ -15304,20 +15269,17 @@ function App(){
 
         </div>{/* end output panel */}
 
-        {/* GARAGE DRAWER — mirrors the left sidebar's overlay pattern with the axis
-            flipped. Lives inside the flex body (not position:fixed) so the header and the
-            pinned balance bar stay reachable while it's open. */}
-        {garagePanelOpen&&isMobile&&
-            <div onClick={()=>setGaragePanelOpen(false)}
-                 style={{position:'absolute',inset:0,background:'#00000088',zIndex:150}}/>}
+        {/* GARAGE — desktop: a drawer that slides in from the right, inside the flex body (not
+            position:fixed) so the header and the pinned balance bar stay reachable while it's open.
+            Phone: the GARAGE view, full width, shown and hidden without a slide like the other views. */}
           <div id="zone-garage" style={{
             position:'absolute',top:0,right:0,bottom:0,zIndex:200,
             width:isMobile?'100%':Math.min(420,Math.max(320,Math.floor(windowWidth*0.26))),
             background:'#020617',borderLeft:'1px solid #0f172a',
             display:'flex',flexDirection:'column',
-            transform:garagePanelOpen?'translateX(0)':'translateX(100%)',
-            transition:'transform .2s ease',
-            boxShadow:garagePanelOpen?'-4px 0 24px #000000cc':'none',
+            transform:isMobile?'none':garagePanelOpen?'translateX(0)':'translateX(100%)',
+            transition:isMobile?'none':'transform .2s ease',
+            boxShadow:garagePanelOpen&&!isMobile?'-4px 0 24px #000000cc':'none',
             // a translated-off element is still focusable — without this, Tab from the
             // output panel would land in the closed drawer's inputs
             visibility:garagePanelOpen?'visible':'hidden',
@@ -15328,9 +15290,10 @@ function App(){
               <span style={{fontSize:11,letterSpacing:2,color:'#9ca3af'}}>GARAGE</span>
               <span style={{fontSize:10,color:T_MUTED}}>{entries.length}</span>
               <span style={{flex:1}}/>
-              <button onClick={()=>setGaragePanelOpen(false)} aria-label="Close garage"
+              {/* No ✕ on a phone: GARAGE is a view there, left by another tab. */}
+              {!isMobile&&<button onClick={()=>setGaragePanelOpen(false)} aria-label="Close garage"
                 style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',
-                        fontSize:16,lineHeight:1,padding:0}}>✕</button>
+                        fontSize:16,lineHeight:1,padding:0}}>✕</button>}
             </div>
             {/* save row */}
             <div data-spot="garage.save" style={{padding:'8px 12px',borderBottom:'1px solid #0f172a',flexShrink:0}}>
@@ -15440,6 +15403,7 @@ function App(){
             </div>
           </div>
       </div>
+      {isMobile&&!kbOpen&&phoneTabs()}
     </div>
     </LayoutCtx.Provider>
   );

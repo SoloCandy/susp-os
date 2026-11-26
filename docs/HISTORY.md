@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — phone layout: bottom tab bar, inputs as a full view
+
+Phones had a two-row header (☰, VIS, ? / TERMS / GitHub / GARAGE, then BEG / INT / PRO), a
+sidebar that opened as an 88%-wide drawer over the tune with UNITS, the game and the
+⟲ ↩ ↪ DNA CHECK SHARE toolbar at its top, and a garage overlay — about 240 px of chrome
+before the first section, and the game was out of sight whenever the drawer was shut. Now a
+48 px header holds SUSP.OS, the game · level chip, ↩ ↪ and ⋯ (SHARE, DNA, CHECK, RESET and
+help, with the update dot), and a bottom tab bar picks one full-screen view: INPUTS, VISUALS,
+TUNE or GARAGE. The views are read off the existing sidebar / garage / VISUALS flags, so the
+guides needed no new step data; each view keeps its scroll position. The balance summary stays
+in sight under INPUTS, and a tap on it opens TUNE. The tab bar steps aside while a text field
+has focus. See [CODE_MAP.md](CODE_MAP.md#phone-views).
+
 ## Changed — desktop header: one row grouped by job
 
 The desktop header mixed setup, navigation, tune actions and help across two rows below 1040 px
