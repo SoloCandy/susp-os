@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the output's small figures show what the solver worked out
+
+Each output row's smaller figures were fixed per mode, and the brighter one was the figure the
+active mode set: Hz under MULTIPLIER, settle time under TIME SYNC. That read the sidebar back. Each
+figure now has a kind for the modes in use (set, solved or info, `OUT_FIGS`), and AUTO shows the
+solved and info ones and leaves out the set ones, so a card shows the consequences of the settings:
+front Hz under BOTTOM G's, the rear ÷ front ratio under FLAT RIDE, bump as a share of rebound under
+BUMP ζ. New figures: that ratio, bump ÷ rebound, bump settle time in every mode, static sag and
+LANDING catch (off in AUTO), PRO's GRIP bias beside REC; and, under each Forza card in INT and PRO,
+its balance effect by phase and the front share of all roll stiffness. A layout can set any figure
+ON or OFF (TUNE → FIGURES). BRAKES' ENTRY BRK moved from the row to that line. See
+[CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
 ## Changed — layouts order the output panel
 
 The output cards were in one fixed order. A layout now orders them per family of games: Forza's six

@@ -43,8 +43,8 @@ GRIP the card already tags LIMIT when the span holds the bias back.)
 
 Settle, Force, Bump Settle and Bump Force turn amber whenever front and rear differ,
 under every balance mode. Under STANDARD, for instance, settle times differ by design, so
-the amber reads as a fault the mode never set out to fix. The output panel already marks
-only the targeted figures (`damperTargets`); the table should use the same rule.
+the amber reads as a fault the mode never set out to fix. `damperTargets` already names the
+figures each mode aims at; the table should mark only those.
 
 ## Limitation — an app older than codec id 90 reads a split ARB scale as the front scale on both axles
 
@@ -442,6 +442,28 @@ revisited, for what is really a display preference. What shipped instead is layo
 and PRO, per game, hide whatever they don't use, down to a single control or output row,
 without the tune or the physics knowing
 — see [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
+
+## Limitation — output figures are set from the layout panel, not on the page
+
+The on-page edit view makes each output row one click target that hides the whole row (its body is
+inert under `Hide`'s cover button), so a figure inside it has no click of its own. Giving figures
+their own targets there would put two overlapping toggles on every row. FIGURES in the panel's TUNE
+tab sets them instead, and a setting covers a figure front and rear together.
+
+## Documented — an output figure's kind follows which setting drives which axle, not the numbers
+
+AUTO decides by role: the Ride Ref axle's Hz is set by Ride Stiffness in Hz, so it is left out; the
+other axle's is solved, so it shows even when a 1.00 multiplier makes the two equal. Likewise the
+rear rebound ζ under STANDARD at 0 Damping Bias reads as solved though it matches the front. A
+figure a balance mode evens (TIME SYNC settle, EQUAL FORCE force) counts as set on the other axle
+only at 0 bias, where it is exactly equal; with a bias it is the bias's result, so it shows.
+
+## Open — BeamNG's output has the row figures but not the card lines
+
+BeamNG's suspension, alignment and brakes rows read the same view builders, so their figures follow
+AUTO and the layout's settings, but the card lines (balance effect, front roll share) are Forza's
+only, and its BRAKES row no longer carries ENTRY BRK, now on the Forza card's line. Left for the
+BeamNG output pass, which reworks those cards as a whole.
 
 ## Open — a pinned control shows in MY CONTROLS only while its mode is selected
 

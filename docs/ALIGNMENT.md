@@ -57,7 +57,7 @@ Each row prints the value to enter, and its meta tags (`alignView`):
 
 | Row | Tags |
 |---|---|
-| Camber F / R | `dyn` (camber at the tune's roll, brighter under AUTO); `AUTO x°` when intent or MANUAL moved the value off AUTO |
+| Camber F / R | `dyn` (camber at the tune's roll: a solved figure under AUTO, which aims at it, info under MANUAL); `AUTO x°` when intent or MANUAL moved the value off AUTO |
 | Toe F / R | `IN` / `OUT` from the sign (nothing at 0.0); then `AUTO x°` as above |
 | Caster | `steer x° @ 10°`; `AUTO x°` as above |
 | any | `LIMIT` note when `alignOut`'s `limit[key]` is set: AUTO held at its `ALIGN_REC` band with no offset moving it off, or AUTO + offset held at `ALIGN_GAME` |

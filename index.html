@@ -177,6 +177,12 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   letter-spacing:.5px;padding:2px 6px;cursor:pointer;line-height:1.4}
 .lp-opt.off{color:#64748b;border-color:#1e293b;text-decoration:line-through}
 .lp-opt:disabled{opacity:.45;cursor:default}
+.lp-seg{display:inline-flex;flex-shrink:0}
+.lp-seg button{background:#0a0f1a;border:1px solid #1e293b;color:#64748b;font-family:inherit;font-size:10px;letter-spacing:.5px;
+  padding:2px 6px;cursor:pointer;line-height:1.4;margin-left:-1px}
+.lp-seg button:first-child{border-radius:2px 0 0 2px;margin-left:0}
+.lp-seg button:last-child{border-radius:0 2px 2px 0}
+.lp-seg button[aria-pressed="true"]{color:#e2e8f0;border-color:#818cf8;background:#1e1b4b;position:relative}
 .lp-sel{background:#0f172a;border:1px solid #1e293b;border-radius:2px;padding:4px;font-size:11px;color:#e2e8f0;outline:none;
   font-family:inherit;cursor:pointer;min-width:0}
 .lp-sel:focus-visible{border-color:#818cf8}
@@ -4425,12 +4431,64 @@ const OUT_ORDER_DEF={
 const OUT_UNIT_LABEL={'bng.drive':'BRAKES · DIFFERENTIALS','bng.susp':'SUSPENSION','bng.align':'ALIGNMENT'};
 const outFamily=game=>game==='beamng'?'beamng':'forza';
 const repairOutOrder=o=>({forza:repairOrderList(o?.forza,OUT_ORDER_DEF.forza),beamng:repairOrderList(o?.beamng,OUT_ORDER_DEF.beamng)});
+// ── Output figures ──
+// The smaller numbers beside an output value (Hz, ζ, settle time…) and the line under some cards
+// (front roll share, balance effect). Each is drawn with a kind for the modes in use: 'set' when it
+// only repeats a sidebar setting (Hz under Ride Stiffness in Hz), 'solved' when the solver worked it
+// out from other settings (Hz under BOTTOM G's), 'info' when no setting ever sets it (dynamic
+// camber). AUTO shows solved figures and info ones (def:false: only when asked), and drops set ones,
+// so each card shows the consequences of the sidebar rather than the sidebar again. A layout's figs
+// map overrides AUTO per figure: 'always' or 'never', front and rear together. Keys are permanent,
+// like HIDE_ITEMS ids. card: the Forza card it sits on (BeamNG draws the row figures too).
+// forza: drawn on the Forza cards only. tiers: only those tiers draw it.
+const OUT_FIGS=[
+  {k:'spr.roll',   card:'springs', label:"Share of the axle's roll stiffness"},
+  {k:'spr.hz',     card:'springs', label:'Ride frequency (Hz)'},
+  {k:'spr.ratio',  card:'springs', label:'Rear ÷ front Hz'},
+  {k:'spr.g',      card:'springs', label:'Bottom-out g',tiers:['intermediate','pro']},
+  {k:'spr.sag',    card:'springs', label:'Static sag',def:false},
+  {k:'spr.bal',    card:'springs', label:'Balance effect',forza:true,tiers:['intermediate','pro']},
+  {k:'arb.roll',   card:'arb',     label:"Share of the axle's roll stiffness"},
+  {k:'arb.share',  card:'arb',     label:'Share of both bars'},
+  {k:'arb.front',  card:'arb',     label:'Front roll share (springs + bars)',forza:true,tiers:['intermediate','pro']},
+  {k:'arb.bal',    card:'arb',     label:'Balance effect',forza:true,tiers:['intermediate','pro']},
+  {k:'dmp.settle', card:'dampers', label:'Rebound settle time'},
+  {k:'dmp.zeta',   card:'dampers', label:'Rebound ζ'},
+  {k:'dmp.force',  card:'dampers', label:'Rebound force share',def:false},
+  {k:'dmp.bsettle',card:'dampers', label:'Bump settle time'},
+  {k:'dmp.bratio', card:'dampers', label:'Bump ÷ rebound'},
+  {k:'dmp.bzeta',  card:'dampers', label:'Bump ζ'},
+  {k:'dmp.bforce', card:'dampers', label:'Bump force share',def:false},
+  {k:'dmp.catch',  card:'dampers', label:'Landing catch',def:false,tiers:['intermediate','pro']},
+  {k:'dmp.bal',    card:'dampers', label:'Balance effect',forza:true,tiers:['intermediate','pro']},
+  {k:'aln.dyn',    card:'align',   label:'Dynamic camber'},
+  {k:'aln.auto',   card:'align',   label:'AUTO value, when moved off it'},
+  {k:'aln.toe',    card:'align',   label:'Toe direction (IN / OUT)'},
+  {k:'aln.steer',  card:'align',   label:'Caster steer camber'},
+  {k:'aln.bal',    card:'align',   label:'Balance effect',forza:true,tiers:['intermediate','pro']},
+  {k:'brk.centre', card:'brakes',  label:'Centre bias'},
+  {k:'brk.shift',  card:'brakes',  label:'Brake Bias shift',tiers:['intermediate','pro']},
+  {k:'brk.grip',   card:'brakes',  label:'GRIP bias (both axles lock together)',tiers:['pro']},
+  {k:'brk.bal',    card:'brakes',  label:'Balance effect (PRO: ENTRY BRK)',forza:true,tiers:['intermediate','pro']},
+  {k:'dif.race',   card:'diff',    label:'RACE-equivalent lock',forza:true},
+  {k:'dif.bal',    card:'diff',    label:'Balance effect',forza:true,tiers:['intermediate','pro']},
+];
+const OUT_FIG_BY_K=Object.fromEntries(OUT_FIGS.map(f=>[f.k,f]));
+const OUT_FIGS_AUTO={};
+const OUT_FIG_CARDS=[['springs','SPRINGS'],['arb','ANTI-ROLL BARS'],['dampers','DAMPERS'],['align','ALIGNMENT'],['brakes','BRAKES'],['diff','DIFFERENTIAL']];
+// A figure this tier and game draws at all (the panel lists these).
+const outFigApplies=(k,tier,game)=>{const f=OUT_FIG_BY_K[k];
+  return!!f&&(!f.tiers||f.tiers.includes(tier))&&(!f.forza||game!=='beamng');};
+// Shown now? mode is the layout's setting for the figure ('always', 'never' or undefined = AUTO).
+const outFigShown=(mode,k,kind)=>mode==='always'||(mode!=='never'&&(kind==='set'?false:kind==='info'?OUT_FIG_BY_K[k]?.def!==false:true));
+const repairFigs=v=>v&&typeof v==='object'&&!Array.isArray(v)
+  ?Object.fromEntries(Object.entries(v).filter(([k,m])=>OUT_FIG_BY_K[k]&&(m==='always'||m==='never'))):{};
 const secSubset=a=>Array.isArray(a)?[...new Set(a.filter(k=>LAYOUT_SECS.includes(k)))]:[];
 // A control can be pinned to MY CONTROLS when it sits in a sidebar section (not ⋯, the output,
 // the balance bar or VISUALS).
 const pinnable=id=>{const s=HIDE_BY_ID[id]?.sec;return!!s&&s!=='mine'&&LAYOUT_SECS.includes(s);};
 const blankLayout=(name,id=newLayoutId())=>({id,name,hidden:[],persist:false,order:[...LAYOUT_SECS],startOpen:[],noChip:[],pins:[],
-  outOrder:repairOutOrder(null)});
+  outOrder:repairOutOrder(null),figs:{}});
 const repairLayout=(l,i)=>({
   id:typeof l?.id==='string'&&/^[\w-]{1,40}$/.test(l.id)?l.id:newLayoutId(),
   name:layoutName(l?.name,`LAYOUT ${i+1}`),
@@ -4438,7 +4496,7 @@ const repairLayout=(l,i)=>({
   persist:l?.persist===true,
   order:repairSecOrder(l?.order),startOpen:secSubset(l?.startOpen),noChip:secSubset(l?.noChip),
   pins:Array.isArray(l?.pins)?[...new Set(l.pins.filter(k=>typeof k==='string'&&pinnable(k)))]:[],
-  outOrder:repairOutOrder(l?.outOrder)});
+  outOrder:repairOutOrder(l?.outOrder),figs:repairFigs(l?.figs)});
 // The default each tier falls back to: the migrated INT / PRO layout while it exists.
 const layoutFallback=(t,ids,first)=>ids.has(t==='pro'?'pro':'int')?(t==='pro'?'pro':'int'):first;
 const repairLayouts=v=>{
@@ -5764,6 +5822,35 @@ const LayoutPanel=({store,setStore,tier,game,active,hidden,toggle,showAll,change
                 BeamNG's cards sit in front | rear pairs, so whole rows move.</div>}
             </div>);
           })()}
+          {(()=>{
+            // Output figures (OUT_FIGS), per card: AUTO follows what sets each one now; ON and OFF
+            // fix it. Front and rear go together. Listed whatever the modes, like the parts below.
+            const figs=active.figs;
+            const setFig=(k,m)=>editLayout(l=>{const f={...l.figs};if(m)f[k]=m;else delete f[k];return{...l,figs:f};});
+            const cards=OUT_FIG_CARDS.map(([c,t])=>[c,t,OUT_FIGS.filter(f=>f.card===c&&outFigApplies(f.k,tier,game))]).filter(x=>x[2].length);
+            return(<div>
+              <div className="lp-head" style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{flex:1}}>FIGURES</span>
+                <button type="button" style={mini} disabled={!Object.keys(figs).length}
+                  onClick={()=>editLayout(l=>({...l,figs:{}}))}>ALL AUTO</button>
+              </div>
+              <div style={{fontSize:10,color:T_MUTED,lineHeight:1.6,padding:'0 8px 2px'}}>
+                The smaller numbers beside each value. AUTO shows what the solver works out from your settings and
+                leaves out what only repeats one; ON and OFF fix a figure either way.</div>
+              {cards.map(([c,t,list])=><div key={c}>
+                <div style={{fontSize:10,color:'#94a3b8',letterSpacing:1,padding:'8px 8px 2px'}}>{t}</div>
+                {list.map(f=>{const m=figs[f.k];return(
+                  <div key={f.k} data-lp-fig={f.k} style={{display:'flex',alignItems:'center',gap:6,padding:'2px 8px 2px 14px',fontSize:11,minHeight:24}}>
+                    <span style={{flex:1,minWidth:0,color:m==='never'?T_MUTED:'#cbd5e1'}}>{f.label}
+                      {f.def===false&&!m&&<span style={{color:T_FAINT}}> · off in AUTO</span>}</span>
+                    <span className="lp-seg" role="group" aria-label={f.label}>
+                      {[[undefined,'AUTO'],['always','ON'],['never','OFF']].map(([v,l])=>
+                        <button key={l} type="button" aria-pressed={m===v} onClick={()=>setFig(f.k,v)}>{l}</button>)}
+                    </span>
+                  </div>);})}
+              </div>)}
+            </div>);
+          })()}
           {group('OUTPUT CARDS',parts('output').filter(it=>it.id.startsWith('out.card.')))}
           {group('OUTPUT ROWS',parts('output').filter(it=>!it.id.startsWith('out.card.')))}
           {group('BALANCE BAR',parts('bar'))}
@@ -6062,7 +6149,33 @@ const OutRow=({hid=null,...p})=>hid?<Hide id={hid}><OutRowBody {...p}/></Hide>:<
 // undo), and not for a units toggle or a panel opening. A row compares its printed value across
 // generations, so it marks exactly the values the last change moved, until the next change.
 const OutGenCtx=React.createContext(0);
+// The active layout's figure settings (OUT_FIGS): {key: 'always' | 'never'}, a key left out = AUTO.
+// No provider (and during a guide, App passes {}) means AUTO for every figure.
+const OutFigCtx=React.createContext({});
+// A meta / CardFigs entry is a string or {text,on} (always shown; on = brighter), or an output
+// figure {k,kind,text,color}: shown by outFigShown, drawn by kind. Solved figures are the bright
+// ones, info figures muted, and a set figure (shown only when its layout says ALWAYS) faint.
+const FIG_TIP={set:'Repeats a setting in the sidebar',solved:'Worked out from your settings'};
+const useFigs=list=>{
+  const figs=React.useContext(OutFigCtx);
+  return(Array.isArray(list)?list:[list]).filter(Boolean).filter(m=>!m.k||outFigShown(figs[m.k],m.k,m.kind));
+};
+const figStyle=m=>({fontSize:10,fontFamily:'var(--font-mono)',whiteSpace:'nowrap',
+  color:m?.color??(m?.k?{solved:'#cbd5e1',info:T_MUTED,set:T_FAINT}[m.kind]??T_MUTED:m?.on?'#cbd5e1':T_MUTED)});
+// pre: a muted lead-in word (a card line's "balance"), outside the figure's own colour.
+const FigSpan=({m})=><span style={figStyle(m)} title={m?.k?FIG_TIP[m.kind]:undefined}>
+  {m?.pre&&<span style={{color:T_MUTED}}>{m.pre} </span>}{m?.text??m}</span>;
+// A card's own figures, under its rows: what the card does as a whole (front roll share, its
+// balance effect). Nothing when none is shown.
+const CardFigs=({figs})=>{
+  const shown=useFigs(figs);
+  if(!shown.length)return null;
+  return(<div data-card-figs="" style={{display:'flex',flexWrap:'wrap',columnGap:12,rowGap:2,padding:'5px 10px 1px',alignItems:'baseline'}}>
+    {shown.map((m,i)=><FigSpan key={i} m={m}/>)}
+  </div>);
+};
 const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,noteColor=C_WARN})=>{
+  const figs=useFigs(meta);
   const gen=React.useContext(OutGenCtx);
   const shown=typeof value==='number'?value.toFixed(decimals):String(value);
   // Tracked in a ref during render: idempotent for a given gen, so a re-render (or React's
@@ -6079,17 +6192,13 @@ const OutRowBody=({label,meta=[],value,unit,decimals=1,warn=false,note=null,note
                ...(fresh?{background:'#38bdf80f',boxShadow:'inset 2px 0 0 #38bdf8'}:{})}}
        title={fresh?`Changed by your last edit (was ${t.current.was})`:undefined}>
     <span style={{fontSize:11,color:'#cbd5e1',letterSpacing:0.5,flexShrink:0}}>{label}</span>
-    {/* A meta entry is a string, or {text,on}: on = a figure the active mode sets, drawn
-        brighter (mirroring the sidebar DAMPERS table's highlighted rows). The figures share one
+    {/* The meta entries (useFigs: output figures the layout shows, by kind). The figures share one
         box that wraps and takes the spare width, so on a phone they fold onto a second line
         instead of pushing the value, the one thing to transcribe, off the card. The note shares that
         box, pushed right by marginLeft:auto: outside it, it could not wrap, and on the narrow
         BeamNG suspension cards it painted over "0.40s settle". */}
     <span style={{flex:1,minWidth:0,display:'flex',flexWrap:'wrap',columnGap:10,rowGap:2,alignItems:'baseline'}}>
-      {(Array.isArray(meta)?meta:[meta]).filter(Boolean).map((m,i)=>(
-        <span key={i} style={{fontSize:10,color:m?.on?'#cbd5e1':T_MUTED,fontFamily:'var(--font-mono)',
-                              whiteSpace:'nowrap'}}>{m?.text??m}</span>
-      ))}
+      {figs.map((m,i)=><FigSpan key={i} m={m}/>)}
       {note&&<span style={{fontSize:10,color:noteColor,whiteSpace:'nowrap',marginLeft:'auto'}}>{note}</span>}
     </span>
     <span style={{fontFamily:'var(--font-mono)',fontSize:15,fontWeight:700,
@@ -6130,7 +6239,7 @@ const Stat=({label,value,unit,decimals=2})=>(
 // and on its own when the card is hidden.
 const Keep=({children})=>children??null;
 // The BRAKES output card's hint, the same in both layouts.
-const HINT_BRAKES_OUT="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the brighter figure is the one it sets.";
+const HINT_BRAKES_OUT="Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the row gives the centre bias it works out.";
 // The output panel's warning box, for both layouts. Its text comes from App's outWarns.
 const OutWarn=({color=C_WARN,children})=>(
   <div style={{fontSize:11,color,lineHeight:1.6,marginTop:8,padding:'6px 8px',
@@ -8969,7 +9078,7 @@ const GLOSSARY=[
     {id:'zeta',term:'ζ (Zeta / Damping Ratio)',tier:'beginner',short:'ζ damping ratio',def:"ζ (zeta), the damping ratio, is how quickly a bounce dies out, as a percentage of critical damping. 100% is critically damped: back to rest in one smooth motion with no overshoot. SUSP.OS defaults rebound to 70% (Butterworth): one small overshoot of about 4%, then done, without feeling harsh. Below about 40% feels bouncy and underdamped; above 100% feels sluggish and overdamped, and the DAMPERS card flags rebound below 40% and any value above 100%. No single ζ is best at everything: about 59% gives the quickest settle after one bump, about 70% the flattest response to a continuous rough surface, and 100% the quickest with no overshoot at all.\n\n[INT] The Rebound ζ slider runs 10–200%, with 55–70% typical. The text beside it reads BUTTERWORTH at 68–72%, FIRM above 72% (planted but stiff) and ⚠ OVERDAMPED above 100%.",see:['critical-damping','butterworth','rebound','settle-time']},
     {id:'critical-damping',term:'Critical Damping',tier:'beginner',def:"Critical damping is the exact amount of damping that stops a spring's oscillation as fast as possible without overshooting past rest. It is the reference ζ is measured against: ζ is always a percentage of this value for that corner's spring and mass, not an absolute number. Beyond it, above 100%, the suspension creeps back to rest more slowly rather than faster.\n\n[INT] That is why SETTLE TIME never back-solves above 100% ζ: past critical damping, more damping settles slower.",see:['zeta','settle-time']},
     {id:'butterworth',term:'Butterworth (≈70% ζ)',tier:'intermediate',def:"Butterworth damping is the ratio of about 0.707, rounded to 70% here, that gives the flattest response with no resonant peak, borrowed from Butterworth filter design. That is a frequency-domain property: in the idealised model no road frequency is amplified more than the rest, which keeps a rough surface from setting the body rocking. It is not a settling-time claim: a single bump at 70% overshoots about 4%, and the quickest ±10% settle sits nearer 59%. Butterworth gives up only a few hundredths of a second against that, which is why Rebound ζ defaults to 70%: firm enough to control the car, soft enough not to feel harsh over bumps. The Rebound ζ and Bump ζ sliders mark it as a BUTTERWORTH point at 70%, and the text beside the Rebound box names only 68–72% BUTTERWORTH, since it is a point, not a region.\n\nRebound ζ also marks FASTEST SETTLE at 60%. Just above 59%, the first overshoot after a bump stays inside the ±10% settle band, so the car is settled the first time it returns; just below, it escapes the band and settle time nearly doubles. That makes about 60% the quickest true settle, faster than critical damping, as the DYNAMICS chart shows. The Settle row's own figure is a simpler estimate that keeps falling all the way to 100%, so it does not show this; hover it for MEAS, which does.",see:['zeta','settle-time']},
-    {id:'rebound',term:'Rebound',tier:'beginner',def:"Rebound is damping resistance as the suspension extends — the wheel dropping back after being compressed. It controls how fast the wheel returns after a bump or during weight transfer, and settle time is calculated from it. Bump damping is usually set as a share of it.\n\nThe DAMPERS card lists rebound and bump per axle with each value's ζ, plus the rebound settle time. Values above 88% of the game's limit turn amber; if either end of a stroke would leave the click range, that stroke's pair is scaled together so its front/rear ratio holds. The header names the Damping Balance Mode and where bump comes from; the brighter figures on each row (settle time, force share, catch) are the ones that mode evens out. Rebound ζ also feeds the RESPONSE bar; bump does not.",see:['bump','zeta','bump-ratio','response']},
+    {id:'rebound',term:'Rebound',tier:'beginner',def:"Rebound is damping resistance as the suspension extends — the wheel dropping back after being compressed. It controls how fast the wheel returns after a bump or during weight transfer, and settle time is calculated from it. Bump damping is usually set as a share of it.\n\nThe DAMPERS card lists rebound and bump per axle with each value's ζ, plus the rebound settle time. Values above 88% of the game's limit turn amber; if either end of a stroke would leave the click range, that stroke's pair is scaled together so its front/rear ratio holds. The header names the Damping Balance Mode and where bump comes from; each row's figures are the ones those leave to the solver (see Output Cards). Rebound ζ also feeds the RESPONSE bar; bump does not.",see:['bump','zeta','bump-ratio','response']},
     {id:'bump',term:'Bump (Compression)',tier:'beginner',def:"Bump is damping resistance as the suspension compresses — the wheel moving up into a bump or under load transfer. It is usually softer than rebound: soft bump absorbs sharp hits while rebound controls how fast the wheel extends back. Bump Ratio expresses it as a percentage of rebound.\n\n[INT] BUMP MODE INDEPENDENT sets a Bump ζ directly (10–115%, default 39%) for combinations the ratio cannot express, such as soft bump with firm rebound. It is an anchor, not a per-axle value: Damping Balance Mode splits it front/rear the same way it splits rebound, and the readout shows both axles when they differ. Keep it below rebound for normal handling; ⚠ CROSSED means an axle's bump ζ is above that axle's rebound ζ.",see:['rebound','bump-ratio','bump-mode']},
     {id:'bump-ratio',term:'Bump Ratio',tier:'beginner',def:"Bump Ratio sets bump damping as a percentage of rebound ζ, so the two strokes stay linked as rebound changes. Lower is softer over sharp hits and more compliant on rough roads; higher gives a more consistent feel between the two strokes. 40–65% is the typical range and 56% the default. The DAMPERS card header shows it.\n\n[INT] The slider runs 10–100%, with the typical 40–65% marked TYPICAL; the text beside it is the resulting bump ζ, which never exceeds rebound. Switching from INDEPENDENT seeds the ratio from the bump damping in force, clamped to 10–100%, so a crossed tune (bump above rebound) does change.",see:['bump','rebound','bump-mode','character']},
     {id:'settle-time',term:'Settle Time',tier:'beginner',def:"Settle time is the seconds until the suspension is back inside ±10% of the initial bump and stays there — the standard settling-time definition. Short feels planted and controlled; long is more compliant over rough surfaces but can leave the car still moving mid-corner. The DAMPERS card shows it per axle, from rebound ζ and ride frequency.\n\n[INT] Two figures carry the name: the DAMPERS rows and the damper table's Settle row give a quick estimate from rebound ζ and Hz alone, while the DYNAMICS chart and the table's MEAS figure measure the drawn curve, which also sees bump damping, so they can differ. The table grades the slower axle PLANTED (under 0.35 s), RACE (0.60), SPORT (0.90), ROAD (1.30) or SOFT.\n\n[INT] Settle Target, under REBOUND MODE SETTLE TIME, runs 0.10–1.50 s (default 0.80) and back-solves rebound ζ on the reference axle against the quick estimate, so bump damping does not move it. The solve stops at 100% ζ, since past critical damping more damping settles slower. Damping Bias skews the front/rear timing.",see:['zeta','rebound-mode','dynamics-chart','damper-table']},
@@ -9016,7 +9125,7 @@ const GLOSSARY=[
     {id:'mech-balance-strip',term:'MECH BALANCE Strip',tier:'pro',def:"A PRO readout under the Handling Balance bar: mech balance on the 0–1 scale as the game displays it, the rear share of roll stiffness with each tyre counted in series with its axle in Forza. NAT is what the game would show for this car on equal front and rear springs with the bars backed off: your MEASURE NAT BAL reading when set, otherwise the model's prediction of it. CUR is where the current setup lands. TGT, with its own tick, appears while something solves toward a target: ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH.\n\nThe shaded band from NAT to CUR is how much correction the setup applies. The signed delta after CUR, also shown after MECH in the bar header, is CUR − NAT: blue means more rear-biased than natural (toward oversteer), amber more front-biased. Balance Target offsets are measured from NAT, so 0 means stay there.",see:['mech-balance','natural-balance','mech-balance-target','measure-nat-bal']},
     {id:'fit-badge',term:'FIT? Badge',tier:'pro',def:"A PRO badge in the Handling Balance header that appears only when the tune sits outside the set the balance model was calibrated on. Grey tags mean extrapolated, not wrong: the model has no measurements that far out, and nothing is clamped to these bounds. HZ: a spring frequency outside 2.5–3.5 Hz, so an ordinary softer street tune shows it. MASS: a corner mass outside 269–476 kg. TYRE: a section width outside 215–335 mm. LIFT: at 1 g lateral an inside wheel unloads completely, so more bar or spring on that end will not move the balance further.\n\nAmber CG is the one hard flag: the ride-height CG estimate is outside the 200–1500 mm CG Height range, so CG stops following ride-height edits and the load-transfer model runs on the clamped value. HZ, MASS and TYRE are skipped in BeamNG, whose balance has no tyre-series term; LIFT and CG apply in every game mode. Never flagged because it is always true: the tyre fit, and any MEASURE reading, hold only at the tyre pressures they were taken at.",see:['mech-balance','load-transfer','measure-nat-bal','game-mode']},
     {id:'response-factors',term:'Response Breakdown',tier:'beginner',def:"The RESPONSE rows in the expanded Handling Balance panel: Hz F, DAMP F, Hz R, DAMP R, TOE F and CASTER. Each row is that factor's weighted distance from the middle of its range, + toward reactive, with its share of the total; the largest is highlighted and drives the tip. Ranges: ride Hz 0.8–5.5, rebound ζ 10–115% (anything above 115% scores the same), front toe from 0.20° toe-in (planted) to 0.20° toe-out (reactive), caster from 7.5° (planted) down to 4.0° (reactive).\n\nTips for a REACTIVE car suggest softer springs, more rebound damping, more front toe-in or more caster on the dominant row; a PLANTED car gets the reverse. Within ±15 the tip calls response balanced. Only rebound damping counts; bump is left out because its effect on turn-in flips with surface roughness.",see:['response','hz','rebound','caster']},
-    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness; the one the balance mode sets is brighter (EQUAL ROLL the first, WEIGHT and CHASSIS the second). FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz (brighter under MULTIPLIER, FLAT RIDE and INDEPENDENT) and, under BOTTOM G's, the g it bottoms out at (brighter under SHARED). DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Each row shows its ζ and, brighter, the figures the active mode evens out: settle time, force share, catch. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (brighter under AUTO, which aims at it), and nudged rows how far the nudge moved them. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre and shift, or ENTRY BRK. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and, on AWD, SOLVE EXIT with its target; on a non-Race type each lock row shows the Race lock it acts like, the lock × the type's scale.\n\nIn Horizon and Motorsport the headers are written out in words, any warnings are listed above the cards (click one to jump to its card), and every value the last edit, load or undo moved carries a blue left edge until the next change; hover it for the old value.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
+    {id:'output-cards',term:'Output Cards',tier:'beginner',def:"The results cards hold the values to type into the game's tuning menu; in Horizon and Motorsport: ALIGNMENT, ANTI-ROLL BARS, SPRINGS, DAMPERS, BRAKES, DIFFERENTIAL. They are starting points to fine-tune by feel. A click value turns amber above 88% of the game's limit (Horizon: ARB 65, damping 20; Motorsport: 40 and 40): soften inputs slightly.\n\nThe headers say how each card was solved: the settings behind it. The smaller figures beside a value say what came out: each is left out while it only repeats a setting in the sidebar (Hz while Ride Stiffness is set in Hz), shown bright while the solver worked it out from other settings (Hz under BOTTOM G's), and shown muted when no setting reaches it (dynamic camber).\n\n[INT] A line under each card gives its balance effect, the Handling Balance bar's term for that card by the phase it acts in, in points, + toward oversteer. LAYOUT… under ⋯ sets each figure to AUTO, ON or OFF for the layout (TUNE → FIGURES).\n\n[PRO] The balance effect is in grip-margin %, ENTRY BRK on BRAKES; damping, diff lock and alignment, which PRO does not size, give a direction. BRAKES also shows the GRIP bias beside REC or ENTRY, for comparison.\n\nANTI-ROLL BARS: the header names the stiffness mode and the balance mode, then the body roll at 1 g. Each row shows the bar's share of its axle's roll stiffness and its share of all bar stiffness, less the one the balance mode sets (EQUAL ROLL the first, WEIGHT and CHASSIS the second); under the card, the front axle's share of all roll stiffness, springs and bars. FLOOR or CEILING marks a pinned bar. SPRINGS: the header names the Hz mode and the ride reference. Rates in your UNITS choice, tagged SOFT, ROAD, FIRM or RACE (edges 1.2, 1.8, 2.5 Hz, read from the Hz you set, as on the Ride Stiffness slider), or CLAMPED where the Hz band held an axle and LIFT RISK on a CO-SOLVE rear. Each row shows the spring's share of its axle's roll stiffness, its Hz, the g it bottoms out at (with ride heights known) and, on the rear, the rear ÷ front Hz; static sag, the drop under the car's own weight, on request. DAMPERS: the header names the balance mode and the bump source (BUMP RATIO, BUMP ζ or LANDING, then BUMP BALANCE when it is not SAME). Rebound rows show settle time and ζ; bump rows settle time, bump as a share of rebound, and ζ; force share and LANDING catch on request. One flag per row: SHORT (bump catches less than the LANDING drop), CROSSED (bump above that axle's rebound), OVERDAMPED above 100% (not on a bump LANDING solved, which may reach 115%), and on rebound only UNDERDAMPED below 40%. The settle time on rebound rows is a quick estimate from rebound ζ and Hz alone.\n\nALIGNMENT: the header names AUTO with the build type and any Nudge (IDLE while MECH has no target), or MANUAL; camber rows show dyn, the camber at the tune's roll (what AUTO aims at), and nudged rows the AUTO value. BRAKES: the header names the Centre (REC, GRIP with its decel, ENTRY with its target, or STOCK); the row shows the centre bias it works out. DIFFERENTIAL: the header names AUTO or MANUAL, the diff type and, on AWD, SOLVE EXIT with its target; on a non-Race type each lock row shows the Race lock it acts like, the lock × the type's scale.\n\nIn Horizon and Motorsport the headers are written out in words, any warnings are listed above the cards (click one to jump to its card), and every value the last edit, load or undo moved carries a blue left edge until the next change; hover it for the old value.",see:['output-warnings','diff-output','beamng-output','spring-rate']},
     {id:'output-warnings',term:'Output Warnings',tier:'beginner',def:"Amber boxes under the output cards mean the solver could not deliver what the inputs asked. Dampers scaled: a stroke's front or rear left the game's click range, so that pair was scaled together, down to the ceiling or up off the 1-click floor, keeping its front/rear ratio; the box names the control that sets that stroke and which way to move it (at BEG, Character toward AGILE or STABLE). Hz clamped: the axle derived from the other left the 0.8–5.5 Hz band and was held at its edge; the box names the axle and the lever.\n\n[INT] Roll target missed (ROLL °): either a bar is at its limit, which the box names (stiffer springs would cut roll further), or the springs alone already exceed the target (softer springs give the bars room); either way Target Roll Angle can move toward the roll achieved. Hz clamp levers: FLAT RIDE, raise Target Speed, which always narrows the split; MULTIPLIER, move it toward 1.00; SHARED, adjust the bottom-out target or bring ride heights closer; or move Ride Stiffness. Short of the landing (BUMP MODE → LANDING): names each axle that catches less than the drop and why: static sag leaves no travel, bump ζ is pinned at 115%, or the front/rear split gave it less than the drop needs.\n\n[PRO] Mech target missed (MECH, CO-SOLVE): the box names the bar at its floor or click ceiling and what reaches the target: spring balance or Hz MODE MECH, more Spring Share in CO-SOLVE, or a bigger bar budget. Rear lift risk (CO-SOLVE): rear Hz past ×1.20 the front's cuts droop and can lift the inside rear; the box gives the ratio and the lever: the Balance Target slider in use, MECH, or Spring Share. An Hz MECH clamp: move the target toward natural or adjust Ride Stiffness.",see:['output-cards','hz-mode','flat-ride','bal-cosolve']},
     {id:'diff-output',term:'DIFFERENTIAL Card',tier:'beginner',def:"The DIFFERENTIAL card lists lock % to enter: Accel and Decel Lock on FWD and RWD; Front and Rear Accel and Decel plus Centre Split (% rear) on AWD. A SPORT diff is accel-only in game, so its decel and split rows read N/A. Tags: OFF at 0, LOW below 20, MEDIUM below 45, HIGH below 70, MAX from 70. Start there and fine-tune in 1% steps.\n\nAccel lock governs exit: on a driven rear axle more lock adds power-on rotation, on a driven front axle more exit understeer. Decel lock governs entry: more steadies lift-off, less lets the car rotate on entry and trail-braking; front decel near 0 minimises entry understeer.\n\n[INT] RECOMMENDED names the diff type for your build (TRACK and DRAG: RACE; STREET: SPORT; DRIFT, RALLY, OFFROAD: their own), turning a RACE pick into SPORT when the balance total passes +8; → USE applies it. On AWD with a non-SPORT diff, CENTRE SPLIT recommends a rear % with the build's reason and its own → USE. Once the diff matches a recommendation, its box shrinks to a single ✓ line.\n\n[PRO] CENTRE SPLIT also breaks its figure into the build's base % plus weight, tyre-diameter and natural-balance adjustments.",see:['accel-lock','decel-lock','build-type','balance-bar']},
     {id:'beamng-output',term:'BeamNG Output',tier:'beginner',def:"With the game mode on BEAMNG the results follow BeamNG's menu grouping (Brakes and Centre Split, Front and Rear Differential, Suspension, Alignment) in physical units: springs N/m in 500 steps, dampers N/m/s in 100 steps, anti-roll rate N/m in 1000 steps. No click limits means no amber limit warnings. The settle figure by each damper is the quick rebound-only estimate.\n\nAnti-Roll reads roughly 4–6× soft by default: the app assumes the bar acts at the wheel, but BeamNG rates it at the bar's own lever. While an axle's ARB Motion Ratio is 1.0 its row adds a ≈ figure, the rate at a typical 0.45 arm ratio, which is the closer starting point.\n\nBeamNG's Camber, Caster and Toe Adjust sliders are % of a per-vehicle range, not degrees, so no formula converts the angle: dial each while watching BeamNG's live tuning-screen alignment readout until it matches, and recheck after changing Spring Height.\n\n[PRO] Motion Ratio and ARB Motion Ratio in CHASSIS divide the outputs by the ratio squared; setting ARB Motion Ratio (arm ÷ track, typically 0.4–0.5) corrects the soft anti-roll reading.",see:['game-mode','output-cards','align-mode','units']},
@@ -9911,6 +10020,8 @@ function App(){
   const sidebarOrder=guideOn?LAYOUT_SECS:layoutOrder;
   // The output panel's order: the active layout's, or the default in BEG and while a guide runs.
   const outOrder=guideOn||!activeLayout?OUT_ORDER_DEF:activeLayout.outOrder;
+  // The output figures' settings (OUT_FIGS): the active layout's, or all AUTO in BEG and during a guide.
+  const outFigs=guideOn||!activeLayout?OUT_FIGS_AUTO:activeLayout.figs;
   const editing=layoutEdit&&!guideOn&&uiMode!=='beginner';
   const secVis=key=>{
     if(guideOn||editing||!hiddenHere.includes(key))return'show';
@@ -10861,14 +10972,13 @@ function App(){
   // strip. The header names the settings the tune was built from, never an intermediate solve value
   // (LANDING's anchor ζ, or a bump anchor a split then moves, matches no row). The figures each mode
   // equalises go on the rows instead, from damperMetrics, so they match the sidebar's DAMPERS table;
-  // a targeted figure is drawn brighter, as the table highlights its row. One note per row, by the
+  // each an output figure (OUT_FIGS) of the kind its modes make it. One note per row, by the
   // sidebar's rules: SHORT (bump catches less than the LANDING drop) > CROSSED (bump above that
   // axle's rebound) > OVERDAMPED (not on a LANDING-solved bump, whose range runs to 115% on purpose)
   // > UNDERDAMPED (rebound below 40%, output only: the slider carries no such zone).
   const dampView=(()=>{
     const dm=damperMetrics(tune,ch);
     const balMode=physics.dampBalMode??'standard',ownBump=physics.bumpBalMode??null,mode=physics.dampingMode??'ratio';
-    const tg=damperTargets(balMode,ownBump),on=k=>tg.includes(k);
     const NAME={standard:'STANDARD',sync:'TIME SYNC',hybrid:'HYBRID',neutral:'EQUAL FORCE',catch:'EQUAL CATCH'};
     const source=mode==='landing'?`LANDING ${physics.landingPct}%`
       :mode==='independent'?`BUMP ζ ${Math.round(physics.bumpZeta)}%`
@@ -10884,18 +10994,29 @@ function App(){
     const pctRef=c=>rhRef>0?`${Math.round(c/rhRef*100)}%`:'—';
     const short=c=>landing&&c<drop*0.99;
     const fP=Math.round(dm.force*100),bfP=Math.round(dm.bforce*100);
+    // Figures (OUT_FIGS) by what sets them. The reference axle (Ride Ref; none under SHARED, which
+    // anchors the average) takes Rebound ζ or the Settle Target as set, and Bump ζ or Bump Ratio for
+    // bump. A balance mode that evens a figure exactly (TIME SYNC settle, EQUAL FORCE force, at 0
+    // bias) sets it on the other axle (the rear under SHARED). STANDARD scales bump with rebound on
+    // both axles, so without its own BUMP BALANCE the ratio is the one set everywhere.
+    const refAx=physics.rideRef==='rear'?'r':physics.rideRef==='shared'?null:'f';
+    const follower=s=>refAx?s!==refAx:s==='r';
+    const settleSet=physics.dampCharMode==='settle';
+    const bumpMode=ownBump??balMode,bumpBias=ownBump?physics.bumpDampingBias??0:physics.dampingBias??0;
+    const evened=(m,bias,want,s)=>m===want&&!bias&&follower(s);
     const axle=s=>{
-      const F=s==='f',z=dm.reb[s],bz=dm.bmp[s],c=dm.catch[s];
+      const F=s==='f',z=dm.reb[s],bz=dm.bmp[s],c=dm.catch[s],ref=s===refAx;
       return{
         reb:{note:z>100?'⚠ OVERDAMPED':z<40?'⚠ UNDERDAMPED':null,meta:[
-          {text:`${dm.settle[s].toFixed(2)}s settle`,on:on('settle')},
-          on('force')&&{text:`${F?fP:100-fP}% force`,on:true},
-          {text:`${z.toFixed(0)}% ζ`,on:on('reb')}]},
+          {k:'dmp.settle',kind:(settleSet&&ref)||evened(balMode,physics.dampingBias,'sync',s)?'set':'solved',text:`${dm.settle[s].toFixed(2)}s settle`},
+          {k:'dmp.force',kind:evened(balMode,physics.dampingBias,'neutral',s)?'set':'info',text:`${F?fP:100-fP}% force`},
+          {k:'dmp.zeta',kind:!settleSet&&ref?'set':'solved',text:`${z.toFixed(0)}% ζ`}]},
         bump:{note:short(c)?'⚠ SHORT':bz>z+0.5?'⚠ CROSSED':bz>100&&!landing?'⚠ OVERDAMPED':null,meta:[
-          on('bsettle')&&{text:`${dm.bsettle[s].toFixed(2)}s settle`,on:true},
-          on('bforce')&&{text:`${F?bfP:100-bfP}% force`,on:true},
-          landing&&{text:`catch ${pctRef(c)}`,on:on('catch')},
-          {text:`${bz.toFixed(0)}% ζ`,on:on('bmp')}]},
+          {k:'dmp.bsettle',kind:evened(bumpMode,bumpBias,'sync',s)?'set':'solved',text:`${dm.bsettle[s].toFixed(2)}s settle`},
+          {k:'dmp.bforce',kind:evened(bumpMode,bumpBias,'neutral',s)?'set':'info',text:`${F?bfP:100-bfP}% force`},
+          z>0&&{k:'dmp.bratio',kind:mode==='ratio'&&(ref||(!ownBump&&balMode==='standard'))?'set':'solved',text:`${Math.round(bz/z*100)}% of reb`},
+          rhRef>0&&{k:'dmp.catch',kind:landing?(ref||ownBump==='catch'?'set':'solved'):'info',text:`catch ${pctRef(c)}`},
+          {k:'dmp.bzeta',kind:mode==='independent'&&ref?'set':'solved',text:`${bz.toFixed(0)}% ζ`}]},
       };
     };
     // LANDING: every axle that falls short of the drop, not only the ride-reference one. An axle is
@@ -11009,8 +11130,8 @@ function App(){
     return `${what} ${advice}`;
   })();
   // ANTI-ROLL BARS output for both layouts, built like dampView: the header names the stiffness
-  // and balance modes (then the roll achieved), and each row's meta marks the figure its balance
-  // mode sets. Read from physics, the modes the solve ran (MAN turns a stored CO-SOLVE into WEIGHT).
+  // and balance modes (then the roll achieved), and each row's figures mark the one its balance
+  // mode sets as 'set'. Read from physics, the modes the solve ran (MAN turns a stored CO-SOLVE into WEIGHT).
   const arbView=(()=>{
     const man=physics.arbMode==='man',bal=physics.arbBalMode;
     const target=feEffective.arbBalTarget,opp=physics.arbSplitOpposite?' OPP':'';
@@ -11034,9 +11155,13 @@ function App(){
     const onIdx=man?-1:bal==='neutral'&&physics.arbNeutralEqual?0:bal==='weight'||bal==='chassis'?1:-1;
     const pin=v=>physMode?(v<=0?'FLOOR':null)
       :v<=1.05?'FLOOR':lim.arb!=null&&v>=lim.arb-0.05?'CEILING':null;
+    // As figures: the one the balance mode evens or sets repeats that choice ('set'); otherwise both
+    // are info, figures no setting reaches directly.
+    const ARB_FIG=['arb.roll','arb.share'];
+    const fig=(text,i)=>({k:ARB_FIG[i],kind:i===onIdx?'set':'info',text});
     const row=(v,rsAb,rsSp)=>({note:pin(v),
-      meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR).map((text,i)=>({text,on:i===onIdx})),
-      metaF:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR,true).map((text,i)=>({text,on:i===onIdx}))});
+      meta:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR).map(fig),
+      metaF:arbRowMeta(rsAb,rsSp,tune.rsAbF+tune.rsAbR,true).map(fig)});
     return{header,head,pin,front:row(tune.arbF,tune.rsAbF,tune.rsSpF),rear:row(tune.arbR,tune.rsAbR,tune.rsSpR)};
   })();
   // MECH / CO-SOLVE against the bars' own limits, for the BALANCE and ARB sections' banner.
@@ -11084,8 +11209,8 @@ function App(){
       </div>
     );
   })();
-  // SPRINGS output, likewise: the header names the Hz mode and the ride reference; rows mark the
-  // figure that mode sets, and flag the axle the Hz band clamped or the CO-SOLVE lift risk.
+  // SPRINGS output, likewise: the header names the Hz mode and the ride reference; rows carry the
+  // figures by what sets them, and flag the axle the Hz band clamped or the CO-SOLVE lift risk.
   const springView=(()=>{
     const co=physics.arbBalMode==='coSolve',hzMode=physics.rearHzMode;
     const target=feEffective.arbBalTarget,spd=fe.targetSpeed??70;
@@ -11109,9 +11234,15 @@ function App(){
     const head=`${how} · ${{front:'FRONT',rear:'REAR',shared:'AVERAGE'}[physics.rideRef??'front']??'FRONT'} axle reference`;
     // Bottom-out g, the SAG chart's sag model, on each axle's own ride height: shown while the
     // RIDE slider sets it (BOTTOM G's, live) and under SHARED, which evens it front and rear.
-    const gShown=hzMode==='shared'||((fe.rideStiffMode??'hz')==='bottomG'&&!!ch.useRideHeightCG&&uiMode!=='beginner');
-    const hzOn=!co&&(hzMode==='multiplier'||hzMode==='flatRide'||hzMode==='independent');
-    const gOn=!co&&hzMode==='shared';
+    // Figures (OUT_FIGS) by what sets them. The axle Ride Stiffness sets: null under a SHARED
+    // reference, which sets the average. Under BOTTOM G's it sets that axle's g, not its Hz.
+    // Bottom-out g needs the ride heights (the RIDE HEIGHT CG source), INT and PRO.
+    const refAx=physics.rideRef==='rear'?'r':physics.rideRef==='shared'?null:'f';
+    const stiffG=uiMode!=='beginner'&&(fe.rideStiffMode??'hz')==='bottomG';
+    const gAvail=uiMode!=='beginner'&&(hzMode==='shared'||!!ch.useRideHeightCG);
+    const hzKind=s=>(s===refAx&&!stiffG)||(!co&&hzMode==='independent'&&refAx&&s!==refAx)?'set':'solved';
+    const gKind=s=>(!co&&hzMode==='shared')||(stiffG&&s===refAx)?'set':'solved';
+    const ratio=tune.fHz>0?tune.rHz/tune.fHz:null;
     const atEdge=hz=>physics.rearHzClamped&&(hz<=HZ_MIN+1e-6||hz>=HZ_MAX-1e-6);
     // The band tag reads the pre-snap Hz (tagHz), the one the Ride Stiffness slider tags: BeamNG
     // snaps springs to PHYS_SNAP steps, which can drop 2.50 Hz to 2.497 and read FIRM beside a
@@ -11119,11 +11250,14 @@ function App(){
     const row=(hz,tagHz,physHz,rh,rsSp,rsAb,rear)=>{
       const c=hzCtx(tagHz);
       const flag=atEdge(physHz)?'CLAMPED':rear&&tune.coSolveLiftRisk?'LIFT RISK':null;
-      const rest=[{text:`${hz.toFixed(2)} Hz`,on:hzOn},
-        ...(gShown?[{text:`${(rh*1000*Math.pow(2*Math.PI*hz,2)/9810).toFixed(2)} g`,on:gOn}]:[])];
+      const s=rear?'r':'f';
+      const rest=[{k:'spr.hz',kind:hzKind(s),text:`${hz.toFixed(2)} Hz`},
+        gAvail&&{k:'spr.g',kind:gKind(s),text:`${(rh*1000*Math.pow(2*Math.PI*hz,2)/9810).toFixed(2)} g`},
+        rear&&ratio!=null&&{k:'spr.ratio',kind:!co&&hzMode==='multiplier'?'set':'solved',text:`R/F ×${ratio.toFixed(2)}`},
+        hz>0&&{k:'spr.sag',kind:'info',text:`sag ${fmtLen(9.81/Math.pow(2*Math.PI*hz,2))}`}].filter(Boolean);
       const roll=Math.round(rsSp/(rsSp+rsAb)*100);
       return{note:flag??c[0],noteColor:flag?'#f59e0b':c[1],
-        meta:[`${roll}% roll`,...rest],metaF:[`${roll}% of axle roll`,...rest]};
+        meta:[{k:'spr.roll',kind:'info',text:`${roll}% roll`},...rest],metaF:[{k:'spr.roll',kind:'info',text:`${roll}% of axle roll`},...rest]};
     };
     return{header,head,
       front:row(tune.fHz,physics.frontHz,physics.frontHz,ch.rideHeightF,tune.rsSpF,tune.rsAbF,false),
@@ -11131,7 +11265,7 @@ function App(){
   })();
   // ALIGNMENT output for both layouts: the header names the mode, the build type and whether the
   // intent sliders moved anything; camber rows carry the camber at the achieved roll (what AUTO aims
-  // at, so brighter there), and a row that intent or MANUAL moved carries the AUTO value.
+  // at, so solved there), and a row that intent or MANUAL moved carries the AUTO value.
   const alignView=(()=>{
     const manual=alignMode==='manual';
     const BUILD=buildLabelOf(dr.buildType);
@@ -11142,17 +11276,19 @@ function App(){
     const r1=alignRound;
     // Where AUTO alone would put it, whenever intent or MANUAL moved the value. Under MANUAL the dyn
     // gap to AUTO's is the same number (same roll).
-    const vsAuto=(v,auto,k='')=>r1(v-auto)!==0?[`AUTO ${r1(alignInGame(k,auto,fe.gameMode)).toFixed(1)}°`]:[];
+    const vsAuto=(v,auto,k='')=>r1(v-auto)!==0?[{k:'aln.auto',kind:'info',text:`AUTO ${r1(alignInGame(k,auto,fe.gameMode)).toFixed(1)}°`}]:[];
     // Toe direction in words: the game's IN/OUT slider labels are reported reversed, so the
     // number's sign is the thing to trust (docs/ALIGNMENT.md). Nothing for zero.
-    const toeDir=v=>r1(v)>0?[{text:'IN',on:true}]:r1(v)<0?[{text:'OUT',on:true}]:[];
+    const toeDir=v=>r1(v)>0?[{k:'aln.toe',kind:'info',text:'IN'}]:r1(v)<0?[{k:'aln.toe',kind:'info',text:'OUT'}]:[];
+    // Dynamic camber is what AUTO aims at: solved there, information under MANUAL.
+    const dyn=v=>({k:'aln.dyn',kind:manual?'info':'solved',text:`dyn ${r1(v).toFixed(1)}°`});
     const lim=k=>align.limit?.[k]?'LIMIT':null;
     return{header,head,
-      camberF:[{text:`dyn ${r1(align.recCamberF+tune.rollDeg*camberGain).toFixed(1)}°`,on:!manual},...vsAuto(align.recCamberF,autoAlign.recCamberF)],
-      camberR:[{text:`dyn ${r1(align.recCamberR+tune.rollDeg*camberGain*rearGainMult).toFixed(1)}°`,on:!manual},...vsAuto(align.recCamberR,autoAlign.recCamberR)],
+      camberF:[dyn(align.recCamberF+tune.rollDeg*camberGain),...vsAuto(align.recCamberF,autoAlign.recCamberF)],
+      camberR:[dyn(align.recCamberR+tune.rollDeg*camberGain*rearGainMult),...vsAuto(align.recCamberR,autoAlign.recCamberR)],
       toeF:[...toeDir(align.recToeF),...vsAuto(align.recToeF,autoAlign.recToeF,'toeF')],
       toeR:[...toeDir(align.recToeR),...vsAuto(align.recToeR,autoAlign.recToeR,'toeR')],
-      caster:[`steer ${r1(casterSteerCamber(align.recCaster)).toFixed(1)}° @ ${CASTER_REF_STEER}°`,...vsAuto(align.recCaster,autoAlign.recCaster)],
+      caster:[{k:'aln.steer',kind:'info',text:`steer ${r1(casterSteerCamber(align.recCaster)).toFixed(1)}° @ ${CASTER_REF_STEER}°`},...vsAuto(align.recCaster,autoAlign.recCaster)],
       note:{camberF:lim('camberF'),camberR:lim('camberR'),toeF:lim('toeF'),toeR:lim('toeR'),caster:lim('caster')},
       // The terms behind each AUTO value, for the card hint, with the intent offset as a last term.
       why:manual?null:[['Camber F','camberF'],['Camber R','camberR'],['Toe F','toeF'],['Toe R','toeR'],['Caster','caster']]
@@ -11162,19 +11298,25 @@ function App(){
   // carries what that Centre sets: the centre bias and the shift off it, or ENTRY's BRK margin.
   const brakeView=(()=>{
     if(brakeBias==null)return{header:'STOCK',head:'STOCK — leave the game value',meta:[]};
+    // PRO's GRIP bias at the Decel set (both axles reach their limit together), a reference beside
+    // any Centre but GRIP, where it is the centre itself.
+    const decel=dr.brakeDecel??DEF_DR.brakeDecel;
+    const grip=uiMode==='pro'&&!brakeGrip?[{k:'brk.grip',kind:'solved',text:`GRIP ${gripBrakeBias}% @ ${decel.toFixed(2)} g`}]:[];
     if(brakeEntry){
       const t=dr.brakeEntryTarget??0;
-      return{header:`ENTRY ${t>=0?'+':''}${t.toFixed(2)}%`,head:`solved for ENTRY ${t>=0?'+':''}${t.toFixed(2)}% vs mid-corner`,
-        meta:phase?[{text:`ENTRY BRK ${phase.entry.brk>=0?'+':''}${phase.entry.brk.toFixed(2)}%`,on:true}]:[]};
+      // ENTRY BRK, what ENTRY solves for, is the card's balance effect (cardFigs.brakes).
+      return{header:`ENTRY ${t>=0?'+':''}${t.toFixed(2)}%`,head:`solved for ENTRY ${t>=0?'+':''}${t.toFixed(2)}% vs mid-corner`,meta:grip};
     }
     // The shift as set, in bias points (stored + = rearward, so it lowers the bias). LIMIT when the
     // 40–68% span held the result short of centre + shift. BEG ignores the shift.
     const d=uiMode==='beginner'?0:-(dr.brakeBiasShift??0);
     // REC is the Centre control's own label; the Forza card spells it out.
-    return{header:brakeGrip?`GRIP ${(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g`:'REC',
-      head:brakeGrip?`centred on GRIP at ${(dr.brakeDecel??DEF_DR.brakeDecel).toFixed(2)} g`:'centred on the recommended bias',
+    return{header:brakeGrip?`GRIP ${decel.toFixed(2)} g`:'REC',
+      head:brakeGrip?`centred on GRIP at ${decel.toFixed(2)} g`:'centred on the recommended bias',
       note:brakeBias!==brakeCentre+d?'LIMIT':null,
-      meta:[{text:`centre ${brakeCentre}%`,on:true},...(d?[`shift ${d>0?'+':''}${d}`]:[])]};
+      // With no shift the centre is the value itself: a repeat, like a set figure.
+      meta:[{k:'brk.centre',kind:brakeBias===brakeCentre?'set':'solved',text:`centre ${brakeCentre}%`},
+        ...(d?[{k:'brk.shift',kind:'set',text:`shift ${d>0?'+':''}${d}`}]:[]),...grip]};
   })();
   // DIFFERENTIAL output: AUTO or MANUAL, the diff type, and SOLVE EXIT while it applies. A lock
   // row's meta is the effective lock (% × the type's scale), which AUTO holds across diff types and
@@ -11190,7 +11332,35 @@ function App(){
       head:[manual?'MANUAL locks':'AUTO locks',TYPE&&`${TYPE} diff`,solve==='SOLVE EXIT IDLE'?'SOLVE EXIT idle (PHASE)':solve].filter(Boolean).join(' · '),
       // Forza Horizon only: BeamNG has one diff at RACE's scale (diffTypeOf), so it has no such row.
       // The Forza card's form: what the lock does on this diff type, named rather than "eff".
-      metaF:v=>type==='race'?[]:[{text:`acts like ${Math.round(v*scale)}% RACE`,on:!manual}]};
+      metaF:v=>type==='race'?[]:[{k:'dif.race',kind:'solved',text:`acts like ${Math.round(v*scale)}% RACE`}]};
+  })();
+  // The line under each Forza card (CardFigs). Its balance effect: the Handling Balance bar's own
+  // terms for that card, by the phase they act in, in INT points or PRO grip-margin %. PRO sizes
+  // only springs, bars, brakes and drive, so damping, diff lock and alignment give a direction
+  // there, as its expanded bar does. Plus the ARB card's front share of all roll stiffness.
+  // BEG, whose bar has no phases, draws none.
+  const cardFigs=(()=>{
+    const Kf=tune.rsSpF+tune.rsAbF,Kr=tune.rsSpR+tune.rsAbR;
+    const front=Kf+Kr>0?[{k:'arb.front',kind:'info',text:`front roll stiffness ${Math.round(100*Kf/(Kf+Kr))}%`}]:[];
+    if(uiMode==='beginner')return{};
+    const pro=!!phase,word=v=>v>0?'OS':'US',col=v=>v>0?C_OS:C_US;
+    const sized=(ph,v)=>Math.abs(v)<(pro?0.005:0.05)?{text:`${ph} ≈0`}
+      :{text:`${ph} ${pro?fmtPct(v):fmtSigned(v,1)} ${word(v)}`,color:col(v)};
+    const dir=(ph,v)=>{const s=signOf(v);return s?{text:`${ph} → ${word(s)}`,color:col(s)}:{text:`${ph} ≈0`};};
+    const lean=pro?dir:sized;
+    const bal=(k,parts,kind='solved')=>parts.filter(Boolean).map((p,i)=>({k,kind,...p,pre:i?null:'balance'}));
+    const dl=diff.bDiffDecel??0,al=diff.bDiffAccel??0;
+    return{
+      springs:bal('spr.bal',[sized('MID',pro?phase.mid.sp:tune.bSp??0)]),
+      arb:[...front,...bal('arb.bal',[sized('MID',pro?phase.mid.ab:tune.bAb??0)])],
+      dampers:bal('dmp.bal',[lean('ENTRY',bDampBias)]),
+      // ENTRY BRK is what BRAKES' ENTRY Centre solves for, so it repeats that target there.
+      brakes:brakeBias==null?[]:bal('brk.bal',[pro?sized('ENTRY BRK',phase.entry.brk):sized('ENTRY',bBrakeEntry)],brakeEntry?'set':'solved'),
+      // No decel lock (SPORT) is no term at all, not ≈0. PRO's DRIVE is the AWD centre split's.
+      diff:bal('dif.bal',[dl!==0&&lean('ENTRY',dl),al!==0&&lean('EXIT',al),
+        pro&&diff.layout==='AWD'&&sized('EXIT drive',phase.exit.drive)]),
+      align:bal('aln.bal',[lean('MID',alignBal.camber),lean('ENTRY',alignBal.toeF+alignBal.toeR),lean('EXIT',alignBal.toeR)]),
+    };
   })();
   // The output panel's warnings, grouped by the Forza card that shows them. BeamNG shows all of
   // them, in this order, in one box above its cards. Each is {key,color,text}.
@@ -14594,7 +14764,7 @@ function App(){
               Forza's width rule sits on the forza-out div inside it. */}
           <div style={{containerType:'inline-size'}}>
           <div className={physMode?undefined:'forza-out'}>
-          <OutGenCtx.Provider value={outGen}>
+          <OutGenCtx.Provider value={outGen}><OutFigCtx.Provider value={outFigs}>
           {/* The edit view's own DONE, so it can be reached from this panel too (phones). */}
           {editing&&<div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',marginBottom:8,
                                  background:'#0f0e2a',border:'1px solid #312e81',borderRadius:2,fontSize:10}}>
@@ -14651,13 +14821,14 @@ function App(){
             <RowGroup style={{marginBottom:0}}>
               <OutRow hid="out.caster" label="Caster" value={align.recCaster} unit="°" meta={alignView.caster} note={alignView.note.caster}/>
             </RowGroup>
+            <CardFigs figs={cardFigs.align}/>
           </Card>
           </>,
           'out.card.arb':<>
           {/* 2 — ANTI-ROLL BARS (full width; previously half of a 2-column grid) */}
           <Card hid="out.card.arb" title="ANTI-ROLL BARS" accent
             headerRight={arbView.head}
-            hint="Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets." hintTerm="arb">
+            hint="Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached. Rows: each bar's share of its axle and of both bars, less what the balance mode sets." hintTerm="arb">
 
             <RowGroup style={{marginBottom:0}}>
               {[['Front',tune.arbF,ch.trackF,ch.arbMotionRatioF,arbView.front,'F'],
@@ -14667,12 +14838,13 @@ function App(){
                   warn={warnOver(v,lim.arb)} unit={o.unit} note={note} meta={metaF}/>;
               })}
             </RowGroup>
+            <CardFigs figs={cardFigs.arb}/>
             <Keep>{outWarns.arb.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
           </>,
           'out.card.springs':<>
           <Card hid="out.card.springs" title="SPRINGS" accent
-            hint="Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; the brighter figure on each row is the one that mode sets. % roll: the spring's share of its axle."
+            hint="Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; rows give what those leave to the solver (Hz under BOTTOM G's, rear ÷ front under FLAT RIDE)."
             headerRight={springView.head} hintTerm="spring-rate">
 
             <RowGroup style={{marginBottom:0}}>
@@ -14683,6 +14855,7 @@ function App(){
                   note={note} noteColor={noteColor} meta={metaF}/>;
               })}
             </RowGroup>
+            <CardFigs figs={cardFigs.springs}/>
             <Keep>{outWarns.springs.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
           </>,
@@ -14691,7 +14864,7 @@ function App(){
           {/* Header, row meta, notes and warnings come from dampView, shared with the BeamNG layout:
               the header names the settings, the rows carry the figures the modes equalise. */}
           <Card hid="out.card.dampers" title="DAMPERS" accent headerRight={dampView.head}
-            hint="Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; the brighter figures on each row are the ones that mode evens out." hintTerm="rebound">
+            hint="Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; each row gives the figures those leave to the solver, not the ones they set." hintTerm="rebound">
 
             {(()=>{
               const row=(lbl,v,mr,{note,meta},adj)=>{
@@ -14711,6 +14884,7 @@ function App(){
                 </RowGroup>
               </>);
             })()}
+            <CardFigs figs={cardFigs.dampers}/>
             <Keep>{outWarns.dampers.map(w=><OutWarn key={w.key} color={w.color}>{w.text}</OutWarn>)}</Keep>
           </Card>
           </>,
@@ -14721,6 +14895,7 @@ function App(){
             <RowGroup style={{marginBottom:0}}>
               <OutRow hid="out.brakeBias" label="Balance" value={brakeBias??'STOCK'} unit={brakeBias==null?null:'% F'} note={brakeView.note} meta={brakeView.meta}/>
             </RowGroup>
+            <CardFigs figs={cardFigs.brakes}/>
           </Card>
           </>,
           'out.card.diff':<>
@@ -14768,6 +14943,7 @@ function App(){
                 {lock('Decel Lock',diff.decel)}
               </RowGroup>
             );})()}
+            <CardFigs figs={cardFigs.diff}/>
             {/* Recommendation call-outs. The per-axle US/OS bias strip that used to sit here
                 was removed: the same information is already in the footer's Handling Balance
                 contributions breakdown (SPR/ARB/DIFF/BRK), so it was duplicated, not lost. */}
@@ -14973,7 +15149,7 @@ function App(){
             {hiddenOut} output part{hiddenOut>1?'s':''} hidden in {activeLayout?.name}
             <button className="tbtn" style={{fontSize:10}} onClick={()=>openLayoutPanel('tune')}>LAYOUT</button>
           </div>}
-          </OutGenCtx.Provider>
+          </OutFigCtx.Provider></OutGenCtx.Provider>
           {/* DISCLAIMER + FEEDBACK — the last thing in the results scroll, not pinned under it:
               pinned, its ~80 px came off every screen's results for text read once. */}
           <div style={{borderTop:'1px solid #0f172a',padding:'8px 12px 2px',marginTop:10}}>
