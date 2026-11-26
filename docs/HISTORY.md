@@ -11,6 +11,15 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — a jump-bar chip closes its section; no TUNE button in the desktop header
+
+A chip only ever opened its section and went to it, so closing one meant finding its header. A
+lit chip now closes its section, as the header does, and still brings the header under the bar so
+a section closed from further down isn't left out of sight. MY CONTROLS' GO still only opens. The
+desktop header's TUNE button did nothing at or above the VISUALS column width (it was disabled
+there) and below it repeated VISUALS' own toggle, so it is gone: VISUALS, or **TUNE ›** in the
+VISUALS view, goes back to the tune. The phone tab bar keeps TUNE, where it is one of four views.
+
 ## Changed — the guides: only what's new, BeamNG wording, and a Layouts guide
 
 A pass after the header, phone, layouts, figures and HOLD changes found the guides naming things

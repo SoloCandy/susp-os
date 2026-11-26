@@ -18,7 +18,7 @@ zones, the settle band, and the ARB bands. The prose is not checked.
 
 - **Where:** `visualsPanel` in `App`, one `<div id="zone-visuals">` with a header row and a
   scrolling body (`data-vis-box`) that renders `visualsBody()`. The header's **VISUALS**
-  button opens and closes it: in the desktop header's INPUTS · VISUALS · TUNE switch, and on a
+  button opens and closes it: in the desktop header's INPUTS · VISUALS switch, and on a
   phone as the bottom tab bar's **VISUALS** tab. Where it goes depends on the window width against `VIS_COL_MIN`:
   - **At or above `VIS_COL_MIN`** (1200 px): a docked column between the sidebar and the
     output panel, 360–420 px wide (`visColW`). It is a flex sibling, so the output gets

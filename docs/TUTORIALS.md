@@ -521,7 +521,7 @@ In BeamNG (`bng`):
 
 #### 1. Welcome — Intermediate Mode
 
-> Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header to open its section, or its chip in the bar along the top to open it and jump there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what's new.
+> Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header, or its chip in the bar along the top, to open or close a section; the chip also jumps there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what's new.
 
 #### 2. Chassis & Build
 

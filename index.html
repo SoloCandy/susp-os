@@ -8856,7 +8856,7 @@ const TUTORIALS={
   intermediate:[
     {title:'Welcome — Intermediate Mode',
      focus:null,
-     body:'Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header to open its section, or its chip in the bar along the top to open it and jump there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what\'s new.',
+     body:'Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header, or its chip in the bar along the top, to open or close a section; the chip also jumps there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what\'s new.',
      glossary:['hz','zeta','roll-stiffness']},
     {title:'Chassis & Build',
      focus:['chassis','build'],spot:['chassis.layout','chassis.weight','chassis.frontBias','chassis.tyres','chassis.cgSource','build.type'],
@@ -10543,13 +10543,16 @@ function App(){
   const pDr=k=>v=>setDr(p=>({...p,[k]:v}));
   // Opening a sidebar section also makes it the active one VISUALS follows (VIS_FOR_SEC).
   const tog=k=>()=>{if(!open[k]&&SECTION_KEYS.includes(k)&&k!=='mine')setActiveSec(k);setOpen(p=>({...p,[k]:!p[k]}));};
-  // The section jump bar: open the section (a no-op if it is already) and bring its header to just
-  // under the bar, after the render that opened it so a section near the bottom has room to rise
-  // (a timeout, like visTog's: an animation frame can be skipped while nothing repaints).
+  // The section jump bar: a chip toggles its section, like its header (toggle); GO beside a pinned
+  // section's note only opens MY CONTROLS. Either way the header comes to just under the bar, after
+  // the render that opened or closed it, so a section near the bottom has room to rise and one
+  // closed above the view isn't left out of sight (a timeout, like visTog's: an animation frame can
+  // be skipped while nothing repaints).
   const jumpRef=useRef(null);
-  const jumpTo=k=>{
-    if(k!=='mine')setActiveSec(k);
-    setOpen(p=>p[k]?p:{...p,[k]:true});
+  const jumpTo=(k,toggle=false)=>{
+    const opening=!(toggle&&open[k]);
+    if(opening&&k!=='mine')setActiveSec(k);
+    setOpen(p=>({...p,[k]:opening}));
     setTimeout(()=>{
       const el=document.getElementById('zone-'+SEC_ZONE[k]),sc=el?.closest('.sidebar-scroll');
       if(!sc)return;
@@ -12433,7 +12436,6 @@ function App(){
       <button type="button" className={`tbtn${on?' on':''}`} aria-pressed={on} title={title}
         disabled={disabled} aria-disabled={disabled||undefined}
         style={{fontSize:11,...(disabled?{cursor:'default'}:{})}} onClick={disabled?undefined:onClick}>{label}</button>);
-    const tuneOn=!(!visWide&&visShown);
     return(
     <div style={{display:'flex',alignItems:'center',gap:3,padding:hdrTight?'0 10px':'0 14px',height:42}}>
       {/* Below 900 px the wordmark gives way, as on a phone: measured at 768 the row had 6 px
@@ -12445,9 +12447,7 @@ function App(){
       <div role="group" aria-label="Panels" style={{display:'flex',gap:3}}>
         {pane('INPUTS',sidebarOpen,()=>setSidebarOpen(p=>!p),sidebarOpen?'Hide the inputs':'Show the inputs')}
         {visAllowed&&pane('VISUALS',visOn,()=>{setGaragePanelOpen(false);toggleVis();},
-          visWide?'Show or hide the VISUALS column':'Show VISUALS in place of the tune')}
-        {pane('TUNE',tuneOn,()=>setVisView(false),
-          visWide?'The tune is always shown at this width':tuneOn?'The tune is showing':'Show the tune in place of VISUALS',visWide||!visAllowed)}
+          visWide?'Show or hide the VISUALS column':visOn?'Back to the tune':'Show VISUALS in place of the tune')}
       </div>
       <div style={{flex:1}}/>
       <span ref={onbChipRef} style={{display:'inline-flex'}}>
@@ -13033,8 +13033,8 @@ function App(){
                       background:'#020617',borderBottom:'1px solid #0f172a'}}>
               {sidebarOrder.map(k=>SECTION_VIS.find(s=>s.key===k))
                 .filter(s=>s.tiers.includes(uiMode)&&secVis(s.key)==='show'&&!activeLayout?.noChip.includes(s.key)&&(s.key!=='mine'||mineShown)).map(s=>(
-                <button key={s.key} type="button" className={`jumpchip${open[s.key]?' on':''}`} onClick={()=>jumpTo(s.key)}
-                  title={`${open[s.key]?'Go to':'Open'} ${s.label}`}>{JUMP_LABEL[s.key]??s.label}</button>))}
+                <button key={s.key} type="button" className={`jumpchip${open[s.key]?' on':''}`} onClick={()=>jumpTo(s.key,true)}
+                  aria-pressed={!!open[s.key]} title={`${open[s.key]?'Close':'Open'} ${s.label}`}>{JUMP_LABEL[s.key]??s.label}</button>))}
               <button type="button" className="jumpchip" style={{flex:'0 0 auto'}} aria-label="Layout"
                 title="Layout: choose what shows, and save layouts" onClick={()=>openLayoutPanel('sidebar')}>✎</button>
             </nav>)}

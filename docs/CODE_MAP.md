@@ -505,11 +505,13 @@ the initialiser against every `open.*` and `tog('...')` use in the source.
 INT and PRO draw a row of chips at the top of `.sidebar-scroll`, sticky, one per section this
 tier renders and `secVis` shows, in `sidebarOrder`, except those the active layout leaves off
 (`noChip`; a hidden section, or its stub, gets none either, and `visuals` never does). Chip text is the row's `label`, or `JUMP_LABEL` where that is too long. A chip runs
-`jumpTo`: it makes the section the active one (so VISUALS follows, as `tog` does), opens it if it
-is shut, and after that render scrolls the section's `zone-*` (`SEC_ZONE`) to just under the bar.
+`jumpTo(key, true)`: it toggles the section like its header (opening one makes it the active one,
+so VISUALS follows, as `tog` does), and after that render scrolls the section's `zone-*`
+(`SEC_ZONE`) to just under the bar, so a section closed from above the view isn't left out of
+sight. MY CONTROLS' GO calls `jumpTo('mine')`, which only opens.
 The scroll divides out `uiZoom`, since `getBoundingClientRect` is zoomed and `scrollTop` is not,
 and waits on a timeout rather than an animation frame, which was skipped outright in testing.
-It never closes anything; lit chips are the open sections. A last chip, ✎, opens the layout panel. The row wraps (two lines at the
+Lit chips are the open sections, and carry `aria-pressed`. A last chip, ✎, opens the layout panel. The row wraps (two lines at the
 sidebar's usual width) instead of scrolling sideways, so no chip is out of sight with a mouse.
 It is not drawn in the edit view, whose pinned bar takes the same place, or while a guide runs,
 since the guide scrolls and spotlights sections itself and a sticky row would sit over the
@@ -735,13 +737,14 @@ does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)
 **Desktop (`!isMobile`, 768 px and up)** is one row, `desktopHeader()`, grouped by job:
 
 ```
-SUSP.OS │ INPUTS VISUALS TUNE │ ··· │ HORIZON · PRO ▾ │ ↩ ↪ SHARE ⋯ │ ? GARAGE
+SUSP.OS │ INPUTS VISUALS │ ··· │ HORIZON · PRO ▾ │ ↩ ↪ SHARE ⋯ │ ? GARAGE
 ```
 
 - **Panel switch.** INPUTS toggles `sidebarOpen`. VISUALS is `toggleVis` (the column's
-  `visUI.dock` at `VIS_COL_MIN` and up, the swap view's `visView` below). TUNE is always on at
-  `VIS_COL_MIN` and up (disabled, its tooltip says why); below it TUNE and VISUALS share the
-  right pane, so TUNE clears `visView`.
+  `visUI.dock` at `VIS_COL_MIN` and up, the swap view's `visView` below, where VISUALS again, or
+  the view's own TUNE ›, goes back to the tune). There is no TUNE button: at the column width it
+  could only ever be on, and below it it repeated VISUALS' toggle. BEG, with no VISUALS, shows
+  INPUTS alone.
 - **Game · level chip** (`MenuButton`): GAME and LEVEL as `OptionSeg` rows (`switchGameMode`;
   `requestMode`, keeping the 🔒 gating and `lockTitle`), then UNITS…, which opens the units
   modal and shows the current units under it.
