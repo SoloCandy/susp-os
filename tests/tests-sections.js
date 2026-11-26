@@ -29,7 +29,8 @@
 //      has gone falls back to its index, clamped.
 //   8. Layouts: every HIDE_ITEMS row has a panel label and valid games; repairLayouts mends
 //      junk, duplicate ids and missing assignments; the first load builds INT and PRO from the
-//      old per-tier lists and PERSIST switch; importLayouts adds, renames and caps; a part of
+//      old per-tier lists, PERSIST on becoming held lists; HOLD's holdable ids, HOLD_DEPS and
+//      holdWarnings; importLayouts adds, renames and caps; a part of
 //      another game doesn't apply here; section order, start-open and chip lists repair to known
 //      sections, with a missing section put back near its default place.
 //   9. Hidden choices: HIDE_OPTS against the render (every data-opt sits in its control's Hide and
@@ -65,13 +66,13 @@ const M = new Function(
   slice('// ── Section visibility', '// Every preset authors damping') + '\n' +
   slice('const TUTORIALS={', '// Standalone reference') +
   '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,' +
-  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields,' +
+  'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields,holdWarnings,HOLD_DEPS,holdable,HIDE_BY_ID,' +
   'LAYOUT_GAMES,LAYOUT_MAX,LAYOUT_NAME_MAX,LAYOUT_FILE_KIND,LAYOUT_SECS,repairLayouts,legacyLayouts,importLayouts,hideIdApplies,' +
   'HIDE_OPTS,optOf,hideIdValid,OUT_ORDER_DEF,outFamily,OUT_FIGS,outFigShown,outFigApplies,repairFigs};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
         DEF_CH, DEF_FE, DEF_DR, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
-        DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields,
+        DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields, holdWarnings, HOLD_DEPS, holdable, HIDE_BY_ID,
         LAYOUT_GAMES, LAYOUT_MAX, LAYOUT_NAME_MAX, LAYOUT_FILE_KIND, LAYOUT_SECS, repairLayouts, legacyLayouts, importLayouts, hideIdApplies,
         HIDE_OPTS, optOf, hideIdValid, OUT_ORDER_DEF, outFamily, OUT_FIGS, outFigShown, outFigApplies, repairFigs } = M;
 
@@ -256,7 +257,7 @@ t('no beginner list is kept', () => {
   ok(!('beginner' in repairHidden({ beginner: ['arb'] })));
 });
 
-section('heldFields (PERSIST)');
+section('heldFields (HOLD)');
 const NONE = { ch: [], fe: [], dr: [] };
 t('nothing hidden holds nothing', () => {
   eq(heldFields([], 'pro'), NONE);
@@ -402,7 +403,7 @@ t('a part of another game does not apply here', () => {
 t('junk repairs to an INT and a PRO layout, each tier on its own', () => {
   for (const v of [undefined, null, 5, 'x', [], { layouts: 'no' }, { layouts: [null, 3] }]) {
     const r = repairLayouts(v);
-    eq(r.layouts.map(l => [l.id, l.name, l.hidden, l.persist]), [['int', 'INT', [], false], ['pro', 'PRO', [], false]], JSON.stringify(v));
+    eq(r.layouts.map(l => [l.id, l.name, l.hidden, l.held]), [['int', 'INT', [], []], ['pro', 'PRO', [], []]], JSON.stringify(v));
     eq(r.assign, { intermediate: { horizon: 'int', motorsport: 'int', beamng: 'int' }, pro: { horizon: 'pro', motorsport: 'pro', beamng: 'pro' } });
   }
 });
@@ -413,7 +414,7 @@ t('repair drops unknown ids, fixes ids and names, keeps valid assignments', () =
     { id: 'bad id!', name: 'x'.repeat(40) } ],
     assign: { intermediate: { horizon: 'a', beamng: 'gone' }, pro: { motorsport: 'a' } } });
   const { order, startOpen, noChip, pins, outOrder, figs, ...rest } = r.layouts[0];
-  eq(rest, { id: 'a', name: 'Track day', hidden: ['arb', 'out.card.suspF'], persist: true });
+  eq(rest, { id: 'a', name: 'Track day', hidden: ['arb', 'out.card.suspF'], held: ['arb'] }, 'PERSIST on: what it hid that can be held is held');
   ok(r.layouts[1].id !== 'a' && r.layouts[1].name === 'LAYOUT 2' && r.layouts[1].hidden.length === 0, 'duplicate id renewed, blank name filled');
   ok(/^[\w-]+$/.test(r.layouts[2].id) && r.layouts[2].name.length === LAYOUT_NAME_MAX, 'bad id renewed, long name cut');
   eq(r.assign.intermediate, { horizon: 'a', motorsport: 'a', beamng: 'a' }, 'no int/pro layout: falls back to the first');
@@ -453,12 +454,32 @@ t('pins keep sidebar controls only, once each, in order', () => {
   eq(r.pins, ['arb.bias', 'ride.ref']);
   eq(repairLayouts({ layouts: [{ id: 'a', name: 'A', pins: 'x' }] }).layouts[0].pins, []);
 });
-t('PERSIST holds nothing a pinned control writes, even in a hidden section', () => {
-  const h = heldFields(['arb'], 'pro');
-  ok(h.fe.includes('arbBias') && h.fe.includes('arbMode'));
-  const p = heldFields(['arb'], 'pro', ['arb.bias']);
-  ok(!p.fe.includes('arbBias') && p.fe.includes('arbMode'), 'the pinned one is released, the rest held');
-  ok(heldFields(['arb', 'arb.bias'], 'pro', ['arb.bias']).fe.includes('arbBias'), 'a pinned control hidden itself is still held');
+t('a PERSIST-on layout migrates to held, less its pins; a stored held list wins', () => {
+  const r = repairLayouts({ layouts: [
+    { id: 'a', name: 'A', persist: true, hidden: ['arb', 'arb.bias', 'out.card.arb', 'visuals', 'tbDna', 'arb.mode:man', 'mine'], pins: ['arb.bias'] },
+    { id: 'b', name: 'B', persist: false, hidden: ['arb'] },
+    { id: 'c', name: 'C', persist: true, hidden: ['arb'], held: ['brakes.bias', 'ghost', 'out.arbF', 'brakes.bias', 'mine', 'dampers.table'] }] }).layouts;
+  eq(r[0].held, ['arb'], 'pins, output, VISUALS, ⋯ items, choices and MY CONTROLS are not held');
+  eq(r[1].held, []);
+  eq(r[2].held, ['brakes.bias'], 'read-outs with no setting are not holdable');
+  ok(r.every(l => !('persist' in l)), 'the switch is dropped');
+});
+t('holdWarnings names a held, kept control whose mode the commit changed', () => {
+  const kept = new Set(['fe.dampingBias']);
+  const changed = new Map([['fe.dampBalMode', ['sync', 'standard']], ['fe.arbMode', ['auto', 'man']]]);
+  eq(holdWarnings(['dampers.bias'], 'pro', kept, changed), [{ id: 'dampers.bias', dep: 'dampers.balMode', from: 'TIME SYNC', to: 'STANDARD' }]);
+  eq(holdWarnings(['dampers'], 'pro', kept, changed).map(w => w.id), ['dampers.bias'], 'held with its section');
+  eq(holdWarnings(['dampers.bias'], 'pro', new Set(), changed), [], 'not kept (the load agreed): no warning');
+  eq(holdWarnings(['dampers.bias'], 'pro', kept, new Map()), [], 'mode unchanged');
+  eq(holdWarnings(['align.ofsToeF'], 'pro', new Set(['dr.alignOfsToeF']), new Map([['dr.alignManual', [false, true]]]))[0],
+     { id: 'align.ofsToeF', dep: 'align.mode', from: 'AUTO', to: 'MANUAL' }, 'an on/off mode in words');
+});
+t('every HOLD_DEPS entry joins holdable controls to a mode with fields', () => {
+  for (const [id, deps] of Object.entries(HOLD_DEPS)) {
+    ok(holdable(id), id + ' holdable');
+    for (const d of deps) ok(HIDE_BY_ID[d]?.fields && HIDE_BY_ID[d].sec === HIDE_BY_ID[id].sec, `${id} → ${d}`);
+  }
+  ok(!holdable('mine') && holdable('dampers') && !holdable('dampers.table') && !holdable('out.arbF'));
 });
 t('a hidden section whose only change is a pinned control leaves no stub', () => {
   const s = st({ fe: { arbBias: 9 } });
@@ -481,12 +502,12 @@ t('first load: the old per-tier lists and PERSIST become INT and PRO', () => {
   global.localStorage = { getItem: k => store[k] ?? null };
   try {
     const r = legacyLayouts();
-    eq(r.layouts.map(({ id, name, hidden, persist }) => ({ id, name, hidden, persist })),
-       [{ id: 'int', name: 'INT', hidden: ['brakes'], persist: true }, { id: 'pro', name: 'PRO', hidden: ['arb.mode'], persist: true }]);
+    eq(r.layouts.map(({ id, name, hidden, held }) => ({ id, name, hidden, held })),
+       [{ id: 'int', name: 'INT', hidden: ['brakes'], held: ['brakes'] }, { id: 'pro', name: 'PRO', hidden: ['arb.mode'], held: ['arb.mode'] }]);
     eq(r.layouts[0].order, LAYOUT_SECS, 'default order'); eq([r.layouts[0].startOpen, r.layouts[0].noChip], [[], []]);
     eq(r.assign.intermediate.beamng, 'int'); eq(r.assign.pro.horizon, 'pro');
     global.localStorage = { getItem: () => null };
-    eq(legacyLayouts().layouts.map(l => l.hidden.length + ':' + l.persist), ['0:false', '0:false'], 'nothing stored');
+    eq(legacyLayouts().layouts.map(l => l.hidden.length + ':' + l.held.length), ['0:0', '0:0'], 'nothing stored');
     global.localStorage = { getItem: () => '{not json' };
     eq(legacyLayouts().layouts.length, 2, 'unreadable storage');
   } finally { delete global.localStorage; }
