@@ -5,7 +5,7 @@ agile, compliant and forgiving, planted, tail-happy — that is applied to whate
 chassis is loaded by solving the tune that produces it on that car.
 
 > **Status: implemented in PRO, first-pass UI.** The editor lives in the DNA
-> modal (sidebar toolbar); the look is expected to change once it has been used. Core functions sit
+> modal (⋯ in the desktop header, the sidebar toolbar on a phone); the look is expected to change once it has been used. Core functions sit
 > under the `── Vehicle DNA ──` banner in `index.html` and are exercised by
 > `tests-dna.js`.
 
@@ -634,7 +634,7 @@ The link only drives read-outs. What happens to it:
 
 ## UI (PRO)
 
-- **DNA modal** (`showDnaModal`), opened by the DNA button in the sidebar toolbar, left of
+- **DNA modal** (`showDnaModal`), opened by DNA under the desktop header's ⋯ (the sidebar toolbar's DNA button on a phone, left of
   CHECK. It opens on a short paragraph saying what a DNA is, in every tier. Below PRO the toolbar
   button is slate with a PRO tag rather than indigo, and the modal offers SWITCH TO PRO, which
   closes it and runs `requestMode('pro')` (the same tier gate as the header). In PRO, top to bottom:
@@ -690,7 +690,7 @@ The link only drives read-outs. What happens to it:
   a link exists.
 - **Tier warning**: leaving PRO with a link asks first — the BEG/INT fallback effects
   rewrite `arbBalMode` (and at BEG `dampBalMode`/`dampingBias`) and nothing restores
-  them. `requestMode` wraps `tryAccessMode` for the header tier buttons.
+  them. `requestMode` wraps `tryAccessMode` for the tier buttons (the desktop header's level menu, the phone's header row 2).
 
 Not built from the first design: a radar chart and re-apply from the match card. The Balance Guide keeps showing its build-type band
 even when the DNA sits outside it.

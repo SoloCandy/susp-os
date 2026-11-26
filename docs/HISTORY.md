@@ -11,6 +11,19 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — desktop header: one row grouped by job
+
+The desktop header mixed setup, navigation, tune actions and help across two rows below 1040 px
+(`headerCompact` moved units, game and tiers between header row 1, header row 2 and the top of
+the sidebar), and the tune's actions sat in a sidebar toolbar that vanished with the sidebar.
+From 768 px it is now one row: SUSP.OS, an INPUTS · VISUALS · TUNE switch, a game · level chip
+whose menu holds the game, the tier and UNITS, the tune's actions (↩ ↪ SHARE, and ⋯ with DNA,
+CHECK and RESET, so RESET no longer sits beside undo), a ? menu (guide, glossary, source or the
+update notice, with a dot), and GARAGE. The action group keeps the `zone-toolbar` id and `tb.*`
+spot ids, so guides need no new ids; one that spotlights DNA, CHECK or RESET opens ⋯. Phones keep
+their header until their own redesign. `headerCompact` and its three gate sites are gone. See
+[CODE_MAP.md](CODE_MAP.md#header-layout).
+
 ## Changed — VISUALS polish: GRIP USE per axle, LOAD TRANSFER bars, SAG labels, phase repeats
 
 - **GRIP USE** drew four wheels, but the model gives one share per axle, so left and right always
