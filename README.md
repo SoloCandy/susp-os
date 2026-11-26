@@ -49,7 +49,7 @@ The result is a tune that starts from a principled baseline rather than trial-an
 - **CHECK** opens Tune Check, a reverse calculator that reads frequencies and damping ratios back out of existing spring/damper values and imports them as a tune, or (PRO) as a Vehicle DNA. From INT it also imports an existing alignment into ALIGNMENT's MANUAL.
 - **SHARE** handles share codes and JSON garage backups.
 
-**VISUALS.** A collapsible card pinned to the bottom of the sidebar holds every readout and graph, in independently collapsible groups, so they stay visible whichever input section is open:
+**VISUALS.** The header's VIS button opens every readout and graph: a column between the inputs and the tune on a wide screen, a view that swaps with the tune cards on a narrower one. Its groups open and close with their sidebar sections (ANTI-ROLL BARS, RIDE, DAMPERS and the rest), and PIN keeps one open:
 - **DNA MATCH** — only while a Vehicle DNA is linked: each axis's target against the tune's current value.
 - **RIDE · ROLL · DAMPING** — the front/rear roll-stiffness split (springs vs ARBs, with NAT and target ticks), body roll and ARB share, then ride Hz, ARB and bump/rebound damping on one shared scale per quantity.
 - **DYNAMICS** — a damped step response per axle with a ±10% settle band, settle-time marker and first-neutral-crossing ring, all measured off the drawn curve.
@@ -140,7 +140,7 @@ Reference docs for maintainers:
 - [CODEC.md](docs/CODEC.md) — the share-code field ID table (never reuse an id)
 - [PERSISTENCE.md](docs/PERSISTENCE.md) — localStorage keys and when to bump a version
 - [PRESETS.md](docs/PRESETS.md) — factory preset values and how to add a new one
-- [VISUALS.md](docs/VISUALS.md) — the pinned VISUALS card: what each group plots, its scales and bands, and what every marker and colour means
+- [VISUALS.md](docs/VISUALS.md) — the VISUALS column: where it lives, what each group plots, its scales and bands, and what every marker and colour means
 - [DNA.md](docs/DNA.md) — Vehicle DNA, a chassis-portable handling personality compiled into a tune (PRO, in the DNA modal on the sidebar toolbar)
 - [TUTORIALS.md](docs/TUTORIALS.md) — the guided tours: every step and its text word for word, when each guide opens, tier gating, spotlight/positioning, and how to add a step
 - [HINTS.md](docs/HINTS.md) — every ⓘ hint and piece of inline guidance, word for word, grouped by where it appears

@@ -242,6 +242,10 @@ When a tier guide's step changes, an effect on `[tutMode, tutStep]`:
    | `alignment` | ALIGNMENT (INT+) |
    | `visuals` | VISUALS |
 
+   `visuals` is no longer a sidebar section: a step focusing it shows the VISUALS column
+   or view (`visTut`) instead, and on a phone closes the inputs drawer when no other sidebar
+   section shares the step. A step focusing `output` swaps the tune cards back in.
+
    Every step rewrites all ten (BRAKES opens for `brakes`), so a section left open by
    the user is closed when a step doesn't point at it. The expanded balance panel
    (`open.balanceExpanded`) is assigned the same way: open on a step with a `bal.*` spot,
@@ -501,7 +505,7 @@ TRY IT task (ticks when the check passes):
 
 #### 5. ARB Bias & Visuals
 
-> ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS, pinned at the bottom of the sidebar, shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
+> ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS (VIS in the header) shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
 
 #### 6. Ride Ref & Rear Hz
 
@@ -541,7 +545,7 @@ Absent note (no POWER SPLIT on screen):
 
 #### 13. VISUALS Card
 
-> VISUALS, pinned at the bottom of the sidebar, holds collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
+> VISUALS (VIS in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
 
 #### 14. Handling Balance Bar
 

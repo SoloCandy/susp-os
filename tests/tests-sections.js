@@ -103,7 +103,8 @@ t('sectionDefaults returns DEF values for exactly the owned keys', () => {
 });
 t('every Sec passes its own key to secProps', () => {
   const secs = src.match(/<Sec title="[^"]+"[^\n]*/g) ?? [];
-  ok(secs.length >= 10, `found only ${secs.length} Secs`);
+  // Nine: VISUALS left the sidebar for its own column / view, so it is no longer a <Sec>.
+  ok(secs.length >= 9, `found only ${secs.length} Secs`);
   const keys = secs.map(l => (l.match(/secProps\('(\w+)'\)/) ?? [])[1]);
   eq(keys.filter(k => !k || !SECTION_VIS.some(s => s.key === k)), []);
 });

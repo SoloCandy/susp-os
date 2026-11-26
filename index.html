@@ -8009,7 +8009,7 @@ const TUTORIALS={
      glossary:['stiffness-mode','balance-mode','bal-neutral']},
     {title:'ARB Bias & Visuals',
      focus:['arb','visuals'],spot:['arb.bias','visuals.ride'],
-     body:'ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS, pinned at the bottom of the sidebar, shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.',
+     body:'ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS (VIS in the header) shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.',
      glossary:['arb-bias','ride-roll-damping']},
     {title:'Ride Ref & Rear Hz',
      focus:['feel'],spot:['ride.ref','ride.hzMode','ride.targetSpeed','ride.hzMult','ride.hzMan'],
@@ -8045,7 +8045,7 @@ const TUTORIALS={
      glossary:['power-split','exit-bias']},
     {title:'VISUALS Card',
      focus:['visuals'],spot:['visuals.ride','visuals.dynamics','visuals.sag'],
-     body:'VISUALS, pinned at the bottom of the sidebar, holds collapsible readouts: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.',
+     body:'VISUALS (VIS in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.',
      glossary:['ride-roll-damping','dynamics-chart','sag-vs-load']},
     {title:'Handling Balance Bar',
      focus:['balance-bar'],spot:['bar.head','bar.main','bar.legend'],sidebar:'close',
@@ -8353,8 +8353,8 @@ const GLOSSARY=[
     {id:'understeer',term:'Understeer (US)',tier:'beginner',def:"Understeer is when the front tyres run out of grip before the rears, so the car turns less than the steering asks and runs wide. It feels stable and safe but resists rotation.\n\nSUSP.OS shows understeer as negative (−) and blue, on the US side of the Handling Balance bar. More front roll stiffness (springs or bars), more front brake bias, more front rebound damping, more decel lock, and more accel lock on a driven front axle all push toward it.",see:['oversteer','balance-bar','roll-stiffness','response']},
     {id:'oversteer',term:'Oversteer (OS)',tier:'beginner',def:"Oversteer is when the rear tyres run out of grip before the fronts, so the car rotates more than the steering asks. It feels lively and turns in freely but can snap if overdone.\n\nSUSP.OS shows oversteer as positive (+) and red, on the OS side of the Handling Balance bar. More rear roll stiffness, more rear brake bias, more rear rebound damping, less decel lock (freer lift-off rotation), and more accel lock on a driven rear axle all push toward it.",see:['understeer','balance-bar','roll-stiffness','response']},
     {id:'grip-bias',term:'Grip Bias',tier:'pro',def:"Grip Bias is the car's at-the-limit lateral grip balance at its natural point, from the load-transfer grip model: tyre widths, track widths, CG height and weight split at the chassis's natural roll-stiffness split, before any tuning. Below 0.5 the front grips out first (understeer-prone); above 0.5 the rear does (oversteer-prone). A MEASURE NAT BAL reading shifts it along with natural balance.\n\nIt is not Mech Balance: two cars with identical mech balance can have different grip bias if their tyre widths or load transfer differ. The Balance Guide shows it as the GRIP BIAS row, against 0.50 rather than on the mech-balance strip, since it is not a mech balance. PRO's Handling Balance figure, grip margin, is the same model's front-minus-rear difference, quoted in percent rather than on the 0–1 scale.",see:['grip-neutral','mech-balance','natural-balance','phase-verdict']},
-    {id:'load-transfer',term:'Load Transfer',tier:'beginner',def:"Load transfer is weight shifting between tyres as the car corners, brakes or accelerates: onto the outside tyres in a corner, onto the fronts under braking, onto the rears under power. Tyres gain grip more slowly than they gain load, so an axle carrying more transfer has less total grip left. A lower CG and wider track reduce cornering transfer; a lower CG and longer wheelbase reduce fore-aft transfer.\n\nHow roll stiffness is split front to rear decides which axle takes more of the cornering transfer, which is why that split sets handling balance. Forward transfer under braking is also why the recommended brake balance sits in front of the weight split.\n\n[PRO] LOAD TRANSFER, the last group in the VISUALS card, reads the balance model's own transfer at 1 g cornering, so springs and bars move it. FRONT TAKES is the front axle's share of the total transfer beside the weight split: more on the front than its weight share leans understeer. A top-down sketch shades each wheel by its load in a left turn. CORNER is static corner mass; XFER is each axle's transfer per g, split into SPR+ARB (through the springs and bars, the part the tune moves) and GEOMETRY (through the roll centre, fixed); OUT / IN are the outer and inner wheel loads. LIFTS (amber) marks an inner wheel unloaded before 1 g: past that, more roll stiffness on that end stops shifting balance. FORE-AFT gives the axle loads under the ENTRY and EXIT phase loads (0.3 g braking, 0.2 g drive). Use it to see which end the bars load and how much camber the loaded outer tyre needs.",see:['roll-stiffness','brake-balance','sag-vs-load','grip-bias']},
-    {id:'grip-use',term:'Grip Use',tier:'pro',def:"GRIP USE, a PRO group in the VISUALS card, predicts how much of each axle's grip is in use when the car reaches its limit, from the same grip model as the Handling Balance bar, so it needs no laps. The axle that runs out first reads 100% and LIMIT, with its wheels outlined; the other shows what it has to spare. A front limit means understeer at the limit, a rear limit oversteer, and within 2% the axles run out together.\n\nMID is steady cornering. ENTRY adds 0.3 g of braking at the computed brake bias, EXIT 0.2 g of drive at the drive split; each axle's line then shows how much of its grip the braking or drive takes, through the friction circle. Unlike the bar's ENTRY and EXIT figures, these include the car's own weight transfer, so the two can differ: the bar isolates what the tune adds, this predicts what the tyres see.\n\nThe model has no tyre friction coefficient, so it cannot give the limit in g, only the shares. Both tyres on an axle run the same slip angle, so in the model they use the same share of their grip; an unloaded inner wheel reads LIFT.",see:['load-transfer','phase-verdict','brake-balance','grip-bias']},
+    {id:'load-transfer',term:'Load Transfer',tier:'beginner',def:"Load transfer is weight shifting between tyres as the car corners, brakes or accelerates: onto the outside tyres in a corner, onto the fronts under braking, onto the rears under power. Tyres gain grip more slowly than they gain load, so an axle carrying more transfer has less total grip left. A lower CG and wider track reduce cornering transfer; a lower CG and longer wheelbase reduce fore-aft transfer.\n\nHow roll stiffness is split front to rear decides which axle takes more of the cornering transfer, which is why that split sets handling balance. Forward transfer under braking is also why the recommended brake balance sits in front of the weight split.\n\n[PRO] LOAD TRANSFER, the last group in the VISUALS card, reads the balance model's own transfer at 1 g cornering, so springs and bars move it. FRONT TAKES is the front axle's share of the total transfer beside the weight split: more on the front than its weight share leans understeer. A top-down sketch draws each wheel's load in a left turn as a bar whose length is that load. CORNER is static corner mass; XFER is each axle's transfer per g, split into SPR+ARB (through the springs and bars, the part the tune moves) and GEOMETRY (through the roll centre, fixed); OUT / IN are the outer and inner wheel loads. LIFTS (amber) marks an inner wheel unloaded before 1 g: past that, more roll stiffness on that end stops shifting balance. FORE-AFT gives the axle loads under the ENTRY and EXIT phase loads (0.3 g braking, 0.2 g drive). Use it to see which end the bars load and how much camber the loaded outer tyre needs.",see:['roll-stiffness','brake-balance','sag-vs-load','grip-bias']},
+    {id:'grip-use',term:'Grip Use',tier:'pro',def:"GRIP USE, a PRO group in the VISUALS card, predicts how much of each axle's grip is in use when the car reaches its limit, from the same grip model as the Handling Balance bar, so it needs no laps. The axle that runs out first reads 100% and LIMIT, its meter outlined; the other shows what it has to spare. A front limit means understeer at the limit, a rear limit oversteer, and within 2% the axles run out together.\n\nMID is steady cornering. ENTRY adds 0.3 g of braking at the computed brake bias, EXIT 0.2 g of drive at the drive split; each axle's meter then shows, hatched, how much of its grip the braking or drive takes, through the friction circle. Unlike the bar's ENTRY and EXIT figures, these include the car's own weight transfer, so the two can differ: the bar isolates what the tune adds, this predicts what the tyres see.\n\nThe model has no tyre friction coefficient, so it cannot give the limit in g, only the shares. Both tyres on an axle run the same slip angle, so in the model they use the same share of their grip, and GRIP USE draws one meter per axle; an unloaded inner wheel reads INNER LIFTS.",see:['load-transfer','phase-verdict','brake-balance','grip-bias']},
     {id:'grip-neutral',term:'Grip-Neutral',tier:'pro',def:"Grip-Neutral is the mech balance at which the grip model reads exactly neutral (0.50) for this chassis at the current springs and bars, shown as GRIP TARGET in the Balance Guide. Targeting it cancels the chassis's built-in push or looseness instead of reinforcing it.\n\nGRIP target mode aims here plus Balance Offset, so it lands exactly on grip-neutral only at a 0 offset. It is not the mirror of GRIP BIAS: the two are in different units, and the model is not symmetric enough for a mirror to land on neutral. The Balance Guide's RANGE is measured in grip margin from this point, and a Vehicle DNA's BALANCE axis is measured from it.",see:['grip-bias','target-grip','target-range','mech-balance-target']},
     {id:'response',term:'Response (Planted / Reactive)',tier:'beginner',def:"Response is a separate bar from understeer/oversteer that rates transient character: how quickly the car reacts to steering, not which end lets go. PLANTED (left) is settled and damped, predictable but slower to change direction; REACTIVE (right) turns in immediately but can feel nervous. Within ±15 it reads BALANCED. A car can be perfectly neutral and still sit at either extreme.\n\nThe score weights front Hz 35%, rear Hz 20%, front toe 15%, caster 10%, front rebound damping 12% and rear rebound damping 8%. Higher Hz, lower rebound damping, more front toe-out and lower caster all read reactive. Anti-roll bars and weight bias are left out: they set balance, not response speed.\n\nBump damping is deliberately absent. At low shaft speed it resists roll initiation (planted); over bumps it deflects the car instead of absorbing them (skittish). One damping ratio cannot separate the two, so any sign here would be wrong on some surface.",see:['response-factors','hz','rebound','toe']},
   ]},
@@ -8679,7 +8679,8 @@ const TutorialPanel=({mode,step,quick=false,onQuick,onNext,onPrev,onClose,onDone
     // so its spotted parts aren't there yet — scrollSpot follows at measure time.
     if(el){
       const sidebar=document.querySelector('.sidebar-scroll');
-      if(sidebar){
+      // Only a zone inside the sidebar: VISUALS' column or view has a scroller of its own.
+      if(sidebar&&sidebar.contains(el)){
         const sr=sidebar.getBoundingClientRect();
         const er=el.getBoundingClientRect();
         if(er.top<sr.top+40||er.bottom>sr.bottom-40){
@@ -9318,16 +9319,20 @@ function App(){
     // Assignment, not a conditional: the old inline drawer only ever needed opening, but a
     // full-height overlay left open would obscure the results panel for every later step.
     setGaragePanelOpen(!!tutFocus?.includes('garage'));
+    // A step on the tune cards brings them back from the VISUALS view (below the column width).
+    if(tutFocus?.includes('output'))setVisView(false);
     if(stepMeta?.sidebar==='close')setSidebarOpen(false);
     else if(stepMeta?.sidebar==='open')setSidebarOpen(true);
     // Sidebar now defaults closed too — a step whose focus lives in the sidebar
     // must force it open, or the dimmed background has nothing left to spotlight.
     // Steps that only reference the output panel/balance bar force it closed so
     // that panel isn't obstructed. Focus-less info steps leave it as the user set it.
-    else if(tutFocus)setSidebarOpen(!(tutFocus.includes('output')||tutFocus.includes('balance-bar')));
+    // A VISUALS-only step closes it too: on a phone the drawer would cover the VISUALS view.
+    else if(tutFocus)setSidebarOpen(!(tutFocus.includes('output')||tutFocus.includes('balance-bar')
+      ||(isMobile&&tutFocus.every(z=>z==='visuals'))));
   },[tutMode,tutStep,tutQuick]); // eslint-disable-line
   // `open` holds two unrelated kinds of flag: the collapsible SIDEBAR SECTIONS (SECTION_KEYS
-  // below — exactly one per <Sec>, all nine of them, `visuals` included), and flags that are
+  // below — one per sidebar <Sec>; VISUALS left the sidebar and the list), and flags that are
   // not sections at all — balanceExpanded (the balance detail overlay), factoryOpen (the
   // GARAGE factory list) and the vis* cards NESTED INSIDE the VISUALS section. The SECTIONS
   // −/+ buttons used to blanket-toggle `Object.keys(p)`, which reached all of those: + popped
@@ -9339,7 +9344,11 @@ function App(){
   // still collapsing and toggling normally, which is how `alignment` hid: absent from the
   // initialiser, it read as falsy and `tog` worked, so nothing looked broken until + failed
   // to open that one section, in PRO only.
-  const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment','visuals'];
+  // `visuals` is not in SECTION_KEYS: VISUALS is no longer a sidebar section but its own column
+  // or view (visDock / visView below), so the SECTIONS −/+ buttons must not open or close it.
+  // Its `open.visuals` flag stays in the initialiser because the guide effect writes every
+  // SECTION_VIS key, and SECTION_VIS keeps its `visuals` row for the stored hidden lists.
+  const SECTION_KEYS=['chassis','build','brakes','balance','ride','dampers','arb','drivetrain','alignment'];
   const[open,setOpen]=useState({chassis:false,build:false,balance:false,ride:false,dampers:false,arb:false,drivetrain:false,alignment:false,brakes:false,balanceExpanded:false,factoryOpen:true,dnaSavedOpen:true,visuals:false,visDna:false,visRide:true,visDynamics:false,visSag:false,visAlign:false,visLoad:false,visGrip:false});
   // DYNAMICS chart RIDE/ROLL view. Session-only UI state, deliberately not persisted.
   const[dynView,setDynView]=useState('ride');
@@ -9350,9 +9359,27 @@ function App(){
   // group's header is scrolled to the top of the box, for the one case it still scrolls (a group
   // taller than the box's vh cap).
   const VIS_KEYS=['visDna','visRide','visDynamics','visSag','visAlign','visLoad','visGrip'];
+  // VISUALS' home (docs/VISUALS.md, "The container"). dock: the wide-screen column is open —
+  // stored, a layout preference like the garage's sort. pins: groups that stay open whatever
+  // section is being edited. visView: below the column breakpoint VISUALS swaps with the tune
+  // cards — session-only, so a reload always lands on the tune. activeSec: the input section
+  // last opened or touched, which picks the groups (VIS_FOR_SEC); session-only.
+  const[visUI,setVisUI]=usePersist('suspos_visuals_ui_v1',{dock:false,pins:[]},
+    v=>({dock:v.dock===true,pins:Array.isArray(v.pins)?[...new Set(v.pins.filter(k=>VIS_KEYS.includes(k)))]:[]}));
+  const[visView,setVisView]=useState(false);
+  const[activeSec,setActiveSec]=useState(null);
+  const visPinned=k=>visUI.pins.includes(k);
+  const visTogPin=k=>e=>{
+    e.stopPropagation();
+    const on=!visPinned(k);
+    setVisUI(u=>({...u,pins:on?[...u.pins,k]:u.pins.filter(x=>x!==k)}));
+    if(on)setOpen(p=>({...p,[k]:true}));
+  };
+  // A header click toggles that group alone: the open set otherwise follows the sidebar's open
+  // sections (VIS_FOR_SEC below), which can hold several groups at once.
   const visTog=key=>e=>{
     const hdr=e.currentTarget,opening=!open[key];
-    setOpen(p=>({...p,...Object.fromEntries(VIS_KEYS.map(k=>[k,false])),[key]:!p[key]}));
+    setOpen(p=>({...p,[key]:!p[key]}));
     if(opening)setTimeout(()=>{
       const box=hdr.closest('[data-vis-box]');
       if(box)box.scrollTop+=hdr.getBoundingClientRect().top-box.getBoundingClientRect().top;
@@ -9475,9 +9502,6 @@ function App(){
   const[footerOpen,setFooterOpen]=useState(()=>window.innerWidth>=480);
   const[windowWidth,setWindowWidth]=useState(window.innerWidth);
   const update=useDeployCheck(); // a newer app is live — GitHub button turns into RELOAD, or a download link off file://
-  // Phone: true while a sidebar text field/select has focus (keyboard up) — hides the pinned
-  // VISUALS footer so the scrolling controls keep their height.
-  const[sbTyping,setSbTyping]=useState(false);
   const swipeRef=useRef(null);
   useEffect(()=>{
     const preload=document.getElementById('pre-load');
@@ -9576,9 +9600,9 @@ function App(){
   // sync — header row 1, header row 2, sidebar top — or those controls become unreachable in
   // the gap. Deliberately NOT folded into isMobile, which also drives the sidebar overlay, the
   // backdrop, sidebarWidth and the brand sizing; this flag decides placement only.
-  // Do not lower 1000 without re-measuring the GARAGE button's right edge against the viewport
-  // (it was flush at exactly 960). Full measurement and rationale: docs/CODE_MAP.md.
-  const headerCompact=windowWidth<1000;
+  // Do not lower 1040 without re-measuring the GARAGE button's right edge against the viewport
+  // (flush at exactly 960 before VIS joined row 1; with it, GARAGE ended at 985 in a 1000 window). Full measurement and rationale: docs/CODE_MAP.md.
+  const headerCompact=windowWidth<1040;
 
   const pCh=k=>v=>setCh(p=>({...p,[k]:v}));
   // CHASSIS' JBEAM ADJUST block: closed by default, and open regardless while any of its values
@@ -9587,7 +9611,8 @@ function App(){
   const[jbOpen,setJbOpen]=useState(false);
   const pFe=k=>v=>setFe(p=>({...p,[k]:v}));
   const pDr=k=>v=>setDr(p=>({...p,[k]:v}));
-  const tog=k=>()=>setOpen(p=>({...p,[k]:!p[k]}));
+  // Opening a sidebar section also makes it the active one VISUALS follows (VIS_FOR_SEC).
+  const tog=k=>()=>{if(!open[k]&&SECTION_KEYS.includes(k))setActiveSec(k);setOpen(p=>({...p,[k]:!p[k]}));};
 
   // ─── Undo / redo wiring ─────────────────────────────────────────────────────
   // makeHistory holds the stacks; this drives it. snapRef is rebuilt on every render, so it is
@@ -9956,6 +9981,81 @@ function App(){
   const physMode=isPhysical(fe.gameMode);
   const arbMode=fe.arbMode??'auto'; // ARB Stiffness Mode with the pre-field default; read by the effects and JSX below
   const arbBalMode=fe.arbBalMode??'weight'; // ARB Balance Mode, likewise
+
+  // ── VISUALS placement ──
+  // ≥ VIS_COL_MIN: a docked column between the sidebar and the output (Inputs | Visuals | Tune),
+  // toggled by the header's VIS and remembered (visUI.dock). Below it the column would leave the
+  // output ~300px, so VISUALS instead swaps with the tune cards inside the output panel (visView,
+  // session-only) — the balance bar stays under it, and on a phone the inputs drawer slides over
+  // it as it does over the cards, so Inputs → Visuals → Inputs is one tap each way. A guide step
+  // that focuses VISUALS shows it either way; on a phone only when no sidebar section shares the
+  // step, since the drawer would cover it. BEG has no VISUALS at all.
+  const VIS_COL_MIN=1200;
+  const visWide=windowWidth>=VIS_COL_MIN;
+  const visTut=!!tutFocus?.includes('visuals')&&(!isMobile||tutFocus.every(z=>z==='visuals'||z==='output'||z==='balance-bar'));
+  const visAllowed=uiMode!=='beginner'&&secVis('visuals')!=='none';
+  const visShown=visAllowed&&(visTut||(visWide?visUI.dock:visView));
+  const visOn=visWide?visUI.dock:visView; // what the VIS buttons show as on
+  const toggleVis=()=>{if(visWide)setVisUI(u=>({...u,dock:!u.dock}));else setVisView(v=>!v);};
+  // Which groups can render now: the same gates the groups use, and not hidden in the edit view.
+  const sagAvail=!!ch.useRideHeightCG&&parseTyre(ch.tyreF)?.radius!=null&&parseTyre(ch.tyreR)?.radius!=null;
+  const VIS_HIDE_ID={visDna:'visuals.dna',visRide:'visuals.ride',visDynamics:'visuals.dynamics',visSag:'visuals.sag',
+    visAlign:null,visLoad:'visuals.load',visGrip:'visuals.grip'};
+  const visAvail=k=>{
+    if(VIS_HIDE_ID[k]&&layoutCtx.isHidden(VIS_HIDE_ID[k]))return false;
+    return{visDna:!!dnaLink,visRide:true,visDynamics:true,visSag:sagAvail,visAlign:!physMode,
+      visLoad:uiMode==='pro',visGrip:uiMode==='pro'}[k];
+  };
+  // Contextual groups: VISUALS mirrors the sidebar. Opening a section opens its groups
+  // (VIS_FOR_SEC, those that can render now); collapsing it closes them again, unless another
+  // open section or a pin still wants them. Groups a section doesn't name are left as they are,
+  // so one opened by hand stays until its own header closes it. When VISUALS appears it matches
+  // the sections already open. BRAKES opening turns GRIP USE to ENTRY and DRIVETRAIN to EXIT,
+  // unless GRIP USE is pinned (a pinned group is left exactly as it is). Off during a guide, which
+  // opens sections for its own reasons; the tracking carries on so its end moves nothing.
+  const VIS_FOR_SEC={chassis:['visSag','visLoad'],build:['visRide'],balance:['visRide','visGrip'],
+    ride:['visRide','visSag'],dampers:['visDynamics'],arb:['visRide','visLoad'],
+    drivetrain:['visGrip'],brakes:['visGrip'],alignment:['visAlign']};
+  const visWant=sec=>(VIS_FOR_SEC[sec]??[]).filter(visAvail);
+  const openSecKey=SECTION_KEYS.filter(k=>open[k]).join(',');
+  const visPrevSecs=useRef(null),visWasShown=useRef(false);
+  useEffect(()=>{
+    const now=openSecKey?openSecKey.split(','):[],prev=visPrevSecs.current??[];
+    const appeared=visShown&&!visWasShown.current;
+    visPrevSecs.current=now;visWasShown.current=visShown;
+    if(!visShown||tutMode)return;
+    const pins=visUI.pins,keep=new Set([...pins,...now.flatMap(visWant)]);
+    if(appeared){
+      // A fresh load or VIS just pressed: the open sections decide; with none open, only the pins
+      // (which `open` does not remember) are added to what is already showing.
+      if(now.length)setOpen(p=>({...p,...Object.fromEntries(VIS_KEYS.map(k=>[k,keep.has(k)]))}));
+      else if(pins.length)setOpen(p=>({...p,...Object.fromEntries(pins.map(k=>[k,true]))}));
+      return;
+    }
+    const opened=now.filter(k=>!prev.includes(k)),closed=prev.filter(k=>!now.includes(k));
+    if(!opened.length&&!closed.length)return;
+    const toClose=closed.flatMap(visWant).filter(k=>!keep.has(k)),toOpen=opened.flatMap(visWant);
+    setOpen(p=>({...p,...Object.fromEntries(toClose.map(k=>[k,false])),...Object.fromEntries(toOpen.map(k=>[k,true]))}));
+    if(!pins.includes('visGrip')){
+      if(opened.includes('brakes'))setGripPhase('entry');
+      else if(opened.includes('drivetrain'))setGripPhase('exit');
+    }
+  },[openSecKey,visShown]); // eslint-disable-line
+  // Touching a control in a sidebar section makes it the active one too (opening it via tog does
+  // already); the zone id names the section through SEC_ZONE.
+  const SEC_OF_ZONE=useMemo(()=>Object.fromEntries(Object.entries(SEC_ZONE).map(([k,z])=>[z,k])),[]);
+  const noteActiveSec=e=>{
+    const z=e.target.closest?.('[id^="zone-"]')?.id?.slice(5);
+    const k=z&&SEC_OF_ZONE[z];
+    if(k&&SECTION_KEYS.includes(k)&&k!==activeSec)setActiveSec(k);
+  };
+  // The pin on each VISUALS group header.
+  const visPin=k=>(
+    <button type="button" onClick={visTogPin(k)} aria-pressed={visPinned(k)}
+      title={visPinned(k)?'Pinned: stays open whichever section you edit. Click to unpin.':'Pin: keep this open whichever section you edit.'}
+      style={{background:'none',border:`1px solid ${visPinned(k)?'#e2e8f055':'#1e293b'}`,borderRadius:2,cursor:'pointer',
+              fontFamily:'var(--font-mono)',fontSize:10,lineHeight:1.2,padding:'1px 5px',marginLeft:4,
+              color:visPinned(k)?'#e2e8f0':T_FAINT,letterSpacing:1}}>{visPinned(k)?'PINNED':'PIN'}</button>);
   // Switching onto a target solve (ARB MECH / CO-SOLVE, or BALANCE's unlock button) moves the car
   // to the Mech Balance Target, natural on a fresh build, not to where it sat. That is meant,
   // so the switch says so instead: balSwitchNote keeps the balance from
@@ -10606,6 +10706,504 @@ function App(){
   // Keep LAST among App's effects: every effect above has already seen this render's restore.
   useEffect(()=>{restoringRef.current=false;});
 
+  // ── VISUALS container ──
+  // The groups, called as a function rather than rendered as a component: a component type
+  // defined in App's body is new every render, which would remount every chart and close an
+  // open ⓘ. visualsPanel wraps them for either home — the docked column (col) or the view that
+  // swaps with the tune cards — under one zone-visuals id, so guides and the edit view find it.
+  const visualsBody=()=>(<>
+              {dnaLink&&<Hide id="visuals.dna">
+              <div className="collapsible-hdr" onClick={visTog('visDna')}
+                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>DNA MATCH</span>
+                <span style={{fontSize:10,color:'#818cf8'}}>{dnaLink.name}</span>
+                <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visDna?'▲':'▼'}</span>{visPin('visDna')}
+              </div>
+              {open.visDna&&<div style={{padding:'0 4px',marginBottom:14,fontSize:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',color:T_MUTED,fontSize:10,letterSpacing:1,marginBottom:2}}>
+                  <span>AXIS</span><span style={{textAlign:'right'}}>TARGET</span><span style={{textAlign:'right'}}>NOW</span><span/>
+                </div>
+                {dnaLink.rows.map(r=>{
+                  const ui=DNA_AXIS_UI.find(a=>a.k===r.k);
+                  return(
+                    <div key={r.k} style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',lineHeight:1.7}}>
+                      <span style={{color:'#94a3b8'}}>{ui.label}</span>
+                      <span style={{textAlign:'right',color:T_MUTED,fontFamily:'var(--font-mono)'}}>{dnaFmt(r.k,r.target)}</span>
+                      <span style={{textAlign:'right',color:r.drift?C_WARN:'#cbd5e1',fontFamily:'var(--font-mono)'}}>
+                        {r.cur==null?'MODE':dnaFmt(r.k,r.cur)}</span>
+                      <span style={{color:r.drift?C_WARN:C_GOOD,textAlign:'center'}}>{r.drift?'≠':'✓'}</span>
+                    </div>
+                  );
+                })}
+                <div style={{fontSize:10,color:T_MUTED,marginTop:4,lineHeight:1.5}}>
+                  ≠ = changed since APPLY. MODE = that control is no longer in the mode DNA set. <TermLink id="dna-match"/>
+                </div>
+              </div>}
+              </Hide>}
+              {(()=>{
+                // RIDE · ROLL · DAMPING — replaced the ARB (ArbDial + roll seesaw) and RIDE /
+                // DAMPERS (SpringDial + DampingDial) groups. The split divide is the display-space
+                // mech balance the MECH BALANCE strip plots; a null falls back to the raw roll-
+                // stiffness rear fraction so the card still draws.
+                const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
+                const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
+                return<Hide id="visuals.ride"><div>
+              <div className="collapsible-hdr" onClick={visTog('visRide')}
+                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                <span style={{fontSize:10,letterSpacing:2,color:T_MUTED}}>RIDE · ROLL · DAMPING</span>
+                {!open.visRide&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
+                  R {Math.round(mechBal*100)}% · ×{tune.fHz>0?(tune.rHz/tune.fHz).toFixed(2):'—'} · {tune.rollDeg.toFixed(2)}°</span>}
+                <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visRide?'▲':'▼'}</span>{visPin('visRide')}
+              </div>
+              {open.visRide&&
+              <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:10,display:'flex',flexDirection:'column',gap:8}}>
+                <VisRollSplit mechBal={mechBal} natBal={natMechBalance} target={feEffective.arbBalTarget}
+                  rsSpF={tune.rsSpF} rsAbF={tune.rsAbF} rsSpR={tune.rsSpR} rsAbR={tune.rsAbR}
+                  rollDeg={tune.rollDeg} rollClamped={tune.rollClamped}
+                  rollTarget={arbMode==='roll'?tune.rollTarget:null} arbShare={tune.arbShare}/>
+                <div style={{height:1,background:'#1e293b'}}/>
+                {/* No ceiling in physical modes, so the ARB track gets a dynamic full scale
+                    with 25% headroom above the stiffer bar; VisSuspTracks hides its bands. */}
+                <VisSuspTracks tune={tune} physics={physics}
+                  natBal={natMechBalance} target={feEffective.arbBalTarget}
+                  arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
+                  dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF,jbAdj(ch,'Arb','F')).value}
+                  dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR,jbAdj(ch,'Arb','R')).value}
+                  hzClamped={physics.rearHzClamped}/>
+              </div>}
+                </div></Hide>;
+              })()}
+
+              <Hide id="visuals.dynamics">
+              <div className="collapsible-hdr" onClick={visTog('visDynamics')}
+                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>DYNAMICS</span>
+                <Hint text="Each axle settling back to ride height after one bump. Strip = ±10% of the initial displacement; dashed line = settle time (last exit from the strip); ring = first ride-height crossing." term="dynamics-chart"/>
+                <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visDynamics?'▲':'▼'}</span>{visPin('visDynamics')}
+              </div>
+              {open.visDynamics&&(()=>{
+                // ROLL view: the same damper and spring plus an undamped bar, per axle —
+                // s = √(rsSp/(rsSp+rsAb)); ζ scales by s, frequency by 1/s. Settle and neutral
+                // markers are the same definitions applied to the roll trace.
+                const roll=dynView==='roll';
+                const sh=(sp,ab)=>!roll?1:(sp+ab)>0?Math.sqrt(sp/(sp+ab)):1;
+                const sF=sh(tune.rsSpF??0,tune.rsAbF??0),sR=sh(tune.rsSpR??0,tune.rsAbR??0);
+                const fReb=(tune.zetaF??physics.reboundZeta??70)*sF;
+                const fBmp=(tune.bumpZetaF??physics.bumpZeta??39)*sF;
+                const rReb=(tune.zetaR??physics.reboundZeta??70)*sR;
+                const rBmp=(tune.bumpZetaR??physics.bumpZeta??39)*sR;
+                const fHzV=tune.fHz/(sF||1),rHzV=tune.rHz/(sR||1);
+                // Settle time is measured off the plotted trace rather than read from
+                // tune.settleF/R, because this dashed line annotates THIS curve: the analytic
+                // figure sees REBOUND ζ only, while computeOscillation alternates rebound/bump by
+                // velocity sign. DAMPERS deliberately keeps quoting the analytic one — it is what
+                // SETTLE TIME mode back-solves against, so changing it would break that
+                // round-trip. The two therefore disagree on purpose, and the chart's own Hint
+                // says so.
+                // Three things about this marker surprise people, all properties of the "last
+                // band exit" definition rather than of the integration: it can land BEFORE the
+                // neutral ring, it steps rather than sliding as ζ rises, and the quickest settle
+                // is not at critical damping. docs/PHYSICS.md carries the derivation, the exact
+                // figures either side of the step, and the textbook cross-check.
+                // Window fit, trace and measurement all live in measureSettle, shared with the
+                // DAMPERS table's Settle-row MEAS so the two can never disagree.
+                const{durSec,frontPts,rearPts,fSettle,rSettle}=
+                  measureSettle(fHzV,fReb,fBmp,rHzV,rReb,rBmp,tune.settleF,tune.settleR);
+                const W=280,H=80,midY=40,yScale=32,xScale=W/durSec;
+                const toPolyPts=pts=>pts.map(p=>`${(p.t*xScale).toFixed(1)},${(midY-p.x*yScale).toFixed(1)}`).join(' ');
+                // null = still outside the band at the window edge; pin the line there so it
+                // agrees with the readout's ">" label. A guard, not a common path: the slowest
+                // reachable tune (HZ_MIN 0.8, ζ floor 10%) measures ~3.9s inside the 4s cap.
+                const fSetX=Math.min(W-1,(fSettle??durSec)*xScale);
+                const rSetX=Math.min(W-1,(rSettle??durSec)*xScale);
+                // First neutral (ride-height) crossing: linearly interpolate the sample pair
+                // that straddles x=0. One ring per axle — a rise-speed indicator, distinct from
+                // the settle-time dashed line — same "mark the meaningful point" pattern as the
+                // SAG vs LOAD chart's operating-point/bottom-out rings.
+                const firstCrossing=pts=>{
+                  for(let i=1;i<pts.length;i++){
+                    const a=pts[i-1],b=pts[i];
+                    if((a.x<0)!==(b.x<0))return a.t+(b.t-a.t)*(a.x/(a.x-b.x));
+                  }
+                  return null;
+                };
+                const fCross=firstCrossing(frontPts),rCross=firstCrossing(rearPts);
+                const crossMarker=(t,color)=>t==null?null:(
+                  <circle cx={t*xScale} cy={midY} r={2.2} fill="#020617" stroke={color} strokeWidth={1.4}/>
+                );
+                return(
+                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:6,display:'flex',flexDirection:'column',gap:4}}>
+                    {/* RIDE / ROLL in the body, full width, as GRIP USE's phase tabs: the header has no room. */}
+                    <OptionSeg label="Dynamics view">
+                      {[['ride','RIDE'],['roll','ROLL']].map(([k,l])=>
+                        <button key={k} className={`tog${dynView===k?' on':''}`}
+                          title={k==='roll'?'Roll response per axle: the ARB adds roll stiffness without damping. A comparison view only.':'Ride (heave) response per axle.'}
+                          onClick={()=>setDynView(k)}>{l}</button>)}
+                    </OptionSeg>
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
+                      {/* The ±10% band the settle markers are measured against. Without it the
+                          dashed line reads as arbitrary — worse, past ζ≈60% it lands BEFORE the
+                          neutral ring, which looks impossible until you can see that the trace
+                          enters the band on the way down and never leaves again. */}
+                      <rect x={0} y={midY-SETTLE_ENV*yScale} width={W} height={2*SETTLE_ENV*yScale}
+                            fill="#64748b" opacity={0.10}/>
+                      <line x1={0} y1={midY-SETTLE_ENV*yScale} x2={W} y2={midY-SETTLE_ENV*yScale}
+                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
+                      <line x1={0} y1={midY+SETTLE_ENV*yScale} x2={W} y2={midY+SETTLE_ENV*yScale}
+                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
+                      <text x={2} y={midY-SETTLE_ENV*yScale-2} fontSize={10} fill={T_MUTED}
+                            fontFamily="JetBrains Mono, monospace">±10%</text>
+                      <line x1={0} y1={midY} x2={W} y2={midY} stroke="#1e293b" strokeWidth={1}/>
+                      <line x1={fSetX} y1={0} x2={fSetX} y2={H} stroke="#38bdf855" strokeWidth={1} strokeDasharray="3 3"/>
+                      <line x1={rSetX} y1={0} x2={rSetX} y2={H} stroke="#fb923c55" strokeWidth={1} strokeDasharray="3 3"/>
+                      <polyline points={toPolyPts(rearPts)}  fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round"/>
+                      <polyline points={toPolyPts(frontPts)} fill="none" stroke="#38bdf8" strokeWidth={1.5} strokeLinejoin="round"/>
+                      {crossMarker(rCross,'#fb923c')}
+                      {crossMarker(fCross,'#38bdf8')}
+                      <text x={W-6} y={13} textAnchor="end" fontSize={10} fill="#38bdf8" fontFamily="JetBrains Mono, monospace">F</text>
+                      <text x={W-6} y={25} textAnchor="end" fontSize={10} fill="#fb923c" fontFamily="JetBrains Mono, monospace">R</text>
+                    </svg>
+                    <div style={{display:'flex',flexDirection:'column',gap:2,fontFamily:'var(--font-mono)'}}>
+                      <div style={{display:'flex',gap:12}}>
+                        <span style={{fontSize:10,color:'#38bdf8'}}>settle {fSettle!=null?`${fSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
+                        <span style={{fontSize:10,color:'#fb923c'}}>settle {rSettle!=null?`${rSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
+                      </div>
+                      <div style={{display:'flex',gap:12}}>
+                        <span style={{fontSize:10,color:'#38bdf8',opacity:0.75}}>{fCross!=null?`neutral ≈${fCross.toFixed(2)}s`:'no neutral cross'}</span>
+                        <span style={{fontSize:10,color:'#fb923c',opacity:0.75}}>{rCross!=null?`neutral ≈${rCross.toFixed(2)}s`:'no neutral cross'}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              </Hide>
+
+              <Hide id="visuals.sag">
+              {ch.useRideHeightCG&&(()=>{
+                const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
+                const tyresOk=pF?.radius!=null&&pR?.radius!=null;
+                if(!tyresOk)return null;
+                const gConst=9810;
+                const sagF=gConst/Math.pow(2*Math.PI*tune.fHz,2);
+                const sagR=gConst/Math.pow(2*Math.PI*tune.rHz,2);
+                const rhF=ch.rideHeightF*1000,rhR=ch.rideHeightR*1000;
+                const riskOf=ratio=>ratio>=1?['BOTTOMED',C_ERR]:ratio>=0.8?['HIGH',C_WARN]:ratio>=0.5?['MED','#eab308']:['LOW',C_GOOD];
+                const[rF]=riskOf(sagF/rhF),[rR]=riskOf(sagR/rhR);
+                const COL_F='#60a5fa',COL_R='#fb923c';
+                const gBottomF=rhF/sagF,gBottomR=rhR/sagR;
+                // Outside-wheel line: adds lateral-load-transfer compression (same LLT model as
+                // MECH BAL / grip balance) on top of static sag, so cornering g — not just
+                // vertical g — shows up as its own bottoming risk.
+                const m_=cornerMasses(ch);
+                const Kf_=tune.rsSpF+tune.rsAbF,Kr_=tune.rsSpR+tune.rsAbR;
+                const{dWf,dWr}=latLoadTransfer(ch,Kf_,Kr_);
+                const kWheelF=m_.front*Math.pow(2*Math.PI*tune.fHz,2),kWheelR=m_.rear*Math.pow(2*Math.PI*tune.rHz,2);
+                const dSagF=kWheelF>0?dWf/kWheelF*1000:0,dSagR=kWheelR>0?dWr/kWheelR*1000:0;
+                const gBottomOutF=sagF>=rhF?0:(dSagF>0?(rhF-sagF)/dSagF:Infinity);
+                const gBottomOutR=sagR>=rhR?0:(dSagR>0?(rhR-sagR)/dSagR:Infinity);
+                const gMax=Math.max(1,Math.min(6,Math.max(gBottomF,gBottomR,gBottomOutF,gBottomOutR,1)*1.25));
+                const yMax=Math.max(rhF,rhR,sagF*gMax,sagR*gMax,sagF+dSagF*gMax,sagR+dSagR*gMax)*1.08;
+                // padL holds only the axis's 0 and its unit: the ride-height and sag values are printed under
+                // the chart, since four of them in the margin collided (see docs/VISUALS.md).
+                const W=280,H=115,padL=22,padB=20,padT=10,padR=10;
+                const plotW=W-padL-padR,plotH=H-padT-padB;
+                const xS=g_=>padL+(g_/gMax)*plotW;
+                const yS=mm=>padT+plotH-(mm/yMax)*plotH;
+                const toDisp=mm=>mLen?mm/10:mm/IN_TO_MM;
+                const gEndF=Math.min(gMax,yMax/sagF),gEndR=Math.min(gMax,yMax/sagR);
+                const gEndOutF=Math.min(gMax,sagF+dSagF*gMax<=yMax||dSagF<=0?gMax:(yMax-sagF)/dSagF);
+                const gEndOutR=Math.min(gMax,sagR+dSagR*gMax<=yMax||dSagR<=0?gMax:(yMax-sagR)/dSagR);
+                const xTicks=Array.from({length:Math.floor(gMax)+1},(_,i)=>i).filter(g_=>g_<=gMax);
+                return(<>
+                  <div className="collapsible-hdr" onClick={visTog('visSag')}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,marginTop:6,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>SAG vs LOAD</span>
+                    <Hint text="Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top." term="sag-vs-load"/>
+                    {open.visSag&&<span style={{marginLeft:'auto',display:'flex',gap:8,fontSize:10}}>
+                      <span style={{color:COL_F}}>● FRONT {rF}</span>
+                      <span style={{color:COL_R}}>● REAR {rR}</span>
+                    </span>}
+                    <span style={{marginLeft:open.visSag?0:'auto',fontSize:10,color:T_MUTED}}>{open.visSag?'▲':'▼'}</span>{visPin('visSag')}
+                  </div>
+                  {open.visSag&&
+                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:4}}>
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto'}}>
+                      {/* axes */}
+                      <line x1={padL} y1={padT} x2={padL} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
+                      <line x1={padL} y1={H-padB} x2={W-padR} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
+                      {xTicks.map(g_=>(
+                        <g key={g_}>
+                          <line x1={xS(g_)} y1={H-padB} x2={xS(g_)} y2={H-padB+3} stroke="#334155" strokeWidth={1}/>
+                          <text x={xS(g_)} y={H-padB+13} fontSize={10} fill={T_MUTED} textAnchor="middle" fontFamily="var(--font-mono)">{g_}g</text>
+                        </g>
+                      ))}
+                      <text x={2} y={padT+4} fontSize={10} fill={T_MUTED} fontFamily="var(--font-mono)">{mLen?'cm':'in'}</text>
+                      <text x={2} y={H-padB} fontSize={10} fill={T_MUTED} fontFamily="var(--font-mono)">0</text>
+                      {/* bump-stop zone: real springs go progressive well before metal-to-metal
+                          contact — shade the top 12% of each axle's travel as a reminder that
+                          the diagonal below is a linear-rate approximation, softest right where
+                          it matters most. */}
+                      <rect x={padL} y={yS(rhF)} width={plotW} height={yS(rhF*(1-BUMP_STOP_ZONE))-yS(rhF)} fill={COL_F} opacity={0.08}/>
+                      <rect x={padL} y={yS(rhR)} width={plotW} height={yS(rhR*(1-BUMP_STOP_ZONE))-yS(rhR)} fill={COL_R} opacity={0.08}/>
+                      {/* ride-height (bottom-out) reference lines */}
+                      <line x1={padL} y1={yS(rhF)} x2={W-padR} y2={yS(rhF)} stroke={COL_F} strokeWidth={1} strokeDasharray="3,2" opacity={0.6}/>
+                      <line x1={padL} y1={yS(rhR)} x2={W-padR} y2={yS(rhR)} stroke={COL_R} strokeWidth={1} strokeDasharray="3,2" opacity={0.6}/>
+                      {/* outside-wheel-under-cornering-load diagonals (LLT model) */}
+                      <line x1={xS(0)} y1={yS(sagF)} x2={xS(gEndOutF)} y2={yS(sagF+dSagF*gEndOutF)} stroke={COL_F} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
+                      <line x1={xS(0)} y1={yS(sagR)} x2={xS(gEndOutR)} y2={yS(sagR+dSagR*gEndOutR)} stroke={COL_R} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
+                      {isFinite(gBottomOutF)&&gBottomOutF<=gMax&&<circle cx={xS(gBottomOutF)} cy={yS(rhF)} r={2} fill="none" stroke={COL_F} strokeWidth={1.3}/>}
+                      {isFinite(gBottomOutR)&&gBottomOutR<=gMax&&<circle cx={xS(gBottomOutR)} cy={yS(rhR)} r={2} fill="none" stroke={COL_R} strokeWidth={1.3}/>}
+                      {/* sag-vs-load diagonals (uniform vertical g) */}
+                      <line x1={xS(0)} y1={yS(0)} x2={xS(gEndF)} y2={yS(sagF*gEndF)} stroke={COL_F} strokeWidth={2}/>
+                      <line x1={xS(0)} y1={yS(0)} x2={xS(gEndR)} y2={yS(sagR*gEndR)} stroke={COL_R} strokeWidth={2}/>
+                      {/* static 1g operating point */}
+                      {gMax>=1&&<circle cx={xS(1)} cy={yS(sagF)} r={1.8} fill="#0a0f1a" stroke={COL_F} strokeWidth={1.3}/>}
+                      {gMax>=1&&<circle cx={xS(1)} cy={yS(sagR)} r={1.8} fill="#0a0f1a" stroke={COL_R} strokeWidth={1.3}/>}
+                      {/* bottom-out markers, only if reached within the plotted range */}
+                      {gBottomF<=gMax&&<circle cx={xS(gBottomF)} cy={yS(rhF)} r={2.5} fill={COL_F}/>}
+                      {gBottomR<=gMax&&<circle cx={xS(gBottomR)} cy={yS(rhR)} r={2.5} fill={COL_R}/>}
+                    </svg>
+                    <div style={{display:'flex',flexDirection:'column',gap:2,fontFamily:'var(--font-mono)'}}>
+                      {/* Ride height (the dashed line) and 1 g sag (the ring), per axle, in the length unit. */}
+                      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,color:COL_F}}>F ride {toDisp(rhF).toFixed(mLen?1:2)} · sag {toDisp(sagF).toFixed(mLen?1:2)} {mLen?'cm':'in'}</span>
+                        <span style={{fontSize:10,color:COL_R}}>R ride {toDisp(rhR).toFixed(mLen?1:2)} · sag {toDisp(sagR).toFixed(mLen?1:2)} {mLen?'cm':'in'}</span>
+                      </div>
+                      <div style={{display:'flex',gap:12}}>
+                        <span style={{fontSize:10,color:COL_F}}>{gBottomF<=gMax?`bottoms ≈${gBottomF.toFixed(1)}g`:`no bottom ≤${gMax.toFixed(1)}g`}</span>
+                        <span style={{fontSize:10,color:COL_R}}>{gBottomR<=gMax?`bottoms ≈${gBottomR.toFixed(1)}g`:`no bottom ≤${gMax.toFixed(1)}g`}</span>
+                      </div>
+                      <div style={{display:'flex',gap:12}}>
+                        <span style={{fontSize:10,color:COL_F,opacity:0.75}}>{isFinite(gBottomOutF)&&gBottomOutF<=gMax?`outside ≈${gBottomOutF.toFixed(1)}g lat`:'outside: no bottom'}</span>
+                        <span style={{fontSize:10,color:COL_R,opacity:0.75}}>{isFinite(gBottomOutR)&&gBottomOutR<=gMax?`outside ≈${gBottomOutR.toFixed(1)}g lat`:'outside: no bottom'}</span>
+                      </div>
+                    </div>
+                  </div>}
+                </>);
+              })()}
+              </Hide>
+              {/* ALIGNMENT (INT+, Forza modes): camber vs roll and the range strips. See docs/VISUALS.md. */}
+              {!physMode&&(()=>{
+                const{camberGain,rearGainMult}=camberGainOf(ch,ch.layout);
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visAlign')}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>ALIGNMENT</span>
+                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visAlign?'▲':'▼'}</span>{visPin('visAlign')}
+                  </div>
+                  {open.visAlign&&<div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:8}}>
+                    <VisCamberRoll camberF={align.recCamberF} camberR={align.recCamberR}
+                      targetF={autoAlign.target.camberF} targetR={autoAlign.target.camberR}
+                      rollDeg={tune.rollDeg} gainF={camberGain} gainR={camberGain*rearGainMult}/>
+                    <VisAlignStrips align={align} autoAlign={autoAlign} gameMode={fe.gameMode}/>
+                  </div>}
+                </div>);
+              })()}
+              {/* LOAD TRANSFER (PRO): the grip model's own transfer at 1 g (loadTransferOf), so the
+                  springs and bars move it. Moved here from the bottom of the expanded Handling
+                  Balance panel: it is a picture of the car's loads, like the groups above. */}
+              <Hide id="visuals.load">
+              {uiMode==='pro'&&(()=>{
+                const lt=loadTransferOf(ch,tune);
+                const{front:F,rear:R}=lt;
+                const lift=C_WARN;
+                const Row=({la,lv,ra,rv,dim,last,lw,rw})=>(
+                  <div style={{display:'flex',alignItems:'center',gap:6,padding:'2px 6px',
+                               ...(last?{}:{borderBottom:'1px solid #0f172a'}),
+                               opacity:dim?0.55:1}}>
+                    <span style={{fontSize:10,color:T_MUTED,letterSpacing:1,minWidth:50}}>{la}</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:lw?lift:T_MUTED}}>{lv}</span>
+                    <div style={{flex:1,height:1,background:'#0f172a'}}/>
+                    <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>{ra}</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:rw?lift:T_MUTED}}>{rv}</span>
+                  </div>
+                );
+                // Top-down sketch at 1 g in a left turn: load moves to the right-hand (outer) wheels.
+                // Each wheel is an outline with a bar growing outward from it, its LENGTH the wheel's
+                // load against the heaviest wheel's (BAR_MAX) — a different mark from GRIP USE's
+                // meters, which fill toward a limit, so the two read apart at a glance. Front blue,
+                // rear orange; a lifted wheel is an amber dashed outline with no bar.
+                const maxW=Math.max(F.out,R.out,1),BAR_MAX=40;
+                const Wheel=({x,y,kg,lifts,out,col})=>{
+                  const len=lifts?0:BAR_MAX*kg/maxW,bx=out?x+14:x-2-len;
+                  return(<>
+                    <rect x={x} y={y} width={12} height={26} rx={2} fill="#020617"
+                      stroke={lifts?lift:col} strokeOpacity={lifts?1:0.7} strokeDasharray={lifts?'3 2':undefined}/>
+                    {len>0&&<rect x={bx} y={y+8} width={len} height={8} rx={1} fill={col} opacity={0.75}/>}
+                    <text x={out?x+14:x-2} y={y+28} textAnchor={out?'start':'end'} fontSize={9} fill={lifts?lift:'#94a3b8'}
+                      fontFamily="var(--font-mono)">{lifts?'LIFT':dispMass(kg)}</text>
+                  </>);
+                };
+                const d=lt.frontShare-lt.weightFront;
+                const shareCol=Math.abs(d)<1?'#e2e8f0':d>0?C_US:C_OS;
+                const anyLift=F.lifts||R.lifts;
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visLoad')}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>LOAD TRANSFER</span>
+                    <Hint text="Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer." term="load-transfer"/>
+                    {!open.visLoad&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
+                      F <span style={{color:shareCol}}>{lt.frontShare.toFixed(0)}%</span> · WT {lt.weightFront.toFixed(0)}%
+                      {anyLift&&<span style={{color:lift}}> · LIFT</span>}
+                    </span>}
+                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visLoad?'▲':'▼'}</span>{visPin('visLoad')}
+                  </div>
+                  {open.visLoad&&
+                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:6}}>
+                    <div style={{fontSize:10,color:T_MUTED,fontFamily:'var(--font-mono)'}}>
+                      FRONT TAKES <span style={{color:shareCol}}>{lt.frontShare.toFixed(1)}%</span>
+                      {' · '}WEIGHT <span style={{color:'#94a3b8'}}>{lt.weightFront.toFixed(0)}%</span>
+                    </div>
+                    <svg viewBox="0 0 170 150" style={{width:220,maxWidth:'100%',alignSelf:'center'}} role="img"
+                         aria-label={`Wheel loads at 1 g, left turn: front ${dispMass(F.inn)} inner, ${dispMass(F.out)} outer; rear ${dispMass(R.inn)} inner, ${dispMass(R.out)} outer`}>
+                      <rect x={55} y={14} width={60} height={122} rx={12} fill="#020617" stroke="#1e293b"/>
+                      <text x={85} y={30} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>FRONT</text>
+                      <text x={85} y={128} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>REAR</text>
+                      <Wheel x={43} y={26} kg={F.inn} lifts={F.lifts} col={VIS_COL_F}/>
+                      <Wheel x={115} y={26} kg={F.out} out col={VIS_COL_F}/>
+                      <Wheel x={43} y={98} kg={R.inn} lifts={R.lifts} col={VIS_COL_R}/>
+                      <Wheel x={115} y={98} kg={R.out} out col={VIS_COL_R}/>
+                      <text x={85} y={78} textAnchor="middle" fontSize={9} fill={T_MUTED}>◀ TURN</text>
+                      <text x={85} y={148} textAnchor="middle" fontSize={9} fill={T_MUTED}>{`bar = wheel load (${mMass?'kg':'lb'}) at 1 g`}</text>
+                    </svg>
+                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
+                      <Row la="F CORNER" lv={dispMass(F.corner)} ra="R CORNER" rv={dispMass(R.corner)} dim/>
+                      <Row la="XFER F" lv={`${dispMass(F.xfer)}/g`} ra="XFER R" rv={`${dispMass(R.xfer)}/g`}/>
+                      <Row la="· SPR+ARB" lv={dispMass(F.elastic)} ra="· SPR+ARB" rv={dispMass(R.elastic)} dim/>
+                      <Row la="· GEOMETRY" lv={dispMass(F.geometric)} ra="· GEOMETRY" rv={dispMass(R.geometric)} dim/>
+                      <Row la="OUT F" lv={dispMass(F.out)} ra="OUT R" rv={dispMass(R.out)}/>
+                      <Row la="IN F" lv={F.lifts?'LIFTS':dispMass(F.inn)} lw={F.lifts}
+                           ra="IN R" rv={R.lifts?'LIFTS':dispMass(R.inn)} rw={R.lifts} last/>
+                    </div>
+                    {anyLift&&<div style={{fontSize:10,color:lift,lineHeight:1.5}}>
+                      {F.lifts&&R.lifts
+                        ?'Both inside wheels unload before 1 g: past that point more roll stiffness on that end stops shifting balance.'
+                        :`The ${F.lifts?'front':'rear'} inside wheel unloads before 1 g: past that point more roll stiffness on that end stops shifting balance.`}
+                    </div>}
+                    <div style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>FORE-AFT · AXLE LOADS</div>
+                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
+                      <Row la={`ENTRY ${ENTRY_G} g`} lv={`${dispMass(lt.entry.front)} F · ${dispMass(lt.entry.rear)} R`} ra="" rv={`${lt.entry.frontPct.toFixed(0)}% F`}/>
+                      <Row la={`EXIT ${EXIT_G} g`} lv={`${dispMass(lt.exit.front)} F · ${dispMass(lt.exit.rear)} R`} ra="" rv={`${lt.exit.frontPct.toFixed(0)}% F`} last/>
+                    </div>
+                  </div>}
+                </div>);
+              })()}
+              </Hide>
+              {/* GRIP USE (PRO): each axle's share of its grip in use when the car reaches its limit, by
+                  phase (gripUseOf) — the grip model's prediction before the car is driven. */}
+              <Hide id="visuals.grip">
+              {uiMode==='pro'&&(()=>{
+                const gu=gripUseOf(ch,tune,gripPhase,brakeBias,diff);
+                const{front:F,rear:R}=gu;
+                const lift=C_WARN;
+                const pct=u=>`${Math.round(u*100)}%`;
+                const spare=1-Math.min(F.use,R.use);
+                const even=spare<0.02;
+                const where={mid:'mid-corner',entry:'on the brakes',exit:'under power'}[gripPhase];
+                const verdict=even?`Both axles run out together: balanced at the limit ${where}.`
+                  :gu.limit==='front'?`The front runs out first: understeer at the limit ${where}.`
+                  :`The rear runs out first: oversteer at the limit ${where}.`;
+                // One meter per axle, not a wheel each: the model splits an axle's force in proportion
+                // to its tyres' capacity, so both tyres always run the same share and a per-wheel
+                // picture would promise data it doesn't have. The fill runs to the share in use,
+                // into an amber band for the last 5% before the limit; on ENTRY / EXIT its hatched
+                // start is the part the braking or drive takes. An inner wheel that unloads is a tag.
+                const Meter=({label,ax,col,isLim})=>{
+                  const u=Math.max(0,Math.min(1,ax.use)),lon=Math.max(0,Math.min(u,Math.abs(ax.lon)));
+                  return(
+                  <div style={{padding:'4px 6px',borderBottom:'1px solid #0f172a'}}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:3}}>
+                      <span style={{fontSize:10,color:col,letterSpacing:1}}>{label}</span>
+                      <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#cbd5e1'}}>{pct(ax.use)}</span>
+                      {gripPhase!=='mid'&&<span style={{fontSize:10,color:T_MUTED}}>
+                        {gripPhase==='entry'?'braking':'drive'} {pct(ax.lon)}</span>}
+                      {ax.lifts&&<span style={{fontSize:10,color:lift,letterSpacing:1}}>INNER LIFTS</span>}
+                      <span style={{marginLeft:'auto',fontSize:10,letterSpacing:1,color:isLim?'#e2e8f0':T_MUTED}}>
+                        {isLim?'LIMIT':`${pct(Math.max(0,1-ax.use))} SPARE`}</span>
+                    </div>
+                    <div style={{position:'relative',height:10,background:'#0f172a',borderRadius:2,
+                                 outline:isLim?'1px solid #e2e8f0aa':'none',outlineOffset:1}}>
+                      <div style={{position:'absolute',top:0,bottom:0,left:'95%',right:0,background:C_WARN,opacity:0.3}}/>
+                      <div style={{position:'absolute',top:0,bottom:0,left:0,width:`${u*100}%`,background:col,opacity:0.8,borderRadius:2}}/>
+                      {gripPhase!=='mid'&&lon>0&&<div style={{position:'absolute',top:0,bottom:0,left:0,width:`${lon*100}%`,borderRadius:2,
+                        background:'repeating-linear-gradient(135deg,#02061799 0 3px,transparent 3px 6px)'}}/>}
+                    </div>
+                  </div>);
+                };
+                return(<div style={{paddingTop:6,display:'flow-root'}}>
+                  <div className="collapsible-hdr" onClick={visTog('visGrip')}
+                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
+                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>GRIP USE</span>
+                    <Hint text="Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps." term="grip-use"/>
+                    {!open.visGrip&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
+                      {even?'EVEN':`${gu.limit==='front'?'F':'R'} LIMIT · ${pct(spare)} SPARE`}
+                    </span>}
+                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visGrip?'▲':'▼'}</span>{visPin('visGrip')}
+                  </div>
+                  {open.visGrip&&
+                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:6}}>
+                    {/* The phase tabs sit in the body, full width: in the header they clipped at sidebar width. */}
+                    <OptionSeg label="Grip Use phase">
+                      {[['mid','MID'],['entry','ENTRY'],['exit','EXIT']].map(([k,l])=>
+                        <button key={k} className={`tog${gripPhase===k?' on':''}`}
+                          title={k==='mid'?'Steady cornering.':k==='entry'?`Cornering while braking at ${ENTRY_G} g, ${brakeBias==null?'at the entry-load ideal split (STOCK brakes)':'at the brake bias'}.`:`Cornering under ${EXIT_G} g of drive, at the drive split.`}
+                          onClick={()=>setGripPhase(k)}>{l}</button>)}
+                    </OptionSeg>
+                    <div role="img" aria-label={`Grip in use at the limit, ${where}: front ${pct(F.use)}, rear ${pct(R.use)}; ${verdict}`}
+                         style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
+                      <Meter label="FRONT" ax={F} col={VIS_COL_F} isLim={gu.limit==='front'}/>
+                      <Meter label="REAR" ax={R} col={VIS_COL_R} isLim={gu.limit==='rear'}/>
+                      <div style={{fontSize:10,color:T_MUTED,padding:'3px 6px',letterSpacing:1}}>
+                        % OF GRIP IN USE AT THE LIMIT · {where.toUpperCase()}</div>
+                    </div>
+                    <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5}}>{verdict}</div>
+                    {gripPhase!=='mid'&&<div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
+                      Includes pitch, the car's own weight transfer, so this predicts the car. The bar's ENTRY / EXIT leave it out to show what your settings change.
+                    </div>}
+                  </div>}
+                </div>);
+              })()}
+              </Hide>
+  </>);
+  const visColW=Math.min(420,Math.max(360,Math.floor(windowWidth*0.28)));
+  const visualsPanel=col=>{
+    const off=layoutCtx.isHidden('visuals');
+    const secLabel=activeSec?SECTION_VIS.find(x=>x.key===activeSec)?.label:null;
+    return(
+      <div id="zone-visuals" style={{display:'flex',flexDirection:'column',minHeight:0,background:'#020617',
+        ...(col?{width:visColW,flexShrink:0,borderRight:'1px solid #0f172a'}:{flex:1}),...dim('visuals')}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'6px 8px':'6px 12px',
+                     borderBottom:'1px solid #0f172a',flexShrink:0,minHeight:isMobile?48:37}}>
+          {!col&&isMobile&&<button className="tbtn" style={{fontSize:11}} onClick={()=>setSidebarOpen(true)}>‹ INPUTS</button>}
+          <span style={{fontSize:11,letterSpacing:2,color:'#9ca3af'}}>VISUALS</span>
+          {secLabel&&<span title="Groups open and close with their sidebar sections; this is the last one you opened or touched. PIN keeps a group open."
+            style={{fontSize:10,color:T_MUTED,letterSpacing:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            · {secLabel}</span>}
+          <span style={{flex:1}}/>
+          {layoutCtx.edit&&<button type="button" className="sec-hide" aria-pressed={off}
+            title={off?'Hidden: show VISUALS again':'Hide VISUALS'} onClick={()=>layoutCtx.toggle('visuals')}
+            style={{fontSize:10,letterSpacing:1,padding:'0 8px',minWidth:64,minHeight:26,borderRadius:2,background:'none',fontFamily:'inherit',
+                    cursor:'pointer',color:off?'#e2e8f0':'#818cf8',border:`1px solid ${off?'#475569':'#818cf855'}`}}>{off?'SHOW':'HIDE'}</button>}
+          <button className="tbtn" style={{fontSize:11}} aria-label={col?'Close visuals':'Back to the tune'}
+            onClick={()=>col?setVisUI(u=>({...u,dock:false})):setVisView(false)}>{col?'✕':'TUNE ›'}</button>
+        </div>
+        <div data-vis-box style={{flex:1,minHeight:0,overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
+                                  padding:'8px 10px',opacity:layoutCtx.edit&&off?0.35:1}}>
+          {/* The charts are width:100% SVGs: in the swap view, which can be 600+ px wide, they
+              would scale their text up past the cards', so the body is capped near the column's
+              own width and centred. */}
+          <div style={{maxWidth:col?undefined:460,margin:'0 auto'}}>{visualsBody()}</div>
+        </div>
+      </div>);
+  };
+
+  // The header's VIS toggle, beside the sidebar's ☰ in row 1.
+  const visButton=(st={})=>visAllowed&&<button className={`tbtn${visOn&&!(isMobile&&sidebarOpen)?' on':''}`} style={{fontSize:11,...st}}
+    title={visWide?'Show or hide the VISUALS column':'Switch between the tune and VISUALS'}
+    onClick={()=>{setGaragePanelOpen(false);
+      // From the phone's inputs drawer, VIS always lands on VISUALS (the drawer slides away).
+      if(isMobile&&sidebarOpen){setSidebarOpen(false);setVisView(true);}else toggleVis();}}>VIS</button>;
+
   // Phones render at natural 1.0× (zoom controls are hidden there); desktop keeps the saved preference.
   const effZoom=isPhone?1:uiZoom;
   return(
@@ -11007,10 +11605,14 @@ function App(){
                       borderColor:sidebarOpen?'#e2e8f033':'#1e293b'}}>
               {sidebarOpen?'✕':'☰'}
             </button>
-            <div style={{fontWeight:700,fontSize:isMobile?12:15,color:'#e2e8f0',
+            {/* VIS beside ☰: the two buttons that pick what the body shows, inputs and VISUALS. */}
+            {visButton(isMobile?{padding:'7px 10px',fontSize:12,lineHeight:1}:{padding:'3px 7px',fontSize:12,lineHeight:1})}
+            {/* Below 400 px the wordmark gives way: with VIS beside ☰, row 1 measured ~390 px and pushed
+                GARAGE off a 375 px phone. The tab title still names the app. */}
+            {windowWidth>=400&&<div style={{fontWeight:700,fontSize:isMobile?12:15,color:'#e2e8f0',
                          letterSpacing:isMobile?2:4}}>
               SUSP<span style={{color:'#94a3b8'}}>.</span>OS
-            </div>
+            </div>}
           </div>
           <div style={{display:'flex',gap:3,alignItems:'center'}}>
             {!headerCompact&&<>
@@ -11094,17 +11696,15 @@ function App(){
                        opacity:sidebarOpen?1:0,pointerEvents:sidebarOpen?'auto':'none',
                        transition:'opacity .2s ease'}}/>}
 
-        {/* SIDEBAR — outer wrapper handles width/positioning; the pinned TOOLBAR header,
-            scrollable content, and the pinned VISUALS footer are separate children so the
-            header/footer never scroll away.
+        {/* SIDEBAR — outer wrapper handles width/positioning; the pinned TOOLBAR header and the
+            scrollable content are separate children so the header never scrolls away. VISUALS
+            used to be a pinned footer here; it is its own column or view now (visualsPanel).
             Mobile: stays display:flex when closed and hides by transform + visibility, because
             a display:none toggle kills the slide transition. visibility is delayed on close
             (transition .2s step) so the drawer is still visible while it slides out, and it
             keeps a closed drawer out of the tab order. A leftward swipe closes it. */}
         <div
-          onFocus={isPhone?e=>{if(e.target.matches('input,select,textarea'))setSbTyping(true);}:undefined}
-          onBlur={isPhone?()=>setTimeout(()=>{ // deferred: hopping field-to-field shouldn't flash VISUALS back
-            if(!document.activeElement?.matches?.('input,select,textarea'))setSbTyping(false);},0):undefined}
+          onPointerDownCapture={noteActiveSec} onFocusCapture={noteActiveSec}
           onTouchStart={isMobile?e=>{
             // Not from a control: dragging a range thumb left is a slider move, and a drag in a
             // text field is a text selection — neither may close the drawer.
@@ -11465,7 +12065,7 @@ function App(){
                   <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:13,color:'#60a5fa'}}>{Math.round(ch.cgHeight*1000)} mm</span>
                 </div></Hide>
                 {!tyresOk&&<div style={{fontSize:10,color:C_WARN,padding:'2px 0 8px'}}>Enter valid tyre sizes above to compute CG height from ride height.</div>}
-                <div style={{fontSize:10,color:T_MUTED,padding:'0 0 4px'}}>SAG vs LOAD is in the pinned VISUALS card below ↓</div>
+                <div style={{fontSize:10,color:T_MUTED,padding:'0 0 4px'}}>SAG vs LOAD is in VISUALS (the header's VIS button)</div>
               </>);
             })():uiMode==='pro'
               // PRO enters a MANUAL CG height under ESTIMATES below: the game doesn't show it.
@@ -12294,7 +12894,9 @@ function App(){
                   // the slider say ROAD / FIRM / RACE at the same spring rates.
                   bands={HZ_ZONES.map(([lo,hi,c,l])=>[hzToBottomG(lo),hzToBottomG(hi),c,l])}
                   // The box shows the g to 0.001, as the Hz grid does; the slider and the stored
-                  // target keep full precision, so this changes only what is printed.
+                  // target keep full precision, so this changes only what is printed. Not 0.01: it is
+                  // an input echoing the stored target, and two targets that print alike would export
+                  // different springs (docs/KNOWN_ISSUES.md, the Ride Stiffness 3-decimal entry).
                   box={{unit:'g',value:Math.round(shownBottomG*1000)/1000}}
                   hint={`Vertical load, in g, at which the ${rRef==='rear'?'rear':rRef==='shared'?'average':'front'} axle bottoms out, from static ride height and 1g sag. Saved with the build; Hz re-solves to hold it.`} hintTerm="bottom-g"/>
                 :
@@ -13142,479 +13744,19 @@ function App(){
 
           </>}
         </div>
-        {/* PINNED — stays put while the scrollable content above it scrolls, so the graphs
-            here stay visible regardless of which input section is currently open. BEG mode has
-            its own simplified panel with no ARB/RIDE/DAMPERS sections for these readouts to relate
-            to, so VISUALS stays hidden there. */}
-        {uiMode!=='beginner'&&!(isPhone&&sbTyping)&&secVis('visuals')!=='none'&&<div id="zone-visuals" style={{flexShrink:0,borderTop:'1px solid #0f172a',...dim('visuals')}}>
-          <Sec title="VISUALS" open={open.visuals} onToggle={tog('visuals')} {...secProps('visuals')}>
-            {/* One group open at a time (visTog) keeps this box to one chart plus headers, which
-                fits under the cap; the cap only bites for a group taller than it, so the input
-                sections above always keep most of the sidebar. */}
-            <div data-vis-box style={{maxHeight:isPhone?'30vh':'38vh',overflowY:'auto',overscrollBehavior:'contain'}}>
-              {dnaLink&&<Hide id="visuals.dna">
-              <div className="collapsible-hdr" onClick={visTog('visDna')}
-                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>DNA MATCH</span>
-                <span style={{fontSize:10,color:'#818cf8'}}>{dnaLink.name}</span>
-                <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visDna?'▲':'▼'}</span>
-              </div>
-              {open.visDna&&<div style={{padding:'0 4px',marginBottom:14,fontSize:10}}>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',color:T_MUTED,fontSize:10,letterSpacing:1,marginBottom:2}}>
-                  <span>AXIS</span><span style={{textAlign:'right'}}>TARGET</span><span style={{textAlign:'right'}}>NOW</span><span/>
-                </div>
-                {dnaLink.rows.map(r=>{
-                  const ui=DNA_AXIS_UI.find(a=>a.k===r.k);
-                  return(
-                    <div key={r.k} style={{display:'grid',gridTemplateColumns:'1fr 64px 64px 14px',gap:'2px 6px',lineHeight:1.7}}>
-                      <span style={{color:'#94a3b8'}}>{ui.label}</span>
-                      <span style={{textAlign:'right',color:T_MUTED,fontFamily:'var(--font-mono)'}}>{dnaFmt(r.k,r.target)}</span>
-                      <span style={{textAlign:'right',color:r.drift?C_WARN:'#cbd5e1',fontFamily:'var(--font-mono)'}}>
-                        {r.cur==null?'MODE':dnaFmt(r.k,r.cur)}</span>
-                      <span style={{color:r.drift?C_WARN:C_GOOD,textAlign:'center'}}>{r.drift?'≠':'✓'}</span>
-                    </div>
-                  );
-                })}
-                <div style={{fontSize:10,color:T_MUTED,marginTop:4,lineHeight:1.5}}>
-                  ≠ = changed since APPLY. MODE = that control is no longer in the mode DNA set. <TermLink id="dna-match"/>
-                </div>
-              </div>}
-              </Hide>}
-              {(()=>{
-                // RIDE · ROLL · DAMPING — replaced the ARB (ArbDial + roll seesaw) and RIDE /
-                // DAMPERS (SpringDial + DampingDial) groups. The split divide is the display-space
-                // mech balance the MECH BALANCE strip plots; a null falls back to the raw roll-
-                // stiffness rear fraction so the card still draws.
-                const rsTot=tune.rsSpF+tune.rsAbF+tune.rsSpR+tune.rsAbR;
-                const mechBal=tune.mechBalance??(rsTot>0?(tune.rsSpR+tune.rsAbR)/rsTot:0.5);
-                return<Hide id="visuals.ride"><div>
-              <div className="collapsible-hdr" onClick={visTog('visRide')}
-                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                <span style={{fontSize:10,letterSpacing:2,color:T_MUTED}}>RIDE · ROLL · DAMPING</span>
-                {!open.visRide&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
-                  R {Math.round(mechBal*100)}% · ×{tune.fHz>0?(tune.rHz/tune.fHz).toFixed(2):'—'} · {tune.rollDeg.toFixed(2)}°</span>}
-                <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visRide?'▲':'▼'}</span>
-              </div>
-              {open.visRide&&
-              <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:10,display:'flex',flexDirection:'column',gap:8}}>
-                <VisRollSplit mechBal={mechBal} natBal={natMechBalance} target={feEffective.arbBalTarget}
-                  rsSpF={tune.rsSpF} rsAbF={tune.rsAbF} rsSpR={tune.rsSpR} rsAbR={tune.rsAbR}
-                  rollDeg={tune.rollDeg} rollClamped={tune.rollClamped}
-                  rollTarget={arbMode==='roll'?tune.rollTarget:null} arbShare={tune.arbShare}/>
-                <div style={{height:1,background:'#1e293b'}}/>
-                {/* No ceiling in physical modes, so the ARB track gets a dynamic full scale
-                    with 25% headroom above the stiffer bar; VisSuspTracks hides its bands. */}
-                <VisSuspTracks tune={tune} physics={physics}
-                  natBal={natMechBalance} target={feEffective.arbBalTarget}
-                  arbLimit={lim.arb??Math.max(1,tune.arbF,tune.arbR)*1.25} physical={physMode}
-                  dispF={arbOut(tune.arbF,lim,ch.trackF,ch.arbMotionRatioF,jbAdj(ch,'Arb','F')).value}
-                  dispR={arbOut(tune.arbR,lim,ch.trackR,ch.arbMotionRatioR,jbAdj(ch,'Arb','R')).value}
-                  hzClamped={physics.rearHzClamped}/>
-              </div>}
-                </div></Hide>;
-              })()}
-
-              <Hide id="visuals.dynamics">
-              <div className="collapsible-hdr" onClick={visTog('visDynamics')}
-                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>DYNAMICS</span>
-                <Hint text="Each axle settling back to ride height after one bump. Strip = ±10% of the initial displacement; dashed line = settle time (last exit from the strip); ring = first ride-height crossing." term="dynamics-chart"/>
-                {open.visDynamics&&<div style={{marginLeft:'auto',display:'flex',gap:2}} onClick={e=>e.stopPropagation()}>
-                  {[['ride','RIDE'],['roll','ROLL']].map(([k,l])=>
-                    <button key={k} className={`tog${dynView===k?' on':''}`} style={{fontSize:10,padding:'1px 5px'}}
-                      title={k==='roll'?'Roll response per axle: the ARB adds roll stiffness without damping. A comparison view only.':'Ride (heave) response per axle.'}
-                      onClick={()=>setDynView(k)}>{l}</button>)}
-                </div>}
-                <span style={{marginLeft:open.visDynamics?4:'auto',fontSize:10,color:T_MUTED}}>{open.visDynamics?'▲':'▼'}</span>
-              </div>
-              {open.visDynamics&&(()=>{
-                // ROLL view: the same damper and spring plus an undamped bar, per axle —
-                // s = √(rsSp/(rsSp+rsAb)); ζ scales by s, frequency by 1/s. Settle and neutral
-                // markers are the same definitions applied to the roll trace.
-                const roll=dynView==='roll';
-                const sh=(sp,ab)=>!roll?1:(sp+ab)>0?Math.sqrt(sp/(sp+ab)):1;
-                const sF=sh(tune.rsSpF??0,tune.rsAbF??0),sR=sh(tune.rsSpR??0,tune.rsAbR??0);
-                const fReb=(tune.zetaF??physics.reboundZeta??70)*sF;
-                const fBmp=(tune.bumpZetaF??physics.bumpZeta??39)*sF;
-                const rReb=(tune.zetaR??physics.reboundZeta??70)*sR;
-                const rBmp=(tune.bumpZetaR??physics.bumpZeta??39)*sR;
-                const fHzV=tune.fHz/(sF||1),rHzV=tune.rHz/(sR||1);
-                // Settle time is measured off the plotted trace rather than read from
-                // tune.settleF/R, because this dashed line annotates THIS curve: the analytic
-                // figure sees REBOUND ζ only, while computeOscillation alternates rebound/bump by
-                // velocity sign. DAMPERS deliberately keeps quoting the analytic one — it is what
-                // SETTLE TIME mode back-solves against, so changing it would break that
-                // round-trip. The two therefore disagree on purpose, and the chart's own Hint
-                // says so.
-                // Three things about this marker surprise people, all properties of the "last
-                // band exit" definition rather than of the integration: it can land BEFORE the
-                // neutral ring, it steps rather than sliding as ζ rises, and the quickest settle
-                // is not at critical damping. docs/PHYSICS.md carries the derivation, the exact
-                // figures either side of the step, and the textbook cross-check.
-                // Window fit, trace and measurement all live in measureSettle, shared with the
-                // DAMPERS table's Settle-row MEAS so the two can never disagree.
-                const{durSec,frontPts,rearPts,fSettle,rSettle}=
-                  measureSettle(fHzV,fReb,fBmp,rHzV,rReb,rBmp,tune.settleF,tune.settleR);
-                const W=280,H=80,midY=40,yScale=32,xScale=W/durSec;
-                const toPolyPts=pts=>pts.map(p=>`${(p.t*xScale).toFixed(1)},${(midY-p.x*yScale).toFixed(1)}`).join(' ');
-                // null = still outside the band at the window edge; pin the line there so it
-                // agrees with the readout's ">" label. A guard, not a common path: the slowest
-                // reachable tune (HZ_MIN 0.8, ζ floor 10%) measures ~3.9s inside the 4s cap.
-                const fSetX=Math.min(W-1,(fSettle??durSec)*xScale);
-                const rSetX=Math.min(W-1,(rSettle??durSec)*xScale);
-                // First neutral (ride-height) crossing: linearly interpolate the sample pair
-                // that straddles x=0. One ring per axle — a rise-speed indicator, distinct from
-                // the settle-time dashed line — same "mark the meaningful point" pattern as the
-                // SAG vs LOAD chart's operating-point/bottom-out rings.
-                const firstCrossing=pts=>{
-                  for(let i=1;i<pts.length;i++){
-                    const a=pts[i-1],b=pts[i];
-                    if((a.x<0)!==(b.x<0))return a.t+(b.t-a.t)*(a.x/(a.x-b.x));
-                  }
-                  return null;
-                };
-                const fCross=firstCrossing(frontPts),rCross=firstCrossing(rearPts);
-                const crossMarker=(t,color)=>t==null?null:(
-                  <circle cx={t*xScale} cy={midY} r={2.2} fill="#020617" stroke={color} strokeWidth={1.4}/>
-                );
-                return(
-                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:3,padding:'6px 8px',marginBottom:6,display:'flex',flexDirection:'column',gap:4}}>
-                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto',display:'block'}}>
-                      {/* The ±10% band the settle markers are measured against. Without it the
-                          dashed line reads as arbitrary — worse, past ζ≈60% it lands BEFORE the
-                          neutral ring, which looks impossible until you can see that the trace
-                          enters the band on the way down and never leaves again. */}
-                      <rect x={0} y={midY-SETTLE_ENV*yScale} width={W} height={2*SETTLE_ENV*yScale}
-                            fill="#64748b" opacity={0.10}/>
-                      <line x1={0} y1={midY-SETTLE_ENV*yScale} x2={W} y2={midY-SETTLE_ENV*yScale}
-                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
-                      <line x1={0} y1={midY+SETTLE_ENV*yScale} x2={W} y2={midY+SETTLE_ENV*yScale}
-                            stroke="#475569" strokeWidth={0.5} strokeDasharray="2 3" opacity={0.7}/>
-                      <text x={2} y={midY-SETTLE_ENV*yScale-2} fontSize={10} fill={T_MUTED}
-                            fontFamily="JetBrains Mono, monospace">±10%</text>
-                      <line x1={0} y1={midY} x2={W} y2={midY} stroke="#1e293b" strokeWidth={1}/>
-                      <line x1={fSetX} y1={0} x2={fSetX} y2={H} stroke="#38bdf855" strokeWidth={1} strokeDasharray="3 3"/>
-                      <line x1={rSetX} y1={0} x2={rSetX} y2={H} stroke="#fb923c55" strokeWidth={1} strokeDasharray="3 3"/>
-                      <polyline points={toPolyPts(rearPts)}  fill="none" stroke="#fb923c" strokeWidth={1.5} strokeLinejoin="round"/>
-                      <polyline points={toPolyPts(frontPts)} fill="none" stroke="#38bdf8" strokeWidth={1.5} strokeLinejoin="round"/>
-                      {crossMarker(rCross,'#fb923c')}
-                      {crossMarker(fCross,'#38bdf8')}
-                      <text x={W-6} y={13} textAnchor="end" fontSize={10} fill="#38bdf8" fontFamily="JetBrains Mono, monospace">F</text>
-                      <text x={W-6} y={25} textAnchor="end" fontSize={10} fill="#fb923c" fontFamily="JetBrains Mono, monospace">R</text>
-                    </svg>
-                    <div style={{display:'flex',flexDirection:'column',gap:2,fontFamily:'var(--font-mono)'}}>
-                      <div style={{display:'flex',gap:12}}>
-                        <span style={{fontSize:10,color:'#38bdf8'}}>settle {fSettle!=null?`${fSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
-                        <span style={{fontSize:10,color:'#fb923c'}}>settle {rSettle!=null?`${rSettle.toFixed(2)}s`:`>${durSec.toFixed(2)}s`}</span>
-                      </div>
-                      <div style={{display:'flex',gap:12}}>
-                        <span style={{fontSize:10,color:'#38bdf8',opacity:0.75}}>{fCross!=null?`neutral ≈${fCross.toFixed(2)}s`:'no neutral cross'}</span>
-                        <span style={{fontSize:10,color:'#fb923c',opacity:0.75}}>{rCross!=null?`neutral ≈${rCross.toFixed(2)}s`:'no neutral cross'}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-              </Hide>
-
-              <Hide id="visuals.sag">
-              {ch.useRideHeightCG&&(()=>{
-                const pF=parseTyre(ch.tyreF),pR=parseTyre(ch.tyreR);
-                const tyresOk=pF?.radius!=null&&pR?.radius!=null;
-                if(!tyresOk)return null;
-                const gConst=9810;
-                const sagF=gConst/Math.pow(2*Math.PI*tune.fHz,2);
-                const sagR=gConst/Math.pow(2*Math.PI*tune.rHz,2);
-                const rhF=ch.rideHeightF*1000,rhR=ch.rideHeightR*1000;
-                const riskOf=ratio=>ratio>=1?['BOTTOMED',C_ERR]:ratio>=0.8?['HIGH',C_WARN]:ratio>=0.5?['MED','#eab308']:['LOW',C_GOOD];
-                const[rF]=riskOf(sagF/rhF),[rR]=riskOf(sagR/rhR);
-                const COL_F='#60a5fa',COL_R='#fb923c';
-                const gBottomF=rhF/sagF,gBottomR=rhR/sagR;
-                // Outside-wheel line: adds lateral-load-transfer compression (same LLT model as
-                // MECH BAL / grip balance) on top of static sag, so cornering g — not just
-                // vertical g — shows up as its own bottoming risk.
-                const m_=cornerMasses(ch);
-                const Kf_=tune.rsSpF+tune.rsAbF,Kr_=tune.rsSpR+tune.rsAbR;
-                const{dWf,dWr}=latLoadTransfer(ch,Kf_,Kr_);
-                const kWheelF=m_.front*Math.pow(2*Math.PI*tune.fHz,2),kWheelR=m_.rear*Math.pow(2*Math.PI*tune.rHz,2);
-                const dSagF=kWheelF>0?dWf/kWheelF*1000:0,dSagR=kWheelR>0?dWr/kWheelR*1000:0;
-                const gBottomOutF=sagF>=rhF?0:(dSagF>0?(rhF-sagF)/dSagF:Infinity);
-                const gBottomOutR=sagR>=rhR?0:(dSagR>0?(rhR-sagR)/dSagR:Infinity);
-                const gMax=Math.max(1,Math.min(6,Math.max(gBottomF,gBottomR,gBottomOutF,gBottomOutR,1)*1.25));
-                const yMax=Math.max(rhF,rhR,sagF*gMax,sagR*gMax,sagF+dSagF*gMax,sagR+dSagR*gMax)*1.08;
-                const W=280,H=115,padL=54,padB=20,padT=10,padR=10;
-                const plotW=W-padL-padR,plotH=H-padT-padB;
-                const xS=g_=>padL+(g_/gMax)*plotW;
-                const yS=mm=>padT+plotH-(mm/yMax)*plotH;
-                const toDisp=mm=>mLen?mm/10:mm/IN_TO_MM;
-                const gEndF=Math.min(gMax,yMax/sagF),gEndR=Math.min(gMax,yMax/sagR);
-                const gEndOutF=Math.min(gMax,sagF+dSagF*gMax<=yMax||dSagF<=0?gMax:(yMax-sagF)/dSagF);
-                const gEndOutR=Math.min(gMax,sagR+dSagR*gMax<=yMax||dSagR<=0?gMax:(yMax-sagR)/dSagR);
-                const xTicks=Array.from({length:Math.floor(gMax)+1},(_,i)=>i).filter(g_=>g_<=gMax);
-                return(<>
-                  <div className="collapsible-hdr" onClick={visTog('visSag')}
-                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,marginTop:6,userSelect:'none',padding:'3px 4px'}}>
-                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>SAG vs LOAD</span>
-                    <Hint text="Solid line = sag vs vertical load; dashed = ride height, and where they meet is the g that bottoms that axle. Short-dashed = outside wheel when cornering. Real springs stiffen near the top." term="sag-vs-load"/>
-                    {open.visSag&&<span style={{marginLeft:'auto',display:'flex',gap:8,fontSize:10}}>
-                      <span style={{color:COL_F}}>● FRONT {rF}</span>
-                      <span style={{color:COL_R}}>● REAR {rR}</span>
-                    </span>}
-                    <span style={{marginLeft:open.visSag?0:'auto',fontSize:10,color:T_MUTED}}>{open.visSag?'▲':'▼'}</span>
-                  </div>
-                  {open.visSag&&
-                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:4}}>
-                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'auto'}}>
-                      {/* axes */}
-                      <line x1={padL} y1={padT} x2={padL} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
-                      <line x1={padL} y1={H-padB} x2={W-padR} y2={H-padB} stroke="#1e293b" strokeWidth={1}/>
-                      {xTicks.map(g_=>(
-                        <g key={g_}>
-                          <line x1={xS(g_)} y1={H-padB} x2={xS(g_)} y2={H-padB+3} stroke="#334155" strokeWidth={1}/>
-                          <text x={xS(g_)} y={H-padB+13} fontSize={10} fill={T_MUTED} textAnchor="middle" fontFamily="var(--font-mono)">{g_}g</text>
-                        </g>
-                      ))}
-                      <text x={2} y={padT+4} fontSize={10} fill={T_MUTED} fontFamily="var(--font-mono)">{Math.round(toDisp(yMax))}{mLen?'cm':'in'}</text>
-                      <text x={2} y={H-padB} fontSize={10} fill={T_MUTED} fontFamily="var(--font-mono)">0</text>
-                      {/* bump-stop zone: real springs go progressive well before metal-to-metal
-                          contact — shade the top 12% of each axle's travel as a reminder that
-                          the diagonal below is a linear-rate approximation, softest right where
-                          it matters most. */}
-                      <rect x={padL} y={yS(rhF)} width={plotW} height={yS(rhF*(1-BUMP_STOP_ZONE))-yS(rhF)} fill={COL_F} opacity={0.08}/>
-                      <rect x={padL} y={yS(rhR)} width={plotW} height={yS(rhR*(1-BUMP_STOP_ZONE))-yS(rhR)} fill={COL_R} opacity={0.08}/>
-                      {/* ride-height (bottom-out) reference lines */}
-                      <line x1={padL} y1={yS(rhF)} x2={W-padR} y2={yS(rhF)} stroke={COL_F} strokeWidth={1} strokeDasharray="3,2" opacity={0.6}/>
-                      <line x1={padL} y1={yS(rhR)} x2={W-padR} y2={yS(rhR)} stroke={COL_R} strokeWidth={1} strokeDasharray="3,2" opacity={0.6}/>
-                      {/* left-side value labels: bottom-out ride height and 1g sag point, front in
-                          column 1 and rear in column 2, so front/rear never overlap each other */}
-                      <text x={1} y={yS(rhF)+2.5} fontSize={10} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(rhF).toFixed(mLen?1:2)}</text>
-                      <text x={27} y={yS(rhR)+2.5} fontSize={10} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(rhR).toFixed(mLen?1:2)}</text>
-                      {gMax>=1&&<text x={1} y={yS(sagF)+2.5} fontSize={10} fill={COL_F} fontFamily="var(--font-mono)">{toDisp(sagF).toFixed(mLen?1:2)}</text>}
-                      {gMax>=1&&<text x={27} y={yS(sagR)+2.5} fontSize={10} fill={COL_R} fontFamily="var(--font-mono)">{toDisp(sagR).toFixed(mLen?1:2)}</text>}
-                      {/* outside-wheel-under-cornering-load diagonals (LLT model) */}
-                      <line x1={xS(0)} y1={yS(sagF)} x2={xS(gEndOutF)} y2={yS(sagF+dSagF*gEndOutF)} stroke={COL_F} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
-                      <line x1={xS(0)} y1={yS(sagR)} x2={xS(gEndOutR)} y2={yS(sagR+dSagR*gEndOutR)} stroke={COL_R} strokeWidth={1} strokeDasharray="2,2" opacity={0.65}/>
-                      {isFinite(gBottomOutF)&&gBottomOutF<=gMax&&<circle cx={xS(gBottomOutF)} cy={yS(rhF)} r={2} fill="none" stroke={COL_F} strokeWidth={1.3}/>}
-                      {isFinite(gBottomOutR)&&gBottomOutR<=gMax&&<circle cx={xS(gBottomOutR)} cy={yS(rhR)} r={2} fill="none" stroke={COL_R} strokeWidth={1.3}/>}
-                      {/* sag-vs-load diagonals (uniform vertical g) */}
-                      <line x1={xS(0)} y1={yS(0)} x2={xS(gEndF)} y2={yS(sagF*gEndF)} stroke={COL_F} strokeWidth={2}/>
-                      <line x1={xS(0)} y1={yS(0)} x2={xS(gEndR)} y2={yS(sagR*gEndR)} stroke={COL_R} strokeWidth={2}/>
-                      {/* static 1g operating point */}
-                      {gMax>=1&&<circle cx={xS(1)} cy={yS(sagF)} r={1.8} fill="#0a0f1a" stroke={COL_F} strokeWidth={1.3}/>}
-                      {gMax>=1&&<circle cx={xS(1)} cy={yS(sagR)} r={1.8} fill="#0a0f1a" stroke={COL_R} strokeWidth={1.3}/>}
-                      {/* bottom-out markers, only if reached within the plotted range */}
-                      {gBottomF<=gMax&&<circle cx={xS(gBottomF)} cy={yS(rhF)} r={2.5} fill={COL_F}/>}
-                      {gBottomR<=gMax&&<circle cx={xS(gBottomR)} cy={yS(rhR)} r={2.5} fill={COL_R}/>}
-                    </svg>
-                    <div style={{display:'flex',flexDirection:'column',gap:2,fontFamily:'var(--font-mono)'}}>
-                      <div style={{display:'flex',gap:12}}>
-                        <span style={{fontSize:10,color:COL_F}}>{gBottomF<=gMax?`bottoms ≈${gBottomF.toFixed(1)}g`:`no bottom ≤${gMax.toFixed(1)}g`}</span>
-                        <span style={{fontSize:10,color:COL_R}}>{gBottomR<=gMax?`bottoms ≈${gBottomR.toFixed(1)}g`:`no bottom ≤${gMax.toFixed(1)}g`}</span>
-                      </div>
-                      <div style={{display:'flex',gap:12}}>
-                        <span style={{fontSize:10,color:COL_F,opacity:0.75}}>{isFinite(gBottomOutF)&&gBottomOutF<=gMax?`outside ≈${gBottomOutF.toFixed(1)}g lat`:'outside: no bottom'}</span>
-                        <span style={{fontSize:10,color:COL_R,opacity:0.75}}>{isFinite(gBottomOutR)&&gBottomOutR<=gMax?`outside ≈${gBottomOutR.toFixed(1)}g lat`:'outside: no bottom'}</span>
-                      </div>
-                    </div>
-                  </div>}
-                </>);
-              })()}
-              </Hide>
-              {/* ALIGNMENT (INT+, Forza modes): camber vs roll and the range strips. See docs/VISUALS.md. */}
-              {!physMode&&(()=>{
-                const{camberGain,rearGainMult}=camberGainOf(ch,ch.layout);
-                return(<div style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={visTog('visAlign')}
-                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>ALIGNMENT</span>
-                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visAlign?'▲':'▼'}</span>
-                  </div>
-                  {open.visAlign&&<div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:8}}>
-                    <VisCamberRoll camberF={align.recCamberF} camberR={align.recCamberR}
-                      targetF={autoAlign.target.camberF} targetR={autoAlign.target.camberR}
-                      rollDeg={tune.rollDeg} gainF={camberGain} gainR={camberGain*rearGainMult}/>
-                    <VisAlignStrips align={align} autoAlign={autoAlign} gameMode={fe.gameMode}/>
-                  </div>}
-                </div>);
-              })()}
-              {/* LOAD TRANSFER (PRO): the grip model's own transfer at 1 g (loadTransferOf), so the
-                  springs and bars move it. Moved here from the bottom of the expanded Handling
-                  Balance panel: it is a picture of the car's loads, like the groups above. */}
-              <Hide id="visuals.load">
-              {uiMode==='pro'&&(()=>{
-                const lt=loadTransferOf(ch,tune);
-                const{front:F,rear:R}=lt;
-                const lift=C_WARN;
-                const Row=({la,lv,ra,rv,dim,last,lw,rw})=>(
-                  <div style={{display:'flex',alignItems:'center',gap:6,padding:'2px 6px',
-                               ...(last?{}:{borderBottom:'1px solid #0f172a'}),
-                               opacity:dim?0.55:1}}>
-                    <span style={{fontSize:10,color:T_MUTED,letterSpacing:1,minWidth:50}}>{la}</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:lw?lift:T_MUTED}}>{lv}</span>
-                    <div style={{flex:1,height:1,background:'#0f172a'}}/>
-                    <span style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>{ra}</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:rw?lift:T_MUTED}}>{rv}</span>
-                  </div>
-                );
-                // Top-down sketch at 1 g in a left turn: load moves to the right-hand (outer) wheels.
-                // Front wheels blue, rear orange, as in every VISUALS group; each is shaded by its
-                // share of the heaviest wheel, and a lifted one is an amber dashed outline.
-                const maxW=Math.max(F.out,R.out,1);
-                const Wheel=({x,y,kg,lifts,anchor,lx,col})=>(<>
-                  <rect x={x} y={y} width={12} height={26} rx={2}
-                    fill={lifts?'none':col} fillOpacity={lifts?0:0.15+0.75*kg/maxW}
-                    stroke={lifts?lift:'#334155'} strokeDasharray={lifts?'3 2':undefined}/>
-                  <text x={lx} y={y+16} textAnchor={anchor} fontSize={9} fill={lifts?lift:'#94a3b8'}
-                    fontFamily="var(--font-mono)">{lifts?'LIFT':dispMass(kg)}</text>
-                </>);
-                const d=lt.frontShare-lt.weightFront;
-                const shareCol=Math.abs(d)<1?'#e2e8f0':d>0?C_US:C_OS;
-                const anyLift=F.lifts||R.lifts;
-                return(<div style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={visTog('visLoad')}
-                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>LOAD TRANSFER</span>
-                    <Hint text="Loads at 1 g cornering from the balance model, so springs and bars move them. FRONT TAKES is the front axle's share of the transfer; above the weight split leans understeer." term="load-transfer"/>
-                    {!open.visLoad&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
-                      F <span style={{color:shareCol}}>{lt.frontShare.toFixed(0)}%</span> · WT {lt.weightFront.toFixed(0)}%
-                      {anyLift&&<span style={{color:lift}}> · LIFT</span>}
-                    </span>}
-                    <span style={{marginLeft:'auto',fontSize:10,color:T_MUTED}}>{open.visLoad?'▲':'▼'}</span>
-                  </div>
-                  {open.visLoad&&
-                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:6}}>
-                    <div style={{fontSize:10,color:T_MUTED,fontFamily:'var(--font-mono)'}}>
-                      FRONT TAKES <span style={{color:shareCol}}>{lt.frontShare.toFixed(1)}%</span>
-                      {' · '}WEIGHT <span style={{color:'#94a3b8'}}>{lt.weightFront.toFixed(0)}%</span>
-                    </div>
-                    <svg viewBox="0 0 170 150" style={{width:190,maxWidth:'100%',alignSelf:'center'}} role="img"
-                         aria-label={`Wheel loads at 1 g, left turn: front ${dispMass(F.inn)} inner, ${dispMass(F.out)} outer; rear ${dispMass(R.inn)} inner, ${dispMass(R.out)} outer`}>
-                      <rect x={55} y={14} width={60} height={122} rx={12} fill="#020617" stroke="#1e293b"/>
-                      <text x={85} y={30} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>FRONT</text>
-                      <text x={85} y={128} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>REAR</text>
-                      <Wheel x={43} y={26} kg={F.inn} lifts={F.lifts} anchor="end" lx={40} col={VIS_COL_F}/>
-                      <Wheel x={115} y={26} kg={F.out} anchor="start" lx={130} col={VIS_COL_F}/>
-                      <Wheel x={43} y={98} kg={R.inn} lifts={R.lifts} anchor="end" lx={40} col={VIS_COL_R}/>
-                      <Wheel x={115} y={98} kg={R.out} anchor="start" lx={130} col={VIS_COL_R}/>
-                      <text x={85} y={78} textAnchor="middle" fontSize={9} fill={T_MUTED}>◀ TURN</text>
-                      <text x={85} y={148} textAnchor="middle" fontSize={9} fill={T_MUTED}>1 g · load to the outside</text>
-                    </svg>
-                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
-                      <Row la="F CORNER" lv={dispMass(F.corner)} ra="R CORNER" rv={dispMass(R.corner)} dim/>
-                      <Row la="XFER F" lv={`${dispMass(F.xfer)}/g`} ra="XFER R" rv={`${dispMass(R.xfer)}/g`}/>
-                      <Row la="· SPR+ARB" lv={dispMass(F.elastic)} ra="· SPR+ARB" rv={dispMass(R.elastic)} dim/>
-                      <Row la="· GEOMETRY" lv={dispMass(F.geometric)} ra="· GEOMETRY" rv={dispMass(R.geometric)} dim/>
-                      <Row la="OUT F" lv={dispMass(F.out)} ra="OUT R" rv={dispMass(R.out)}/>
-                      <Row la="IN F" lv={F.lifts?'LIFTS':dispMass(F.inn)} lw={F.lifts}
-                           ra="IN R" rv={R.lifts?'LIFTS':dispMass(R.inn)} rw={R.lifts} last/>
-                    </div>
-                    {anyLift&&<div style={{fontSize:10,color:lift,lineHeight:1.5}}>
-                      {F.lifts&&R.lifts
-                        ?'Both inside wheels unload before 1 g: past that point more roll stiffness on that end stops shifting balance.'
-                        :`The ${F.lifts?'front':'rear'} inside wheel unloads before 1 g: past that point more roll stiffness on that end stops shifting balance.`}
-                    </div>}
-                    <div style={{fontSize:10,color:T_MUTED,letterSpacing:1}}>FORE-AFT · AXLE LOADS</div>
-                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
-                      <Row la={`ENTRY ${ENTRY_G} g`} lv={`${dispMass(lt.entry.front)} F · ${dispMass(lt.entry.rear)} R`} ra="" rv={`${lt.entry.frontPct.toFixed(0)}% F`}/>
-                      <Row la={`EXIT ${EXIT_G} g`} lv={`${dispMass(lt.exit.front)} F · ${dispMass(lt.exit.rear)} R`} ra="" rv={`${lt.exit.frontPct.toFixed(0)}% F`} last/>
-                    </div>
-                  </div>}
-                </div>);
-              })()}
-              </Hide>
-              {/* GRIP USE (PRO): each axle's share of its grip in use when the car reaches its limit, by
-                  phase (gripUseOf) — the grip model's prediction before the car is driven. */}
-              <Hide id="visuals.grip">
-              {uiMode==='pro'&&(()=>{
-                const gu=gripUseOf(ch,tune,gripPhase,brakeBias,diff);
-                const{front:F,rear:R}=gu;
-                const lift=C_WARN;
-                const pct=u=>`${Math.round(u*100)}%`;
-                const spare=1-Math.min(F.use,R.use);
-                const even=spare<0.02;
-                const where={mid:'mid-corner',entry:'on the brakes',exit:'under power'}[gripPhase];
-                const verdict=even?`Both axles run out together: balanced at the limit ${where}.`
-                  :gu.limit==='front'?`The front runs out first: understeer at the limit ${where}.`
-                  :`The rear runs out first: oversteer at the limit ${where}.`;
-                // Wheels shaded by the share of grip in use, front blue and rear orange; the limiting
-                // axle's wheels are outlined white. Both tyres on an axle use the same share.
-                const Wheel=({x,y,ax,inner,anchor,lx,col})=>{
-                  const lifted=inner&&ax.lifts;
-                  const lim=(gu.limit==='front')===(col===VIS_COL_F);
-                  return(<>
-                    <rect x={x} y={y} width={12} height={26} rx={2}
-                      fill={lifted?'none':col} fillOpacity={lifted?0:0.12+0.8*Math.min(1,ax.use)}
-                      stroke={lifted?lift:lim?'#e2e8f0':'#334155'} strokeWidth={lim&&!lifted?1.5:1}
-                      strokeDasharray={lifted?'3 2':undefined}/>
-                    <text x={lx} y={y+16} textAnchor={anchor} fontSize={9} fill={lifted?lift:'#94a3b8'}
-                      fontFamily="var(--font-mono)">{lifted?'LIFT':pct(ax.use)}</text>
-                  </>);
-                };
-                const Line=({label,ax,col,isLim})=>(
-                  <div style={{display:'flex',alignItems:'center',gap:6,padding:'2px 6px',borderBottom:'1px solid #0f172a'}}>
-                    <span style={{fontSize:10,color:col,letterSpacing:1,minWidth:42}}>{label}</span>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'#94a3b8'}}>{pct(ax.use)}</span>
-                    {gripPhase!=='mid'&&<span style={{fontSize:10,color:T_MUTED}}>
-                      {gripPhase==='entry'?'braking':'drive'} {pct(ax.lon)}
-                    </span>}
-                    <span style={{marginLeft:'auto',fontSize:10,letterSpacing:1,color:isLim?'#e2e8f0':T_MUTED}}>
-                      {isLim?'LIMIT':`${pct(Math.max(0,1-ax.use))} SPARE`}
-                    </span>
-                  </div>);
-                return(<div style={{paddingTop:6,display:'flow-root'}}>
-                  <div className="collapsible-hdr" onClick={visTog('visGrip')}
-                    style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',marginBottom:3,userSelect:'none',padding:'3px 4px'}}>
-                    <span style={{fontSize:10,letterSpacing:2,color:T_FAINT}}>GRIP USE</span>
-                    <Hint text="Each axle's share of its grip in use when the car reaches its limit: the first to 100% sets understeer or oversteer. Predicted by the balance model, so it needs no laps." term="grip-use"/>
-                    {!open.visGrip&&<span style={{fontSize:10,color:'#94a3b8',fontFamily:'var(--font-mono)'}}>
-                      {even?'EVEN':`${gu.limit==='front'?'F':'R'} LIMIT · ${pct(spare)} SPARE`}
-                    </span>}
-                    {open.visGrip&&<div style={{marginLeft:'auto',display:'flex',gap:2}} onClick={e=>e.stopPropagation()}>
-                      {[['mid','MID'],['entry','ENTRY'],['exit','EXIT']].map(([k,l])=>
-                        <button key={k} className={`tog${gripPhase===k?' on':''}`} style={{fontSize:10,padding:'1px 5px'}}
-                          title={k==='mid'?'Steady cornering.':k==='entry'?`Cornering while braking at ${ENTRY_G} g, ${brakeBias==null?'at the entry-load ideal split (STOCK brakes)':'at the brake bias'}.`:`Cornering under ${EXIT_G} g of drive, at the drive split.`}
-                          onClick={()=>setGripPhase(k)}>{l}</button>)}
-                    </div>}
-                    <span style={{marginLeft:open.visGrip?4:'auto',fontSize:10,color:T_MUTED}}>{open.visGrip?'▲':'▼'}</span>
-                  </div>
-                  {open.visGrip&&
-                  <div style={{background:'#0a0f1a',border:'1px solid #1e293b',borderRadius:2,padding:'6px 8px',marginBottom:4,display:'flex',flexDirection:'column',gap:6}}>
-                    <svg viewBox="0 0 170 150" style={{width:190,maxWidth:'100%',alignSelf:'center'}} role="img"
-                         aria-label={`Grip in use at the limit, ${where}: front ${pct(F.use)}, rear ${pct(R.use)}; ${verdict}`}>
-                      <rect x={55} y={14} width={60} height={122} rx={12} fill="#020617" stroke="#1e293b"/>
-                      <text x={85} y={30} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>FRONT</text>
-                      <text x={85} y={128} textAnchor="middle" fontSize={9} fill={T_MUTED} letterSpacing={1}>REAR</text>
-                      <Wheel x={43} y={26} ax={F} inner anchor="end" lx={40} col={VIS_COL_F}/>
-                      <Wheel x={115} y={26} ax={F} anchor="start" lx={130} col={VIS_COL_F}/>
-                      <Wheel x={43} y={98} ax={R} inner anchor="end" lx={40} col={VIS_COL_R}/>
-                      <Wheel x={115} y={98} ax={R} anchor="start" lx={130} col={VIS_COL_R}/>
-                      <text x={85} y={72} textAnchor="middle" fontSize={9} fill={T_MUTED}>◀ TURN</text>
-                      {gripPhase!=='mid'&&<text x={85} y={86} textAnchor="middle" fontSize={9} fill={T_MUTED}>
-                        {gripPhase==='entry'?'▲ BRAKING':'▼ DRIVE'}</text>}
-                      <text x={85} y={148} textAnchor="middle" fontSize={9} fill={T_MUTED}>at the limit · {where}</text>
-                    </svg>
-                    <div style={{border:'1px solid #0f172a',borderRadius:2,overflow:'hidden'}}>
-                      <Line label="FRONT" ax={F} col={VIS_COL_F} isLim={gu.limit==='front'}/>
-                      <Line label="REAR" ax={R} col={VIS_COL_R} isLim={gu.limit==='rear'}/>
-                    </div>
-                    <div style={{fontSize:10,color:'#94a3b8',lineHeight:1.5}}>{verdict}</div>
-                    {gripPhase!=='mid'&&<div style={{fontSize:10,color:T_MUTED,lineHeight:1.5}}>
-                      Includes the car's own weight transfer, which the bar's ENTRY / EXIT figures leave out, so the two can differ.
-                    </div>}
-                  </div>}
-                </div>);
-              })()}
-              </Hide>
-            </div>
-          </Sec>
-        </div>}
         </div>
 
+        {/* VISUALS — wide screens: a docked column between the inputs and the output. */}
+        {visWide&&visShown&&visualsPanel(true)}
+
         {/* OUTPUT PANEL */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',background:'#020617',minHeight:0}}>
+        <div style={{flex:1,display:'flex',flexDirection:'column',background:'#020617',minHeight:0,minWidth:0}}>
+          {/* VISUALS — below VIS_COL_MIN: swaps with the tune cards; the balance bar stays below. */}
+          {!visWide&&visShown&&visualsPanel(false)}
 
           {/* cards — scrollable */}
-          <div id="zone-output" data-hint-bound ref={outMeasureRef} className={editing?'layout-editing':undefined} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output')}}>
+          <div id="zone-output" data-hint-bound ref={outMeasureRef} className={editing?'layout-editing':undefined} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output'),
+            ...(!visWide&&visShown?{display:'none'}:{})}}>
           {/* containerType lets the output layouts query this div's own rendered width (not the
               viewport's), which depends on the sidebar as much as the window — see the
               .beamng-grid and .forza-out rules in <style>. A container cannot query itself, so
@@ -14512,8 +14654,10 @@ function App(){
                   </span>
                 </div>
               </div>
-              {/* Bar stack — always shown on desktop; on phones it collapses behind the summary line. */}
-              {(!isPhone||footerOpen)&&<>
+              {/* Bar stack — always shown on desktop; on phones it collapses behind the summary line,
+                  and folds there while CONTRIBUTIONS is open: the drawer breaks down the same lanes,
+                  and gets the height back. Not during a guide, whose bar steps need the stack. */}
+              {(!isPhone||(footerOpen&&(!open.balanceExpanded||guideOn)))&&<>
               {/* compact stacked balance bar — the car's own lean is the starting tick, and each
                   tuning contributor is a segment stacked out from it */}
               <Hide id="bar.stack">
@@ -14742,7 +14886,9 @@ function App(){
               {/* PRO: the three phases on one line. ENTRY/EXIT are MID plus the brake or drive term;
                   diff lock has a direction only. */}
               <Hide id="bar.phase">
-              {phase&&(()=>{
+              {/* Not while the expanded panel is open: its ENTRY / MID / EXIT headings carry the same
+                  three figures right above this line. */}
+              {phase&&!(open.balanceExpanded&&!guideOn)&&(()=>{
                 const col=v=>Math.abs(v)<PHASE_NEUTRAL?'#cbd5e1':v>0?C_OS:C_US;
                 const arrow=v=>{const d=signOf(v);return d>0?'▶':d<0?'◀':'';};
                 const Ph=({label,v,dv})=>(
@@ -14757,6 +14903,10 @@ function App(){
                     <Ph label="ENTRY" v={phase.entry.total} dv={diff.bDiffDecel}/>
                     <Ph label="MID" v={phase.mid.total}/>
                     <Ph label="EXIT" v={phase.exit.total} dv={diff.bDiffAccel}/>
+                    {/* The one-line cue for why GRIP USE's ENTRY / EXIT can read differently: these
+                        figures leave out pitch (the car's own fore-aft weight transfer), GRIP USE keeps it. */}
+                    <div style={{fontSize:10,color:T_FAINT,letterSpacing:1,cursor:'help'}}
+                      title="Pitch is left out: no setting changes it. These show what your tune changes; GRIP USE includes pitch to predict the car.">excl. pitch</div>
                     <Hint text={`ENTRY is MID plus brake bias at ${ENTRY_G} g braking; EXIT is MID plus the drive split at ${phase.exit.g} g of drive. An arrow shows which way diff lock pushes, not how far.`} term="phase-verdict"/>
                   </div>);
               })()}
