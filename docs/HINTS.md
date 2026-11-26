@@ -640,19 +640,19 @@ intent offset; terms under 0.005° left out except the build base), e.g. `Camber
 
 **ANTI-ROLL BARS:**
 
-> Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached; the brighter figure on each row is the one the balance mode sets.
+> Values for the game's ARB menu. Amber: above 88% of the limit; FLOOR or CEILING: pinned at its range. The header names the stiffness and balance modes, then the roll reached. Rows: each bar's share of its axle and of both bars, less what the balance mode sets.
 
 **SPRINGS:**
 
-> Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; the brighter figure on each row is the one that mode sets. % roll: the spring's share of its axle.
+> Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; rows give what those leave to the solver (Hz under BOTTOM G's, rear ÷ front under FLAT RIDE).
 
 **DAMPERS:**
 
-> Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; the brighter figures on each row are the ones that mode evens out.
+> Rebound and bump click values for the game's damping menu. Amber means above 88% of the game's limit. The header names the balance mode and where bump comes from; each row gives the figures those leave to the solver, not the ones they set.
 
 **BRAKES** (the same text on the Forza and BeamNG cards):
 
-> Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the brighter figure is the one it sets.
+> Brake balance starting point. Higher front bias adds entry understeer; lower adds rotation. Fine-tune in 1% steps by feel. The header names the Centre; the row gives the centre bias it works out.
 
 It lives in one const, `HINT_BRAKES_OUT`, that both layouts read. With BRAKES on STOCK (INT+) the Balance row reads `STOCK`.
 
@@ -687,6 +687,27 @@ DAMPERS, on the suspension mode line above the suspension cards (INT+). By card:
 `{n}% of axle roll` and `{n}% of both bars` (`% roll` / `% ARB` on BeamNG), SPRINGS rows
 `{n}% of axle roll`, and a non-Race diff's lock rows `acts like {n}% RACE` (Horizon only: BeamNG's one diff is at Race's scale).
 Lock tags are OFF, LOW, MEDIUM, HIGH and MAX.
+
+**Output figures** — which row figures show follows the layout's FIGURES settings (CODE_MAP,
+Output figures): under AUTO a figure that only repeats a sidebar setting is left out. Beyond the
+ones above: Hz (`{n} Hz`), bottom-out g (`{n} g`), the rear's `R/F ×{ratio}`, `sag {length}`
+(off in AUTO); rebound `{n}s settle` and `{n}% ζ`, bump `{n}s settle`, `{n}% of reb` and `{n}% ζ`,
+`{n}% force` and `catch {n}%` (both off in AUTO); BRAKES `centre {n}%` (left out while it equals
+the value), `shift {±n}` and, PRO, `GRIP {n}% @ {g} g`. A figure's title says what it is:
+
+> Repeats a setting in the sidebar
+
+> Worked out from your settings
+
+**Card line** (INT+, Forza) — under each card: `balance {PHASE} {±n} {US | OS}` per phase the
+card acts in (MID for springs, bars and camber; ENTRY for damping, brakes, decel lock and toe;
+EXIT for accel lock and rear toe), coloured by side, `≈0` when it rounds to nothing. PRO gives
+grip-margin % (`ENTRY BRK` on BRAKES, `EXIT drive` for an AWD split) and, for damping, diff lock
+and alignment, a direction (`ENTRY → OS`). ANTI-ROLL BARS adds `front roll stiffness {n}%`.
+
+**Layout panel, TUNE tab, FIGURES** — each card's figures with AUTO / ON / OFF, and ALL AUTO:
+
+> The smaller numbers beside each value. AUTO shows what the solver works out from your settings and leaves out what only repeats one; ON and OFF fix a figure either way.
 
 **RECOMMENDED / CENTRE SPLIT** (INT+) — RECOMMENDED shows in Horizon only, the one game with a
 diff type to pick. While the diff type or centre split differs from the

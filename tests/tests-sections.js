@@ -37,6 +37,10 @@
 //      VISUALS parts (VisPart) against HIDE_ITEMS.
 //  10. Output order: Forza's order keys are its card ids, the render draws each from outEl once,
 //      BeamNG's three rows are all drawn, and stored orders repair per family.
+//  11. Output figures: OUT_FIGS keys are unique, every figure key the render writes is listed and
+//      every listed one is written; AUTO drops set figures, shows solved ones and info ones unless
+//      def:false; ON / OFF override it; figs repair to known keys and modes; tiers and Forza-only
+//      figures gate the panel list; every Forza card draws its CardFigs line.
 //
 // If the slice() markers below stop matching, index.html has been reorganised — fix the
 // markers rather than deleting the test.
@@ -63,13 +67,13 @@ const M = new Function(
   '\nreturn{SECTION_VIS,HIDE_ITEMS,sectionKeysOf,sectionDefaults,sectionChanged,hiddenChangedIn,repairHidden,DEF_CH,DEF_FE,DEF_DR,' +
   'SEC_ZONE,SPOT_MARKS,spotZone,spotCss,TUTORIALS,DEF_TUT_PROGRESS,repairTutProgress,TUT_V1_TITLES,tutProgressFromV1,tutResumeStep,heldFields,' +
   'LAYOUT_GAMES,LAYOUT_MAX,LAYOUT_NAME_MAX,LAYOUT_FILE_KIND,LAYOUT_SECS,repairLayouts,legacyLayouts,importLayouts,hideIdApplies,' +
-  'HIDE_OPTS,optOf,hideIdValid,OUT_ORDER_DEF,outFamily};'
+  'HIDE_OPTS,optOf,hideIdValid,OUT_ORDER_DEF,outFamily,OUT_FIGS,outFigShown,outFigApplies,repairFigs};'
 )();
 const { SECTION_VIS, HIDE_ITEMS, sectionKeysOf, sectionDefaults, sectionChanged, hiddenChangedIn, repairHidden,
         DEF_CH, DEF_FE, DEF_DR, SEC_ZONE, SPOT_MARKS, spotZone, spotCss, TUTORIALS,
         DEF_TUT_PROGRESS, repairTutProgress, TUT_V1_TITLES, tutProgressFromV1, tutResumeStep, heldFields,
         LAYOUT_GAMES, LAYOUT_MAX, LAYOUT_NAME_MAX, LAYOUT_FILE_KIND, LAYOUT_SECS, repairLayouts, legacyLayouts, importLayouts, hideIdApplies,
-        HIDE_OPTS, optOf, hideIdValid, OUT_ORDER_DEF, outFamily } = M;
+        HIDE_OPTS, optOf, hideIdValid, OUT_ORDER_DEF, outFamily, OUT_FIGS, outFigShown, outFigApplies, repairFigs } = M;
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -408,7 +412,7 @@ t('repair drops unknown ids, fixes ids and names, keeps valid assignments', () =
     { id: 'a', name: '', hidden: 'x' },
     { id: 'bad id!', name: 'x'.repeat(40) } ],
     assign: { intermediate: { horizon: 'a', beamng: 'gone' }, pro: { motorsport: 'a' } } });
-  const { order, startOpen, noChip, pins, outOrder, ...rest } = r.layouts[0];
+  const { order, startOpen, noChip, pins, outOrder, figs, ...rest } = r.layouts[0];
   eq(rest, { id: 'a', name: 'Track day', hidden: ['arb', 'out.card.suspF'], persist: true });
   ok(r.layouts[1].id !== 'a' && r.layouts[1].name === 'LAYOUT 2' && r.layouts[1].hidden.length === 0, 'duplicate id renewed, blank name filled');
   ok(/^[\w-]+$/.test(r.layouts[2].id) && r.layouts[2].name.length === LAYOUT_NAME_MAX, 'bad id renewed, long name cut');
@@ -579,6 +583,49 @@ t('stored output orders repair per family', () => {
   eq(r.outOrder.beamng, OUT_ORDER_DEF.beamng);
   eq(repairLayouts(undefined).layouts[0].outOrder, OUT_ORDER_DEF);
   eq([outFamily('horizon'), outFamily('motorsport'), outFamily('beamng')], ['forza', 'forza', 'beamng']);
+});
+
+section('output figures');
+t('every figure key the render writes is in OUT_FIGS, and every listed key is written', () => {
+  const keys = OUT_FIGS.map(f => f.k);
+  eq(keys.length, new Set(keys).size, 'keys are unique');
+  const reg = slice('const OUT_FIGS=[', '];');
+  const rest = src.replace(reg, '');
+  const used = new Set([...rest.matchAll(/\{k:'([a-z]+\.[a-z]+)'/g)].map(m => m[1]));
+  // bal() and the ARB_FIG table pass keys as arguments: count those literals too.
+  for (const m of rest.matchAll(/bal\('([a-z]+\.[a-z]+)'/g)) used.add(m[1]);
+  for (const m of slice('const ARB_FIG=[', '];').matchAll(/'([a-z]+\.[a-z]+)'/g)) used.add(m[1]);
+  eq([...used].filter(k => !keys.includes(k)), [], 'written but not listed');
+  eq(keys.filter(k => !used.has(k)), [], 'listed but never written');
+});
+t('AUTO drops set figures, shows solved ones and info ones unless def:false; ON / OFF override', () => {
+  eq(outFigShown(undefined, 'spr.hz', 'set'), false);
+  eq(outFigShown(undefined, 'spr.hz', 'solved'), true);
+  eq(outFigShown(undefined, 'spr.roll', 'info'), true);
+  eq(outFigShown(undefined, 'spr.sag', 'info'), false, 'def:false');
+  eq(outFigShown('always', 'spr.hz', 'set'), true);
+  eq(outFigShown('never', 'spr.hz', 'solved'), false);
+});
+t('figs repair to known keys and modes; a layout without them gets {}', () => {
+  eq(repairFigs({ 'spr.hz': 'always', 'spr.sag': 'never', ghost: 'always', 'dmp.zeta': 'auto', 'arb.roll': 1 }), { 'spr.hz': 'always', 'spr.sag': 'never' });
+  eq(repairFigs(['spr.hz']), {}); eq(repairFigs(null), {});
+  const r = repairLayouts({ layouts: [{ id: 'a', name: 'A', figs: { 'spr.ratio': 'never', x: 'always' } }, { id: 'b', name: 'B' }] }).layouts;
+  eq(r[0].figs, { 'spr.ratio': 'never' }); eq(r[1].figs, {});
+});
+t('the panel lists a figure only in its tiers, and Forza-only ones not for BeamNG', () => {
+  ok(!outFigApplies('brk.grip', 'intermediate', 'horizon') && outFigApplies('brk.grip', 'pro', 'horizon'), 'GRIP is PRO');
+  ok(outFigApplies('spr.bal', 'pro', 'motorsport') && !outFigApplies('spr.bal', 'pro', 'beamng'), 'card lines are Forza');
+  ok(outFigApplies('spr.hz', 'intermediate', 'beamng'), 'row figures reach BeamNG');
+  ok(!outFigApplies('ghost', 'pro', 'horizon'));
+  for (const f of OUT_FIGS) ok(['springs', 'arb', 'dampers', 'align', 'brakes', 'diff'].includes(f.card), f.k + ' card');
+});
+t('every Forza card draws its CardFigs line from cardFigs', () => {
+  const map = slice('{(()=>{const outEl={', 'return outOrder.forza.map(');
+  const names = { 'out.card.align': 'align', 'out.card.arb': 'arb', 'out.card.springs': 'springs', 'out.card.dampers': 'dampers', 'out.card.brakes': 'brakes', 'out.card.diff': 'diff' };
+  for (const [k, c] of Object.entries(names)) {
+    const i = map.indexOf(`\n          '${k}':<>`), j = map.indexOf('\n          </>,', i);
+    ok(map.slice(i, j).includes(`<CardFigs figs={cardFigs.${c}}/>`), k);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
