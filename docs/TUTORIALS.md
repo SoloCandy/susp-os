@@ -12,7 +12,7 @@ when a step's text in the code and here stop matching.
 
 ---
 
-## The four guides
+## The five guides
 
 | Guide key | Label on the card | Opens | Scope |
 |---|---|---|---|
@@ -20,6 +20,7 @@ when a step's text in the code and here stop matching.
 | `intermediate` | `INT GUIDE` | First visit to INT, or `?` while in INT | Only what INT adds over BEG |
 | `pro` | `PRO GUIDE` | First visit to PRO, or `?` while in PRO | Only what PRO adds over INT |
 | `balance` | `HANDLING GUIDE` | The **? GUIDE** button in the expanded Handling Balance panel | The expanded Handling Balance breakdown |
+| `layout` | `LAYOUT GUIDE` | The **? GUIDE** button in the LAYOUT panel (INT and PRO) | The LAYOUT panel: hiding, order, MY CONTROLS, HOLD, figures, saved layouts |
 
 The balance guide is labelled `HANDLING`, not `BALANCE`, on purpose: the PRO
 sidebar has its own BALANCE section with an unrelated BALANCE GUIDE widget, and
@@ -99,6 +100,18 @@ the page; its steps' spots dim only the rest of the bar (see
 [Spots](#spots-single-controls-cards-and-bar-parts)). A step pointing into the expanded
 panel opens it, and nothing closes it again: the user opened the guide from that panel.
 
+### Layouts guide
+
+Opt-in, from the **? GUIDE** button in the LAYOUT panel's header (`setLpTut(0)`), so INT and
+PRO only. Unlike every other guide it is not `guideOn`: it explains the reader's own layout,
+so the panel stays open over the page, nothing is shown that the layout hides, and nothing
+is dimmed. Each step's `lpTab` turns the panel to the tab it describes, and its spots are
+`lp.*` marks on the panel's parts. The card docks left of the panel on a wide screen, as for
+the GARAGE; on a phone, where the panel is the full width, it goes above or below the spot.
+DONE or ✕ closes the guide and leaves the panel open; closing the panel (DONE, Esc, EDIT ON
+PAGE) closes the guide too. Its state (`lpTut`) is separate from the other guides' and is not
+saved. INT's Make It Yours step points at it.
+
 ### Onboarding popup
 
 Rendered when `!onboardSeen`. `suspos_onboard_v1` defaults to `true`, so it shows
@@ -113,7 +126,8 @@ that line now sits on the guide's last card instead (`TUT_END_NOTE`).
 
 ## The card (`TutorialPanel`)
 
-Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, and —
+Props: `mode`, `step`, `onNext`, `onPrev`, `onClose`, `onDone`, `zoom`, `game` (the game
+mode, which picks a step's `bng` text), and —
 tier guides only — `quick` / `onQuick` for the QUICK START path, `units` /
 `setUnits` for the units step, `appState` (the live `fe`) for step tasks and `absent`
 notes, `notice` for the locked-tier redirect message (step 0 only; see Tier gating),
@@ -125,7 +139,7 @@ notes, `notice` for the locked-tier redirect message (step 0 only; see Tier gati
   `n / total` and the progress bar count only the steps this car runs (the `shown`
   prop; see `skip` under [Step schema](#step-schema)).
 - **Progress bar**: one segment per step — done, current (indigo), upcoming.
-- **Body**: the step's `body` string, in a `data-tut-body` element styled
+- **Body**: the step's `body` string (in BeamNG its `bng`, where it has one), in a `data-tut-body` element styled
   `white-space: pre-line`, so a `\n\n` in the string renders as a paragraph break.
   A step with `units:true` appends the `UnitsPicker` — the same control the UNITS
   modal uses, so a choice made here is the real setting.
@@ -147,7 +161,7 @@ notes, `notice` for the locked-tier redirect message (step 0 only; see Tier gati
   reader switches that mode.
 - **Buttons**: ← PREV from the first shown step on; NEXT → until the last shown step, then DONE ✓.
   DONE calls `onDone` if given (tier guides: `finishTut`), otherwise `onClose`
-  (balance guide).
+  (the balance and Layouts guides).
 - **Overflow**: if the body scrolls, a `▼ SCROLL FOR MORE` fade appears; it is
   re-checked twice after layout settles because the first measurement can run
   before the final height is painted.
@@ -176,9 +190,10 @@ A **sidebar target** is one whose right edge is at or before the sidebar's. It u
 "left of centre", which caught the full-width bar lanes whenever the sidebar was closed and
 dropped the card on top of them.
 
-- **Garage target, with room left of the GARAGE overlay**: the card goes just left of
-  the overlay, vertically centred on the target and clamped on-screen, with a
-  right-pointing arrow. Below the garage rows it covered the list they describe.
+- **Garage or LAYOUT panel target, with room left of the overlay**: the card goes just
+  left of the GARAGE overlay (a step focusing `garage`) or the LAYOUT panel (`layout`),
+  vertically centred on the target and clamped on-screen, with a right-pointing arrow.
+  Below the garage rows it covered the list they describe.
 - **Sidebar target, with room beside the sidebar**: the card floats just right of the
   sidebar, vertically centred on the target and clamped on-screen, with a left-pointing
   arrow. "Room" means the full `CARD_W` fits right of the sidebar.
@@ -207,14 +222,16 @@ Each step is an object in its guide's array:
 |---|---|---|
 | `title` | yes | Card heading. |
 | `body` | yes | Plain text, kept short (about 320 characters at most); depth goes in the glossary. `\n\n` renders as a paragraph break (the body is `pre-line`). |
+| `bng` | no | The body to show instead in BeamNG, for a step whose text names Forza's screens, Forza-only figures or Forza-only behaviour. Quoted in [Step text](#step-text) after the body. |
+| `lpTab` | no | Layouts guide only: the LAYOUT panel tab the step turns to (`sidebar`, `tune`, `visuals` or `layouts`). |
 | `glossary` | no | Array of `GLOSSARY` ids, rendered as TERMS chips that open the glossary at that entry. Keep it to three at most, and only entries whose `tier` is at or below the guide's tier, so a chip never opens a term the reader can't see yet. |
 | `focus` | yes (may be `null`) | Array of zone keys to spotlight. `null` = info step, nothing spotlit. |
-| `spot` | no | Array of part ids to light inside the focused zones: `HIDE_ITEMS` ids (`arb.bias`, `out.card.springs`, `bar.response`) or `SPOT_MARKS` ids (`tb.share`, `bal.tip`, `garage.save`). Each must sit in a zone the step focuses (the balance guide: `balance-bar`) and render in the guide's tier; ids that don't render right now (another mode, layout or game) are skipped. List the most important first. See [Spots](#spots-single-controls-cards-and-bar-parts). |
+| `spot` | no | Array of part ids to light inside the focused zones: `HIDE_ITEMS` ids (`arb.bias`, `out.card.springs`, `bar.response`) or `SPOT_MARKS` ids (`tb.share`, `bal.tip`, `garage.save`). Each must sit in a zone the step focuses (the balance guide: `balance-bar`) and render in the guide's tier (the Layouts guide: INT's); ids that don't render right now (another mode, layout or game) are skipped. List the most important first. See [Spots](#spots-single-controls-cards-and-bar-parts). |
 | `sidebar` | no | `'open'` or `'close'` forces the sidebar. |
 | `units` | no | `true` embeds the units picker. |
 | `quick` | no | `true` puts the step on the QUICK START path. `tutSteps(mode, quick)` filters on it — the quick path is a view over the same array, never a copy. |
 | `pathChoice` | no | `true` swaps NEXT for QUICK START / FULL TOUR on this card. |
-| `skip` | no | `st => boolean`, with `st` = `{ch, fe, dr, al}`. True drops the step for this car: NEXT and PREV step over it, the count and progress bar leave it out, and a guide opened or resumed on it moves to the next shown step. INT's AWD Center Diff skips off AWD. |
+| `skip` | no | `st => boolean`, with `st` = `{ch, fe, dr, al}`. True drops the step for this car: NEXT and PREV step over it, the count and progress bar leave it out, and a guide opened or resumed on it moves to the next shown step. INT's AWD Centre Diff skips off AWD; PRO's Calibrating with the Game skips in BeamNG. |
 | `absent` | no | `{ids, text}`. When none of `ids` renders, the card shows `text` (the absent note) saying how to reach the control. For steps whose controls only render in another mode. |
 | `task` | no | `{text, check}`. `check(fe, snap)` → boolean, where `snap` is `fe` as it was when the step opened. Shows `text` with ○, ✓ once it passes. Never blocks NEXT. Beginner: Load a Preset, Ride Stiffness, Balance. |
 
@@ -315,7 +332,9 @@ control, a ⋯ item or an output part, which would leave a step's `focus`,
 the sidebar is drawn in its default section order (`sidebarOrder`) without MY CONTROLS, pinned
 controls back in their own sections, since a step's card is placed by where its section sits; the user's layouts come back untouched when the guide closes. Starting either guide
 also closes the layout panel and leaves the edit view, and LAYOUT… is disabled until it ends. Before spots only `tutMode`
-did this, so the balance guide explained a bar the user might have hidden. See
+did this, so the balance guide explained a bar the user might have hidden. The Layouts guide
+is the one exception: its subject is the layout itself, so it runs over the open panel with
+the layout in force (see [Layouts guide](#layouts-guide)). See
 [CODE_MAP.md](CODE_MAP.md#layouts-the-layout-panel-and-the-on-page-edit-view).
 
 ---
@@ -332,68 +351,61 @@ every step title of its guide, in order; `tests-sections.js` checks every spot i
 | # | Title | Spotlight | Spots | Sidebar | Covers | Quick |
 |---|---|---|---|---|---|---|
 | 1 | Welcome to SUSP.OS | — | | close | What the app does; a working tune comes first, refinement after. | |
-| 2 | Choose Your Units | — | | | Embedded units picker; match Forza's spring units. | ✓ |
+| 2 | Choose Your Units | — | | | Embedded units picker; match the game's spring units. | ✓ |
 | 3 | Load a Preset | `garage` | `garage.factory` | close | Load the FACTORY preset for the car's class (★ = build type) so every later step has results to show. | ✓ |
-| 4 | Getting Around | `toolbar` | `tb.undo` | | INPUTS (a tab on a phone), ↩ / ↪ undo / redo, ⓘ hints and TERMS. | |
+| 4 | Getting Around | `toolbar` | `tb.undo`, `tb.share`, `tb.reset` | | A map of the header: INPUTS (a tab on a phone), ↩ / ↪, the game · level chip, SHARE, ⋯ (CHECK, ⟲ RESET), ?; ⓘ hints. Holds ⋯ open for `tb.reset`. Took over the old Output Toolbar step. | |
 | 5 | Layout & Build Type | `layout-build`, `build-type` | | | Drive layout and build type and what they drive. | |
-| 6 | Weight & Front Bias | `weight` | | | Take them from the car selection screen. | |
+| 6 | Weight & Front Bias | `weight` | | | Where the numbers come from (`bng`: no Forza screen named). | |
 | 7 | Ride Stiffness | `ride-stiffness` | | | SOFT / ROAD / FIRM / RACE, FIRM as the start. | |
 | 8 | Balance | `balance` | | | OVERSTEER ↔ UNDERSTEER slider and when to lean each way. | ✓ |
 | 9 | Character | `character` | | | STABLE ↔ AGILE damping feel. | |
 | 10 | Handling Balance Bar | `balance-bar` | `bar.head`, `bar.main` | close | Sign; CAR tick, NET headline; tap to expand; its ? GUIDE. | |
-| 11 | Reading the Results | `output` | `out.card.arb` / `.springs` / `.dampers` / `.suspF` / `.suspR` | | The suspension cards first; amber = near a game limit. | ✓ |
-| 12 | Alignment, Brakes & Diff | `output` | `out.card.align` / `.brakes` / `.diff` / `.alignF` / `.alignR` / `.diffF` / `.diffR` / `.center` | | The other cards follow layout and build type; starting points to tune by feel. | |
-| 13 | Output Toolbar | `toolbar` | `tb.reset`, `tbDna`, `tbCheck`, `tb.share` | | RESET, DNA, CHECK, SHARE. | |
-| 14 | Saving Your Own | `garage` | `garage.save` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; `?` reopens the guide. | |
+| 11 | Reading the Results | `output` | every card: `out.card.arb` / `.springs` / `.dampers` / `.align` / `.brakes` / `.diff` / `.suspF` / `.suspR` / `.alignF` / `.alignR` / `.diffF` / `.diffR` / `.center` | close | All six cards and what each follows; the figures beside a value; amber = near a game limit. `bng`: BeamNG's grouping, units, no click limits, % alignment sliders. Took over Alignment, Brakes & Diff. | ✓ |
+| 12 | Saving Your Own | `garage` | `garage.save` | close | SAVE CHASSIS / BUILD / CAR once the tune is worth keeping; GUIDE reopens the guide. | |
 
 ### Intermediate <!--@tutorial intermediate-->
 
-There are no Key Terms cards any more: Hz, ζ and roll stiffness are TERMS chips on
-the Welcome card and live in the glossary.
+Only what INT adds: the cards BEG already explained (the results, the header) are not
+repeated. There are no Key Terms cards: Hz, ζ and roll stiffness are TERMS chips on the
+Welcome card and live in the glossary.
 
 | # | Title | Spotlight | Spots | Sidebar | Covers |
 |---|---|---|---|---|---|
-| 1 | Welcome — Intermediate Mode | — | | | Collapsible sections, the section jump bar, collapse / expand all under ⋯, per-section ↺; TERMS chips for Hz, ζ and roll stiffness. |
-| 2 | Chassis | `chassis` | `chassis.layout` / `.weight` / `.frontBias` / `.tyres` / `.cgSource` | | Layout / weight / bias moved here; CG height source. |
-| 3 | Build Type | `build` | | | What build type steers: auto diff locks, recommended diff type, brake balance, alignment. |
-| 4 | ARB Stiffness & Balance Mode | `arb` | `arb.mode` / `.basic` / `.roll` / `.share` / `.manF` / `.manR` / `.balMode` / `.neutralMethod` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
-| 5 | ARB Bias & Visuals | `arb`, `visuals` | `arb.bias`, `visuals.ride` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
-| 6 | Ride Ref & Rear Hz | `feel` | `ride.ref` / `.hzMode` / `.targetSpeed` / `.hzMult` / `.hzMan` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
-| 7 | Dampers | `damping` | `dampers.reboundZeta` / `.bumpRatio` / `.bias` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
-| 8 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
-| 9 | Alignment | `alignment` | `align.mode` / `.ofsCamberF` / `.ofsCamberR` / `.ofsToeF` / `.ofsToeR` / `.ofsCaster` | | AUTO's five intent sliders (Camber F / R, Turn-in, Rear stability, Steering feel) and MANUAL; switching carries the numbers across. Absent note under MANUAL. Moved here from PRO's Alignment Mode when the section came down to INT. |
-| 10 | Diff Type | `drivetrain` | `drive.diffType` | | Race / Sport / Rally / Offroad / Drift lock curves; Sport is accel-only. Skipped outside Horizon, which has no type to pick. |
-| 11 | Corner Exit & Entry | `drivetrain` | `drive.exit` / `.entry` | | EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE, hidden on Sport); right = more rotation; DIFF in the ENTRY / EXIT lanes follows. |
-| 12 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
-| 13 | VISUALS Card | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | RIDE · ROLL · DAMPING, DYNAMICS (±10% settle band), SAG vs LOAD, ALIGNMENT. |
-| 14 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | The three-phase headline in words; the CAR tick, SPR, ARB and ALIGN, the MID tick; tap for the rows. |
-| 15 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off MID, toe included; where each ends is that phase. |
-| 16 | Reading the Results | `output` | as BEG step 11 | close | The suspension cards first; amber = near a game limit. |
-| 17 | Alignment, Brakes & Diff | `output` | as BEG step 12 | close | The other cards and the settings they follow. |
-| 18 | Output Toolbar | `toolbar` | `tb.reset`, `tbDna`, `tbCheck`, `tb.share` | | RESET, DNA, CHECK, SHARE. |
-| 19 | Garage | `garage` | `garage.save` / `.list` | close | CHASSIS / BUILD / CAR entries, LOAD CHASSIS / LOAD BUILD. |
-| 20 | Organizing & Searching | `garage` | `garage.search` | close | Notes, tags, auto-tags, filter / sort, ↺ rewrite. |
-| 21 | Sharing & Backup | `toolbar` | `tb.share` | open | COPY CODE / COPY LINK / LOAD CODE and its part picker, BACKUP, RESTORE. It spotlit the garage until spots; SHARE is a toolbar button. |
+| 1 | Welcome — Intermediate Mode | — | | | Sections, the jump bar's chips, RESET on a header (twice), collapse / expand all under ⋯; TERMS chips for Hz, ζ and roll stiffness. |
+| 2 | Chassis & Build | `chassis`, `build` | `chassis.layout` / `.weight` / `.frontBias` / `.tyres` / `.cgSource`, `build.type` | | Layout / weight / bias in CHASSIS; CG height source; what Build Type steers. `bng` drops Forza's screen and the diff type. |
+| 3 | ARB Stiffness & Balance Mode | `arb` | `arb.mode` / `.basic` / `.roll` / `.share` / `.manF` / `.manR` / `.balMode` / `.neutralMethod` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
+| 4 | ARB Bias & Visuals | `arb`, `visuals` | `arb.bias`, `visuals.ride` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
+| 5 | Ride Ref & Rear Hz | `feel` | `ride.ref` / `.hzMode` / `.targetSpeed` / `.hzMult` / `.hzMan` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
+| 6 | Dampers | `damping` | `dampers.reboundZeta` / `.bumpRatio` / `.bias` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
+| 7 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
+| 8 | Alignment | `alignment` | `align.mode` / `.ofsCamberF` / `.ofsCamberR` / `.ofsToeF` / `.ofsToeR` / `.ofsCaster` | | AUTO's five intent sliders and MANUAL; switching carries the numbers across. Absent note under MANUAL. `bng`: BeamNG's % sliders against its live readout. |
+| 9 | Differential | `drivetrain` | `drive.diffType` / `.exit` / `.entry` | | Horizon's diff types (Sport is accel-only), then EXIT (GRIP ↔ ROTATE) and ENTRY (STABLE ↔ LOOSE); right = more rotation; DIFF in the lanes follows. One step for every game: the type sentence names Horizon, so Motorsport and BeamNG need no skip. |
+| 10 | AWD Centre Diff | `drivetrain`, `output` | `drive.powerSplit` / `.frontExit`, `out.diff.recCenter`, `out.card.center` | open | POWER SPLIT, CENTRE SPLIT recommendation and → USE, FRONT AXLE EXIT. Skipped unless the layout is AWD; on a Sport diff the absent note says to pick another Diff Type. |
+| 11 | Reading the Figures | `output` | `out.card.springs` / `.dampers` / `.suspF` / `.suspR` | close | The smaller figures beside each value, which the solver worked out (AUTO leaves out what only repeats a setting); each card's header and balance line; FIGURES in the LAYOUT panel. `bng` drops the balance line, which BeamNG's cards don't have. |
+| 12 | VISUALS | `visuals` | `visuals.ride` / `.dynamics` / `.sag` | | The VISUALS view (a tab on a phone): RIDE · ROLL · DAMPING, DYNAMICS, SAG vs LOAD, ALIGNMENT; fold a group, or PIN it. |
+| 13 | Handling Balance Bar | `balance-bar` | `bar.head` / `.main` / `.legend` | close | The three-phase headline in words; the CAR tick, SPR, ARB and ALIGN, the MID tick; tap for the rows. |
+| 14 | Entry & Exit Lanes | `balance-bar` | `bar.lanes` | close | The ENTRY / EXIT lanes INT adds, off MID, toe included; where each ends is that phase. |
+| 15 | Make It Yours | `toolbar` | `tb.layout` | | LAYOUT… under ⋯ (or ✎ on the jump bar): what shows, order, MY CONTROLS, HOLD; per level and game; points to the panel's own ? GUIDE (the [Layouts guide](#layouts-guide)). Holds ⋯ open. |
+| 16 | Garage & Sharing | `garage` | `garage.save` / `.search` / `.list` | close | CHASSIS / BUILD / CAR saves, LOAD CHASSIS / LOAD BUILD, notes and tags, and SHARE (codes, part-by-part loading, garage backup). One step where there were three. |
 
 ### Pro <!--@tutorial pro-->
 
 | # | Title | Spotlight | Spots | Sidebar | Covers |
 |---|---|---|---|---|---|
-| 1 | Welcome — Pro Mode | — | | | What PRO adds, DNA included. |
-| 2 | Chassis Geometry | `chassis` | `chassis.wheelbase` / `.trackF` / `.trackR` / `.tyres` | | LOOK UP ONLINE wheelbase and track widths; how they and tyre width set the Balance Guide's NATURAL and GRIP BIAS. |
-| 3 | Calibrating Natural Balance | `chassis` | `chassis.measureNatBal` | | MEASURE NAT BAL → Tune Check MEASURE; the reading replaces the geometry prediction; CLEAR / ✕. |
-| 4 | Calibrating ARB Scale | `balance-target` | | | Step 2 · ARB SCALE SETUP, four readings, SCALE IN USE. Its controls are in the MEASURE tab, so no spots. |
-| 5 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start inside the Balance Guide's range. Absent note while nothing solves toward the target. |
-| 6 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. Same absent condition as step 5. |
-| 7 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. Absent note until MECH or CO-SOLVE is picked. |
-| 8 | Hz MODE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
-| 9 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY; ENTRY BRK. |
-| 10 | Manual Differential | `drivetrain` | `drive.diffMode` / `.splitMode` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); Split Mode's SOLVE EXIT in AUTO. Absent note until the diff is MANUAL. |
-| 11 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
-| 12 | Mech Balance & Response | `balance-bar` | `bar.mechHead` / `.mechStrip` / `.response` | | The MECH BALANCE strip (NAT, CUR, TGT on the game's scale) and RESPONSE. |
-| 13 | Load Transfer | `visuals` | `visuals.load` / `.grip` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
-| 14 | Output Panel & Tune Check | `toolbar` | `tbCheck`, `tb.share`, `tb.reset` | | CHECK (DECODE / MEASURE), SHARE's part staging, RESET. |
-| 15 | Vehicle DNA | `toolbar` | `tbDna` | | DNA's handling targets, APPLY (once, undoable), MY DNA. Last, so `_v1` saves still convert to the same steps. |
+| 1 | Welcome — Pro Mode | — | | | What PRO adds, the phase readout and DNA included. |
+| 2 | Chassis Geometry | `chassis` | `chassis.wheelbase` / `.trackF` / `.trackR` / `.tyres` | | LOOK UP ONLINE wheelbase and track widths; how they and tyre width set the Balance Guide's NATURAL and GRIP BIAS. `bng` adds JBEAM ADJUST. |
+| 3 | Calibrating with the Game | `chassis` | `chassis.measureNatBal` | | MEASURE NAT BAL → Tune Check's MEASURE tab: STEP 1 · NAT BAL SETUP (the reading replaces the geometry prediction; CLEAR / ✕) and STEP 2 · ARB SCALE SETUP (four readings, SCALE IN USE). Skipped in BeamNG, which shows no Mech Balance to read. Was two steps. |
+| 4 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start inside the Balance Guide's range. Absent note while nothing solves toward the target. `bng`: Mech Balance is the app's figure there. |
+| 5 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. Same absent condition as step 4. |
+| 6 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. Absent note until MECH or CO-SOLVE is picked. |
+| 7 | Hz MODE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
+| 8 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY; ENTRY BRK in the sidebar and on the BRAKES card; the card's GRIP figure. |
+| 9 | Manual Differential | `drivetrain` | `drive.diffMode` / `.splitMode` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); Split Mode's SOLVE EXIT in AUTO. Absent note until the diff is MANUAL. |
+| 10 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
+| 11 | Mech Balance & Response | `balance-bar` | `bar.mechHead` / `.mechStrip` / `.response` | | The MECH BALANCE strip (NAT, CUR, TGT on the 0–1 scale) and RESPONSE. |
+| 12 | Load Transfer | `visuals` | `visuals.load` / `.grip` | | VISUALS' LOAD TRANSFER (FRONT TAKES vs weight at 1 g) and GRIP USE (which axle runs out first, by phase). |
+| 13 | Tune Check | `toolbar` | `tbCheck` | | CHECK (DECODE / MEASURE). Was Output Panel & Tune Check, which repeated SHARE and RESET. |
+| 14 | Vehicle DNA | `toolbar` | `tbDna` | | DNA's handling targets, APPLY (once, undoable), MY DNA. |
 
 ### Handling balance <!--@tutorial balance-->
 
@@ -408,6 +420,20 @@ step's spots, which dim the rest of the bar only.
 | 4 | Reading Each Row | — | `bal.rows` | | CAR STARTS, then springs and ARBs (make NET) vs diff, brakes, damping (entry / exit); value and % share. PRO groups by phase instead. Opens the expanded panel. |
 | 5 | Using the Correction Tip | — | `bal.tip` | | Move the largest contributor first; the main balance control for big shifts. |
 | 6 | Response Bar | — | `bar.response` | | PLANTED ↔ REACTIVE, separate from understeer / oversteer. |
+
+### Layouts <!--@tutorial layout-->
+
+Every step focuses `layout` (the open LAYOUT panel) and sets `lpTab`, the panel tab it
+turns to. The spots are `SPOT_MARKS` on the panel's parts.
+
+| # | Title | Spotlight | Spots | Tab | Covers |
+|---|---|---|---|---|---|
+| 1 | Layouts | `layout` | `lp.uses` | SIDEBAR | What a layout is; one per level and game; hiding never changes the tune; not in codes or backups. |
+| 2 | Hide & Order | `layout` | `lp.secs` | SIDEBAR | Untick or PARTS to hide; a hidden setting off its default still applies; ⠿ / ↑ ↓; START OPEN, JUMP CHIP; EDIT ON PAGE. |
+| 3 | MY CONTROLS | `layout` | `lp.mine` | SIDEBAR | ☆ pins a control to MY CONTROLS; ★ PINNED lists and orders them. |
+| 4 | HOLD | `layout` | `lp.hold` | SIDEBAR | What HOLD keeps and through what; the HELD tag and the bar; the line after a load, LOAD ALL and ⚠; HOLD ALL HIDDEN. |
+| 5 | Results & Figures | `layout` | `lp.figs` | TUNE | Card order and hiding; FIGURES AUTO / ON / OFF; the VISUALS tab. |
+| 6 | Saving Layouts | `layout` | `lp.saved` | LAYOUTS | USED FOR, + NEW, DUPLICATE, renaming, EXPORT ALL / IMPORT. |
 
 ---
 
@@ -441,7 +467,7 @@ TRY IT task (ticks when the check passes):
 
 #### 4. Getting Around
 
-> INPUTS shows or hides this sidebar (on a phone, the INPUTS tab); results update live as you change it. ↩ and ↪ undo and redo tune changes. Tap or hover an ⓘ for a short hint, and TERMS (in a hint, or the header's glossary) for the full explanation.
+> The header holds everything around the tune. INPUTS shows or hides this sidebar (on a phone, INPUTS and TUNE are tabs along the bottom); ↩ ↪ undo and redo. The game · level chip sets game, level and units; SHARE moves tunes by code or link; ⋯ holds CHECK and ⟲ RESET (never your saves); ? reopens this guide or the glossary. Tap an ⓘ for a hint.
 
 #### 5. Layout & Build Type
 
@@ -450,6 +476,10 @@ TRY IT task (ticks when the check passes):
 #### 6. Weight & Front Bias
 
 > Enter the car's total weight and front weight bias from the car selection screen, not the tuning menu. Almost every calculation starts from these two numbers.
+
+In BeamNG (`bng`):
+
+> Enter the car's total weight and front weight bias for this configuration. Almost every calculation starts from these two numbers.
 
 #### 7. Ride Stiffness
 
@@ -477,141 +507,133 @@ TRY IT task (ticks when the check passes):
 
 #### 11. Reading the Results
 
-> The results panel holds the values to type into the game's tuning menu. Start with the suspension: anti-roll bars, springs and dampers come from your ride, balance and character settings. Amber means a value is near the game's limit: soften your inputs slightly.
+> The results panel holds the values to type into the game's tuning menu. The suspension cards follow your ride, balance and character settings; ALIGNMENT, BRAKES and DIFFERENTIAL your layout and build type. Small figures beside a value, such as Hz or settle time, show what it works out to. Amber means near the game's limit: soften your inputs slightly.
 
-#### 12. Alignment, Brakes & Diff
+In BeamNG (`bng`):
 
-> ALIGNMENT, BRAKES and DIFFERENTIAL follow your layout and build type. Type them in as shown: like every card, they are starting points to fine-tune by feel once you've driven the car.
+> The results panel holds the values to type into BeamNG's tuning menu, grouped as its menu is, in N/m and N/m/s with no click limits. The alignment sliders are %, not degrees: dial each against BeamNG's live readout. Small figures beside a value, such as Hz or settle time, show what it works out to.
 
-#### 13. Output Toolbar
+#### 12. Saving Your Own
 
-> ⟲ RESET clears the tune, the tutorials or both, never garage saves. DNA (PRO) builds a tune from handling targets, CHECK reads back the frequencies and damping behind an existing tune, and SHARE moves tunes by code or link and backs up your garage. The first three sit under ⋯ in the header (SHARE too, on a phone).
-
-#### 14. Saving Your Own
-
-> Name the setup in the row above the preset list, then SAVE CHASSIS (the car: weight, bias, layout), SAVE BUILD (the tune) or SAVE CAR (both). Saves list under FACTORY; loading one is undoable with ↩. Reopen this guide any time with ?.
+> Name the setup in the box at the top of the garage, then SAVE CHASSIS (the car: weight, bias, layout), SAVE BUILD (the tune) or SAVE CAR (both). Saves list below the FACTORY presets; loading one is undoable with ↩. Reopen this guide any time with GUIDE, under ? in the header (⋯ on a phone).
 
 ### Intermediate <!--@steptext intermediate-->
 
 #### 1. Welcome — Intermediate Mode
 
-> Intermediate adds separate ride frequency, damping and ARB controls. The sidebar is now collapsible sections: tap a header to open one, or its chip in the bar along the top to open it and jump there. A header's ↺ resets just that section, and ⋯ in the header can collapse or expand them all. This guide covers only what's new.
+> Intermediate splits the sidebar into sections, with separate ride frequency, damping and ARB controls. Tap a header to open its section, or its chip in the bar along the top to open it and jump there. RESET on a header returns just that section to defaults (click it twice), and ⋯ in the header can collapse or expand them all. This guide covers only what's new.
 
-#### 2. Chassis
+#### 2. Chassis & Build
 
-> Layout, Weight and Front Weight Bias now sit in the CHASSIS section; take weight and bias from the car selection screen, not the tuning menu. Tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL) are here too.
+> CHASSIS holds Layout, Weight and Front Weight Bias (from the car selection screen, not the tuning menu), tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL). BUILD's Build Type (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car's intended use: it steers the diff's automatic locks, the recommended diff type, brake balance and alignment.
 
-#### 3. Build Type
+In BeamNG (`bng`):
 
-> Build Type in the BUILD section (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car's intended use. It steers the diff's automatic locks, the recommended diff type, brake balance and alignment.
+> CHASSIS holds Layout, Weight and Front Weight Bias for this configuration, tyre sizes and CG Height Source (RIDE HEIGHT or MANUAL). BUILD's Build Type (STREET / TRACK / DRIFT / RALLY / OFFROAD / DRAG) sets the car's intended use: it steers the diff's automatic locks, brake balance and alignment.
 
-#### 4. ARB Stiffness & Balance Mode
+#### 3. ARB Stiffness & Balance Mode
 
 > Stiffness Mode sets the total bar stiffness: AUTO, BASIC, ROLL °, SHARE % or MAN (front and rear typed directly, which hides Balance Mode and ARB Bias). Balance Mode splits it front to rear: WEIGHT follows the weight split; NEUTRAL works from the springs, by CANCEL or EQUAL ROLL.
 
-#### 5. ARB Bias & Visuals
+#### 4. ARB Bias & Visuals
 
 > ARB Bias nudges that split: toward FRONT HEAVY for more understeer and stability, toward REAR HEAVY for more rotation. VISUALS (in the header) shows the resulting roll split, body roll and bar stiffness under RIDE · ROLL · DAMPING.
 
-#### 6. Ride Ref & Rear Hz
+#### 5. Ride Ref & Rear Hz
 
 > RIDE REF. picks the axle the stiffness slider sets: FRONT, SHARED (the average) or REAR. Hz MODE derives the other: MULTIPLIER (fixed ratio, default), FLAT RIDE (less pitch bounce at Target Speed), INDEPENDENT (set by hand; not with SHARED) or SHARED (needs RIDE REF. SHARED and BOTTOM G's).
 
-#### 7. Dampers
+#### 6. Dampers
 
 > Rebound ζ starts at 70% (Butterworth); Bump Ratio sets bump as a share of rebound, 40–65% typical. Damping Bias toward FRONT leaves the front relatively firmer (planted entry), toward REAR the rear (easier direction changes); DAMP in the Handling Balance ENTRY lane shows it.
 
-#### 8. Brakes
+#### 7. Brakes
 
 > BRAKES holds Brake Bias, a shift of up to 10 points from the recommended brake bias. ROTATE moves it rearward for more rotation on the brakes, STABLE forward for a steadier entry; the BRAKES card shows the result. Set it by feel in the game. No race brakes fitted? Set Brakes to STOCK and the brakes drop out of the calculations.
 
-#### 9. Alignment
+#### 8. Alignment
 
 > ALIGNMENT starts from AUTO, recommended from your build and chassis. Each slider moves one value off it by feel: Camber F and R, Turn-in (front toe), Rear stability (rear toe) and Steering feel (caster). The box shows the number to type into the game. MANUAL takes exact values, such as an alignment already in the game; switching either way carries the numbers across.
+
+In BeamNG (`bng`):
+
+> ALIGNMENT starts from AUTO, recommended from your build and chassis. Each slider moves one value off it by feel: Camber F and R, Turn-in (front toe), Rear stability (rear toe) and Steering feel (caster). The box shows the angle to aim for: BeamNG's sliders are %, so dial each against its live alignment readout. MANUAL takes exact values; switching either way carries the numbers across.
 
 Absent note (shown while its controls are not on screen):
 
 > The sliders show under AUTO; MANUAL shows the five values to type instead.
 
-#### 10. Diff Type
+#### 9. Differential
 
-> DIFF TYPE picks the differential fitted to the car: Race, Sport, Rally, Offroad or Drift. Each has its own lock curve, so the same % gives a different effective lock; Sport is accel-only, with no decel control.
+> On Horizon, DIFF TYPE picks the differential fitted to the car (Race, Sport, Rally, Offroad or Drift): each locks differently at the same %, and Sport has no decel control. EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE). Right means more rotation on both, and the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
 
-#### 11. Corner Exit & Entry
-
-> EXIT sets on-throttle behaviour (GRIP ↔ ROTATE), ENTRY lift-off and trail-braking rotation (STABLE ↔ LOOSE; hidden on a Sport diff). Right means more rotation on both; the DIFF in the Handling Balance ENTRY and EXIT lanes follows.
-
-#### 12. AWD Centre Diff
+#### 10. AWD Centre Diff
 
 > AWD adds POWER SPLIT under CENTRE (not with a Sport diff): more rear means more oversteer. The DIFFERENTIAL card's CENTRE SPLIT box recommends a value and → USE applies it; changing Build Type moves the split with the recommendation, keeping any nudge. AWD also gets a FRONT AXLE EXIT slider; toward PUSH adds exit understeer.
 
-Absent note (no POWER SPLIT on screen):
+Absent note (shown while its controls are not on screen):
 
 > A Sport diff has no center control: pick another Diff Type to see POWER SPLIT and → USE.
 
-#### 13. VISUALS Card
+#### 11. Reading the Figures
 
-> VISUALS (in the header) holds readouts that follow the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars and damping), DYNAMICS (step response with its ±10% settle band), SAG vs LOAD (travel against load; needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll, and each alignment value on its range). Tap a header to collapse it.
+> Small figures beside each value show what the solver worked out from your sidebar: ζ and settle time on the dampers, dynamic camber, and on the springs Hz or bottom-out g, whichever you didn't set. One that would only repeat a setting is left out. Each card's header says how it was solved, its balance line what it does to entry and exit; FIGURES in the LAYOUT panel turns any figure on or off.
 
-#### 14. Handling Balance Bar
+In BeamNG (`bng`):
+
+> Small figures beside each value show what the solver worked out from your sidebar: ζ and settle time on the dampers, and on the springs Hz or bottom-out g, whichever you didn't set. One that would only repeat a setting is left out. FIGURES in the LAYOUT panel turns any figure on or off.
+
+#### 12. VISUALS
+
+> VISUALS (in the header; a tab on a phone) follows the section you edit: RIDE · ROLL · DAMPING (roll split, ride Hz, bars, damping), DYNAMICS (step response, ±10% settle band), SAG vs LOAD (needs the RIDE HEIGHT CG source) and ALIGNMENT (camber against body roll). Tap a header to fold a group, or PIN it to keep it open whichever section you edit.
+
+#### 13. Handling Balance Bar
 
 > The Handling Balance bar at the bottom of the results reads each corner phase in words: ENTRY, MID and EXIT, each PUSH (understeer), NEUTRAL or LOOSE (oversteer), the furthest from neutral in bold. On the bar, the grey tick is the car on its own; SPR, ARB and ALIGN (camber) carry it to the white MID tick. Tap it for the figures and the rows behind each.
 
-#### 15. Entry & Exit Lanes
+#### 14. Entry & Exit Lanes
 
 > Below the bar, the ENTRY and EXIT lanes start from MID and stack what acts only at each end of a corner: brakes, damping and front toe on entry, the diff and rear toe on both. Where each lane ends is that phase's word in the headline.
 
-#### 16. Reading the Results
+#### 15. Make It Yours
 
-> The results panel holds the exact values to type into the game's tuning menu. Start with the suspension: anti-roll bars, springs and dampers, from the ANTI-ROLL BARS, RIDE and DAMPERS sections. Amber means a value is near the game's limit: soften your inputs slightly.
+> LAYOUT…, under ⋯ (or ✎ after the section chips), picks what the sidebar, results and VISUALS show and in what order, pins controls to a MY CONTROLS section, and HOLDs settings so loads leave them alone. Each level and game keeps its own layout; hiding never changes the tune. The panel's ? GUIDE walks through it.
 
-#### 17. Alignment, Brakes & Diff
+#### 16. Garage & Sharing
 
-> ALIGNMENT follows your build type, BRAKES applies your Brake Bias shift and DIFFERENTIAL the locks your DRIVETRAIN settings solve for. Type them in as shown, then fine-tune by feel.
-
-#### 18. Output Toolbar
-
-> In the header, where RESET, DNA and CHECK sit under ⋯ (SHARE too, on a phone): ⟲ RESET returns the tune to defaults (saves untouched), DNA (PRO) builds a tune from handling targets, CHECK reads back a tune you already have, and SHARE handles codes and garage backups.
-
-#### 19. Garage
-
-> GARAGE (top right, or a tab on a phone) holds everything you save: a CHASSIS (weight, bias, layout), a BUILD (feel settings and diff) or a CAR (both). A car's LOAD CHASSIS and LOAD BUILD let you pair one car's chassis with another's tune, and every load is undoable with ↩.
-
-#### 20. Organizing & Searching
-
-> Entries take notes and your own tags, plus automatic ones, all searchable from the row under the save buttons, with filter and sort. ↺ rewrites an entry from your current setup as CHASSIS, BUILD or BOTH; BOTH turns a chassis entry into a full car.
-
-#### 21. Sharing & Backup
-
-> SHARE copies a code or link (COPY CODE / COPY LINK), loads one (LOAD CODE), and backs up or restores the garage as JSON (BACKUP / RESTORE). A loaded code is staged: tick the parts you want and APPLY SELECTED takes only those.
+> GARAGE (top right, or a tab on a phone) saves a CHASSIS, a BUILD or a whole CAR; LOAD CHASSIS and LOAD BUILD pair one car's chassis with another's tune, and ↩ undoes any load. Notes and tags are searchable under the save buttons. SHARE (under ⋯ on a phone) copies a tune as a code or link, loads one part by part, and backs up the garage.
 
 ### Pro <!--@steptext pro-->
 
 #### 1. Welcome — Pro Mode
 
-> PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential and Vehicle DNA. This guide covers only what's new.
+> PRO adds chassis geometry, a Mech Balance Target and the modes that solve toward it, a brake bias Centre, a manual differential, a phase-by-phase balance readout and Vehicle DNA. This guide covers only what's new.
 
 #### 2. Chassis Geometry
 
 > LOOK UP ONLINE in CHASSIS holds wheelbase and track widths, which Forza never shows; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, which moves GRIP BIAS.
 
-#### 3. Calibrating Natural Balance
+In BeamNG (`bng`):
 
-> MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check's MEASURE tab: set the springs and bars it lists in Forza, then type the Mech Balance the game shows. The reading replaces the geometry prediction; CLEAR, or ✕ beside it, drops it.
+> LOOK UP ONLINE in CHASSIS holds wheelbase and track widths; the defaults suit most cars. Track widths (and slightly tyre widths) set the Balance Guide's NATURAL; tyre width also sets each axle's grip, which moves GRIP BIAS. JBEAM ADJUST, below them, corrects for a car whose jbeam changes the tuning menu's spring number on its way to the physics.
 
-#### 4. Calibrating ARB Scale
+#### 3. Calibrating with the Game
 
-> ARB clicks are worth a different stiffness on every car. STEP 2 · ARB SCALE SETUP, in the same MEASURE tab, finds yours from four readings; pick MEASURED under SCALE IN USE to use it.
+> MEASURE NAT BAL, at the end of FROM THE GAME, opens Tune Check's MEASURE tab. STEP 1 · NAT BAL SETUP lists springs and bars to set in Forza; the Mech Balance it then shows replaces the geometry prediction (CLEAR or ✕ drops it). STEP 2 · ARB SCALE SETUP finds what an ARB click is worth from four readings; pick MEASURED under SCALE IN USE.
 
-#### 5. Mech Balance Target
+#### 4. Mech Balance Target
 
 > How far to move Forza's Mech Balance from the car's natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide's range.
+
+In BeamNG (`bng`):
+
+> How far to move Mech Balance, the rear's share of roll stiffness (BeamNG doesn't display it), from the car's natural balance (NAT): + adds rotation, − adds stability. Start inside the Balance Guide's range.
 
 Absent note (shown while its controls are not on screen):
 
 > Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or Hz MODE to MECH in RIDE.
 
-#### 6. Balance Target Mode
+#### 5. Balance Target Mode
 
 > What the target is measured from: NATURAL (offset from NAT), RANGE (the middle of the Balance Guide's range), GRIP (grip-neutral), PHASE (neutral across entry, mid-corner and exit) or MANUAL (a raw value). Balance Offset shifts RANGE, GRIP and PHASE.
 
@@ -619,7 +641,7 @@ Absent note (shown while its controls are not on screen):
 
 > Hidden now, like the target: it shows once MECH, CO-SOLVE or Hz MODE MECH is solving.
 
-#### 7. PRO ARB Balance Modes
+#### 6. PRO ARB Balance Modes
 
 > CHASSIS is WEIGHT anchored on the car's natural balance. MECH solves the bar split alone to hit your Mech Balance Target; CO-SOLVE moves rear spring Hz and the bar split together, mixed by Spring Share. An unreachable target is flagged.
 
@@ -627,15 +649,15 @@ Absent note (shown while its controls are not on screen):
 
 > Pick MECH or CO-SOLVE under Balance Mode to see the split it solves.
 
-#### 8. Hz MODE MECH
+#### 7. Hz MODE MECH
 
 > Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target. CO-SOLVE ignores it, since it solves rear Hz itself, and so does NEUTRAL CANCEL, whose bars would undo it.
 
-#### 9. Brake Bias Centre
+#### 8. Brake Bias Centre
 
-> Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK shows what the bias does to corner entry.
+> Centre sets what Brake Bias shifts from: REC the recommendation, GRIP where both axles hit their braking limit together at your Decel, ENTRY a solve for trail braking. ENTRY BRK, here and on the BRAKES card's balance line, shows what the bias does to corner entry; the card's GRIP figure is the bias that locks both axles together.
 
-#### 10. Manual Differential
+#### 9. Manual Differential
 
 > MANUAL swaps the diff sliders for lock % fields, with your diff type's typical range under each; AWD adds front, rear and Centre Split. In AUTO on AWD, Split Mode's SOLVE EXIT picks the centre split so corner exit sits where you set it against mid-corner.
 
@@ -643,23 +665,27 @@ Absent note (shown while its controls are not on screen):
 
 > The lock fields show once the diff is set to MANUAL.
 
-#### 11. Handling Balance Expanded
+#### 10. Handling Balance Expanded
 
 > Expanded, the Handling Balance bar breaks balance down by corner phase in grip-margin %, + meaning the rear lets go first. ENTRY adds brakes, MID holds chassis, springs and bars, EXIT the drive split; the tips name what to move.
 
-#### 12. Mech Balance & Response
+#### 11. Mech Balance & Response
 
 > MECH BALANCE reads balance on the game's 0–1 scale: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.
 
-#### 13. Load Transfer
+In BeamNG (`bng`):
+
+> MECH BALANCE reads balance on a 0–1 scale, the rear's share of roll stiffness: NAT the car on its own, CUR the current setup, TGT your target while something solves toward it. RESPONSE rates how quickly the car reacts to steering, PLANTED to REACTIVE.
+
+#### 12. Load Transfer
 
 > LOAD TRANSFER in VISUALS shows the loads at 1 g cornering: FRONT TAKES is the front's share of the transfer against the weight split. GRIP USE below it predicts which axle runs out of grip first on entry, mid-corner and exit.
 
-#### 14. Output Panel & Tune Check
+#### 13. Tune Check
 
-> CHECK opens Tune Check: DECODE reads back an existing tune's frequencies and damping, MEASURE holds the NAT BAL and ARB SCALE steps. SHARE stages a loaded code so you tick which parts land. RESET never touches saves.
+> CHECK, under ⋯, opens Tune Check: DECODE reads back the frequencies and damping behind a tune you already have, and MEASURE holds the NAT BAL and ARB SCALE steps.
 
-#### 15. Vehicle DNA
+#### 14. Vehicle DNA
 
 > DNA describes how a car should drive as handling targets: platform, pitch, bar share, balance, damping and diff. APPLY solves the tune that hits them on the loaded chassis, once, and ↩ undoes it. MY DNA saves one to reuse on any car.
 
@@ -688,6 +714,32 @@ Absent note (shown while its controls are not on screen):
 #### 6. Response Bar
 
 > RESPONSE rates how quickly the car reacts to steering, separately from understeer and oversteer: a neutral car can still be very planted or very reactive. PLANTED (left) is settled and predictable but slower to change direction; REACTIVE (right) turns in sharply but can feel nervous.
+
+### Layouts <!--@steptext layout-->
+
+#### 1. Layouts
+
+> A layout is a set of display choices: what shows, in what order, and which settings loads leave alone. Each level and game uses one (named here), so Horizon, Motorsport and BeamNG can each look their own way. Hiding never changes the tune, and layouts never travel in share codes or garage backups.
+
+#### 2. Hide & Order
+
+> Untick a section, or open its PARTS, to hide it: a hidden setting that differs from its default still applies, and its section says so. Drag ⠿ or use ↑ ↓ to reorder. START OPEN opens a section whenever a tune loads, and JUMP CHIP keeps its chip in the bar. EDIT ON PAGE does the same by clicking the page itself.
+
+#### 3. MY CONTROLS
+
+> ☆ beside a control pins it to MY CONTROLS, a section of its own, so the few controls you reach for sit together wherever their own sections are. ★ PINNED lists them, with ↑ ↓ to reorder.
+
+#### 4. HOLD
+
+> HOLD beside a section or control keeps its value through presets, garage loads, LOAD CODE, DNA and RESET, shown or hidden; HOLD ALL HIDDEN holds everything you've hidden. Held sections read HELD, held controls get a bar. After a load a line says what was kept: LOAD ALL takes the load's values this once (↩ undoes it), and ⚠ flags a held value whose mode changed.
+
+#### 5. Results & Figures
+
+> TUNE orders the result cards (BeamNG's rows move whole) and hides cards, rows and parts of the balance bar. FIGURES sets the smaller numbers beside each value: AUTO shows what the solver worked out and leaves out what only repeats a setting; ON and OFF fix one either way. The VISUALS tab hides VISUALS groups and their parts.
+
+#### 6. Saving Layouts
+
+> USED FOR picks the layout each level and game uses. + NEW starts a blank one and DUPLICATE copies any layout; names edit in place. ↓ EXPORT ALL saves them to a file, and ↑ IMPORT… adds a file's layouts beside yours.
 
 ### Around the guides <!--@steptext flow-->
 
@@ -765,10 +817,11 @@ therefore be unique within a guide (`tests-sections.js` checks).
 `_v1` saved bare indices, and paid for it twice: dropping the INT Key Terms cards moved INT
 saves on by two, and the spot splits would have moved later saves back by one or two. `_v1`
 is now read once, through `tutProgressFromV1`, which counts each guide without the steps in
-`TUT_ADDED_SINCE_V1` (the spot splits) to find the title it meant. Resuming goes through `openTut(mode, step)`, so
+`TUT_V1_TITLES` (each guide's steps as `_v1` counted them, frozen) to find the title it meant; a
+`_v1` step that has since gone resumes at the next one of its own that is still there. Resuming goes through `openTut(mode, step)`, so
 the `[tutMode, tutStep]` effect applies that step's sidebar, garage and section
 state exactly as stepping there would. DONE ✓ clears the tier's entry; ✕ keeps it.
-The balance guide is not tracked — it's six steps.
+The balance and Layouts guides are not tracked — six steps each.
 
 RESET (⟲) with **Tutorials** ticked sets all three tier flags and
 `suspos_baltut_seen_v1` back to `false` and clears `suspos_tutorial_step_v2`, which re-locks INT and PRO until their

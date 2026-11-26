@@ -11,6 +11,22 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — the guides: only what's new, BeamNG wording, and a Layouts guide
+
+A pass after the header, phone, layouts, figures and HOLD changes found the guides naming things
+that had gone: a section header's ↺ (now RESET, clicked twice), an "Output Toolbar" whose buttons
+had moved under ⋯, a VISUALS "card" that is now a view with PIN. INT, which says it covers only
+what's new, repeated four BEG steps, and nothing explained layouts, HOLD or the output figures.
+BeamNG ran Forza's text word for word ("which Forza never shows", "the Mech Balance the game
+shows"). BEG is now 12 steps (Getting Around maps the header; Reading the Results covers every
+card), INT 16 (merged Chassis & Build, Differential, Garage & Sharing; new Reading the Figures and
+Make It Yours) and PRO 14 (one calibration step, skipped in BeamNG; Tune Check alone). A step's
+`bng` replaces its body in BeamNG. Layouts get a guide of their own from the LAYOUT panel's
+? GUIDE, which runs over the open panel instead of hiding the reader's layout as the others do.
+The RESUME prompt counted skipped steps, so a non-AWD car finished INT on "20 / 20" and was then
+offered step 21; it now counts the steps the car runs. RESUME points saved on a removed step fall
+back to its index, clamped.
+
 ## Changed — HOLD replaces PERSIST: each setting held on its own, shown or hidden
 
 PERSIST was one switch per layout that held everything the layout hid, so keeping a value meant
