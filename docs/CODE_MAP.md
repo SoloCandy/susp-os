@@ -299,14 +299,15 @@ and `requestMode` wire it to the DNA modal (`showDnaModal`), the sidebar DNA lin
 | `Field` | numeric inputs across all sections. Its box is a `NumBox` and its slider a `SliderTrack`, as `FeelSlider`'s are; `logScale` (the weight sliders) passes `SliderTrack` a `scale`. Its wheel stepping is its own `stepBy`, not `wheelStepOf`: the log-scale step grows past 6000, the lb midpoint, which never applies in kg. A `Field` with a slider prints its `min` / `max` under the track (`fieldEnd`). `stacked` (paired F/R fields sharing a row) gives the label line a fixed 18px height, so an `onCopyFront` field's `= F` button (`CopyFrontBtn`, which the tyre size boxes show as `= FRONT`; the full word truncates a stacked rear label) doesn't push its box below its partner's |
 | `NumBox` | Field's always-visible number box on its own: shows the value, commits an edited draft on Enter/blur clamped to `min`/`max`, Escape cancels, never commits an unedited draft. An empty value (non-finite) shows `placeholder`. A `seed` (MEASURE's readings: the value the app expects) replaces that placeholder, greyed, and fills the box on focus; a seeded box — or one with `commitOnEdit` — commits only once it has been **edited** (`editedRef`), not when its draft differs, so tabbing through leaves the reading unset and typing the expected value itself still commits. "Edited" comes from `onInput`, not `onChange`: React drops an `onChange` whose value equals the last one it saw, so pasting a box's own text over itself wouldn't count. `onEnter` runs after Enter commits; every `.num` box keeps a visible border, so an empty one still shows where it is. Rendered by every `Field` and `FeelSlider`, and by Tune Check's MEAS. NAT BAL. The unit beside every `.num` box (`NUM_UNIT_STYLE`) keeps a two-character slot even when empty, so boxes with `lb`, `%` or no unit end at one right edge; `.sidebar-scroll` reserves its scrollbar gutter (`scrollbar-gutter: stable`) so that edge, and every selector's column count, doesn't jump when a section opens |
 | `FeelSlider` | BEG feel sliders, every INT/PRO slider that isn't a `Field`, and the DNA editor. Always renders a `NumBox` beside the label, CHASSIS-style; `readout` is secondary text to its left; the track is a `SliderTrack`, given its `bands` / `refs`. `box` sets the unit and can override `value`/`onCommit`/`min`/`max`/`dp` where the stored field isn't the slider's (Target Speed, POWER SPLIT, INDEPENDENT's effective Hz) |
-| `OptionSeg` | every option selector in the sidebar: a `role="group"` of `.tog` buttons in equal columns. One row while the longest label fits a column, otherwise the fewest balanced rows (6 → 3 + 3, 5 → 3 + 2), never a 5 + 1 wrap. It measures its own width (`ResizeObserver`) and estimates label width from character count (`SEG_CH`, `.tog`'s 11px mono plus tracking), so a new label needs no tuning. Distinct from PhaseVerdict's local `Seg`, a `BiasSeg` preset |
+| `OptionSeg` | every option selector in the sidebar: a `role="group"` of `.tog` buttons in equal columns. One row while the longest label fits a column, otherwise the fewest balanced rows (6 → 3 + 3, 5 → 3 + 2), never a 5 + 1 wrap. It measures its own width (`ResizeObserver`) and estimates label width from character count (`SEG_CH`, `.tog`'s 11px mono plus tracking), so a new label needs no tuning. Inside a `Hide` it also drops the layout's hidden choices (`HIDE_OPTS`, by each button's `data-opt`) before counting columns, keeping the selected one (`.opt-kept`, dashed) and, in the edit view, fading them all (`.opt-off`). Distinct from PhaseVerdict's local `Seg`, a `BiasSeg` preset |
 | `Toggle` | a labelled `OptionSeg`: the label and ⓘ on their own line, the buttons under it. Hand-built selectors (Stiffness Mode, Balance Mode, Hz Mode, Diff Type, …) follow the same label-above layout around their own `OptionSeg` |
 | `SliderTrack` | the track under every `Field` and `FeelSlider`: the range input, its fill, the markers, their label row and the end labels; the label row and box above stay with each caller. Markers are of two kinds. `bands` are zone rows (see the Zone tables below), with a tick at each inner edge, each label centred in its region, and the active region underlined, its label bright. `refs` (`{value, label?, prio?}`) are fixed points, always drawn, a labelled one a button that sets the slider to it and bright while the value sits on it. They replaced a single `markers` prop whose ticks lit once the value passed them, which read backwards wherever a label named the region below its tick (Settle Target). After layout, labels that collide are hidden by priority (a ref the value sits on, the active region, refs by their `prio`, the other regions) and pulled inside the track's ends, re-run only when the active region, the labels or the track width change. `aria-valuetext` is the caller's `valueText` plus the active region's or reference point's label |
 | Zone tables (`HZ_ZONES`, `ZETA_ZONES` with `ZETA_REFS`, `SETTLE_ZONES` with `settleGrade`, `BUMP_RATIO_ZONES`, `WEIGHT_BIAS_TYPICAL`, `BIAS_CENTRE_LABEL`, and the builders `zoneAround` / `typicalMarks`) | module-level `[lo, hi, colour, label]` rows. `zoneAround(lo, hi, label)` makes a one-region table for a single band (TYPICAL, RANGE); `typicalMarks(r)` turns a `DIFF_TYPE_RANGES` pair into SliderTrack props, a point where the pair is one value — the shape `VisTrack`'s and `SliderTrack`'s `bands` both take — so a slider and the readout or VISUALS track grading the same quantity read one table. `tests-docs.js` fails if a graded slider stops passing its table by name, or any slider passes a literal bands array. `SliderTrack` ignores the colour column: it shows the active region by brightness |
 | `SliderEnds`, `sliderPosOf`, `withUnit` | the end labels under every slider (`FeelSlider`'s `leftLabel` / `rightLabel`, `Field`'s range), the CSS `left` that lines a tick or label up with the thumb's centre at a value, and a number with its unit, spaced as the end labels are (none before `%`, `°`, `×`, `÷`) |
-| `Sec` | the nine collapsible sidebar sections (`div.stog` header). Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it. RESET is a two-click button at least 64×26 px: the first click turns it into a filled amber SURE? for 5 seconds. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a HIDE / SHOW button of the same size for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
+| `Sec` | the ten collapsible sidebar sections (`div.stog` header), MY CONTROLS included. Every call spreads `{...secProps(key)}` from `App`: `hid` (its `SECTION_VIS` key), `vis` (`show` / `stub` / `none`, from `secVis`) with `onShow`, and `hiddenChanged` / `onShowHidden` for the line about changed controls hidden inside it, and `pinned` / `onPinJump`: how many of its controls show in MY CONTROLS. With any, its body stays mounted out of sight while it is shut or hidden (the pinned controls are built there), and when open it starts with "★ n in MY CONTROLS" and GO. RESET is a two-click button at least 64×26 px: the first click turns it into a filled amber SURE? for 5 seconds. In the layout edit view (`LayoutCtx.edit`) the header still collapses and expands it, and RESET's place holds a HIDE / SHOW button of the same size for the whole section; a hidden section stays shut and faded until it is shown again. Hooks run before the early returns, so a section's hook order never changes with its visibility |
 | `HiddenStub` | the one-line notice for hidden settings that still apply: amber dot, optional title, `text`, SHOW. Used for a whole hidden section that `sectionChanged` says differs from its defaults ("hidden · changed settings still apply"), and for changed controls hidden inside a shown one (`hiddenChangedIn`) |
-| `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` is the app's only React context: `{edit, guide, isHidden(id), toggle(id)}`, provided by `App` (an empty hidden list while a guide runs, and `guide` set). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, inside a dashed indigo outline (faded and grey-dashed when hidden). The edit view also frames the sidebar and `zone-output` (`.layout-editing`) and pins the sidebar's ✎ EDITING LAYOUT bar (`data-layout-edit-bar`), so it reads as a different mode without hover — touch has none. While a guide runs it renders the edit view's two levels without the button or `inert`, carrying `data-hid`, so a step's spots can find the part (see [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)). `inline`, `style` and `bodyStyle` only shape those wrappers. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
+| `LayoutCtx`, `Hide` | the layout edit view. `LayoutCtx` (beside `HideIdCtx`, which tells an `OptionSeg` which `Hide` it is in) is `{edit, guide, isHidden(id), toggle(id), isPinned(id), pinOn, togglePin(id)}`, provided by `App` (an empty hidden list while a guide runs, and `guide` set). `Hide id` wraps one hideable part: in the regular view it renders its children unwrapped, or nothing when hidden; in the edit view the children sit `inert` under a full-cover `.hz-btn` that toggles the id, inside a dashed indigo outline (faded and grey-dashed when hidden). The edit view also frames the sidebar and `zone-output` (`.layout-editing`) and pins the sidebar's ✎ EDITING LAYOUT bar (`data-layout-edit-bar`), so it reads as a different mode without hover — touch has none. While a guide runs it renders the edit view's two levels without the button or `inert`, carrying `data-hid`, so a step's spots can find the part (see [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts)). `inline`, `style` and `bodyStyle` only shape those wrappers. A pinned id (`isPinned`, while `pinOn`) renders through a portal into its MY CONTROLS slot instead; in the edit view a pinnable part gets a ☆ / ★ button (`togglePin`). See "MY CONTROLS" under Layouts. **Never nest one `Hide` in another**: the inner one would be inert. That is why `Card` and `Sec` carry their own header toggles |
+| `LayoutPanel` | the layout panel (── LayoutPanel ──, before `MenuButton`). Rendered by `App` while `layoutPanel` holds a tab, absolute over the tune pane beside the garage drawer's slot (full width on a phone, above the views, under the header). It is not modal and owns only view state (open section rows, a two-tap delete, a status line): every change goes straight to `layoutStore` through props, so the sidebar and output update live. The SIDEBAR / TUNE / VISUALS tabs list `HIDE_ITEMS` by `sec` and `label`, filtered by `hideIdApplies(id, tier, game)`, as checkboxes (ticked = shown); the SIDEBAR tab also reorders sections and sets START OPEN and JUMP CHIP per section (`editLayout` is `App`'s `editActiveLayout`); LAYOUTS holds the tier × game assignment, rename, DUPLICATE, DELETE, NEW, EXPORT ALL and IMPORT (`importLayouts`). Escape or DONE closes it; so do a guide starting, BEG, opening the garage, and on a phone any tab |
 | `hid` on `OutRow` / `Card` | the output panel's hideable parts. `OutRow hid` goes through `Hide`; `RowGroup` drops hidden `OutRow` children (by their `hid` prop) in the regular view and renders nothing once none are left. `Card hid` puts the toggle on the header only, so the rows stay clickable, and a `<Keep>` child (the card's warnings) still renders on its own when the card is hidden. `Card` always puts `data-hid` on its root, for guide spots. `SuspensionCard` / `AlignCard` / `DiffCard` take `hid` and give their rows theirs |
 | `SrcHead` | `group` (`HIDE_ITEMS` ids) drops the header in the regular view once everything under it is hidden |
 | `SrcHead` | a group header inside a `Sec` naming where its inputs come from. PRO's CHASSIS uses three: FROM THE GAME, LOOK UP ONLINE and ESTIMATES (the last only when MANUAL CG or `physMode` puts something in it). Below PRO CHASSIS has none |
@@ -401,7 +402,7 @@ untagged paragraphs must hold for the entry's own tier, and anything higher goes
 ## Sidebar zones and tier gating
 
 Every spotlightable region carries an `id="zone-…"`, used by the tutorial
-system for focus/dimming. There are 20 in the source; which exist in the DOM
+system for focus/dimming. There are 21 in the source; which exist in the DOM
 depends on the tier.
 
 - **All tiers**: `zone-garage` — the right-side GARAGE drawer (on a phone, the GARAGE view). It is *not* part
@@ -415,7 +416,8 @@ depends on the tier.
 - **BEG** renders its own flat panel: `zone-layout-build`, `zone-build-type`,
   `zone-weight`, `zone-ride-stiffness`, `zone-balance`, `zone-character`, plus
   `zone-output` and `zone-balance-bar`. No `Sec` sections at all, and no VISUALS.
-- **INT** switches to the sectioned sidebar: `zone-chassis`, `zone-build`,
+- **INT** switches to the sectioned sidebar: `zone-mine` (MY CONTROLS, only while the layout pins
+  something; never during a guide), `zone-chassis`, `zone-build`,
   `zone-brakes`, `zone-alignment`, `zone-drivetrain`, `zone-arb`, `zone-feel`, `zone-damping`,
   plus output and balance bar, and `zone-visuals` — not in the sidebar but its own column
   or view (`visualsPanel`), present only while VISUALS is shown.
@@ -468,21 +470,23 @@ note in DRIVETRAIN listing the locks in use instead of a blank diff section.
 INT/PRO BUILD section (safe only because the two were mutually exclusive on
 `uiMode`); both copies went when the factory presets moved into the GARAGE panel.
 
-Sections are collapsed on load — `open` is plain `useState`, not persisted.
+Sections are collapsed on load, except those the active layout starts open (its `startOpen`, read by
+`open`'s initialiser, so only a load applies it) — `open` is plain `useState`, not persisted.
 
 `open` holds two unrelated kinds of flag. The collapsible **sidebar sections** —
-exactly one per `Sec`, nine — are listed in `SECTION_KEYS`
+exactly one per `Sec`, ten — are listed in `SECTION_KEYS`
 beside the initialiser. The rest are not sections: `balanceExpanded` (the balance
 detail overlay), `factoryOpen` and `dnaSavedOpen` (the GARAGE factory list and the DNA modal's MY DNA drawer), the `vis*` groups
 inside VISUALS, and `visuals` itself. **`visuals` stays in the initialiser though nothing reads it:**
-VISUALS left the sidebar for its own column or view and left `SECTION_KEYS` with it (so SECTIONS
-`+`/`−` don't open or close it), but it keeps its `SECTION_VIS` row, because stored hidden lists name
+VISUALS left the sidebar for its own column or view and left `SECTION_KEYS` with it (so collapse /
+expand all don't open or close it), but it keeps its `SECTION_VIS` row, because stored hidden lists name
 it, and the guide effect writes an `open` key for every `SECTION_VIS` row.
 
-**The SECTIONS `−`/`+` buttons walk `SECTION_KEYS`, not `Object.keys(open)`.**
+**Collapse / expand all walk `SECTION_KEYS`, not `Object.keys(open)`.** They are COLLAPSE and
+EXPAND under SECTIONS in the header's ⋯ (`moreItems`), once the sidebar's SECTIONS `−`/`+`.
 They used to blanket-toggle every key, which reached every one of those: `+` popped the
 balance overlay and every visualisation card open, `−` closed the factory list.
-Neither is what a control labelled SECTIONS should move, and the blast radius grew
+Neither is a section, and the blast radius grew
 with every flag added to the object.
 
 **Adding a `Sec` means adding its key to `SECTION_KEYS` *and* to the initialiser.**
@@ -493,23 +497,127 @@ and the only symptom was `+` not opening that one section, in PRO only — with 
 tutorial step that writes the key papering over even that. `tests-docs.js` checks
 the initialiser against every `open.*` and `tog('...')` use in the source.
 
-### Layout edit view (hiding sections, controls and output parts)
+### Section jump bar
 
-EDIT in the SECTIONS row sets `layoutEdit` (plain state, never stored) and the row becomes a
-banner with SHOW ALL and DONE; a strip with a second DONE sits at the top of `zone-output`.
-In the edit view every hideable part is drawn, and a click toggles it in this tier's hidden
-list. Sections stay collapsible there (VISUALS included); a whole section hides through the
-small HIDE button in its header. The view exits on DONE, Escape, a tier change, or a guide starting, and BEG never has
-it. It replaced the SECTIONS modal, which could hide whole sections only.
+INT and PRO draw a row of chips at the top of `.sidebar-scroll`, sticky, one per section this
+tier renders and `secVis` shows, in `sidebarOrder`, except those the active layout leaves off
+(`noChip`; a hidden section, or its stub, gets none either, and `visuals` never does). Chip text is the row's `label`, or `JUMP_LABEL` where that is too long. A chip runs
+`jumpTo`: it makes the section the active one (so VISUALS follows, as `tog` does), opens it if it
+is shut, and after that render scrolls the section's `zone-*` (`SEC_ZONE`) to just under the bar.
+The scroll divides out `uiZoom`, since `getBoundingClientRect` is zoomed and `scrollTop` is not,
+and waits on a timeout rather than an animation frame, which was skipped outright in testing.
+It never closes anything; lit chips are the open sections. A last chip, ✎, opens the layout panel. The row wraps (two lines at the
+sidebar's usual width) instead of scrolling sideways, so no chip is out of sight with a mouse.
+It is not drawn in the edit view, whose pinned bar takes the same place, or while a guide runs,
+since the guide scrolls and spotlights sections itself and a sticky row would sit over the
+section it scrolls to the top.
+
+### Layouts: the layout panel and the on-page edit view
+
+What is hidden lives in **layouts** (── Layouts ──): named sets of a hidden list and a PERSIST
+switch, `suspos_layouts_v1`. Each tier with the edit view (INT, PRO) picks one per game in
+`assign`, so FH, FM and BeamNG can differ. `App` resolves the **active layout** from `uiMode` and
+`fe.gameMode` (`layoutGame`); BEG has none. `hiddenHere` is its hidden list filtered to ids this
+tier renders (`hideIdValid`), and is what `LayoutCtx`, `secVis`, the stubs and PERSIST read;
+`hiddenCount` counts only what this game can show (`hideIdApplies`, which also reads a row's
+`games`). A layout may hold ids of every tier, so one layout can serve INT and PRO. Every edit
+goes through `editActiveLayout` (`setManyHidden`, `setSecHidden`, `showAllHere`, `setPersist`).
+
+Two ways to edit it:
+- **The layout panel** (`LayoutPanel`, `layoutPanel` = its open tab): LAYOUT… under SECTIONS in
+  ⋯, the ✎ chip at the end of the jump bar, or LAYOUT on the output panel's "N output parts
+  hidden" note (TUNE tab). It lists every part by its `HIDE_ITEMS` `label`, other modes' parts
+  included, so a control can be hidden without first selecting its mode, and marks a hidden part
+  that still applies (`layoutChangedIds`, from `sectionChanged` / `hiddenChangedIn`).
+- **The on-page edit view** (`layoutEdit`, EDIT ON PAGE in the panel): it opens the sidebar
+  (`goView('inputs')` on a phone), and while it is on ⋯'s item reads ✓ DONE EDITING. The top of
+  the sidebar becomes a pinned bar (✎ EDITING LAYOUT, the layout's name, SHOW ALL, DONE) over a
+  banner; a strip with a second DONE sits at the top of `zone-output`. Every hideable part is
+  drawn, and a click toggles it in the active layout. Sections stay collapsible there (VISUALS
+  included); a whole section hides through the small HIDE button in its header. It exits on DONE,
+  Escape, a tier change, or a guide starting. It replaced the SECTIONS modal, which could hide
+  whole sections only.
+
+Neither runs during a guide or in BEG, and each ends the other.
+
+**Section order, start-open and chips.** Besides `hidden` and `persist`, a layout holds `order`
+(every `LAYOUT_SECS` key once), `startOpen` and `noChip` (subsets). The sidebar's section blocks
+are written in their default order, each wrapped as it stands in a keyed fragment of one map,
+`secEl`, which the render draws in `sidebarOrder`: the active layout's `order`, or `LAYOUT_SECS`
+in BEG and while a guide runs (steps place their cards by where a section sits as well as by its
+id). The page order is the drawn order, so Tab follows it. `startOpen` is read once, by `open`'s
+initialiser. In the panel's SIDEBAR tab each section has a ⠿ handle (pointer events, so mouse,
+pen and touch alike, with `touch-action: none`; the list redraws in the landing order while it
+moves and scrolls at its edges), ↑ ↓, START OPEN and JUMP CHIP; RESET ORDER restores
+`LAYOUT_SECS`. A tier moves only the sections it renders: BALANCE keeps its slot while INT
+reorders around it, so one layout serves both tiers.
+
+**Output order (`outOrder`).** A layout orders the output panel per family of games
+(`outFamily`): Forza (Horizon and Motorsport) moves its six cards, keyed by their `HIDE_ITEMS`
+ids, and BeamNG moves its front | rear grid's three rows (`bng.drive`: brakes and diffs,
+`bng.susp`: the mode summary, both suspension cards and the ARB caveat, `bng.align`) whole, so a
+front card always sits beside its rear one and `BeamngGrid`'s pairing still lines up. The Forza
+cards are wrapped like the sidebar's sections, each as written in a keyed fragment of `outEl`;
+the BeamNG rows are fragments inside the grid, which add no grid items. `outOrder` is the
+layout's, or `OUT_ORDER_DEF` in BEG and during a guide. The panel's TUNE tab has CARD ORDER ·
+FORZA or ROW ORDER · BEAMNG (↑ ↓, RESET ORDER) for the current game.
+
+**Hidden choices (`HIDE_OPTS`).** A selector's single choices can be hidden too. `HIDE_OPTS` maps
+a control's `HIDE_ITEMS` id to its choices, `[value, label, {tiers, games}?]`, and a choice's id
+is `control:value` (`arb.balMode:mech`), stored in `hidden` like any other id and as permanent:
+retire one, never reuse it. `optOf` reads one back; `hideIdValid` / `hideIdApplies` take a
+choice where its control applies and its own gates allow (CHASSIS / MECH / CO-SOLVE are PRO,
+BASIC is Forza's). Each choice button carries `data-opt="value"`; `Hide` provides its id through
+`HideIdCtx`, and `OptionSeg` drops the hidden ones before working out its columns, so the rest
+close up. The choice selected now always stays, dashed and titled, so a selector never reads as
+having nothing picked; switching away hides it. The panel shows a control's choices as chips under
+its row (lit = shown). A choice never holds anything for PERSIST. `tests-sections.js` checks every
+`data-opt` against the table and every listed control for tagged buttons.
+
+**VISUALS parts.** Inside a VISUALS group, `VisPart id` hides one piece (a `HIDE_ITEMS` row
+`visuals.<group>.<part>`: RIDE · ROLL · DAMPING's roll split and each track, ALIGNMENT's two
+charts, LOAD TRANSFER's diagram and tables, GRIP USE's notes). It is not a `Hide`, because the
+group is one and Hides don't nest, so it has no edit-view toggle; the panel's VISUALS tab lists it
+under its group. ALIGNMENT is a hideable group now too (`visuals.align`, Forza only, in
+`VIS_HIDE_ID`). Lift and ⚠ lines stay outside every `VisPart`.
+
+**MY CONTROLS (`mine`).** A `SECTION_VIS` row with no fields, first in `LAYOUT_SECS`, and a
+`Sec` of its own in `secEl`, drawn only while the active layout pins something this tier and
+game can show (`minePins`, `mineShown`) and never during a guide. A layout's `pins` are
+`HIDE_ITEMS` ids of sidebar controls (`pinnable`: not ⋯, output, bar or VISUALS parts). **A
+pinned control is still built by its home section**: `Hide` finds its slot
+(`[data-pin-slot="id"]`, one per pin in MY CONTROLS' body) after each commit and portals its
+children there, wrapped in `data-pin-home` so `noteActiveSec` credits the home section, not
+MY CONTROLS. So every prop, closure and handler stays as written, and nothing about a control
+has to be duplicated. The price is that the home section must render its body: `secProps`
+passes `pinned` (how many of its controls are on show in MY CONTROLS), and `Sec` keeps the body
+mounted with `display:none` while it is shut, a stub or hidden outright. That is also what lets
+a layout hide ANTI-ROLL BARS and keep ARB Bias. An open home section starts with "★ n in MY
+CONTROLS" and GO (`jumpTo('mine')`).
+
+`pinOn` (MY CONTROLS shown, not the edit view, not hidden) gates the portals; otherwise pinned
+controls stay at home. In the on-page edit view every pinnable part carries ☆ / ★ (`.hz-pin`)
+and MY CONTROLS shows only a note. A pin applies only where its control renders, so one whose
+mode isn't selected leaves an empty slot (`:empty`, no room). Pinning shows the control if it
+was hidden, and a layout's first pin adds `mine` to `startOpen` and opens it. A pinned control is
+in sight, so PERSIST doesn't hold its fields (`heldFields`' `pinned`) and a hidden home section
+whose only changes are pinned leaves no stub (`sectionChanged`'s `pinned`). MY CONTROLS is
+never the active section (`tog`, `jumpTo`), and the guide effect leaves its open state alone.
 
 Two tables under `── Section visibility ──` say what can be hidden:
 
 - **`SECTION_VIS`**: every sidebar section, which tiers render it, and the fields it owns.
   It drives each `Sec`'s RESET (`sectionDefaults`), whether a whole hidden section leaves a
-  stub (`sectionChanged`), and which stored keys survive a reload (`repairHidden`). A new
-  `Sec` needs a row here as well as in `SECTION_KEYS`.
+  stub (`sectionChanged`), and which stored keys survive a reload (`repairLayouts`). A new
+  `Sec` needs a row here as well as in `SECTION_KEYS`, and its block an entry in the render's
+  `secEl` map (see "Section order" below), or it never renders — `tests-sections.js` checks the
+  map against `LAYOUT_SECS`. Its row also puts it in `LAYOUT_SECS`, so stored
+  layouts take it in next to its default neighbour (`repairSecOrder`).
 - **`HIDE_ITEMS`**: every single part, one row per `<Hide id>` / `hid=` in the render. `sec`
-  is its `SECTION_VIS` key, or `toolbar` / `output` / `bar`. `fields` (`[state, keys]`) are
+  is its `SECTION_VIS` key, or `toolbar` / `output` / `bar`. `label` is its name in the layout
+  panel; `games` (`GAMES_FORZA`, `GAMES_BNG`, or Horizon alone for the diff type) lists the games
+  it renders in where that is not all three, so the panel doesn't offer a part this game can't
+  show. Both are display only and may change; `tests-sections.js` requires a label on every row. `fields` (`[state, keys]`) are
   the settings the control writes. They belong to its own section or to no section's RESET
   (`arbManF`/`R` and `springShareAuto` are in none). `live(st, tier)`, where given, says the
   fields apply right now: CG Height is computed while its source is RIDE HEIGHT, and Rebound ζ
@@ -540,11 +648,12 @@ read-outs, the ARB NEUTRAL read-outs) are not.
 
 `App`'s `secVis(key)` and `LayoutCtx` both treat everything as shown while `guideOn` (a tier
 guide or the balance guide) is set, so a guide's spotlight always finds its zone and its
-spots. EDIT is disabled during either guide, and BEG never hides anything.
+spots. LAYOUT… is disabled during either guide, a guide starting closes the panel and the edit
+view, and BEG never hides anything.
 
-**PERSIST: hidden settings hold their values.** The switch above the edit banner
-(`suspos_persist_v1`, one for INT and PRO) makes everything in the current tier's hidden list
-keep its value through every `commit()`: apply DNA, a FACTORY preset, LOAD BUILD / CHASSIS,
+**PERSIST: hidden settings hold their values.** Each layout's own switch (`persist`, in the
+panel's header and above the edit banner) makes everything in the active layout's hidden list
+valid in this tier keep its value through every `commit()`: apply DNA, a FACTORY preset, LOAD BUILD / CHASSIS,
 LOAD CODE, CHECK's import and ⟲ RESET all go through it. `heldFields(hidden, tier)` (after
 `repairHidden`) turns the list into `{ch, fe, dr, al}` keys. A hidden section holds its own
 fields plus every item's in it, which is how a hidden ANTI-ROLL BARS holds `arbManF` / `arbManR`
@@ -554,7 +663,8 @@ fields plus every item's in it, which is how a hidden ANTI-ROLL BARS holds `arbM
 The hold is applied in the recording setters (`setCh` / `setFe` / `setDr` / `setAl` →
 `holdWrite`). While `inCommitRef` is set, a write keeps each held key at its pre-commit value
 (`snapRef.current`) and records it in `keptRef`. `commit` then sets `persistNote` (the sidebar's
-"PERSIST kept n…" line), or clears it. It is applied per write, not as a second update after the
+"PERSIST kept n…" line, naming the layout that held), or clears it. A load that switches game
+is held by the layout active before it. It is applied per write, not as a second update after the
 load, because each write is compared with the pre-commit snapshot: a second update could not tell
 the load's changes from the held keys'.
 `holdWrite` returns an updater, so `usePersist` applies it to the latest value and several
@@ -571,7 +681,7 @@ view can't hide, drawn as `data-spot="…"`. `SEC_ZONE` maps an item's `sec` to 
 key, and the `[tutMode, tutStep]` effect opens sections from it. `spotCss(spot, zones)` is
 the stylesheet `App` renders while a step has spots. So a `HIDE_ITEMS` id is also a
 tutorial target: retiring one means checking `TUTORIALS` too, which `tests-sections.js`
-does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts). The stored lists are `suspos_hidden_v1`, per tier; see
+does. See [TUTORIALS.md](TUTORIALS.md#spots-single-controls-cards-and-bar-parts). The stored layouts are `suspos_layouts_v1`; see
 [PERSISTENCE.md](PERSISTENCE.md).
 
 ---
@@ -592,7 +702,8 @@ SUSP.OS │ INPUTS VISUALS TUNE │ ··· │ HORIZON · PRO ▾ │ ↩ ↪ SH
   `requestMode`, keeping the 🔒 gating and `lockTitle`), then UNITS…, which opens the units
   modal and shows the current units under it.
 - **Actions**, `zone-toolbar`: ↩ ↪ (`tb.undo`), SHARE (`tb.share`, `openShare`) and ⋯, which holds
-  DNA (`tbDna`), CHECK (`tbCheck`) and ⟲ RESET (`tb.reset`) — RESET away from undo. `actMenuForced`
+  DNA (`tbDna`), CHECK (`tbCheck`), then in INT / PRO a SECTIONS group (LAYOUT…, COLLAPSE,
+  EXPAND), then ⟲ RESET (`tb.reset`) — RESET away from undo. `actMenuForced`
   holds ⋯ open while a guide step spotlights one of those three. In the edit view, hidden
   `tbDna` / `tbCheck` show inside ⋯ with the usual HIDE / SHOW treatment.
 - **? menu:** GUIDE (`askTut`), GLOSSARY (`glossaryBridge.open`, focus returning to ?), then
@@ -611,7 +722,7 @@ MOTORSPORT label. **Re-measure the spacer at 768 and 900 before adding anything 
 
 **Phones (`isMobile`)** get one 48 px row, `phoneHeader()`: SUSP.OS, the same game · level chip
 (short game name), and `zone-toolbar` with ↩, ↪ (from 360 px; below it REDO moves into ⋯) and
-⋯. On a phone ⋯ holds SHARE, then DNA / CHECK / RESET, then the help items, and carries the
+⋯. On a phone ⋯ holds SHARE, then the same `moreItems` as desktop, then the help items, and carries the
 update dot, since ? has no room of its own. Both menus open as a `sheet`: fixed 10 px in from
 the screen edges, because a panel hung off a button near the edge of a 320 px screen would
 run off it. ☰, VIS, GARAGE, TERMS and the GitHub button left the phone header for the bottom
@@ -789,8 +900,8 @@ Special ones — a three-deep migration chain plus its two sentinels:
 ...parsed}`), so a partial object in storage is valid and missing keys fall
 back to their default. A key that is *present but invalid* is not checked —
 `usePersist`'s optional third argument `repair` is the opt-in for that, run once
-before the first render; `fe` passes `repairFe` (`gameMode` only) and the layout
-edit view's hidden lists pass `repairHidden`. See
+before the first render; `fe` passes `repairFe` (`gameMode` only) and the
+layouts pass `repairLayouts`, among others. See
 [PERSISTENCE.md](PERSISTENCE.md).
 
 `storageFull` is a module-level store beside `usePersist`, not React state: every
@@ -806,6 +917,13 @@ refusals so ✕ (`storageDismissed`) hides the banner only until the next one.
 Everything in this section **looks** dead to a search-based audit and is not.
 Each entry is load-bearing for users with existing saved state or shared
 codes. If you are cleaning up dead code, this is the list to check first.
+
+**`suspos_hidden_v1`, `suspos_persist_v1`, `repairHidden`, `DEF_HIDDEN`** — the per-tier hidden
+lists and the single PERSIST switch from before layouts. Nothing writes them, and only
+`legacyLayouts` reads them, to build the INT and PRO layouts the first time. `suspos_layouts_v1`
+is not written until a layout changes, so until then every load rebuilds from these keys; deleting
+them, or the read, silently empties a user's layout. They also let an older copy of the app keep
+its own lists.
 
 **`arbBalMode: 'man'`** — a retired enum value. It stays at its original index
 in `ARB_BAL_MODE_DEC` so old share codes still decode to the right string;

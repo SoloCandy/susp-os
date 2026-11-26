@@ -12,12 +12,13 @@ The merge fills keys the stored object is **missing**; it does not check the one
 that are present, so a persisted value that is invalid rather than absent beats its
 default on every reload. The optional third argument, `repair`, runs once on the
 rehydrated value **before the first render** for callers that need a key validated.
-Two keys pass one. `suspos_fe_v8` passes `repairFe`, for `gameMode`, because that
+Several keys pass one. `suspos_fe_v8` passes `repairFe`, for `gameMode`, because that
 one key's bad value used to crash the app rather than fall through to a default —
 see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for the rest, which still have the hole.
-`suspos_hidden_v1` passes `repairHidden`, which keeps only ids valid for each tier
-(`SECTION_VIS` keys and `HIDE_ITEMS` ids), because its lists are arrays and
-`mergeDefaults` replaces arrays whole.
+`suspos_layouts_v1` passes `repairLayouts`, which drops unknown ids, renews duplicate or
+malformed layout ids, caps the count and fills every tier × game assignment, because its lists
+are arrays and `mergeDefaults` replaces arrays whole. The legacy `suspos_hidden_v1` it is first
+built from goes through `repairHidden` (only ids valid for each tier) on that one read.
 
 A repair must live here rather than in a mount effect: an effect runs too late to
 protect the first render. See [HISTORY.md](HISTORY.md).
@@ -45,8 +46,9 @@ Writes outside `usePersist` (the migration sentinels) are not tracked.
 | `suspos_dr_v8` | Drivetrain state (`dr`) — build type, diff type, diff lock/bias fields, POWER SPLIT's `diffSplitMode` / `diffExitTarget` (a `diffComplement` left by the retired MATCH CHASSIS is ignored), and BRAKES' `brakeStock`, `brakeBiasShift`, `brakeCentre`, `brakeDecel`, `brakeEntryTarget`, and ALIGNMENT's `alignManual`, MANUAL values `alignMan*` and intent offsets `alignOfs*`, all in the model's toe sign (+ = toe-in; see [ALIGNMENT.md](ALIGNMENT.md)), and `alignToeV2`, the toe-sign migration's marker. The key's repair runs `migrateLegacyAl` then `migrateToeSign`: a stored `dr` without `alignToeV2`, in MANUAL, in a Forza mode, has its MANUAL toe negated once, because it was typed as Forza's number and read the other way | `DEF_DR` |
 | `suspos_al_v2` | Legacy alignment state (`al`: `mode` build/mech/grip/manual, `nudgeStrength`, MANUAL `camberF`…`caster`, `alignManual`) — **read-only**. `migrateLegacyAl`, `suspos_dr_v8`'s repair, reads it while the stored `dr` has no `alignManual` key, taking MANUAL and its angles (MECH/GRIP → AUTO); the first `dr` write ends that. Never written or deleted | — |
 | `suspos_units_v2` | Per-category display units from the UNITS modal: `{mass:'lb'\|'kg', spring:'lbin'\|'nmm'\|'kgfmm', length:'in'\|'cm', speed:'mph'\|'kmh'}` | all-imperial, or all-metric if `suspos_units_v1` was `true` |
-| `suspos_hidden_v1` | What the layout edit view hides, one list per tier that has it: `{intermediate:[…], pro:[…]}` of `SECTION_VIS` keys (whole sections) and `HIDE_ITEMS` ids (single controls, toolbar buttons, output cards and rows, balance-bar parts). The shape and key are unchanged from when only sections could be hidden, so lists stored then still load; the ids are permanent for the same reason. `repairHidden` drops unknown ids, duplicates and ids from another tier (BALANCE, ALIGNMENT and the PRO-only controls). Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | `{intermediate:[], pro:[]}` |
-| `suspos_persist_v1` | The layout edit view's PERSIST switch: while `true`, everything in the current tier's hidden list (`heldFields`) keeps its value through every `commit` — loads, DNA, LOAD CODE, CHECK's import, ⟲ RESET. One switch for INT and PRO; BEG holds nothing | `false` |
+| `suspos_layouts_v1` | Saved layouts and which one each tier and game uses: `{layouts:[{id, name, hidden, persist, order, startOpen, noChip, pins, outOrder}], assign:{intermediate:{horizon, motorsport, beamng}, pro:{…}}}`. `hidden` is a list of `SECTION_VIS` keys (whole sections), `HIDE_ITEMS` ids (single controls, ⋯ items, output cards and rows, balance-bar parts, VISUALS groups and their parts) and choice ids (`control:value`, from `HIDE_OPTS`); ids of every tier may sit in one layout, and a tier ignores the ones it doesn't render. `persist` is that layout's PERSIST switch: while `true`, everything in its hidden list valid in the current tier (`heldFields`) keeps its value through every `commit` — loads, DNA, LOAD CODE, CHECK's import, ⟲ RESET; BEG has no layout and holds nothing. `order` is every sidebar section key (`LAYOUT_SECS`, all `SECTION_VIS` rows but `visuals`) once, the sidebar's order; a stored order missing a key gets it back after its nearest default predecessor. `startOpen` lists the sections a load opens; `noChip` the sections the jump bar leaves out (stored as the exceptions, so a section added later gets a chip). `pins` lists the `HIDE_ITEMS` ids of sidebar controls pinned to MY CONTROLS (`mine`, itself one of the ordered sections), in their order there; ids of other parts are dropped. `outOrder` is `{forza:[…], beamng:[…]}`: the Forza output cards' ids (`out.card.*`), and BeamNG's three grid rows (`bng.drive`, `bng.susp`, `bng.align`), each repaired like `order`. At most `LAYOUT_MAX` layouts, names up to `LAYOUT_NAME_MAX` characters. Not written until something changes, so until then each load rebuilds it from the two legacy keys below. The panel's EXPORT ALL file is `{kind:'suspos-layouts', version:1, layouts:[{name, hidden, persist, order, startOpen, noChip, pins, outOrder}]}` (a file without the last five gets the defaults); import adds under new ids. Display only: hiding never changes the tune, and nothing here travels in share codes or the garage backup | built from `suspos_hidden_v1` / `suspos_persist_v1` (`legacyLayouts`): layouts INT and PRO, each tier on its own for every game |
+| `suspos_hidden_v1` | **Legacy, read only.** The per-tier hidden lists from before layouts: `{intermediate:[…], pro:[…]}`, repaired by `repairHidden`. Read once to build `suspos_layouts_v1`'s INT and PRO layouts; never written, kept so an older copy of the app still finds its lists | `{intermediate:[], pro:[]}` |
+| `suspos_persist_v1` | **Legacy, read only.** The single PERSIST switch from before layouts; copied into both migrated layouts. Never written | `false` |
 | `suspos_units_v1` | Legacy IMP/MET boolean — **read-only**, seeds the `_v2` default once | `false` (imperial) |
 | `suspos_saves_v9` | Legacy preset save slots — **read-only**, first link in the migration chain below | `PRESET_SAVES` |
 | `suspos_uimode_v1` | Current complexity tier (`beginner`/`intermediate`/`pro`) | `'beginner'` |
@@ -257,8 +259,8 @@ on the way in; writing to `suspos_garage_v2` directly bypasses that and can cras
 the garage cards, which is worth knowing before hand-editing the key.
 
 The backup holds garage entries only. UI and tutorial state (`suspos_uimode_v1`,
-`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v2`, `suspos_hidden_v1`, …) is per-device and
-deliberately not included.
+`suspos_tutorial_seen_v1`, `suspos_tutorial_step_v2`, `suspos_layouts_v1`, …) is per-device and
+deliberately not included. Layouts have their own file, the layout panel's EXPORT ALL.
 
 ## Share links (`#t=`) persist nothing
 

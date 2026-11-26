@@ -384,9 +384,10 @@ section('sidebar sections and zones');
 
 check('every open.* key used is initialised in the open useState', () => {
   // The exact shape of a real bug: ALIGNMENT rendered and toggled fine, but the
-  // SECTIONS +/- buttons iterate Object.keys(open), so a key absent from the
-  // initial object was skipped by expand-all until something else wrote it.
-  const init = /const\[open,setOpen\]=useState\(\{([^}]*)\}\)/.exec(SRC);
+  // SECTIONS +/- buttons (now collapse / expand all under ⋯) iterated Object.keys(open), so a
+  // key absent from the initial object was skipped by expand-all until something else wrote it.
+  // The initialiser may be a function (it adds the layout's start-open sections).
+  const init = /const\[open,setOpen\]=useState\((?:\(\)=>\()?\{([^}]*)\}/.exec(SRC);
   if (!init) return 'could not find the open useState initialiser';
   const declared = new Set(topLevelKeys(init[1]));
   const used = new Set();
