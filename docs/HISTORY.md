@@ -11,6 +11,17 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Fixed — a strip of tune cards above the balance bar on the phone INPUTS view
+
+Switching to INPUTS could leave a band of TUNE cards showing between the end of the inputs and
+the balance bar. The inputs pane sits over the tune and stops `barH` above the bottom, and the
+bar folds its stack in the same render that switches the tab; `barH` came only from a
+ResizeObserver, whose update landed a frame later, so that frame drew the pane too short. A phone
+did not always repaint the band away afterwards, and with every section collapsed nothing else in
+the pane redrew it. The bar is now re-read in a layout effect before paint, and the tune and
+VISUALS hide by `visibility` while INPUTS or GARAGE covers them, so there is nothing under a gap
+to show and the hidden cards are out of the tab order.
+
 ## Changed — a jump-bar chip closes its section; no TUNE button in the desktop header
 
 A chip only ever opened its section and went to it, so closing one meant finding its header. A

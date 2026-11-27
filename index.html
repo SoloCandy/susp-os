@@ -10970,6 +10970,10 @@ function App(){
   // goView writes them together. Every view stays mounted (the panes are stacked and hidden by
   // visibility), so each keeps its scroll position across tabs.
   const mobileView=garagePanelOpen?'garage':sidebarOpen?'inputs':(!visWide&&visShown)?'visuals':'tune';
+  // The tune cards and VISUALS sit under the INPUTS and GARAGE panes rather than unmounting, so
+  // on those tabs they hide by visibility as the panes do: nothing to show through a gap above
+  // the balance bar, and out of the tab order.
+  const phoneCovered=isMobile&&(garagePanelOpen||sidebarOpen);
   const goView=v=>{
     setGaragePanelOpen(v==='garage');
     setSidebarOpen(v==='inputs');
@@ -11012,17 +11016,22 @@ function App(){
     return()=>{document.removeEventListener('focusin',on);document.removeEventListener('focusout',off);};
   },[isMobile]);
   // The balance bar's height: on a phone the inputs view stops above it, so the balance summary
-  // stays in sight while you edit.
+  // stays in sight while you edit. Re-read after every render, before paint, as well as by the
+  // ResizeObserver: the bar changes height in the same render that switches tabs (its stack
+  // folds on INPUTS), and the observer's update lands a frame later. That frame left a strip of
+  // tune cards between the inputs view and the bar, and a phone did not always repaint it away.
   const[barH,setBarH]=useState(0);
-  const barRO=useRef(null);
+  const barRO=useRef(null),barEl=useRef(null);
+  const measureBar=()=>{const el=barEl.current;if(!el)return;
+    const h=Math.round(el.getBoundingClientRect().height);setBarH(o=>o===h?o:h);};
   const barMeasureRef=useMemo(()=>el=>{
-    barRO.current?.disconnect();barRO.current=null;
+    barRO.current?.disconnect();barRO.current=null;barEl.current=el;
     if(!el)return;
-    const measure=()=>{const h=Math.round(el.getBoundingClientRect().height);setBarH(o=>o===h?o:h);};
-    measure();
-    barRO.current=new ResizeObserver(measure);
+    measureBar();
+    barRO.current=new ResizeObserver(measureBar);
     barRO.current.observe(el);
   },[]);
+  useLayoutEffect(()=>{if(isMobile)measureBar();});
   // Which groups can render now: the same gates the groups use, and not hidden in the edit view.
   const sagAvail=!!ch.useRideHeightCG&&parseTyre(ch.tyreF)?.radius!=null&&parseTyre(ch.tyreR)?.radius!=null;
   const VIS_HIDE_ID={visDna:'visuals.dna',visRide:'visuals.ride',visDynamics:'visuals.dynamics',visSag:'visuals.sag',
@@ -12258,7 +12267,8 @@ function App(){
     const secLabel=activeSec?SECTION_VIS.find(x=>x.key===activeSec)?.label:null;
     return(
       <div id="zone-visuals" style={{display:'flex',flexDirection:'column',minHeight:0,background:'#020617',
-        ...(col?{width:visColW,flexShrink:0,borderRight:'1px solid #0f172a'}:{flex:1}),...dim('visuals')}}>
+        ...(col?{width:visColW,flexShrink:0,borderRight:'1px solid #0f172a'}:{flex:1}),...dim('visuals'),
+        ...(phoneCovered?{visibility:'hidden'}:{})}}>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:isMobile?'6px 8px':'6px 12px',
                      borderBottom:'1px solid #0f172a',flexShrink:0,minHeight:isMobile?48:37}}>
           <span style={{fontSize:11,letterSpacing:2,color:'#9ca3af'}}>VISUALS</span>
@@ -14913,7 +14923,7 @@ function App(){
 
           {/* cards — scrollable */}
           <div id="zone-output" data-hint-bound ref={outMeasureRef} className={editing?'layout-editing':undefined} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',padding:'8px 10px 6px',minHeight:0,...dim('output'),
-            ...(!visWide&&visShown?{display:'none'}:{})}}>
+            ...(!visWide&&visShown?{display:'none'}:{}),...(phoneCovered?{visibility:'hidden'}:{})}}>
           {/* containerType lets the output layouts query this div's own rendered width (not the
               viewport's), which depends on the sidebar as much as the window — see the
               .beamng-grid and .forza-out rules in <style>. A container cannot query itself, so

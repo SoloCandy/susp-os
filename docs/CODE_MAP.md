@@ -811,9 +811,13 @@ Below 768 px the body shows one full-screen view at a time, picked by the bottom
   INPUTS, TUNE, GARAGE and VISUALS views with no guide change.
 - **Panes are stacked and stay mounted.** INPUTS is the sidebar as a full-width absolute pane,
   GARAGE `zone-garage` the same, both hidden by `visibility` (no slide); VISUALS and TUNE share
-  the output panel as on a tablet. Each keeps its scroll position across tabs.
+  the output panel as on a tablet. Each keeps its scroll position across tabs. While INPUTS or
+  GARAGE is up, `zone-output` and `zone-visuals` under them hide by `visibility` too
+  (`phoneCovered`), so no tune card can show through and none is in the tab order.
 - **The balance bar stays under INPUTS.** The inputs pane stops `barH` above the bottom (a
-  ResizeObserver on `zone-balance-bar`), and the bar shows only its summary there; tapping it
+  ResizeObserver on `zone-balance-bar`, plus a layout effect that re-reads it before paint on
+  every phone render, since the bar folds in the same render that switches the tab), and the
+  bar shows only its summary there; tapping it
   opens TUNE with the stack open. GARAGE covers it. The bar's safe-area padding moved to the
   tab bar.
 - **Keyboard.** While a text-like field has focus (`kbOpen`, from `focusin` / `focusout`) the
