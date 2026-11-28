@@ -121,7 +121,7 @@ when the current mode ignores it.
 | EXIT · pushes on power | diff EXIT toward ROTATE · AWD power split rearward · stiffer rear / softer front roll |
 | EXIT · tail steps out on power | diff EXIT toward GRIP · AWD power split forward · softer rear roll *(less rear roll stiffness keeps the inside rear loaded)* |
 
-**The mode decides the lever.** Under ARB Balance Mode MECH or CO-SOLVE, or Hz MODE MECH, the
+**The mode decides the lever.** Under ARB Balance Mode MECH or CO-SOLVE, or RIDE BALANCE MECH, the
 solver holds the Mech Balance Target, and ARB Bias does nothing. There the roll-balance proposal
 moves the target (Balance Offset or the MANUAL target, per Balance Target Mode). Under ARB
 Stiffness Mode MAN, it moves the bar clicks directly. Each proposal names the control it actually

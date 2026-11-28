@@ -40,7 +40,7 @@ its own, so Beginner falls back to `DEF_FE`'s 70%. Four presets did exactly
 that until they were converted — see [HISTORY.md](HISTORY.md).
 It also forces `rearHzMode:'multiplier'` — omitted from this list until an
 audit caught it. That one matters for the Rear Hz Mult column below: a preset
-authored under a different Hz mode still lands on MULTIPLIER in Beginner, so
+authored under a different Ride Balance mode still lands on MULTIPLIER in Beginner, so
 the ratio shown is the one actually applied there.
 
 | # | Name | Build Type | Diff Type | Ride Stiffness | Rear Hz Mult | Damping Char | Notes |

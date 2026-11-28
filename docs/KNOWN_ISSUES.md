@@ -922,7 +922,7 @@ Only the displays are affected: nothing that sets an output reads the target whi
 solves toward it.
 
 The MECH BALANCE strip draws TGT only while something solves toward the target (MECH or CO-SOLVE
-under a non-MAN Stiffness Mode, or Hz MODE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks
+under a non-MAN Stiffness Mode, or RIDE BALANCE MECH). VISUALS' ROLL SPLIT and the RIDE Hz / ARB tracks
 draw the green target tick, label and rings whenever `feEffective.arbBalTarget` differs from NAT,
 and `resolveFeEffective` always resolves it. An untouched target is natural itself, so on a
 fresh build there is no mark. A target set in PRO (any offset, or RANGE, GRIP, PHASE or MANUAL)
@@ -1218,7 +1218,7 @@ Three states have no exact form on the new axle, and the switch does the nearest
 thing instead:
 
 - **CO-SOLVE with the rear clamped at the band edge.** CO-SOLVE derives the rear
-  from the front, so there is no Hz mode to rehome. Under FRONT the rear can ask
+  from the front, so there is no Ride Balance mode to rehome. Under FRONT the rear can ask
   for more than `HZ_MAX` and run at it; anchored on the rear at `HZ_MAX`, the front
   is re-solved to the one that asks for exactly `HZ_MAX`, which is softer (5.00 →
   3.73 Hz on a heavy FWD car). The clamp itself is not flagged under CO-SOLVE
@@ -1231,7 +1231,7 @@ thing instead:
   few ticks either side to keep both snapped springs. Sometimes no grid point does:
   a state reached from REAR can sit off the FRONT grid between two snap boundaries.
   One spring then moves a single 500 N/m step (about 0.004–0.007 Hz). The pre-snap
-  Hz still hold within 0.002 Hz, and the Hz mode is left alone.
+  Hz still hold within 0.002 Hz, and the Ride Balance mode is left alone.
 
 Widening the multiplier's 0.50–3.00 would close the second case, but it is
 `sanitizeTune`'s clamp, the slider's range and the DNA `pitchRatio` axis at once,

@@ -375,7 +375,7 @@ Welcome card and live in the glossary.
 | 2 | Chassis & Build | `chassis`, `build` | `chassis.layout` / `.weight` / `.frontBias` / `.tyres` / `.cgSource`, `build.type` | | Layout / weight / bias in CHASSIS; CG height source; what Build Type steers. `bng` drops Forza's screen and the diff type. |
 | 3 | ARB Stiffness & Balance Mode | `arb` | `arb.mode` / `.basic` / `.roll` / `.share` / `.manF` / `.manR` / `.balMode` / `.neutralMethod` | | Stiffness modes AUTO / BASIC / ROLL ° / SHARE % / MAN; WEIGHT / NEUTRAL split. |
 | 4 | ARB Bias & Visuals | `arb`, `visuals` | `arb.bias`, `visuals.ride` | | ARB Bias; where the roll split and ARB track live in VISUALS. |
-| 5 | Ride Ref & Rear Hz | `feel` | `ride.ref` / `.hzMode` / `.targetSpeed` / `.hzMult` / `.hzMan` | | RIDE REF.; Hz MODE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
+| 5 | Ride Ref & Rear Hz | `feel` | `ride.ref` / `.hzMode` / `.targetSpeed` / `.hzMult` / `.hzMan` | | RIDE REF.; RIDE BALANCE MULTIPLIER / FLAT RIDE / INDEPENDENT / SHARED. |
 | 6 | Dampers | `damping` | `dampers.reboundZeta` / `.bumpRatio` / `.bias` | | Rebound ζ, Bump Ratio, Damping Bias and DAMP in the ENTRY lane. |
 | 7 | Brakes | `brakes` | `brakes.stock` / `.bias` | | Brake Bias: a STABLE ↔ ROTATE shift from the recommendation; STOCK for a car without race brakes. |
 | 8 | Alignment | `alignment` | `align.mode` / `.ofsCamberF` / `.ofsCamberR` / `.ofsToeF` / `.ofsToeR` / `.ofsCaster` | | AUTO's five intent sliders and MANUAL; switching carries the numbers across. Absent note under MANUAL. `bng`: BeamNG's % sliders against its live readout. |
@@ -398,7 +398,7 @@ Welcome card and live in the glossary.
 | 4 | Mech Balance Target | `balance-target` | `balance.targetNat` / `.guide` | | Offset from NAT, start inside the Balance Guide's range. Absent note while nothing solves toward the target. `bng`: Mech Balance is the app's figure there. |
 | 5 | Balance Target Mode | `balance-target` | `balance.targetMode` / `.offset` / `.targetAbs` / `.exitLoad` | | NATURAL / RANGE / GRIP / PHASE / MANUAL, Balance Offset. Same absent condition as step 4. |
 | 6 | PRO ARB Balance Modes | `arb` | `arb.balMode` / `.springShare` / `.mechSplit` / `.coSolveSplit` / `.coSolveCorr` | | CHASSIS, MECH, CO-SOLVE; Spring Share; unreachable targets flagged. Absent note until MECH or CO-SOLVE is picked. |
-| 7 | Hz MODE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
+| 7 | RIDE BALANCE MECH | `feel` | `ride.hzMode` | | Hz MECH, and the two modes that ignore it. It spotlit RIDE, BALANCE and VISUALS at once, which ran off the screen. |
 | 8 | Brake Bias Centre | `brakes` | `brakes.centre` / `.decel` / `.entryTarget` / `.entryBrk` | | Centre REC / GRIP / ENTRY; ENTRY BRK in the sidebar and on the BRAKES card; the card's GRIP figure. |
 | 9 | Manual Differential | `drivetrain` | `drive.diffMode` / `.splitMode` and the seven `drive.man*` | | MANUAL lock % fields (AWD adds front, rear and Centre Split); Split Mode's SOLVE EXIT in AUTO. Absent note until the diff is MANUAL. |
 | 10 | Handling Balance Expanded | `balance-bar` | `bal.tip` / `.rows`, `bar.phase` | | Opens the expanded panel. Grip-margin % by phase (ENTRY / MID / EXIT) and what each phase adds; tips. |
@@ -541,7 +541,7 @@ In BeamNG (`bng`):
 
 #### 5. Ride Ref & Rear Hz
 
-> RIDE REF. picks the axle the stiffness slider sets: FRONT, SHARED (the average) or REAR. Hz MODE derives the other: MULTIPLIER (fixed ratio, default), FLAT RIDE (less pitch bounce at Target Speed), INDEPENDENT (set by hand; not with SHARED) or SHARED (needs RIDE REF. SHARED and BOTTOM G's).
+> RIDE REF. picks the axle the stiffness slider sets: FRONT, SHARED (the average) or REAR. RIDE BALANCE derives the other: MULTIPLIER (fixed ratio, default), FLAT RIDE (less pitch bounce at Target Speed), INDEPENDENT (set by hand; not with SHARED) or SHARED (needs RIDE REF. SHARED and BOTTOM G's).
 
 #### 6. Dampers
 
@@ -631,7 +631,7 @@ In BeamNG (`bng`):
 
 Absent note (shown while its controls are not on screen):
 
-> Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or Hz MODE to MECH in RIDE.
+> Hidden now: the target shows only while something solves toward it. Set Balance Mode to MECH or CO-SOLVE in ANTI-ROLL BARS, or RIDE BALANCE to MECH in RIDE.
 
 #### 5. Balance Target Mode
 
@@ -639,7 +639,7 @@ Absent note (shown while its controls are not on screen):
 
 Absent note (shown while its controls are not on screen):
 
-> Hidden now, like the target: it shows once MECH, CO-SOLVE or Hz MODE MECH is solving.
+> Hidden now, like the target: it shows once MECH, CO-SOLVE or RIDE BALANCE MECH is solving.
 
 #### 6. PRO ARB Balance Modes
 
@@ -649,9 +649,9 @@ Absent note (shown while its controls are not on screen):
 
 > Pick MECH or CO-SOLVE under Balance Mode to see the split it solves.
 
-#### 7. Hz MODE MECH
+#### 7. RIDE BALANCE MECH
 
-> Hz MODE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target. CO-SOLVE ignores it, since it solves rear Hz itself, and so does NEUTRAL CANCEL, whose bars would undo it.
+> RIDE BALANCE MECH, in RIDE, derives the other axle's Hz from the Mech Balance Target. CO-SOLVE ignores it, since it solves rear Hz itself, and so does NEUTRAL CANCEL, whose bars would undo it.
 
 #### 8. Brake Bias Centre
 

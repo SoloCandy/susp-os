@@ -93,8 +93,18 @@ banner in `index.html`, and used everywhere rather than retyped:
 | `C_ERR` | light red `#f87171` | an error or hard failure (bottomed out, bad input) |
 | `C_GOOD` | green `#4ade80` | in range, matched, target met |
 | `C_TAG` | grey `#94a3b8` | a neutral category tag (ROAD, MED…) |
-| `CAT_RAMP` | greys `#64748b` → `#e2e8f0` | an ordered scale with no good/bad meaning: soft → stiff, low → high |
-| `T_MUTED` / `T_FAINT` | `#7c8aa0` / `#64748b` | secondary text (hints, units, sub-headers) / the dimmest text allowed |
+| `CAT_RAMP` | greys `#72829a` → `#e2e8f0` | an ordered scale with no good/bad meaning: soft → stiff, low → high. Its first step is `T_FAINT`'s value, since the ramp colours text tags (SOFT, BOUNCY, OFF) too |
+| `T_MUTED` / `T_FAINT` | `#7c8aa0` / `#72829a` | secondary text (hints, units, sub-headers) / the dimmest text allowed (separators, sub-labels, unlit options, toolbar buttons) |
+
+Every text grey clears 4.5:1 (WCAG AA) on the panels text sits on, `#020617`, `#0a0f1a` and
+`#0f172a`: `T_MUTED` is 5.8:1 / 5.5:1 / 5.1:1, `T_FAINT` 5.2:1 / 4.9:1 / 4.6:1. Neither does on a
+`#1e293b` fill (4.2:1 and 3.7:1), so text on one uses `#94a3b8` (5.7:1). Text is made quieter by
+colour, never by `opacity`, which takes it under the floor: the LOAD TRANSFER table's reference
+rows were 2.5:1 at 0.55. The CSS rules `.tbtn`, `.lp-head`, `.lp-seg button`, `.lp-opt.off` and
+`.num::placeholder`, and the pre-React loading and error screens, repeat `T_FAINT`'s hex because
+CSS can't read the constant. `#334155` and `#475569` are border and fill colours only. The
+guide's 12% dimming of the zones it is not showing is exempt: it marks them as not part of the
+step, not as something to read.
 
 Red is no longer a balance colour, so a large oversteer number doesn't read as a fault.
 Character axes that are neither balance nor good/bad — RESPONSE, the Balance Guide's
