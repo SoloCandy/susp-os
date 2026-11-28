@@ -11,6 +11,48 @@ reintroduce this”. Newest first, matching the order they were written in.
 > Nothing in this file describes current behaviour. If an entry here seems to
 > contradict the app, the app is right and the entry is history.
 
+## Changed — Hz MODE is now Ride Balance
+
+The RIDE control that derives the second axle's Hz (MULTIPLIER, FLAT RIDE, INDEPENDENT, SHARED,
+MECH) is labelled **Ride Balance**, and every hint, glossary entry, guide step and warning that
+named it says RIDE BALANCE. Only words changed. `rearHzMode`, the Layouts id `ride.hzMode`, and the
+glossary ids `hz-mode` and `hz-multiplier` stay, so saves, share codes, layouts and `term=` links
+read as before. The glossary entry says "formerly Hz MODE", so a search for the old name still
+finds it. The PRO guide step Hz MODE MECH is now RIDE BALANCE MECH. A RESUME saved on the old
+title falls back to its saved index, which is the same step, and `TUT_V1_TITLES` carries the new
+title, so a v1 migration still lands there too.
+
+## Changed — the phone INPUTS view shows springs and bars in the balance bar
+
+While you edited on a phone, the balance bar's headline stayed in view and updated live, but the
+spring and bar values a ride or ARB slider moves were only on TUNE. The bar now adds one row under
+the headline there: SPR F / R and ARB F / R, in the game's own units (Forza springs in the UNITS
+spring unit, Forza bars in clicks of the game's limit, amber past 88% as on the card, BeamNG in
+N/m). It updates during a drag. It is drawn only where the stack is folded, so TUNE doesn't show
+it twice, and it is part of the tap target that opens TUNE. It fits one line at 360 px in every
+unit. All the places that print a spring or bar now share `springOutAx` / `arbOutAx`.
+
+## Fixed — secondary text under 4.5:1
+
+A contrast audit of every rendered text node against its real background found text below WCAG
+AA's 4.5:1 that the earlier colour pass (below, "Text greys darker than `#64748b` are gone")
+had not reached, and showed that pass's figures were off. `#64748b`, the old `T_FAINT`, is
+4.2:1 on the base `#020617` and 3.75:1 on `#0f172a`. It had come back as about twenty literals,
+in the glossary, the DNA window, sidebar notes and the warning summary. `T_MUTED` is not "5:1 on
+every panel" either: it is 4.2:1 on a `#1e293b` fill. The worst offenders were outside the
+tokens. `.tbtn`'s base colour `#6b7280` (4.2:1) set every header and toolbar button. The PRO
+MECH BALANCE strip's F / R labels were `#1e293b` on `#0a0f1a` (1.3:1, effectively invisible).
+The LOAD TRANSFER table's reference rows were dimmed with `opacity:0.55` (2.5:1).
+
+`T_FAINT` is now `#72829a` (5.2:1 on `#020617`, 4.6:1 on `#0f172a`), and the literals,
+`SLI_LBL_OFF`, `CAT_RAMP`'s first step, `.tbtn`, the Layout panel's `.lp-*` rules, the input
+placeholder and the loading and error screens use that value. The FACTORY LOAD button's text on
+its `#1e293b` fill is `#94a3b8`. The MECH BALANCE labels are `T_FAINT`, and the dimmed table rows
+are `T_FAINT` by colour instead of opacity. `T_MUTED` and every meaning colour are unchanged. The
+audit covered BEG, INT and PRO in Horizon and BeamNG, desktop and every phone view, every section
+open, and every header button and menu item opened in turn. Only disabled controls and the
+guide's 12% dimming of zones outside the step are left below the floor.
+
 ## Fixed — a strip of tune cards above the balance bar on the phone INPUTS view
 
 Switching to INPUTS could leave a band of TUNE cards showing between the end of the inputs and

@@ -331,7 +331,7 @@ is out of reach, an amber note under Entry vs MID, `{end}` 40 or 68:
 
 > Recommended target band for your layout and build: a set amount of at-limit understeer or oversteer either side of GRIP TARGET, given below as grip margin. RANGE mode aims at its middle. It moves slightly with spring stiffness, as GRIP TARGET does.
 
-> TARGET when MECH or CO-SOLVE ARB Balance Mode, or Hz MODE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural. If the springs and bars can't reach a TARGET, an orange line gives what they reach.
+> TARGET when MECH or CO-SOLVE ARB Balance Mode, or RIDE BALANCE MECH, solves toward it; otherwise CURRENT, your car's achieved balance. Δ is its distance from natural. If the springs and bars can't reach a TARGET, an orange line gives what they reach.
 
 MEASURE NAT BAL sits in CHASSIS (see above), not here.
 
@@ -421,7 +421,7 @@ following RIDE REF.:
 
 > Front spring frequency, the reference; the mode below derives the rear. Typical: 1.0–1.8 Hz street, 1.8–2.6 Hz track.
 
-**Hz MODE** — the base text, then the sentence PRO adds:
+**RIDE BALANCE** — the base text, then the sentence PRO adds:
 
 > Derives the other axle's Hz. MULTIPLIER: fixed ratio. FLAT RIDE: less pitch bounce at Target Speed. INDEPENDENT: by hand. SHARED: same bottom-out g.
 
@@ -644,7 +644,7 @@ intent offset; terms under 0.005° left out except the build base), e.g. `Camber
 
 **SPRINGS:**
 
-> Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Hz mode and ride reference; rows give what those leave to the solver (Hz under BOTTOM G's, rear ÷ front under FLAT RIDE).
+> Spring rates in the UNITS spring unit, for the tuning menu. Badge: stiffness band, or CLAMPED / LIFT RISK. The header names the Ride Balance mode and ride reference; rows give what those leave to the solver (Hz under BOTTOM G's, rear ÷ front under FLAT RIDE).
 
 **DAMPERS:**
 

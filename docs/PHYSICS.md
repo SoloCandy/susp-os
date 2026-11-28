@@ -850,7 +850,8 @@ axle's Hz, which CO-SOLVE can move.
 
 ## Rear/secondary Hz modes
 
-`fe.rearHzMode` picks which of these derives the non-anchored axle's
+`fe.rearHzMode` (the RIDE section's **Ride Balance** control, Hz MODE before it was
+renamed) picks which of these derives the non-anchored axle's
 frequency (dispatch lives in `feelToPhysics`):
 
 - **FLAT RIDE** (`flatRideRearHz` / `flatRideSharedHz`)
@@ -888,7 +889,7 @@ frequency (dispatch lives in `feelToPhysics`):
   | 3.0 Hz front, 70 mph | ×2.07 (hit `HZ_MAX`) | ×1.35 |
   | stock chassis, 30 mph | ×3.39 | ×1.54 |
 
-  FLAT RIDE **was** the default Hz mode when this bug was found, so it was
+  FLAT RIDE **was** the default Ride Balance mode when this bug was found, so it was
   also the app's out-of-box state: a fresh install put the rear axle in the
   RACE band while the front sat in ROAD, and the handling balance bar read
   **+14.9 oversteer** before the user touched anything. `tests.js` pins the
@@ -1511,9 +1512,9 @@ front / 120mm rear) regardless of whether the RIDE HEIGHT → CG toggle is on
 — it doesn't require the SAG vs LOAD chart to be visible to work, though the
 two are the same underlying model and should always agree.
 
-This mode is also what makes the SHARED **Hz mode** (as opposed to SHARED
+This mode is also what makes the SHARED **Ride Balance mode** (as opposed to SHARED
 RIDE REF.) meaningful — see [Rear/secondary Hz modes](#rearsecondary-hz-modes)
-above. That Hz mode only surfaces here, since it needs a per-axle bottom-out
+above. That Ride Balance mode only surfaces here, since it needs a per-axle bottom-out
 g to equalise rather than a Hz ratio to hold.
 
 Unlike RIDE REF., this is **not** a display-only toggle — `fe.rideStiffMode`
@@ -1583,21 +1584,21 @@ The three RIDE REF. buttons hand the slider the Hz the car is already on, read
 **before** BeamNG's spring snap (`physics.frontHz`, and `tune.rHzTarget` for the
 rear, which also carries CO-SOLVE's rear where `physics.rearHz` does not). Under
 CO-SOLVE the bisection above makes that exact. Outside it, re-anchoring alone is
-exact only while the Hz mode can re-derive the other axle from the new reference.
+exact only while the Ride Balance mode can re-derive the other axle from the new reference.
 A derived axle clamped at the band edge cannot be re-derived: FRONT 5.00 ×1.60 asks
 for an 8.00 rear and runs 5.50, and anchoring the rear at 5.50 put the front at
 5.50 / 1.60 = 3.44.
 
 So `rideRefSwitch` solves each candidate and checks it lands within
-`RIDE_REF_HOLD_TOL` (0.002 Hz) of both axles. When it misses, the Hz mode is rehomed
+`RIDE_REF_HOLD_TOL` (0.002 Hz) of both axles. When it misses, the Ride Balance mode is rehomed
 to MULTIPLIER at the ratio the car is running, or — outside MULTIPLIER's
 0.50–3.00 — INDEPENDENT holding the derived axle by hand. That's the same "only the
 control changes, not the car" rule the INDEPENDENT ↔ SHARED and BOTTOM G's rehoming
-already followed. A switch that holds keeps the user's Hz mode. In the
+already followed. A switch that holds keeps the user's Ride Balance mode. In the
 physical-unit modes the car is the snapped springs, so the stiffness is also tried
 a few ticks either way on its 0.001 Hz grid to find a value that seats both. When
 none does (a SHARED stiffness moves both axles at once), the pre-snap check is
-enough, and the Hz mode is left alone. The ratio it seeds goes through
+enough, and the Ride Balance mode is left alone. The ratio it seeds goes through
 `holdHzMult`, as do `holdHzRatio` and the MULTIPLIER Hz-mode button's ratio. That
 puts it on a 0.0001 grid rather than 0.01, a step worth up to ~0.01 Hz on the
 derived axle. An INDEPENDENT Hz goes through `hzToRs` onto the same 0.001 Hz grid
@@ -1719,6 +1720,6 @@ anchoring in particular has a dedicated test section, since it was the site
 of a prior legacy-formula regression guard). The Hz-mode dispatch inside
 `feelToPhysics` is not tested from `tests.js` — only the underlying functions
 each mode calls into — but `tests-ride.js` drives the real `feelToPhysics` and
-`computeTune` through every Hz mode and Ride Reference: the CO-SOLVE inversion,
+`computeTune` through every Ride Balance mode and Ride Reference: the CO-SOLVE inversion,
 `rideRefSwitch` holding both axles, and `bottomGStep`. React UI has no coverage
 beyond the source-text checks those suites make on its wiring.
